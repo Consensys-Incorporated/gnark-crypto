@@ -45,6 +45,16 @@ func CompressPoseidon2x16(matrix []koalabear.Element, colSize int, result []Hash
 	compressPerm.Compressx16(matrix, colSize, result)
 }
 
+// CompressPoseidon2x16Columns is the column-major-input variant of
+// CompressPoseidon2x16: the matrix is laid out matrix[col*16+lane] (the 16
+// lanes of a given column are contiguous), so the AVX-512 kernel loads each
+// Poseidon2 rate coordinate with a contiguous VMOVDQU32 instead of a
+// VPGATHERDD. Semantics (feed-forward MD chain, output) are identical to
+// CompressPoseidon2x16; only the input layout differs.
+func CompressPoseidon2x16Columns(matrix []koalabear.Element, colSize int, result []Hash) {
+	compressPerm.Compressx16Columns(matrix, colSize, result)
+}
+
 // HashPoseidon2 returns a Poseidon2 hash of an array of field elements. The
 // input is zero-padded so it should be used only in the context of fixed
 // length hashes to avoid padding attacks.

@@ -467,3 +467,52 @@ func (h *Permutation) compressx16Generic(matrix []fr.Element, colSize int, resul
 		copy(result[i][:], x[i][:8])
 	}
 }
+
+// Compressx16Columns is a variant of Compressx16 that expects the input matrix
+// in column-major (leaf-contiguous) layout: matrix[col*16+lane] holds leaf
+// lane of column col, so the 16 leaves of a column are 16 contiguous elements.
+//
+// This is the layout a Merkle commitment naturally produces (16 contiguous
+// leaves per column) and lets the AVX-512 kernel load each Poseidon2 rate
+// coordinate with a single contiguous VMOVDQU32 instead of a gather. The gather
+// is the dominant cost of Compressx16 (VPGATHERDD is microcoded and saturates
+// the memory subsystem), so this variant is substantially faster and, unlike
+// the gather kernel, scales with the number of cores.
+//
+// The result is written in the same row-major [16][8] layout as Compressx16:
+// result[lane] is the 8-element digest of leaf lane.
+func (h *Permutation) Compressx16Columns(matrix []fr.Element, colSize int, result [][8]fr.Element) {
+	if len(matrix) != 16*colSize || len(result) != 16 || colSize%8 != 0 {
+		panic("invalid input: matrix must be 16*colSize, result must be 16, colSize must be multiple of 8")
+	}
+
+	// Only the AMD64 AVX-512 kernel exists for this layout; otherwise fall back
+	// to the generic implementation.
+	if runtime.GOARCH != "amd64" || !h.params.hasFast16_6_21 {
+		h.compressx16ColumnsGeneric(matrix, colSize, result)
+		return
+	}
+
+	nbSteps := uint64(colSize / 8)
+	permutation16x16xN_columns_avx512(&matrix[0], h.params.RoundKeys, &result[0][0], nbSteps)
+}
+
+// compressx16ColumnsGeneric is the pure-Go fallback for Compressx16Columns.
+func (h *Permutation) compressx16ColumnsGeneric(matrix []fr.Element, colSize int, result [][8]fr.Element) {
+	var x [16][16]fr.Element
+	nbSteps := colSize / 8
+	for step := range nbSteps {
+		for lane := range 16 {
+			for j := range 8 {
+				x[lane][8+j] = matrix[(step*8+j)*16+lane]
+			}
+			h.Permutation(x[lane][:])
+			for j := range 8 {
+				x[lane][j].Add(&x[lane][8+j], &matrix[(step*8+j)*16+lane])
+			}
+		}
+	}
+	for lane := range 16 {
+		copy(result[lane][:], x[lane][:8])
+	}
+}
