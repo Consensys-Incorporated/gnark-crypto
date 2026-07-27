@@ -616,7 +616,16 @@ func (f *FFAmd64) generatePoseidon2_F31(params Poseidon2Parameters) {
 //
 // Here the 16 independent states are transposed into AVX-512 vectors:
 // v[j][lane] == state[lane][j].
-func (_f *FFAmd64) generatePoseidon2_F31_16x16xN(params Poseidon2Parameters) {
+// generatePoseidon2_F31_16x16xN generates the compression kernel. When gather is
+// true it emits permutation16x16xN_avx512, which reads a row-major matrix
+// (leaf per row) and transposes the 16 lanes with VPGATHERDD. When gather is
+// false it emits permutation16x16xN_columns_avx512, which reads a column-major
+// matrix (matrix[col*16+lane]) so that each coordinate load is a single
+// contiguous VMOVDQU32 — no gather. The column-major layout is what a Merkle
+// commitment naturally has (16 contiguous leaves per column) and lets the kernel
+// scale with cores instead of saturating the memory subsystem with scattered
+// gather traffic.
+func (_f *FFAmd64) generatePoseidon2_F31_16x16xN(params Poseidon2Parameters, gather bool) {
 	f := &fieldHelper{FFAmd64: _f, twoAdicity: twoAdicityFromParams(params)}
 	width := params.Width
 	fullRounds := params.FullRounds
@@ -629,9 +638,16 @@ func (_f *FFAmd64) generatePoseidon2_F31_16x16xN(params Poseidon2Parameters) {
 	if width != 16 {
 		panic("only width 16 is supported")
 	}
-	const fnName = "permutation16x16xN_avx512"
+	fnName := "permutation16x16xN_avx512"
 	// func permutation16x16xN_avx512(matrix *fr.Element, roundKeys [][]fr.Element, result *fr.Element, gatherIndices *uint32, nbSteps uint64)
-	const argSize = 7 * 8 // matrix(8) + roundKeys(24) + result(8) + gatherIndices(8) + nbSteps(8)
+	argSize := 7 * 8 // matrix(8) + roundKeys(24) + result(8) + gatherIndices(8) + nbSteps(8)
+	nbStepsArg := "nbSteps+48(FP)"
+	if !gather {
+		fnName = "permutation16x16xN_columns_avx512"
+		// func permutation16x16xN_columns_avx512(matrix *fr.Element, roundKeys [][]fr.Element, result *fr.Element, nbSteps uint64)
+		argSize = 6 * 8 // matrix(8) + roundKeys(24) + result(8) + nbSteps(8)
+		nbStepsArg = "nbSteps+40(FP)"
+	}
 	stackSize := f.StackSize(f.NbWords*2+4, 2, 0)
 	registers := f.FnHeader(fnName, stackSize, argSize, amd64.AX, amd64.DX)
 	defer f.AssertCleanStack(stackSize, 0)
@@ -669,15 +685,23 @@ func (_f *FFAmd64) generatePoseidon2_F31_16x16xN(params Poseidon2Parameters) {
 
 	// Load nbSteps from parameter (instead of hardcoded 64)
 	N := registers.Pop()
-	f.MOVQ("nbSteps+48(FP)", N)
+	f.MOVQ(nbStepsArg, N)
 
-	// Load gather indices from parameter (instead of global indexGather512)
+	// maskFFFF is the all-ones mask reloaded before each gather/scatter.
+	// addrIndexGather holds the gather-index address (gather mode) and is
+	// reused for the scatter-index address at the tail.
 	maskFFFF := registers.Pop()
 	addrIndexGather := registers.Pop()
-	vIndexGather := registers.PopV()
 	f.MOVQ("$0xffffffffffffffff", maskFFFF)
-	f.MOVQ("gatherIndices+40(FP)", addrIndexGather)
-	f.VMOVDQU32(addrIndexGather.At(0), vIndexGather)
+
+	// vIndexGather is only needed for the gather-based transpose.
+	var vIndexGather amd64.VectorRegister
+	if gather {
+		// Load gather indices from parameter (instead of global indexGather512)
+		vIndexGather = registers.PopV()
+		f.MOVQ("gatherIndices+40(FP)", addrIndexGather)
+		f.VMOVDQU32(addrIndexGather.At(0), vIndexGather)
+	}
 
 	// addRoundKeySbox emits:
 	//   v[index] = S(v[index] + rc[index])
@@ -827,19 +851,32 @@ func (_f *FFAmd64) generatePoseidon2_F31_16x16xN(params Poseidon2Parameters) {
 	//   copy(state[lane][8:], nextChunk)
 	//   state[lane] = Permutation(state[lane])
 	//   state[lane][0:8] = state[lane][8:16] + nextChunk
-	registers.PushV(vIndexGather)
+	if gather {
+		registers.PushV(vIndexGather)
+	}
 	f.Loop(N, func() {
 		vTmpInputs := registers.PopVN(8)
-		vIndexGather = registers.PopV()
-		f.VMOVDQU32(addrIndexGather.At(0), vIndexGather)
-		// Gather matrix[*][step*8:(step+1)*8] into the rate coordinates v[8:16].
-		// vTmpInputs keeps a copy for the feed-forward added after the permutation.
-		for i := range 8 {
-			f.KMOVD(maskFFFF, amd64.K1)
-			f.VPGATHERDD(i*4, addrMatrix, vIndexGather, 4, amd64.K1, v[i+8])
-			f.VMOVDQA32(v[i+8], vTmpInputs[i])
+		if gather {
+			vIndexGather = registers.PopV()
+			f.VMOVDQU32(addrIndexGather.At(0), vIndexGather)
+			// Gather matrix[*][step*8:(step+1)*8] into the rate coordinates v[8:16].
+			// vTmpInputs keeps a copy for the feed-forward added after the permutation.
+			for i := range 8 {
+				f.KMOVD(maskFFFF, amd64.K1)
+				f.VPGATHERDD(i*4, addrMatrix, vIndexGather, 4, amd64.K1, v[i+8])
+				f.VMOVDQA32(v[i+8], vTmpInputs[i])
+			}
+			registers.PushV(vIndexGather)
+		} else {
+			// Column-major input: the 16 leaves of column (step*8+i) are 16
+			// contiguous elements at matrix[(step*8+i)*16:]. Each rate
+			// coordinate is therefore a single contiguous 512-bit load — no
+			// gather. vTmpInputs keeps a copy for the feed-forward.
+			for i := range 8 {
+				f.VMOVDQU32(addrMatrix.AtD(i*16), v[i+8])
+				f.VMOVDQA32(v[i+8], vTmpInputs[i])
+			}
 		}
-		registers.PushV(vIndexGather)
 
 		// Poseidon2 begins with the external matrix:
 		//   x = M_ext * x
@@ -861,16 +898,26 @@ func (_f *FFAmd64) generatePoseidon2_F31_16x16xN(params Poseidon2Parameters) {
 		}
 		registers.PushV(vTmpInputs...)
 
-		// Move from chunk k to chunk k+1 inside each matrix row.
-		f.ADDQ(8*4, addrMatrix)
+		if gather {
+			// Row-major: move from chunk k to chunk k+1 inside each matrix row
+			// (+8 elements); the gather indices provide the per-row stride.
+			f.ADDQ(8*4, addrMatrix)
+		} else {
+			// Column-major: one step consumes 8 full columns = 8*16 elements.
+			f.ADDQ(8*16*4, addrMatrix)
+		}
 		// Each chunk runs a fresh Poseidon2 permutation, so restart round keys at round 0.
 		f.MOVQ("roundKeys+8(FP)", addrRoundKeys)
 	})
 
 	// Scatter the first 8 coordinates of the 16 transposed states back to the
-	// row-major result buffer.
+	// row-major result buffer. This runs once per call (not per step), so the
+	// scatter cost is negligible even for the column-major kernel.
 	addrScatter8 := addrIndexGather
 	vIndexScatter := vIndexGather
+	if !gather {
+		vIndexScatter = registers.PopV()
+	}
 	f.MOVQ("·indexScatter8+0(SB)", addrScatter8)
 	f.VMOVDQU32(addrScatter8.At(0), vIndexScatter)
 
