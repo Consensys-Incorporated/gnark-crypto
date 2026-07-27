@@ -955,6 +955,62 @@ func (_f *FFAmd64) generateMulVecElementE6() {
 	f.RET()
 }
 
+func (_f *FFAmd64) generateMulAccVecElementE6() {
+	// func vectorMulAccByElement_E6_avx512(dst, a *E6, b *fr.Element, N uint64)
+	//
+	// dst[i] += a[i] * b[i]. Precondition: N % 8 == 0; processes 8 E6 (= 48 fr
+	// lanes = 3 zmm) per outer iteration. Each scalar b[i] is broadcast across
+	// the 6 fr lanes of E6[i] via three precomputed VPERMD index tables.
+
+	const argSize = 4 * 8
+	stackSize := _f.StackSize(_f.NbWords*4+2, 0, 0)
+
+	registers := _f.FnHeader("vectorMulAccByElement_E6_avx512", stackSize, argSize, amd64.DX, amd64.AX)
+	defer _f.AssertCleanStack(stackSize, 0)
+	f := &fieldHelper{FFAmd64: _f, registers: &registers}
+
+	addrDst := registers.Pop()
+	addrA := registers.Pop()
+	addrB := registers.Pop()
+	N := registers.Pop()
+
+	vMask0, vMask1, vMask2 := f.e6FusedMulPrologue()
+
+	f.MOVQ("dst+0(FP)", addrDst)
+	f.MOVQ("a+8(FP)", addrA)
+	f.MOVQ("b+16(FP)", addrB)
+	f.MOVQ("N+24(FP)", N)
+	f.SHRQ("$3", N)
+
+	va := registers.PopV()
+	vb := registers.PopV()
+	vbExp := registers.PopV()
+	vRes := registers.PopV()
+	vAcc := registers.PopV()
+
+	process := func(offset int, mask amd64.VectorRegister) {
+		f.VMOVDQU32(addrA.At(offset), va)
+		f.VPERMD(vb, mask, vbExp)
+		f.mul(va, vbExp, vRes, true)
+		f.VMOVDQU32(addrDst.At(offset), vAcc)
+		f.add(vAcc, vRes, vRes)
+		f.VMOVDQU32(vRes, addrDst.At(offset))
+	}
+
+	f.Loop(N, func() {
+		// load 8 scalars (= 32 bytes) of b into the low ymm half of vb
+		f.VMOVDQU32(addrB.At(0), vb.Y())
+		process(0, vMask0)
+		process(8, vMask1)
+		process(16, vMask2)
+		f.ADDQ("$192", addrA)
+		f.ADDQ("$192", addrDst)
+		f.ADDQ("$32", addrB)
+	})
+
+	f.RET()
+}
+
 func (_f *FFAmd64) generateDITWithTwiddlesVecE6() {
 	// func vectorDITWithTwiddles_E6_avx512(a0, a1 *E6, twiddles *fr.Element, N uint64)
 	//

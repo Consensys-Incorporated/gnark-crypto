@@ -59,6 +59,10 @@ func vectorMulByElement_E6_avx512(res, a *E6, b *fr.Element, N uint64) {
 	panic("vectorMulByElement_E6_avx512 is not implemented")
 }
 
+func vectorMulAccByElement_E6_avx512(dst, a *E6, b *fr.Element, N uint64) {
+	panic("vectorMulAccByElement_E6_avx512 is not implemented")
+}
+
 func vectorInnerProductByElement_avx512(res, a *E4, b *fr.Element, N uint64) {
 	panic("vectorInnerProductByElement_avx512 is not implemented")
 }
