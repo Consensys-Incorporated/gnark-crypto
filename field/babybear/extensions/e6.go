@@ -542,6 +542,24 @@ func (vector VectorE6) MulByElement(a VectorE6, b fr.Vector) {
 	}
 }
 
+// MulAccByElement accumulates a[i]*b[i] into each element of vector:
+// vector[i] += a[i] * b[i], where b[i] is a base field scalar.
+func (vector VectorE6) MulAccByElement(a VectorE6, b fr.Vector) {
+	N := len(vector)
+	if len(a) != N || len(b) != N {
+		panic("vectorE6.MulAccByElement: vectors don't have the same length")
+	}
+	mulAccByElementE6Generic(vector, a, b)
+}
+
+func mulAccByElementE6Generic(vector, a VectorE6, b fr.Vector) {
+	var tmp E6
+	for i := range vector {
+		tmp.MulByElement(&a[i], &b[i])
+		vector[i].Add(&vector[i], &tmp)
+	}
+}
+
 // ScalarMulByElement multiplies each element of a by the same fr element b and
 // stores the result in vector.
 func (vector VectorE6) ScalarMulByElement(a VectorE6, b *fr.Element) {

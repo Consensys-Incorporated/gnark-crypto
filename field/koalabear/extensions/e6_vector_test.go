@@ -62,6 +62,65 @@ func TestVectorE6FusedTwiddles(t *testing.T) {
 	}
 }
 
+func TestVectorE6MulAccByElement(t *testing.T) {
+	for _, size := range []int{0, 1, 7, 8, 16, 18, 100} {
+		t.Run(strconv.Itoa(size), func(t *testing.T) {
+			dst := make([]E6, size)
+			a := make([]E6, size)
+			b := make(fr.Vector, size)
+			for i := range size {
+				dst[i].MustSetRandom()
+				a[i].MustSetRandom()
+				b[i].MustSetRandom()
+			}
+
+			expected := append([]E6(nil), dst...)
+			var tmp E6
+			for i := range expected {
+				tmp.MulByElement(&a[i], &b[i])
+				expected[i].Add(&expected[i], &tmp)
+			}
+
+			VectorE6(dst).MulAccByElement(VectorE6(a), b)
+			for i := range expected {
+				require.Equal(t, expected[i], dst[i], "element %d", i)
+			}
+		})
+	}
+}
+
+func BenchmarkVectorE6MulAccByElement(b *testing.B) {
+	const size = 1 << 12
+	dst := make([]E6, size)
+	a := make([]E6, size)
+	scale := make(fr.Vector, size)
+	for i := range size {
+		dst[i].MustSetRandom()
+		a[i].MustSetRandom()
+		scale[i].MustSetRandom()
+	}
+	b.ResetTimer()
+	for range b.N {
+		VectorE6(dst).MulAccByElement(VectorE6(a), scale)
+	}
+}
+
+func BenchmarkVectorE6MulAccByElementGeneric(b *testing.B) {
+	const size = 1 << 12
+	dst := make([]E6, size)
+	a := make([]E6, size)
+	scale := make(fr.Vector, size)
+	for i := range size {
+		dst[i].MustSetRandom()
+		a[i].MustSetRandom()
+		scale[i].MustSetRandom()
+	}
+	b.ResetTimer()
+	for range b.N {
+		mulAccByElementE6Generic(dst, a, scale)
+	}
+}
+
 func setE6TestValue(z *E6, base uint64) {
 	z.B0.A0.SetUint64(base)
 	z.B0.A1.SetUint64(base + 1)

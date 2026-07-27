@@ -412,6 +412,7 @@ func GenerateF31E4(w io.Writer) error {
 	f.generateSumVecE4()
 	f.generateMulVecElementE4()
 	f.generateMulVecElementE6()
+	f.generateMulAccVecElementE6()
 	f.generateButterflyVecE4()
 	f.generateButterflyPairVecE4()
 	f.generateButterflyPairVecE6()

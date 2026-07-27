@@ -74,6 +74,9 @@ func vectorMulByElement_avx512(res, a *E4, b *fr.Element, N uint64)
 func vectorMulByElement_E6_avx512(res, a *E6, b *fr.Element, N uint64)
 
 //go:noescape
+func vectorMulAccByElement_E6_avx512(dst, a *E6, b *fr.Element, N uint64)
+
+//go:noescape
 func vectorButterfly_avx512(a, b *E4, N uint64)
 
 //go:noescape
