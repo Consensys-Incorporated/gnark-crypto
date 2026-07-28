@@ -38,6 +38,41 @@ var maskPermE6Pair1A = []uint32{22, 23, 12, 13, 14, 15, 16, 17, 30, 31, 0, 1, 2,
 var maskPermE6Pair1B = []uint32{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 16, 17, 18, 19, 0, 0}
 var maskPermE6Pair2 = []uint32{10, 11, 12, 13, 26, 27, 28, 29, 30, 31, 20, 21, 22, 23, 24, 25}
 
+// VPERMI2D index tables for the gather-free E6 scalar-mul kernels
+// (vectorScalarMul_E6_avx512 / vectorScalarMulAcc_E6_avx512).
+//
+// For output zmm g and source coordinate i, e6replA replicates coordinate i of
+// every E6 across the 6 fr lanes of its group within the 48-lane (8 E6) window;
+// table (i, g) starts at offset (i*3+g)*16. e6replB holds the sparse "cross"
+// tables for the groups that straddle a third source zmm, packed in (i, g)
+// order. Generated from amd64.E6ReplicationTables; kept in Go (rather than as
+// assembly DATA) so the .s file stays small.
+var e6replA = []uint32{
+	0, 0, 0, 0, 0, 0, 6, 6, 6, 6, 6, 6, 12, 12, 12, 12,
+	12, 12, 18, 18, 18, 18, 18, 18, 24, 24, 24, 24, 24, 24, 30, 30,
+	14, 14, 14, 14, 20, 20, 20, 20, 20, 20, 26, 26, 26, 26, 26, 26,
+	1, 1, 1, 1, 1, 1, 7, 7, 7, 7, 7, 7, 13, 13, 13, 13,
+	13, 13, 19, 19, 19, 19, 19, 19, 25, 25, 25, 25, 25, 25, 31, 31,
+	15, 15, 15, 15, 21, 21, 21, 21, 21, 21, 27, 27, 27, 27, 27, 27,
+	2, 2, 2, 2, 2, 2, 8, 8, 8, 8, 8, 8, 14, 14, 14, 14,
+	14, 14, 20, 20, 20, 20, 20, 20, 26, 26, 26, 26, 26, 26, 0, 0,
+	0, 0, 0, 0, 6, 6, 6, 6, 6, 6, 12, 12, 12, 12, 12, 12,
+	3, 3, 3, 3, 3, 3, 9, 9, 9, 9, 9, 9, 15, 15, 15, 15,
+	15, 15, 21, 21, 21, 21, 21, 21, 27, 27, 27, 27, 27, 27, 0, 0,
+	1, 1, 1, 1, 7, 7, 7, 7, 7, 7, 13, 13, 13, 13, 13, 13,
+	4, 4, 4, 4, 4, 4, 10, 10, 10, 10, 10, 10, 16, 16, 16, 16,
+	0, 0, 6, 6, 6, 6, 6, 6, 12, 12, 12, 12, 12, 12, 18, 18,
+	2, 2, 2, 2, 8, 8, 8, 8, 8, 8, 14, 14, 14, 14, 14, 14,
+	5, 5, 5, 5, 5, 5, 11, 11, 11, 11, 11, 11, 17, 17, 17, 17,
+	1, 1, 7, 7, 7, 7, 7, 7, 13, 13, 13, 13, 13, 13, 19, 19,
+	3, 3, 3, 3, 9, 9, 9, 9, 9, 9, 15, 15, 15, 15, 15, 15,
+}
+
+var e6replB = []uint32{
+	0, 0, 4, 4, 4, 4, 4, 4, 10, 10, 10, 10, 10, 10, 16, 16,
+	0, 0, 5, 5, 5, 5, 5, 5, 11, 11, 11, 11, 11, 11, 17, 17,
+}
+
 func init() {
 	indexGather4 = make([]uint32, 16)
 	for i := range 16 {

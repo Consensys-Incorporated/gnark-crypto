@@ -414,7 +414,6 @@ func GenerateF31E4(w io.Writer) error {
 	f.generateMulVecElementE6()
 	f.generateMulAccVecElementE6()
 	f.generateScalarMulAccByElementE6()
-	f.writeE6ReplicationTables()
 	f.generateScalarMulVecE6(false)
 	f.generateScalarMulVecE6(true)
 	f.generateButterflyVecE4()

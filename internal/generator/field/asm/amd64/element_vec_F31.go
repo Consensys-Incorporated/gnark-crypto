@@ -1138,25 +1138,30 @@ func e6ReplPlan(i, g int) e6ReplStep {
 	return st
 }
 
-// writeE6ReplicationTables emits the VPERMI2D index tables (as file-local DATA)
-// used by the gather-free E6 scalar-mul kernels. Shared by the acc and non-acc
-// variants, so emitted once.
-func (f *FFAmd64) writeE6ReplicationTables() {
-	emit := func(sym string, vals [16]uint32) {
-		for j, v := range vals {
-			f.DATA(sym, j*4, 4, fmt.Sprintf("$%d", v))
-		}
-		f.GLOBL(sym, "RODATA|NOPTR", 64)
-	}
+// E6ReplicationTables returns the VPERMI2D index tables used by the gather-free
+// E6 scalar-mul kernels, flattened for a single base-pointer load in assembly.
+//
+// These are compile-time constants; rather than emitting them as ~340 lines of
+// DATA/GLOBL in the .s file, they are rendered as plain Go slice literals in the
+// generated e4_amd64.go (see e4.amd64.go.tmpl) and referenced from assembly via
+// ·e6replA / ·e6replB, exactly like the maskPermDE6_* tables.
+//
+// A holds the 18 primary tables laid out row-major: table (i, g) starts at index
+// (i*3+g)*16. B holds only the sparse "cross" tables (the groups straddling a
+// third source zmm), packed in (i, g) iteration order — the assembly walks them
+// with a running counter in the same order.
+func E6ReplicationTables() (A, B []uint32) {
+	A = make([]uint32, 6*3*16)
 	for i := range 6 {
 		for g := range 3 {
 			st := e6ReplPlan(i, g)
-			emit(fmt.Sprintf("e6replA_%d_%d<>", i, g), st.idxA)
+			copy(A[(i*3+g)*16:], st.idxA[:])
 			if st.cross {
-				emit(fmt.Sprintf("e6replB_%d_%d<>", i, g), st.idxB)
+				B = append(B, st.idxB[:]...)
 			}
 		}
 	}
+	return
 }
 
 // generateScalarMulVecE6 emits the gather/scatter-free full E6×(fixed E6
@@ -1183,7 +1188,8 @@ func (_f *FFAmd64) generateScalarMulVecE6(acc bool) {
 	addrA := registers.Pop()
 	addrKcol := registers.Pop()
 	N := registers.Pop()
-	addrTab := registers.Pop()
+	addrTabA := registers.Pop()
+	addrTabB := registers.Pop()
 
 	f.loadQ()
 	f.loadQInvNeg()
@@ -1194,6 +1200,19 @@ func (_f *FFAmd64) generateScalarMulVecE6(acc bool) {
 	f.MOVQ("a+8(FP)", addrA)
 	f.MOVQ("Kcol+16(FP)", addrKcol)
 	f.MOVQ("N+24(FP)", N)
+
+	// The VPERMI2D index tables live in Go (·e6replA / ·e6replB, see
+	// e4.amd64.go.tmpl); load their base pointers once and index into them by
+	// offset in the loop rather than materializing an address per table.
+	f.MOVQ("·e6replA+0(SB)", addrTabA)
+	f.MOVQ("·e6replB+0(SB)", addrTabB)
+
+	// permi2d loads a 16-lane index table and applies VPERMI2D over (lo, hi).
+	permi2d := f.Define("permi2d", 4, func(args ...any) {
+		idx, hi, lo, dst := args[0], args[1], args[2], args[3]
+		f.VMOVDQU32(idx, dst)
+		f.VPERMI2D(hi, lo, dst)
+	}, true)
 
 	v := registers.PopVN(3)    // input window (8 E6)
 	acc0 := registers.PopVN(3) // accumulators, one per output zmm
@@ -1208,17 +1227,15 @@ func (_f *FFAmd64) generateScalarMulVecE6(acc bool) {
 		f.VMOVDQU32(addrA.At(8), v[1])
 		f.VMOVDQU32(addrA.At(16), v[2])
 
+		bIdx := 0 // running index into the packed cross tables ·e6replB
 		for i := range 6 {
 			for g := range 3 {
 				st := e6ReplPlan(i, g)
 				// build A_i for output zmm g into ao
-				f.MOVQ(fmt.Sprintf("$e6replA_%d_%d<>+0(SB)", i, g), addrTab)
-				f.VMOVDQU32(addrTab.At(0), ao)
-				f.VPERMI2D(v[st.hi], v[st.lo], ao)
+				permi2d(addrTabA.AtD((i*3+g)*16), v[st.hi], v[st.lo], ao)
 				if st.cross {
-					f.MOVQ(fmt.Sprintf("$e6replB_%d_%d<>+0(SB)", i, g), addrTab)
-					f.VMOVDQU32(addrTab.At(0), pB)
-					f.VPERMI2D(v[2], v[1], pB)
+					permi2d(addrTabB.AtD(bIdx*16), v[2], v[1], pB)
+					bIdx++
 					f.MOVQ(uint64(st.maskV2), amd64.AX)
 					f.KMOVD(amd64.AX, amd64.K1)
 					f.VPBLENDMD(pB, ao, ao, amd64.K1)
