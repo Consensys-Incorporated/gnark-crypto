@@ -121,6 +121,164 @@ func BenchmarkVectorE6MulAccByElementGeneric(b *testing.B) {
 	}
 }
 
+func TestVectorE6ScalarMul(t *testing.T) {
+	for _, size := range []int{0, 1, 8, 15, 16, 17, 31, 32, 33, 100} {
+		t.Run(strconv.Itoa(size), func(t *testing.T) {
+			a := make([]E6, size)
+			res := make([]E6, size)
+			var s E6
+			s.MustSetRandom()
+			for i := range size {
+				a[i].MustSetRandom()
+				res[i].MustSetRandom() // must be fully overwritten
+			}
+
+			expected := make([]E6, size)
+			for i := range expected {
+				expected[i].Mul(&a[i], &s)
+			}
+
+			VectorE6(res).ScalarMul(VectorE6(a), &s)
+			for i := range expected {
+				require.Equal(t, expected[i], res[i], "element %d", i)
+			}
+		})
+	}
+}
+
+func TestVectorE6ScalarMulAcc(t *testing.T) {
+	for _, size := range []int{0, 1, 8, 15, 16, 17, 31, 32, 33, 100} {
+		t.Run(strconv.Itoa(size), func(t *testing.T) {
+			dst := make([]E6, size)
+			a := make([]E6, size)
+			var s E6
+			s.MustSetRandom()
+			for i := range size {
+				dst[i].MustSetRandom()
+				a[i].MustSetRandom()
+			}
+
+			expected := append([]E6(nil), dst...)
+			var tmp E6
+			for i := range expected {
+				tmp.Mul(&a[i], &s)
+				expected[i].Add(&expected[i], &tmp)
+			}
+
+			VectorE6(dst).ScalarMulAcc(VectorE6(a), &s)
+			for i := range expected {
+				require.Equal(t, expected[i], dst[i], "element %d", i)
+			}
+		})
+	}
+}
+
+func TestVectorE6ScalarMulAccByElement(t *testing.T) {
+	for _, size := range []int{0, 1, 7, 8, 9, 16, 17, 100} {
+		t.Run(strconv.Itoa(size), func(t *testing.T) {
+			dst := make([]E6, size)
+			a := make(fr.Vector, size)
+			var s E6
+			s.MustSetRandom()
+			for i := range size {
+				dst[i].MustSetRandom()
+				a[i].MustSetRandom()
+			}
+
+			expected := append([]E6(nil), dst...)
+			var tmp E6
+			for i := range expected {
+				tmp.MulByElement(&s, &a[i])
+				expected[i].Add(&expected[i], &tmp)
+			}
+
+			VectorE6(dst).ScalarMulAccByElement(a, &s)
+			for i := range expected {
+				require.Equal(t, expected[i], dst[i], "element %d", i)
+			}
+		})
+	}
+}
+
+func BenchmarkVectorE6ScalarMul(b *testing.B) {
+	const size = 1 << 12
+	res := make([]E6, size)
+	a := make([]E6, size)
+	var s E6
+	s.MustSetRandom()
+	for i := range size {
+		a[i].MustSetRandom()
+	}
+	b.ResetTimer()
+	for range b.N {
+		VectorE6(res).ScalarMul(VectorE6(a), &s)
+	}
+}
+
+func BenchmarkVectorE6ScalarMulAcc(b *testing.B) {
+	const size = 1 << 12
+	dst := make([]E6, size)
+	a := make([]E6, size)
+	var s E6
+	s.MustSetRandom()
+	for i := range size {
+		dst[i].MustSetRandom()
+		a[i].MustSetRandom()
+	}
+	b.ResetTimer()
+	for range b.N {
+		VectorE6(dst).ScalarMulAcc(VectorE6(a), &s)
+	}
+}
+
+func BenchmarkVectorE6ScalarMulAccGeneric(b *testing.B) {
+	const size = 1 << 12
+	dst := make([]E6, size)
+	a := make([]E6, size)
+	var s E6
+	s.MustSetRandom()
+	for i := range size {
+		dst[i].MustSetRandom()
+		a[i].MustSetRandom()
+	}
+	b.ResetTimer()
+	for range b.N {
+		scalarMulAccE6Generic(dst, a, &s)
+	}
+}
+
+func BenchmarkVectorE6ScalarMulAccByElement(b *testing.B) {
+	const size = 1 << 12
+	dst := make([]E6, size)
+	a := make(fr.Vector, size)
+	var s E6
+	s.MustSetRandom()
+	for i := range size {
+		dst[i].MustSetRandom()
+		a[i].MustSetRandom()
+	}
+	b.ResetTimer()
+	for range b.N {
+		VectorE6(dst).ScalarMulAccByElement(a, &s)
+	}
+}
+
+func BenchmarkVectorE6ScalarMulAccByElementGeneric(b *testing.B) {
+	const size = 1 << 12
+	dst := make([]E6, size)
+	a := make(fr.Vector, size)
+	var s E6
+	s.MustSetRandom()
+	for i := range size {
+		dst[i].MustSetRandom()
+		a[i].MustSetRandom()
+	}
+	b.ResetTimer()
+	for range b.N {
+		scalarMulAccByElementE6Generic(dst, a, &s)
+	}
+}
+
 func setE6TestValue(z *E6, base uint64) {
 	z.B0.A0.SetUint64(base)
 	z.B0.A1.SetUint64(base + 1)

@@ -625,6 +625,734 @@ loop_19:
 done_20:
 	RET
 
+TEXT ·vectorScalarMulAccByElement_E6_avx512(SB), NOSPLIT, $0-32
+	MOVD         $const_q, AX
+	VPBROADCASTD AX, Z0
+	MOVD         $const_qInvNeg, AX
+	VPBROADCASTD AX, Z1
+	MOVQ         $0x0000000000005555, AX
+	KMOVD        AX, K3
+	MOVQ         ·maskPermDE6_0+0(SB), SI
+	VMOVDQU32    0(SI), Z2
+	MOVQ         ·maskPermDE6_1+0(SB), SI
+	VMOVDQU32    0(SI), Z3
+	MOVQ         ·maskPermDE6_2+0(SB), SI
+	VMOVDQU32    0(SI), Z4
+	MOVQ         vector+0(FP), R13
+	MOVQ         a+8(FP), R14
+	MOVQ         sTiled+16(FP), CX
+	MOVQ         N+24(FP), BX
+	SHRQ         $3, BX
+	VMOVDQU32    0(CX), Z5
+	VMOVDQU32    64(CX), Z6
+	VMOVDQU32    128(CX), Z7
+
+loop_21:
+	TESTQ     BX, BX
+	JEQ       done_22
+	DECQ      BX
+	VMOVDQU32 0(R14), Y8
+	VPERMD    Z8, Z2, Z9
+	MUL_5W(Z5, Z9, Z12, Z13, Z14, Z15, Z16, Z10, Z0, Z1)
+	REDUCE1Q(Z0, Z10, Z17)
+	VMOVDQU32 0(R13), Z11
+	ADD(Z11, Z10, Z0, Z18, Z10)
+	VMOVDQU32 Z10, 0(R13)
+	VPERMD    Z8, Z3, Z9
+	MUL_5W(Z6, Z9, Z19, Z20, Z21, Z22, Z23, Z10, Z0, Z1)
+	REDUCE1Q(Z0, Z10, Z24)
+	VMOVDQU32 64(R13), Z11
+	ADD(Z11, Z10, Z0, Z25, Z10)
+	VMOVDQU32 Z10, 64(R13)
+	VPERMD    Z8, Z4, Z9
+	MUL_5W(Z7, Z9, Z26, Z27, Z28, Z29, Z30, Z10, Z0, Z1)
+	REDUCE1Q(Z0, Z10, Z31)
+	VMOVDQU32 128(R13), Z11
+	ADD(Z11, Z10, Z0, Z12, Z10)
+	VMOVDQU32 Z10, 128(R13)
+	ADDQ      $192, R13
+	ADDQ      $32, R14
+	JMP       loop_21
+
+done_22:
+	RET
+
+DATA e6replA_0_0<>+0(SB)/4, $0
+DATA e6replA_0_0<>+4(SB)/4, $0
+DATA e6replA_0_0<>+8(SB)/4, $0
+DATA e6replA_0_0<>+12(SB)/4, $0
+DATA e6replA_0_0<>+16(SB)/4, $0
+DATA e6replA_0_0<>+20(SB)/4, $0
+DATA e6replA_0_0<>+24(SB)/4, $6
+DATA e6replA_0_0<>+28(SB)/4, $6
+DATA e6replA_0_0<>+32(SB)/4, $6
+DATA e6replA_0_0<>+36(SB)/4, $6
+DATA e6replA_0_0<>+40(SB)/4, $6
+DATA e6replA_0_0<>+44(SB)/4, $6
+DATA e6replA_0_0<>+48(SB)/4, $12
+DATA e6replA_0_0<>+52(SB)/4, $12
+DATA e6replA_0_0<>+56(SB)/4, $12
+DATA e6replA_0_0<>+60(SB)/4, $12
+GLOBL e6replA_0_0<>(SB), RODATA|NOPTR, $64
+DATA e6replA_0_1<>+0(SB)/4, $12
+DATA e6replA_0_1<>+4(SB)/4, $12
+DATA e6replA_0_1<>+8(SB)/4, $18
+DATA e6replA_0_1<>+12(SB)/4, $18
+DATA e6replA_0_1<>+16(SB)/4, $18
+DATA e6replA_0_1<>+20(SB)/4, $18
+DATA e6replA_0_1<>+24(SB)/4, $18
+DATA e6replA_0_1<>+28(SB)/4, $18
+DATA e6replA_0_1<>+32(SB)/4, $24
+DATA e6replA_0_1<>+36(SB)/4, $24
+DATA e6replA_0_1<>+40(SB)/4, $24
+DATA e6replA_0_1<>+44(SB)/4, $24
+DATA e6replA_0_1<>+48(SB)/4, $24
+DATA e6replA_0_1<>+52(SB)/4, $24
+DATA e6replA_0_1<>+56(SB)/4, $30
+DATA e6replA_0_1<>+60(SB)/4, $30
+GLOBL e6replA_0_1<>(SB), RODATA|NOPTR, $64
+DATA e6replA_0_2<>+0(SB)/4, $14
+DATA e6replA_0_2<>+4(SB)/4, $14
+DATA e6replA_0_2<>+8(SB)/4, $14
+DATA e6replA_0_2<>+12(SB)/4, $14
+DATA e6replA_0_2<>+16(SB)/4, $20
+DATA e6replA_0_2<>+20(SB)/4, $20
+DATA e6replA_0_2<>+24(SB)/4, $20
+DATA e6replA_0_2<>+28(SB)/4, $20
+DATA e6replA_0_2<>+32(SB)/4, $20
+DATA e6replA_0_2<>+36(SB)/4, $20
+DATA e6replA_0_2<>+40(SB)/4, $26
+DATA e6replA_0_2<>+44(SB)/4, $26
+DATA e6replA_0_2<>+48(SB)/4, $26
+DATA e6replA_0_2<>+52(SB)/4, $26
+DATA e6replA_0_2<>+56(SB)/4, $26
+DATA e6replA_0_2<>+60(SB)/4, $26
+GLOBL e6replA_0_2<>(SB), RODATA|NOPTR, $64
+DATA e6replA_1_0<>+0(SB)/4, $1
+DATA e6replA_1_0<>+4(SB)/4, $1
+DATA e6replA_1_0<>+8(SB)/4, $1
+DATA e6replA_1_0<>+12(SB)/4, $1
+DATA e6replA_1_0<>+16(SB)/4, $1
+DATA e6replA_1_0<>+20(SB)/4, $1
+DATA e6replA_1_0<>+24(SB)/4, $7
+DATA e6replA_1_0<>+28(SB)/4, $7
+DATA e6replA_1_0<>+32(SB)/4, $7
+DATA e6replA_1_0<>+36(SB)/4, $7
+DATA e6replA_1_0<>+40(SB)/4, $7
+DATA e6replA_1_0<>+44(SB)/4, $7
+DATA e6replA_1_0<>+48(SB)/4, $13
+DATA e6replA_1_0<>+52(SB)/4, $13
+DATA e6replA_1_0<>+56(SB)/4, $13
+DATA e6replA_1_0<>+60(SB)/4, $13
+GLOBL e6replA_1_0<>(SB), RODATA|NOPTR, $64
+DATA e6replA_1_1<>+0(SB)/4, $13
+DATA e6replA_1_1<>+4(SB)/4, $13
+DATA e6replA_1_1<>+8(SB)/4, $19
+DATA e6replA_1_1<>+12(SB)/4, $19
+DATA e6replA_1_1<>+16(SB)/4, $19
+DATA e6replA_1_1<>+20(SB)/4, $19
+DATA e6replA_1_1<>+24(SB)/4, $19
+DATA e6replA_1_1<>+28(SB)/4, $19
+DATA e6replA_1_1<>+32(SB)/4, $25
+DATA e6replA_1_1<>+36(SB)/4, $25
+DATA e6replA_1_1<>+40(SB)/4, $25
+DATA e6replA_1_1<>+44(SB)/4, $25
+DATA e6replA_1_1<>+48(SB)/4, $25
+DATA e6replA_1_1<>+52(SB)/4, $25
+DATA e6replA_1_1<>+56(SB)/4, $31
+DATA e6replA_1_1<>+60(SB)/4, $31
+GLOBL e6replA_1_1<>(SB), RODATA|NOPTR, $64
+DATA e6replA_1_2<>+0(SB)/4, $15
+DATA e6replA_1_2<>+4(SB)/4, $15
+DATA e6replA_1_2<>+8(SB)/4, $15
+DATA e6replA_1_2<>+12(SB)/4, $15
+DATA e6replA_1_2<>+16(SB)/4, $21
+DATA e6replA_1_2<>+20(SB)/4, $21
+DATA e6replA_1_2<>+24(SB)/4, $21
+DATA e6replA_1_2<>+28(SB)/4, $21
+DATA e6replA_1_2<>+32(SB)/4, $21
+DATA e6replA_1_2<>+36(SB)/4, $21
+DATA e6replA_1_2<>+40(SB)/4, $27
+DATA e6replA_1_2<>+44(SB)/4, $27
+DATA e6replA_1_2<>+48(SB)/4, $27
+DATA e6replA_1_2<>+52(SB)/4, $27
+DATA e6replA_1_2<>+56(SB)/4, $27
+DATA e6replA_1_2<>+60(SB)/4, $27
+GLOBL e6replA_1_2<>(SB), RODATA|NOPTR, $64
+DATA e6replA_2_0<>+0(SB)/4, $2
+DATA e6replA_2_0<>+4(SB)/4, $2
+DATA e6replA_2_0<>+8(SB)/4, $2
+DATA e6replA_2_0<>+12(SB)/4, $2
+DATA e6replA_2_0<>+16(SB)/4, $2
+DATA e6replA_2_0<>+20(SB)/4, $2
+DATA e6replA_2_0<>+24(SB)/4, $8
+DATA e6replA_2_0<>+28(SB)/4, $8
+DATA e6replA_2_0<>+32(SB)/4, $8
+DATA e6replA_2_0<>+36(SB)/4, $8
+DATA e6replA_2_0<>+40(SB)/4, $8
+DATA e6replA_2_0<>+44(SB)/4, $8
+DATA e6replA_2_0<>+48(SB)/4, $14
+DATA e6replA_2_0<>+52(SB)/4, $14
+DATA e6replA_2_0<>+56(SB)/4, $14
+DATA e6replA_2_0<>+60(SB)/4, $14
+GLOBL e6replA_2_0<>(SB), RODATA|NOPTR, $64
+DATA e6replA_2_1<>+0(SB)/4, $14
+DATA e6replA_2_1<>+4(SB)/4, $14
+DATA e6replA_2_1<>+8(SB)/4, $20
+DATA e6replA_2_1<>+12(SB)/4, $20
+DATA e6replA_2_1<>+16(SB)/4, $20
+DATA e6replA_2_1<>+20(SB)/4, $20
+DATA e6replA_2_1<>+24(SB)/4, $20
+DATA e6replA_2_1<>+28(SB)/4, $20
+DATA e6replA_2_1<>+32(SB)/4, $26
+DATA e6replA_2_1<>+36(SB)/4, $26
+DATA e6replA_2_1<>+40(SB)/4, $26
+DATA e6replA_2_1<>+44(SB)/4, $26
+DATA e6replA_2_1<>+48(SB)/4, $26
+DATA e6replA_2_1<>+52(SB)/4, $26
+DATA e6replA_2_1<>+56(SB)/4, $0
+DATA e6replA_2_1<>+60(SB)/4, $0
+GLOBL e6replA_2_1<>(SB), RODATA|NOPTR, $64
+DATA e6replB_2_1<>+0(SB)/4, $0
+DATA e6replB_2_1<>+4(SB)/4, $0
+DATA e6replB_2_1<>+8(SB)/4, $4
+DATA e6replB_2_1<>+12(SB)/4, $4
+DATA e6replB_2_1<>+16(SB)/4, $4
+DATA e6replB_2_1<>+20(SB)/4, $4
+DATA e6replB_2_1<>+24(SB)/4, $4
+DATA e6replB_2_1<>+28(SB)/4, $4
+DATA e6replB_2_1<>+32(SB)/4, $10
+DATA e6replB_2_1<>+36(SB)/4, $10
+DATA e6replB_2_1<>+40(SB)/4, $10
+DATA e6replB_2_1<>+44(SB)/4, $10
+DATA e6replB_2_1<>+48(SB)/4, $10
+DATA e6replB_2_1<>+52(SB)/4, $10
+DATA e6replB_2_1<>+56(SB)/4, $16
+DATA e6replB_2_1<>+60(SB)/4, $16
+GLOBL e6replB_2_1<>(SB), RODATA|NOPTR, $64
+DATA e6replA_2_2<>+0(SB)/4, $0
+DATA e6replA_2_2<>+4(SB)/4, $0
+DATA e6replA_2_2<>+8(SB)/4, $0
+DATA e6replA_2_2<>+12(SB)/4, $0
+DATA e6replA_2_2<>+16(SB)/4, $6
+DATA e6replA_2_2<>+20(SB)/4, $6
+DATA e6replA_2_2<>+24(SB)/4, $6
+DATA e6replA_2_2<>+28(SB)/4, $6
+DATA e6replA_2_2<>+32(SB)/4, $6
+DATA e6replA_2_2<>+36(SB)/4, $6
+DATA e6replA_2_2<>+40(SB)/4, $12
+DATA e6replA_2_2<>+44(SB)/4, $12
+DATA e6replA_2_2<>+48(SB)/4, $12
+DATA e6replA_2_2<>+52(SB)/4, $12
+DATA e6replA_2_2<>+56(SB)/4, $12
+DATA e6replA_2_2<>+60(SB)/4, $12
+GLOBL e6replA_2_2<>(SB), RODATA|NOPTR, $64
+DATA e6replA_3_0<>+0(SB)/4, $3
+DATA e6replA_3_0<>+4(SB)/4, $3
+DATA e6replA_3_0<>+8(SB)/4, $3
+DATA e6replA_3_0<>+12(SB)/4, $3
+DATA e6replA_3_0<>+16(SB)/4, $3
+DATA e6replA_3_0<>+20(SB)/4, $3
+DATA e6replA_3_0<>+24(SB)/4, $9
+DATA e6replA_3_0<>+28(SB)/4, $9
+DATA e6replA_3_0<>+32(SB)/4, $9
+DATA e6replA_3_0<>+36(SB)/4, $9
+DATA e6replA_3_0<>+40(SB)/4, $9
+DATA e6replA_3_0<>+44(SB)/4, $9
+DATA e6replA_3_0<>+48(SB)/4, $15
+DATA e6replA_3_0<>+52(SB)/4, $15
+DATA e6replA_3_0<>+56(SB)/4, $15
+DATA e6replA_3_0<>+60(SB)/4, $15
+GLOBL e6replA_3_0<>(SB), RODATA|NOPTR, $64
+DATA e6replA_3_1<>+0(SB)/4, $15
+DATA e6replA_3_1<>+4(SB)/4, $15
+DATA e6replA_3_1<>+8(SB)/4, $21
+DATA e6replA_3_1<>+12(SB)/4, $21
+DATA e6replA_3_1<>+16(SB)/4, $21
+DATA e6replA_3_1<>+20(SB)/4, $21
+DATA e6replA_3_1<>+24(SB)/4, $21
+DATA e6replA_3_1<>+28(SB)/4, $21
+DATA e6replA_3_1<>+32(SB)/4, $27
+DATA e6replA_3_1<>+36(SB)/4, $27
+DATA e6replA_3_1<>+40(SB)/4, $27
+DATA e6replA_3_1<>+44(SB)/4, $27
+DATA e6replA_3_1<>+48(SB)/4, $27
+DATA e6replA_3_1<>+52(SB)/4, $27
+DATA e6replA_3_1<>+56(SB)/4, $0
+DATA e6replA_3_1<>+60(SB)/4, $0
+GLOBL e6replA_3_1<>(SB), RODATA|NOPTR, $64
+DATA e6replB_3_1<>+0(SB)/4, $0
+DATA e6replB_3_1<>+4(SB)/4, $0
+DATA e6replB_3_1<>+8(SB)/4, $5
+DATA e6replB_3_1<>+12(SB)/4, $5
+DATA e6replB_3_1<>+16(SB)/4, $5
+DATA e6replB_3_1<>+20(SB)/4, $5
+DATA e6replB_3_1<>+24(SB)/4, $5
+DATA e6replB_3_1<>+28(SB)/4, $5
+DATA e6replB_3_1<>+32(SB)/4, $11
+DATA e6replB_3_1<>+36(SB)/4, $11
+DATA e6replB_3_1<>+40(SB)/4, $11
+DATA e6replB_3_1<>+44(SB)/4, $11
+DATA e6replB_3_1<>+48(SB)/4, $11
+DATA e6replB_3_1<>+52(SB)/4, $11
+DATA e6replB_3_1<>+56(SB)/4, $17
+DATA e6replB_3_1<>+60(SB)/4, $17
+GLOBL e6replB_3_1<>(SB), RODATA|NOPTR, $64
+DATA e6replA_3_2<>+0(SB)/4, $1
+DATA e6replA_3_2<>+4(SB)/4, $1
+DATA e6replA_3_2<>+8(SB)/4, $1
+DATA e6replA_3_2<>+12(SB)/4, $1
+DATA e6replA_3_2<>+16(SB)/4, $7
+DATA e6replA_3_2<>+20(SB)/4, $7
+DATA e6replA_3_2<>+24(SB)/4, $7
+DATA e6replA_3_2<>+28(SB)/4, $7
+DATA e6replA_3_2<>+32(SB)/4, $7
+DATA e6replA_3_2<>+36(SB)/4, $7
+DATA e6replA_3_2<>+40(SB)/4, $13
+DATA e6replA_3_2<>+44(SB)/4, $13
+DATA e6replA_3_2<>+48(SB)/4, $13
+DATA e6replA_3_2<>+52(SB)/4, $13
+DATA e6replA_3_2<>+56(SB)/4, $13
+DATA e6replA_3_2<>+60(SB)/4, $13
+GLOBL e6replA_3_2<>(SB), RODATA|NOPTR, $64
+DATA e6replA_4_0<>+0(SB)/4, $4
+DATA e6replA_4_0<>+4(SB)/4, $4
+DATA e6replA_4_0<>+8(SB)/4, $4
+DATA e6replA_4_0<>+12(SB)/4, $4
+DATA e6replA_4_0<>+16(SB)/4, $4
+DATA e6replA_4_0<>+20(SB)/4, $4
+DATA e6replA_4_0<>+24(SB)/4, $10
+DATA e6replA_4_0<>+28(SB)/4, $10
+DATA e6replA_4_0<>+32(SB)/4, $10
+DATA e6replA_4_0<>+36(SB)/4, $10
+DATA e6replA_4_0<>+40(SB)/4, $10
+DATA e6replA_4_0<>+44(SB)/4, $10
+DATA e6replA_4_0<>+48(SB)/4, $16
+DATA e6replA_4_0<>+52(SB)/4, $16
+DATA e6replA_4_0<>+56(SB)/4, $16
+DATA e6replA_4_0<>+60(SB)/4, $16
+GLOBL e6replA_4_0<>(SB), RODATA|NOPTR, $64
+DATA e6replA_4_1<>+0(SB)/4, $0
+DATA e6replA_4_1<>+4(SB)/4, $0
+DATA e6replA_4_1<>+8(SB)/4, $6
+DATA e6replA_4_1<>+12(SB)/4, $6
+DATA e6replA_4_1<>+16(SB)/4, $6
+DATA e6replA_4_1<>+20(SB)/4, $6
+DATA e6replA_4_1<>+24(SB)/4, $6
+DATA e6replA_4_1<>+28(SB)/4, $6
+DATA e6replA_4_1<>+32(SB)/4, $12
+DATA e6replA_4_1<>+36(SB)/4, $12
+DATA e6replA_4_1<>+40(SB)/4, $12
+DATA e6replA_4_1<>+44(SB)/4, $12
+DATA e6replA_4_1<>+48(SB)/4, $12
+DATA e6replA_4_1<>+52(SB)/4, $12
+DATA e6replA_4_1<>+56(SB)/4, $18
+DATA e6replA_4_1<>+60(SB)/4, $18
+GLOBL e6replA_4_1<>(SB), RODATA|NOPTR, $64
+DATA e6replA_4_2<>+0(SB)/4, $2
+DATA e6replA_4_2<>+4(SB)/4, $2
+DATA e6replA_4_2<>+8(SB)/4, $2
+DATA e6replA_4_2<>+12(SB)/4, $2
+DATA e6replA_4_2<>+16(SB)/4, $8
+DATA e6replA_4_2<>+20(SB)/4, $8
+DATA e6replA_4_2<>+24(SB)/4, $8
+DATA e6replA_4_2<>+28(SB)/4, $8
+DATA e6replA_4_2<>+32(SB)/4, $8
+DATA e6replA_4_2<>+36(SB)/4, $8
+DATA e6replA_4_2<>+40(SB)/4, $14
+DATA e6replA_4_2<>+44(SB)/4, $14
+DATA e6replA_4_2<>+48(SB)/4, $14
+DATA e6replA_4_2<>+52(SB)/4, $14
+DATA e6replA_4_2<>+56(SB)/4, $14
+DATA e6replA_4_2<>+60(SB)/4, $14
+GLOBL e6replA_4_2<>(SB), RODATA|NOPTR, $64
+DATA e6replA_5_0<>+0(SB)/4, $5
+DATA e6replA_5_0<>+4(SB)/4, $5
+DATA e6replA_5_0<>+8(SB)/4, $5
+DATA e6replA_5_0<>+12(SB)/4, $5
+DATA e6replA_5_0<>+16(SB)/4, $5
+DATA e6replA_5_0<>+20(SB)/4, $5
+DATA e6replA_5_0<>+24(SB)/4, $11
+DATA e6replA_5_0<>+28(SB)/4, $11
+DATA e6replA_5_0<>+32(SB)/4, $11
+DATA e6replA_5_0<>+36(SB)/4, $11
+DATA e6replA_5_0<>+40(SB)/4, $11
+DATA e6replA_5_0<>+44(SB)/4, $11
+DATA e6replA_5_0<>+48(SB)/4, $17
+DATA e6replA_5_0<>+52(SB)/4, $17
+DATA e6replA_5_0<>+56(SB)/4, $17
+DATA e6replA_5_0<>+60(SB)/4, $17
+GLOBL e6replA_5_0<>(SB), RODATA|NOPTR, $64
+DATA e6replA_5_1<>+0(SB)/4, $1
+DATA e6replA_5_1<>+4(SB)/4, $1
+DATA e6replA_5_1<>+8(SB)/4, $7
+DATA e6replA_5_1<>+12(SB)/4, $7
+DATA e6replA_5_1<>+16(SB)/4, $7
+DATA e6replA_5_1<>+20(SB)/4, $7
+DATA e6replA_5_1<>+24(SB)/4, $7
+DATA e6replA_5_1<>+28(SB)/4, $7
+DATA e6replA_5_1<>+32(SB)/4, $13
+DATA e6replA_5_1<>+36(SB)/4, $13
+DATA e6replA_5_1<>+40(SB)/4, $13
+DATA e6replA_5_1<>+44(SB)/4, $13
+DATA e6replA_5_1<>+48(SB)/4, $13
+DATA e6replA_5_1<>+52(SB)/4, $13
+DATA e6replA_5_1<>+56(SB)/4, $19
+DATA e6replA_5_1<>+60(SB)/4, $19
+GLOBL e6replA_5_1<>(SB), RODATA|NOPTR, $64
+DATA e6replA_5_2<>+0(SB)/4, $3
+DATA e6replA_5_2<>+4(SB)/4, $3
+DATA e6replA_5_2<>+8(SB)/4, $3
+DATA e6replA_5_2<>+12(SB)/4, $3
+DATA e6replA_5_2<>+16(SB)/4, $9
+DATA e6replA_5_2<>+20(SB)/4, $9
+DATA e6replA_5_2<>+24(SB)/4, $9
+DATA e6replA_5_2<>+28(SB)/4, $9
+DATA e6replA_5_2<>+32(SB)/4, $9
+DATA e6replA_5_2<>+36(SB)/4, $9
+DATA e6replA_5_2<>+40(SB)/4, $15
+DATA e6replA_5_2<>+44(SB)/4, $15
+DATA e6replA_5_2<>+48(SB)/4, $15
+DATA e6replA_5_2<>+52(SB)/4, $15
+DATA e6replA_5_2<>+56(SB)/4, $15
+DATA e6replA_5_2<>+60(SB)/4, $15
+GLOBL e6replA_5_2<>(SB), RODATA|NOPTR, $64
+TEXT ·vectorScalarMul_E6_avx512(SB), NOSPLIT, $0-32
+	MOVD         $const_q, AX
+	VPBROADCASTD AX, Z0
+	MOVD         $const_qInvNeg, AX
+	VPBROADCASTD AX, Z1
+	MOVQ         $0x0000000000005555, AX
+	KMOVD        AX, K3
+	MOVQ         res+0(FP), R13
+	MOVQ         a+8(FP), R14
+	MOVQ         Kcol+16(FP), CX
+	MOVQ         N+24(FP), BX
+	SHRQ         $3, BX
+
+loop_23:
+	TESTQ     BX, BX
+	JEQ       done_24
+	DECQ      BX
+	VMOVDQU32 0(R14), Z2
+	VMOVDQU32 64(R14), Z3
+	VMOVDQU32 128(R14), Z4
+	MOVQ      $e6replA_0_0<>+0(SB), SI
+	VMOVDQU32 0(SI), Z8
+	VPERMI2D  Z2, Z2, Z8
+	VMOVDQU32 0(CX), Z10
+	MUL_5W(Z8, Z10, Z12, Z13, Z14, Z15, Z16, Z5, Z0, Z1)
+	REDUCE1Q(Z0, Z5, Z17)
+	MOVQ      $e6replA_0_1<>+0(SB), SI
+	VMOVDQU32 0(SI), Z8
+	VPERMI2D  Z3, Z2, Z8
+	VMOVDQU32 64(CX), Z10
+	MUL_5W(Z8, Z10, Z18, Z19, Z20, Z21, Z22, Z6, Z0, Z1)
+	REDUCE1Q(Z0, Z6, Z23)
+	MOVQ      $e6replA_0_2<>+0(SB), SI
+	VMOVDQU32 0(SI), Z8
+	VPERMI2D  Z4, Z3, Z8
+	VMOVDQU32 128(CX), Z10
+	MUL_5W(Z8, Z10, Z24, Z25, Z26, Z27, Z28, Z7, Z0, Z1)
+	REDUCE1Q(Z0, Z7, Z29)
+	MOVQ      $e6replA_1_0<>+0(SB), SI
+	VMOVDQU32 0(SI), Z8
+	VPERMI2D  Z2, Z2, Z8
+	VMOVDQU32 192(CX), Z10
+	MUL_5W(Z8, Z10, Z30, Z31, Z12, Z13, Z14, Z11, Z0, Z1)
+	REDUCE1Q(Z0, Z11, Z15)
+	ADD(Z5, Z11, Z0, Z16, Z5)
+	MOVQ      $e6replA_1_1<>+0(SB), SI
+	VMOVDQU32 0(SI), Z8
+	VPERMI2D  Z3, Z2, Z8
+	VMOVDQU32 256(CX), Z10
+	MUL_5W(Z8, Z10, Z17, Z18, Z19, Z20, Z21, Z11, Z0, Z1)
+	REDUCE1Q(Z0, Z11, Z22)
+	ADD(Z6, Z11, Z0, Z23, Z6)
+	MOVQ      $e6replA_1_2<>+0(SB), SI
+	VMOVDQU32 0(SI), Z8
+	VPERMI2D  Z4, Z3, Z8
+	VMOVDQU32 320(CX), Z10
+	MUL_5W(Z8, Z10, Z24, Z25, Z26, Z27, Z28, Z11, Z0, Z1)
+	REDUCE1Q(Z0, Z11, Z29)
+	ADD(Z7, Z11, Z0, Z30, Z7)
+	MOVQ      $e6replA_2_0<>+0(SB), SI
+	VMOVDQU32 0(SI), Z8
+	VPERMI2D  Z2, Z2, Z8
+	VMOVDQU32 384(CX), Z10
+	MUL_5W(Z8, Z10, Z31, Z12, Z13, Z14, Z15, Z11, Z0, Z1)
+	REDUCE1Q(Z0, Z11, Z16)
+	ADD(Z5, Z11, Z0, Z17, Z5)
+	MOVQ      $e6replA_2_1<>+0(SB), SI
+	VMOVDQU32 0(SI), Z8
+	VPERMI2D  Z3, Z2, Z8
+	MOVQ      $e6replB_2_1<>+0(SB), SI
+	VMOVDQU32 0(SI), Z9
+	VPERMI2D  Z4, Z3, Z9
+	MOVQ      $0x000000000000c000, AX
+	KMOVD     AX, K1
+	VPBLENDMD Z9, Z8, K1, Z8
+	VMOVDQU32 448(CX), Z10
+	MUL_5W(Z8, Z10, Z18, Z19, Z20, Z21, Z22, Z11, Z0, Z1)
+	REDUCE1Q(Z0, Z11, Z23)
+	ADD(Z6, Z11, Z0, Z24, Z6)
+	MOVQ      $e6replA_2_2<>+0(SB), SI
+	VMOVDQU32 0(SI), Z8
+	VPERMI2D  Z4, Z4, Z8
+	VMOVDQU32 512(CX), Z10
+	MUL_5W(Z8, Z10, Z25, Z26, Z27, Z28, Z29, Z11, Z0, Z1)
+	REDUCE1Q(Z0, Z11, Z30)
+	ADD(Z7, Z11, Z0, Z31, Z7)
+	MOVQ      $e6replA_3_0<>+0(SB), SI
+	VMOVDQU32 0(SI), Z8
+	VPERMI2D  Z2, Z2, Z8
+	VMOVDQU32 576(CX), Z10
+	MUL_5W(Z8, Z10, Z12, Z13, Z14, Z15, Z16, Z11, Z0, Z1)
+	REDUCE1Q(Z0, Z11, Z17)
+	ADD(Z5, Z11, Z0, Z18, Z5)
+	MOVQ      $e6replA_3_1<>+0(SB), SI
+	VMOVDQU32 0(SI), Z8
+	VPERMI2D  Z3, Z2, Z8
+	MOVQ      $e6replB_3_1<>+0(SB), SI
+	VMOVDQU32 0(SI), Z9
+	VPERMI2D  Z4, Z3, Z9
+	MOVQ      $0x000000000000c000, AX
+	KMOVD     AX, K1
+	VPBLENDMD Z9, Z8, K1, Z8
+	VMOVDQU32 640(CX), Z10
+	MUL_5W(Z8, Z10, Z19, Z20, Z21, Z22, Z23, Z11, Z0, Z1)
+	REDUCE1Q(Z0, Z11, Z24)
+	ADD(Z6, Z11, Z0, Z25, Z6)
+	MOVQ      $e6replA_3_2<>+0(SB), SI
+	VMOVDQU32 0(SI), Z8
+	VPERMI2D  Z4, Z4, Z8
+	VMOVDQU32 704(CX), Z10
+	MUL_5W(Z8, Z10, Z26, Z27, Z28, Z29, Z30, Z11, Z0, Z1)
+	REDUCE1Q(Z0, Z11, Z31)
+	ADD(Z7, Z11, Z0, Z12, Z7)
+	MOVQ      $e6replA_4_0<>+0(SB), SI
+	VMOVDQU32 0(SI), Z8
+	VPERMI2D  Z3, Z2, Z8
+	VMOVDQU32 768(CX), Z10
+	MUL_5W(Z8, Z10, Z13, Z14, Z15, Z16, Z17, Z11, Z0, Z1)
+	REDUCE1Q(Z0, Z11, Z18)
+	ADD(Z5, Z11, Z0, Z19, Z5)
+	MOVQ      $e6replA_4_1<>+0(SB), SI
+	VMOVDQU32 0(SI), Z8
+	VPERMI2D  Z4, Z3, Z8
+	VMOVDQU32 832(CX), Z10
+	MUL_5W(Z8, Z10, Z20, Z21, Z22, Z23, Z24, Z11, Z0, Z1)
+	REDUCE1Q(Z0, Z11, Z25)
+	ADD(Z6, Z11, Z0, Z26, Z6)
+	MOVQ      $e6replA_4_2<>+0(SB), SI
+	VMOVDQU32 0(SI), Z8
+	VPERMI2D  Z4, Z4, Z8
+	VMOVDQU32 896(CX), Z10
+	MUL_5W(Z8, Z10, Z27, Z28, Z29, Z30, Z31, Z11, Z0, Z1)
+	REDUCE1Q(Z0, Z11, Z12)
+	ADD(Z7, Z11, Z0, Z13, Z7)
+	MOVQ      $e6replA_5_0<>+0(SB), SI
+	VMOVDQU32 0(SI), Z8
+	VPERMI2D  Z3, Z2, Z8
+	VMOVDQU32 960(CX), Z10
+	MUL_5W(Z8, Z10, Z14, Z15, Z16, Z17, Z18, Z11, Z0, Z1)
+	REDUCE1Q(Z0, Z11, Z19)
+	ADD(Z5, Z11, Z0, Z20, Z5)
+	MOVQ      $e6replA_5_1<>+0(SB), SI
+	VMOVDQU32 0(SI), Z8
+	VPERMI2D  Z4, Z3, Z8
+	VMOVDQU32 1024(CX), Z10
+	MUL_5W(Z8, Z10, Z21, Z22, Z23, Z24, Z25, Z11, Z0, Z1)
+	REDUCE1Q(Z0, Z11, Z26)
+	ADD(Z6, Z11, Z0, Z27, Z6)
+	MOVQ      $e6replA_5_2<>+0(SB), SI
+	VMOVDQU32 0(SI), Z8
+	VPERMI2D  Z4, Z4, Z8
+	VMOVDQU32 1088(CX), Z10
+	MUL_5W(Z8, Z10, Z28, Z29, Z30, Z31, Z12, Z11, Z0, Z1)
+	REDUCE1Q(Z0, Z11, Z13)
+	ADD(Z7, Z11, Z0, Z14, Z7)
+	VMOVDQU32 Z5, 0(R13)
+	VMOVDQU32 Z6, 64(R13)
+	VMOVDQU32 Z7, 128(R13)
+	ADDQ      $192, R14
+	ADDQ      $192, R13
+	JMP       loop_23
+
+done_24:
+	RET
+
+TEXT ·vectorScalarMulAcc_E6_avx512(SB), NOSPLIT, $0-32
+	MOVD         $const_q, AX
+	VPBROADCASTD AX, Z0
+	MOVD         $const_qInvNeg, AX
+	VPBROADCASTD AX, Z1
+	MOVQ         $0x0000000000005555, AX
+	KMOVD        AX, K3
+	MOVQ         res+0(FP), R13
+	MOVQ         a+8(FP), R14
+	MOVQ         Kcol+16(FP), CX
+	MOVQ         N+24(FP), BX
+	SHRQ         $3, BX
+
+loop_25:
+	TESTQ     BX, BX
+	JEQ       done_26
+	DECQ      BX
+	VMOVDQU32 0(R14), Z2
+	VMOVDQU32 64(R14), Z3
+	VMOVDQU32 128(R14), Z4
+	MOVQ      $e6replA_0_0<>+0(SB), SI
+	VMOVDQU32 0(SI), Z8
+	VPERMI2D  Z2, Z2, Z8
+	VMOVDQU32 0(CX), Z10
+	MUL_5W(Z8, Z10, Z12, Z13, Z14, Z15, Z16, Z5, Z0, Z1)
+	REDUCE1Q(Z0, Z5, Z17)
+	MOVQ      $e6replA_0_1<>+0(SB), SI
+	VMOVDQU32 0(SI), Z8
+	VPERMI2D  Z3, Z2, Z8
+	VMOVDQU32 64(CX), Z10
+	MUL_5W(Z8, Z10, Z18, Z19, Z20, Z21, Z22, Z6, Z0, Z1)
+	REDUCE1Q(Z0, Z6, Z23)
+	MOVQ      $e6replA_0_2<>+0(SB), SI
+	VMOVDQU32 0(SI), Z8
+	VPERMI2D  Z4, Z3, Z8
+	VMOVDQU32 128(CX), Z10
+	MUL_5W(Z8, Z10, Z24, Z25, Z26, Z27, Z28, Z7, Z0, Z1)
+	REDUCE1Q(Z0, Z7, Z29)
+	MOVQ      $e6replA_1_0<>+0(SB), SI
+	VMOVDQU32 0(SI), Z8
+	VPERMI2D  Z2, Z2, Z8
+	VMOVDQU32 192(CX), Z10
+	MUL_5W(Z8, Z10, Z30, Z31, Z12, Z13, Z14, Z11, Z0, Z1)
+	REDUCE1Q(Z0, Z11, Z15)
+	ADD(Z5, Z11, Z0, Z16, Z5)
+	MOVQ      $e6replA_1_1<>+0(SB), SI
+	VMOVDQU32 0(SI), Z8
+	VPERMI2D  Z3, Z2, Z8
+	VMOVDQU32 256(CX), Z10
+	MUL_5W(Z8, Z10, Z17, Z18, Z19, Z20, Z21, Z11, Z0, Z1)
+	REDUCE1Q(Z0, Z11, Z22)
+	ADD(Z6, Z11, Z0, Z23, Z6)
+	MOVQ      $e6replA_1_2<>+0(SB), SI
+	VMOVDQU32 0(SI), Z8
+	VPERMI2D  Z4, Z3, Z8
+	VMOVDQU32 320(CX), Z10
+	MUL_5W(Z8, Z10, Z24, Z25, Z26, Z27, Z28, Z11, Z0, Z1)
+	REDUCE1Q(Z0, Z11, Z29)
+	ADD(Z7, Z11, Z0, Z30, Z7)
+	MOVQ      $e6replA_2_0<>+0(SB), SI
+	VMOVDQU32 0(SI), Z8
+	VPERMI2D  Z2, Z2, Z8
+	VMOVDQU32 384(CX), Z10
+	MUL_5W(Z8, Z10, Z31, Z12, Z13, Z14, Z15, Z11, Z0, Z1)
+	REDUCE1Q(Z0, Z11, Z16)
+	ADD(Z5, Z11, Z0, Z17, Z5)
+	MOVQ      $e6replA_2_1<>+0(SB), SI
+	VMOVDQU32 0(SI), Z8
+	VPERMI2D  Z3, Z2, Z8
+	MOVQ      $e6replB_2_1<>+0(SB), SI
+	VMOVDQU32 0(SI), Z9
+	VPERMI2D  Z4, Z3, Z9
+	MOVQ      $0x000000000000c000, AX
+	KMOVD     AX, K1
+	VPBLENDMD Z9, Z8, K1, Z8
+	VMOVDQU32 448(CX), Z10
+	MUL_5W(Z8, Z10, Z18, Z19, Z20, Z21, Z22, Z11, Z0, Z1)
+	REDUCE1Q(Z0, Z11, Z23)
+	ADD(Z6, Z11, Z0, Z24, Z6)
+	MOVQ      $e6replA_2_2<>+0(SB), SI
+	VMOVDQU32 0(SI), Z8
+	VPERMI2D  Z4, Z4, Z8
+	VMOVDQU32 512(CX), Z10
+	MUL_5W(Z8, Z10, Z25, Z26, Z27, Z28, Z29, Z11, Z0, Z1)
+	REDUCE1Q(Z0, Z11, Z30)
+	ADD(Z7, Z11, Z0, Z31, Z7)
+	MOVQ      $e6replA_3_0<>+0(SB), SI
+	VMOVDQU32 0(SI), Z8
+	VPERMI2D  Z2, Z2, Z8
+	VMOVDQU32 576(CX), Z10
+	MUL_5W(Z8, Z10, Z12, Z13, Z14, Z15, Z16, Z11, Z0, Z1)
+	REDUCE1Q(Z0, Z11, Z17)
+	ADD(Z5, Z11, Z0, Z18, Z5)
+	MOVQ      $e6replA_3_1<>+0(SB), SI
+	VMOVDQU32 0(SI), Z8
+	VPERMI2D  Z3, Z2, Z8
+	MOVQ      $e6replB_3_1<>+0(SB), SI
+	VMOVDQU32 0(SI), Z9
+	VPERMI2D  Z4, Z3, Z9
+	MOVQ      $0x000000000000c000, AX
+	KMOVD     AX, K1
+	VPBLENDMD Z9, Z8, K1, Z8
+	VMOVDQU32 640(CX), Z10
+	MUL_5W(Z8, Z10, Z19, Z20, Z21, Z22, Z23, Z11, Z0, Z1)
+	REDUCE1Q(Z0, Z11, Z24)
+	ADD(Z6, Z11, Z0, Z25, Z6)
+	MOVQ      $e6replA_3_2<>+0(SB), SI
+	VMOVDQU32 0(SI), Z8
+	VPERMI2D  Z4, Z4, Z8
+	VMOVDQU32 704(CX), Z10
+	MUL_5W(Z8, Z10, Z26, Z27, Z28, Z29, Z30, Z11, Z0, Z1)
+	REDUCE1Q(Z0, Z11, Z31)
+	ADD(Z7, Z11, Z0, Z12, Z7)
+	MOVQ      $e6replA_4_0<>+0(SB), SI
+	VMOVDQU32 0(SI), Z8
+	VPERMI2D  Z3, Z2, Z8
+	VMOVDQU32 768(CX), Z10
+	MUL_5W(Z8, Z10, Z13, Z14, Z15, Z16, Z17, Z11, Z0, Z1)
+	REDUCE1Q(Z0, Z11, Z18)
+	ADD(Z5, Z11, Z0, Z19, Z5)
+	MOVQ      $e6replA_4_1<>+0(SB), SI
+	VMOVDQU32 0(SI), Z8
+	VPERMI2D  Z4, Z3, Z8
+	VMOVDQU32 832(CX), Z10
+	MUL_5W(Z8, Z10, Z20, Z21, Z22, Z23, Z24, Z11, Z0, Z1)
+	REDUCE1Q(Z0, Z11, Z25)
+	ADD(Z6, Z11, Z0, Z26, Z6)
+	MOVQ      $e6replA_4_2<>+0(SB), SI
+	VMOVDQU32 0(SI), Z8
+	VPERMI2D  Z4, Z4, Z8
+	VMOVDQU32 896(CX), Z10
+	MUL_5W(Z8, Z10, Z27, Z28, Z29, Z30, Z31, Z11, Z0, Z1)
+	REDUCE1Q(Z0, Z11, Z12)
+	ADD(Z7, Z11, Z0, Z13, Z7)
+	MOVQ      $e6replA_5_0<>+0(SB), SI
+	VMOVDQU32 0(SI), Z8
+	VPERMI2D  Z3, Z2, Z8
+	VMOVDQU32 960(CX), Z10
+	MUL_5W(Z8, Z10, Z14, Z15, Z16, Z17, Z18, Z11, Z0, Z1)
+	REDUCE1Q(Z0, Z11, Z19)
+	ADD(Z5, Z11, Z0, Z20, Z5)
+	MOVQ      $e6replA_5_1<>+0(SB), SI
+	VMOVDQU32 0(SI), Z8
+	VPERMI2D  Z4, Z3, Z8
+	VMOVDQU32 1024(CX), Z10
+	MUL_5W(Z8, Z10, Z21, Z22, Z23, Z24, Z25, Z11, Z0, Z1)
+	REDUCE1Q(Z0, Z11, Z26)
+	ADD(Z6, Z11, Z0, Z27, Z6)
+	MOVQ      $e6replA_5_2<>+0(SB), SI
+	VMOVDQU32 0(SI), Z8
+	VPERMI2D  Z4, Z4, Z8
+	VMOVDQU32 1088(CX), Z10
+	MUL_5W(Z8, Z10, Z28, Z29, Z30, Z31, Z12, Z11, Z0, Z1)
+	REDUCE1Q(Z0, Z11, Z13)
+	ADD(Z7, Z11, Z0, Z14, Z7)
+	VMOVDQU32 0(R13), Z11
+	ADD(Z5, Z11, Z0, Z15, Z5)
+	VMOVDQU32 64(R13), Z11
+	ADD(Z6, Z11, Z0, Z16, Z6)
+	VMOVDQU32 128(R13), Z11
+	ADD(Z7, Z11, Z0, Z17, Z7)
+	VMOVDQU32 Z5, 0(R13)
+	VMOVDQU32 Z6, 64(R13)
+	VMOVDQU32 Z7, 128(R13)
+	ADDQ      $192, R14
+	ADDQ      $192, R13
+	JMP       loop_25
+
+done_26:
+	RET
+
 TEXT ·vectorButterfly_avx512(SB), NOSPLIT, $0-24
 	MOVD         $const_q, AX
 	VPBROADCASTD AX, Z0
@@ -633,9 +1361,9 @@ TEXT ·vectorButterfly_avx512(SB), NOSPLIT, $0-24
 	MOVQ         N+16(FP), CX
 	SHRQ         $2, CX
 
-loop_21:
+loop_27:
 	TESTQ     CX, CX
-	JEQ       done_22
+	JEQ       done_28
 	DECQ      CX
 	VMOVDQU32 0(R13), Z1
 	VMOVDQU32 0(R14), Z2
@@ -645,9 +1373,9 @@ loop_21:
 	VMOVDQU32 Z4, 0(R14)
 	ADDQ      $64, R13
 	ADDQ      $64, R14
-	JMP       loop_21
+	JMP       loop_27
 
-done_22:
+done_28:
 	RET
 
 TEXT ·vectorButterflyPair_avx512(SB), NOSPLIT, $0-16
@@ -667,9 +1395,9 @@ TEXT ·vectorButterflyPair_avx512(SB), NOSPLIT, $0-16
 	VPBLENDMQ in0, in3, K2, in0 \
 	VPBLENDMQ in3, in1, K2, in1 \
 
-loop_23:
+loop_29:
 	TESTQ     R14, R14
-	JEQ       done_24
+	JEQ       done_30
 	DECQ      R14
 	VMOVDQU32 0(R13), Z1
 	VMOVDQA32 Z1, Z2
@@ -679,9 +1407,9 @@ loop_23:
 	PERMUTE4X4(Z4, Z5, Z6, Z3)
 	VMOVDQU32 Z4, 0(R13)
 	ADDQ      $64, R13
-	JMP       loop_23
+	JMP       loop_29
 
-done_24:
+done_30:
 	RET
 
 TEXT ·vectorButterflyPair_E6_avx512(SB), NOSPLIT, $0-16
@@ -707,9 +1435,9 @@ TEXT ·vectorButterflyPair_E6_avx512(SB), NOSPLIT, $0-16
 	MOVQ         ·maskPermE6Pair2+0(SB), CX
 	VMOVDQU32    0(CX), Z4
 
-loop_25:
+loop_31:
 	TESTQ     R14, R14
-	JEQ       done_26
+	JEQ       done_32
 	DECQ      R14
 	VMOVDQU32 0(R13), Z5
 	VMOVDQU32 64(R13), Z6
@@ -736,9 +1464,9 @@ loop_25:
 	VMOVDQU32 Z13, 64(R13)
 	VMOVDQU32 Z14, 128(R13)
 	ADDQ      $192, R13
-	JMP       loop_25
+	JMP       loop_31
 
-done_26:
+done_32:
 	RET
 
 TEXT ·vectorInnerProductByElement_avx512(SB), NOSPLIT, $0-32
@@ -757,9 +1485,9 @@ TEXT ·vectorInnerProductByElement_avx512(SB), NOSPLIT, $0-32
 	VMOVDQU32    0(SI), Z6
 	VXORPS       Z3, Z3, Z3
 
-loop_27:
+loop_33:
 	TESTQ     BX, BX
-	JEQ       done_28
+	JEQ       done_34
 	DECQ      BX
 	VMOVDQU32 0(R14), Z0
 	VMOVDQU32 0(CX), X1
@@ -769,9 +1497,9 @@ loop_27:
 	ADD(Z2, Z3, Z4, Z13, Z3)
 	ADDQ      $64, R14
 	ADDQ      $16, CX
-	JMP       loop_27
+	JMP       loop_33
 
-done_28:
+done_34:
 	VEXTRACTI64X4 $1, Z3, Y14
 	ADD(Y3, Y14, Y4, Y15, Y14)
 	VEXTRACTI64X2 $1, Y14, X3
@@ -798,9 +1526,9 @@ TEXT ·vectorDITWithTwiddles_E6_avx512(SB), NOSPLIT, $0-32
 	MOVQ         N+24(FP), BX
 	SHRQ         $3, BX
 
-loop_29:
+loop_35:
 	TESTQ     BX, BX
-	JEQ       done_30
+	JEQ       done_36
 	DECQ      BX
 	VMOVDQU32 0(CX), Y5
 	VMOVDQU32 0(R14), Z7
@@ -833,9 +1561,9 @@ loop_29:
 	ADDQ      $192, R13
 	ADDQ      $192, R14
 	ADDQ      $32, CX
-	JMP       loop_29
+	JMP       loop_35
 
-done_30:
+done_36:
 	RET
 
 TEXT ·vectorDIFWithTwiddles_E6_avx512(SB), NOSPLIT, $0-32
@@ -857,9 +1585,9 @@ TEXT ·vectorDIFWithTwiddles_E6_avx512(SB), NOSPLIT, $0-32
 	MOVQ         N+24(FP), BX
 	SHRQ         $3, BX
 
-loop_31:
+loop_37:
 	TESTQ     BX, BX
-	JEQ       done_32
+	JEQ       done_38
 	DECQ      BX
 	VMOVDQU32 0(CX), Y5
 	VMOVDQU32 0(R13), Z7
@@ -892,7 +1620,7 @@ loop_31:
 	ADDQ      $192, R13
 	ADDQ      $192, R14
 	ADDQ      $32, CX
-	JMP       loop_31
+	JMP       loop_37
 
-done_32:
+done_38:
 	RET
