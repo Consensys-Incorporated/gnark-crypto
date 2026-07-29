@@ -29,6 +29,27 @@ var maskPermE6Pair1A = []uint32{22, 23, 12, 13, 14, 15, 16, 17, 30, 31, 0, 1, 2,
 var maskPermE6Pair1B = []uint32{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 16, 17, 18, 19, 0, 0}
 var maskPermE6Pair2 = []uint32{10, 11, 12, 13, 26, 27, 28, 29, 30, 31, 20, 21, 22, 23, 24, 25}
 
+// VPERMI2D index tables for the gather-free E6 scalar-mul kernels
+// (vectorScalarMul_E6_avx512 / vectorScalarMulAcc_E6_avx512).
+//
+// For output zmm g and source coordinate i, e6replA replicates coordinate i of
+// every E6 across the 6 fr lanes of its group within the 48-lane (8 E6) window;
+// table (i, g) starts at offset (i*3+g)*16. e6replB holds the sparse "cross"
+// tables for the groups that straddle a third source zmm, packed in (i, g)
+// order. Generated from amd64.E6ReplicationTables; kept in Go (rather than as
+// assembly DATA) so the .s file stays small.
+var e6replA = []uint32{
+	{{- range .E6ReplA }}
+	{{ range $i, $v := . }}{{ if $i }}, {{ end }}{{ $v }}{{ end }},
+	{{- end }}
+}
+
+var e6replB = []uint32{
+	{{- range .E6ReplB }}
+	{{ range $i, $v := . }}{{ if $i }}, {{ end }}{{ $v }}{{ end }},
+	{{- end }}
+}
+
 func init() {
 	indexGather4 = make([]uint32, 16)
 	for i := range 16 {
@@ -75,6 +96,15 @@ func vectorMulByElement_E6_avx512(res, a *E6, b *fr.Element, N uint64)
 
 //go:noescape
 func vectorMulAccByElement_E6_avx512(dst, a *E6, b *fr.Element, N uint64)
+
+//go:noescape
+func vectorScalarMulAccByElement_E6_avx512(vector *E6, a *fr.Element, sTiled *fr.Element, N uint64)
+
+//go:noescape
+func vectorScalarMul_E6_avx512(res, a *E6, Kcol *fr.Element, N uint64)
+
+//go:noescape
+func vectorScalarMulAcc_E6_avx512(res, a *E6, Kcol *fr.Element, N uint64)
 
 //go:noescape
 func vectorButterfly_avx512(a, b *E4, N uint64)

@@ -659,6 +659,160 @@ func (vector VectorE6) ScalarMulByElement(a VectorE6, b *fr.Element) {
 	vRes.ScalarMul(vBase, b)
 }
 
+// ScalarMulAccByElement accumulates vector[i] += a[i] * s, where a is a
+// base-field vector and s a fixed E6 scalar.
+func (vector VectorE6) ScalarMulAccByElement(a fr.Vector, s *E6) {
+	N := len(vector)
+	if len(a) != N {
+		panic("vectorE6.ScalarMulAccByElement: vectors don't have the same length")
+	}
+{{- if .IsKoalaBear }}
+	const blockSize = 8
+	if cpu.SupportAVX512 && N >= blockSize {
+		r := N % blockSize
+		nr := N - r
+		sTiled := tileE6Scalar(s)
+		vectorScalarMulAccByElement_E6_avx512(&vector[0], &a[0], &sTiled[0], uint64(nr))
+		if r != 0 {
+			scalarMulAccByElementE6Generic(vector[nr:], a[nr:], s)
+		}
+		return
+	}
+{{- end }}
+	scalarMulAccByElementE6Generic(vector, a, s)
+}
+
+func scalarMulAccByElementE6Generic(vector VectorE6, a fr.Vector, s *E6) {
+	var tmp E6
+	for i := range vector {
+		tmp.MulByElement(s, &a[i])
+		vector[i].Add(&vector[i], &tmp)
+	}
+}
+
+// ScalarMulAcc accumulates vector[i] += a[i] * s, where s is a fixed E6 scalar.
+func (vector VectorE6) ScalarMulAcc(a VectorE6, s *E6) {
+	N := len(vector)
+	if len(a) != N {
+		panic("vectorE6.ScalarMulAcc: vectors don't have the same length")
+	}
+{{- if .IsKoalaBear }}
+	const blockSize = 8
+	if cpu.SupportAVX512 && N >= blockSize {
+		r := N % blockSize
+		nr := N - r
+		Kcol := e6ScalarMulKcol(s)
+		vectorScalarMulAcc_E6_avx512(&vector[0], &a[0], &Kcol[0], uint64(nr))
+		if r != 0 {
+			scalarMulAccE6Generic(vector[nr:], a[nr:], s)
+		}
+		return
+	}
+{{- end }}
+	scalarMulAccE6Generic(vector, a, s)
+}
+
+func scalarMulAccE6Generic(vector, a VectorE6, s *E6) {
+	var tmp E6
+	for i := range vector {
+		tmp.Mul(&a[i], s)
+		vector[i].Add(&vector[i], &tmp)
+	}
+}
+
+// ScalarMul sets vector[i] = a[i] * s, where s is a fixed E6 scalar.
+func (vector VectorE6) ScalarMul(a VectorE6, s *E6) {
+	N := len(vector)
+	if len(a) != N {
+		panic("vectorE6.ScalarMul: vectors don't have the same length")
+	}
+{{- if .IsKoalaBear }}
+	const blockSize = 8
+	if cpu.SupportAVX512 && N >= blockSize {
+		r := N % blockSize
+		nr := N - r
+		Kcol := e6ScalarMulKcol(s)
+		vectorScalarMul_E6_avx512(&vector[0], &a[0], &Kcol[0], uint64(nr))
+		if r != 0 {
+			scalarMulE6Generic(vector[nr:], a[nr:], s)
+		}
+		return
+	}
+{{- end }}
+	scalarMulE6Generic(vector, a, s)
+}
+
+func scalarMulE6Generic(vector, a VectorE6, s *E6) {
+	for i := range vector {
+		vector[i].Mul(&a[i], s)
+	}
+}
+{{- if .IsKoalaBear }}
+
+// tileE6Scalar tiles the six fr coordinates of s across 48 lanes (period 6, the
+// 8-E6 = 3-zmm broadcast window consumed by vectorScalarMulAccByElement_E6_avx512).
+func tileE6Scalar(s *E6) [48]fr.Element {
+	c := [6]fr.Element{s.B0.A0, s.B0.A1, s.B1.A0, s.B1.A1, s.B2.A0, s.B2.A1}
+	var out [48]fr.Element
+	for p := range out {
+		out[p] = c[p%6]
+	}
+	return out
+}
+
+// scalarMulE6Matrix builds the 6×6 constant matrix K (row-major) such that, for
+// a fixed E6 scalar s, the map a ↦ a·s is c = K·a over the six fr coordinates.
+// It mirrors E6.Mul(a, s) exactly, so the AVX-512 kernels stay bit-identical to
+// the scalar path. Coordinate order is (B0.A0, B0.A1, B1.A0, B1.A1, B2.A0, B2.A1)
+// with the tower E6 = E2[v]/(v³-(u+1)), E2 = Fr[u]/(u²-α), α = 3.
+func scalarMulE6Matrix(s *E6) [36]fr.Element {
+	b0, b1, b2, b3, b4, b5 := s.B0.A0, s.B0.A1, s.B1.A0, s.B1.A1, s.B2.A0, s.B2.A1
+
+	mul3 := func(x *fr.Element) fr.Element {
+		var r fr.Element
+		r.Add(x, x).Add(&r, x)
+		return r
+	}
+	add := func(x, y *fr.Element) fr.Element {
+		var r fr.Element
+		r.Add(x, y)
+		return r
+	}
+
+	m1, m2, m3, m4, m5 := mul3(&b1), mul3(&b2), mul3(&b3), mul3(&b4), mul3(&b5)
+	m23 := add(&m2, &m3)    // 3b2 + 3b3
+	m45 := add(&m4, &m5)    // 3b4 + 3b5
+	b45 := add(&b4, &b5)    // b4 + b5
+	b23 := add(&b2, &b3)    // b2 + b3
+	b4_3b5 := add(&b4, &m5) // b4 + 3b5
+	b2_3b3 := add(&b2, &m3) // b2 + 3b3
+
+	return [36]fr.Element{
+		b0, m1, b4_3b5, m45, b2_3b3, m23,
+		b1, b0, b45, b4_3b5, b23, b2_3b3,
+		b2, m3, b0, m1, b4_3b5, m45,
+		b3, b2, b1, b0, b45, b4_3b5,
+		b4, m5, b2, m3, b0, m1,
+		b5, b4, b3, b2, b1, b0,
+	}
+}
+
+// e6ScalarMulKcol builds the tiled K columns consumed by the AVX-512
+// vectorScalarMul(Acc)_E6_avx512 kernels: for source coordinate i, K's column i
+// is tiled across the 48-lane (8-E6 = 3-zmm) window with period 6, so
+// out[i*48 + p] = K[p%6][i]. See scalarMulE6Matrix for the layout of K.
+func e6ScalarMulKcol(s *E6) [6 * 48]fr.Element {
+	K := scalarMulE6Matrix(s)
+	var out [6 * 48]fr.Element
+	for i := range 6 {
+		for p := range 48 {
+			out[i*48+p] = K[(p%6)*6+i]
+		}
+	}
+	return out
+}
+{{- end }}
+
 {{define "butterflyE6Coords FF X Y"}}
 	{{.FF}}.Butterfly(&{{.X}}.B0.A0, &{{.Y}}.B0.A0)
 	{{.FF}}.Butterfly(&{{.X}}.B0.A1, &{{.Y}}.B0.A1)

@@ -35,6 +35,10 @@ func generateExtensions(F *config.Field, outputDir string) error {
 		IsBabyBear       bool
 		// QuadraticNonResidue is α, where E2 = Fr[u]/(u²-α).
 		QuadraticNonResidue uint64
+		// E6ReplA / E6ReplB are the VPERMI2D index tables for the gather-free E6
+		// scalar-mul kernels, split into rows of 16 for the generated Go literals.
+		// See amd64.E6ReplicationTables.
+		E6ReplA, E6ReplB [][]uint32
 	}
 
 	isKoalaBear := F.Q[0] == 2130706433
@@ -55,6 +59,12 @@ func generateExtensions(F *config.Field, outputDir string) error {
 		Q:                   F.Q[0],
 		QInvNeg:             F.QInverse[0],
 		QuadraticNonResidue: quadraticNonResidue,
+	}
+
+	if isKoalaBear {
+		replA, replB := amd64.E6ReplicationTables()
+		data.E6ReplA = chunkU32(replA, 16)
+		data.E6ReplB = chunkU32(replB, 16)
 	}
 
 	g := NewGenerator(template.FS)
@@ -98,4 +108,16 @@ func generateExtensions(F *config.Field, outputDir string) error {
 	}
 
 	return runFormatters(outputDir)
+}
+
+// chunkU32 splits s into consecutive rows of at most n elements, for laying out
+// generated slice literals one logical table per line.
+func chunkU32(s []uint32, n int) [][]uint32 {
+	var rows [][]uint32
+	for len(s) > 0 {
+		k := min(n, len(s))
+		rows = append(rows, s[:k])
+		s = s[k:]
+	}
+	return rows
 }

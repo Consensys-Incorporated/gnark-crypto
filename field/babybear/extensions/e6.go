@@ -577,3 +577,53 @@ func (vector VectorE6) ScalarMulByElement(a VectorE6, b *fr.Element) {
 	vRes := fr.Vector(unsafe.Slice((*fr.Element)(unsafe.Pointer(&vector[0])), M))
 	vRes.ScalarMul(vBase, b)
 }
+
+// ScalarMulAccByElement accumulates vector[i] += a[i] * s, where a is a
+// base-field vector and s a fixed E6 scalar.
+func (vector VectorE6) ScalarMulAccByElement(a fr.Vector, s *E6) {
+	N := len(vector)
+	if len(a) != N {
+		panic("vectorE6.ScalarMulAccByElement: vectors don't have the same length")
+	}
+	scalarMulAccByElementE6Generic(vector, a, s)
+}
+
+func scalarMulAccByElementE6Generic(vector VectorE6, a fr.Vector, s *E6) {
+	var tmp E6
+	for i := range vector {
+		tmp.MulByElement(s, &a[i])
+		vector[i].Add(&vector[i], &tmp)
+	}
+}
+
+// ScalarMulAcc accumulates vector[i] += a[i] * s, where s is a fixed E6 scalar.
+func (vector VectorE6) ScalarMulAcc(a VectorE6, s *E6) {
+	N := len(vector)
+	if len(a) != N {
+		panic("vectorE6.ScalarMulAcc: vectors don't have the same length")
+	}
+	scalarMulAccE6Generic(vector, a, s)
+}
+
+func scalarMulAccE6Generic(vector, a VectorE6, s *E6) {
+	var tmp E6
+	for i := range vector {
+		tmp.Mul(&a[i], s)
+		vector[i].Add(&vector[i], &tmp)
+	}
+}
+
+// ScalarMul sets vector[i] = a[i] * s, where s is a fixed E6 scalar.
+func (vector VectorE6) ScalarMul(a VectorE6, s *E6) {
+	N := len(vector)
+	if len(a) != N {
+		panic("vectorE6.ScalarMul: vectors don't have the same length")
+	}
+	scalarMulE6Generic(vector, a, s)
+}
+
+func scalarMulE6Generic(vector, a VectorE6, s *E6) {
+	for i := range vector {
+		vector[i].Mul(&a[i], s)
+	}
+}
