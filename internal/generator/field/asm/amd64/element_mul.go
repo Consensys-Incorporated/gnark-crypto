@@ -123,7 +123,9 @@ func (f *FFAmd64) MulADX(registers *amd64.Registers, x, y func(int) string, t []
 	}
 
 	if hasFreeRegister {
-		registers.Push(tr)
+		// UnsafePush: tr may be a register (e.g. R15) that the caller added
+		// to the pool with UnsafePush and that Push would reject.
+		registers.UnsafePush(tr)
 	}
 
 	return t

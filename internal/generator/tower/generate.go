@@ -19,10 +19,6 @@ func Generate(conf config.Curve, baseDir string, gen *common.Generator) error {
 	if conf.Equal(config.BW6_761) || conf.Equal(config.BW6_633) {
 		return generateBW6Tower(conf, baseDir)
 	}
-	if conf.Equal(config.BLS24_315) || conf.Equal(config.BLS24_317) {
-		return nil
-	}
-
 	towerGen := common.NewDefaultGenerator(template.FS)
 
 	entries := []bavard.Entry{
@@ -34,6 +30,13 @@ func Generate(conf config.Curve, baseDir string, gen *common.Generator) error {
 
 	if err := towerGen.Generate(conf, "fptower", "", "", entries...); err != nil {
 		return err
+	}
+
+	if conf.Equal(config.BLS24_315) || conf.Equal(config.BLS24_317) {
+		// for BLS24 curves only the degree-2 sub-extension of the 4->8->24
+		// tower is generated (shared 𝔽p2 files and dedicated assembly);
+		// the rest of the tower is maintained by hand.
+		return generateFq2Assembly(conf, baseDir)
 	}
 
 	towerConfs := []towerConf{
@@ -88,21 +91,8 @@ func Generate(conf config.Curve, baseDir string, gen *common.Generator) error {
 		}
 	}
 
-	{
-		// fq2 assembly
-		fName := filepath.Join(baseDir, "e2_amd64.s")
-		f, err := os.Create(fName)
-		if err != nil {
-			return err
-		}
-
-		Fq2Amd64 := amd64.NewFq2Amd64(f, conf.Fp, conf)
-		if err := Fq2Amd64.Generate(true); err != nil {
-			_ = f.Close()
-			return err
-		}
-		_ = f.Close()
-
+	if err := generateFq2Assembly(conf, baseDir); err != nil {
+		return err
 	}
 
 	if conf.Equal(config.BN254) || conf.Equal(config.BLS12_381) {
@@ -115,6 +105,23 @@ func Generate(conf config.Curve, baseDir string, gen *common.Generator) error {
 
 	return nil
 
+}
+
+func generateFq2Assembly(conf config.Curve, baseDir string) error {
+	fName := filepath.Join(baseDir, "e2_amd64.s")
+	f, err := os.Create(fName)
+	if err != nil {
+		return err
+	}
+
+	Fq2Amd64 := amd64.NewFq2Amd64(f, conf.Fp, conf)
+	if err := Fq2Amd64.Generate(true); err != nil {
+		_ = f.Close()
+		return err
+	}
+	_ = f.Close()
+
+	return nil
 }
 
 func generateBW6Tower(conf config.Curve, baseDir string) error {

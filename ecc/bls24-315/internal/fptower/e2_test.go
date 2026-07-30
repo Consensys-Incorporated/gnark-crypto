@@ -520,3 +520,53 @@ func TestE2Div(t *testing.T) {
 
 	properties.TestingRun(t, gopter.ConsoleReporter(false))
 }
+
+// TestE2AsmVsGeneric checks the assembly implementations against the generic
+// ones on boundary values (0, 1, p-1 components) and aliased arguments.
+func TestE2AsmVsGeneric(t *testing.T) {
+	one := fp.One()
+	var pMinus1 fp.Element
+	pMinus1.Neg(&one)
+	var zero fp.Element
+	specials := []fp.Element{zero, one, pMinus1}
+	var inputs []E2
+	for _, a0 := range specials {
+		for _, a1 := range specials {
+			inputs = append(inputs, E2{A0: a0, A1: a1})
+		}
+	}
+	for i := range inputs {
+		for j := range inputs {
+			var got, want E2
+			mulGenericE2(&want, &inputs[i], &inputs[j])
+			got.Mul(&inputs[i], &inputs[j])
+			if !got.Equal(&want) {
+				t.Fatalf("mul mismatch on boundary values (%d, %d)", i, j)
+			}
+		}
+	}
+
+	// aliasing
+	for i := 0; i < 100; i++ {
+		var x, y E2
+		x.A0.MustSetRandom()
+		x.A1.MustSetRandom()
+		y.A0.MustSetRandom()
+		y.A1.MustSetRandom()
+
+		xCopy, yCopy := x, y
+		var want E2
+		mulGenericE2(&want, &x, &y)
+
+		x.Mul(&x, &y)
+		if !x.Equal(&want) {
+			t.Fatal("aliasing z==x mismatch")
+		}
+		x = xCopy
+		y.Mul(&x, &y)
+		if !y.Equal(&want) {
+			t.Fatal("aliasing z==y mismatch")
+		}
+		y = yCopy
+	}
+}

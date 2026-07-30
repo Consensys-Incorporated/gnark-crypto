@@ -49,12 +49,29 @@ func (fq2 *Fq2Amd64) Generate(forceADXCheck bool) error {
 	fq2.generateNegE2()
 
 	if fq2.config.Equal(config.BN254) {
+		// BN254 keeps the fused-CIOS mul: at 4 words the whole multiplication
+		// is register-resident and measured faster than the lazy-reduction
+		// variant (E2Mul 51.6 vs 53.4 ns on Zen 4).
 		fq2.generateMulByNonResidueE2BN254()
 		fq2.generateMulE2BN254(forceADXCheck)
 		fq2.generateSquareE2(forceADXCheck)
 	} else if fq2.config.Equal(config.BLS12_381) {
 		fq2.generateMulByNonResidueE2BLS381()
-		fq2.generateMulE2BLS381(forceADXCheck)
+		fq2.generateMulE2Lazy(-1, forceADXCheck)
+		fq2.generateSquareE2(forceADXCheck)
+	} else if fq2.config.Equal(config.BLS12_377) {
+		// 𝔽p2 = 𝔽p[u]/(u² + 5)
+		fq2.generateMulByNonResidueE2Scalar(-5)
+		fq2.generateMulE2Lazy(-5, forceADXCheck)
+		fq2.generateSquareE2Scalar(-5, forceADXCheck)
+	} else if fq2.config.Equal(config.BLS24_315) {
+		// 𝔽p2 = 𝔽p[u]/(u² - 13)
+		fq2.generateMulByNonResidueE2Scalar(13)
+		fq2.generateMulE2Lazy(13, forceADXCheck)
+	} else if fq2.config.Equal(config.BLS24_317) {
+		// 𝔽p2 = 𝔽p[u]/(u² + 1), same shape as BLS12-381
+		fq2.generateMulByNonResidueE2BLS381()
+		fq2.generateMulE2Lazy(-1, forceADXCheck)
 		fq2.generateSquareE2(forceADXCheck)
 	}
 	return nil
