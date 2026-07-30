@@ -86,6 +86,24 @@ func (fq2 *Fq2Amd64) generateMulE2Lazy(beta int64, forceCheck bool) {
 
 	ax := amd64.AX
 
+	// MACC and FOLD_CARRIES are the two instruction sequences that dominate
+	// the schoolbook products and the Montgomery reductions below; emitting
+	// them as #define macros (reused across the 3 products and 2 reductions)
+	// keeps the generated assembly compact. MACC is byte-for-byte the macro
+	// MulADX emits, so squareAdxE2 shares this single definition.
+	mac := fq2.Define("MACC", 3, func(args ...any) {
+		fq2.ADCXQ(args[0], args[1])
+		fq2.MULXQ(args[2], amd64.AX, args[0])
+		fq2.ADOXQ(amd64.AX, args[1])
+	}, true)
+	fold := fq2.Define("FOLD_CARRIES", 0, func(_ ...any) {
+		// fold the two pending ADCX/ADOX carries into A=BP (cannot overflow:
+		// the top word of the operands has a spare bit, checked by the caller)
+		fq2.MOVQ(0, amd64.AX)
+		fq2.ADCXQ(amd64.AX, amd64.BP)
+		fq2.ADOXQ(amd64.AX, amd64.BP)
+	}, true)
+
 	qStack := fq2.PopN(&registers, true)
 	// move q to the stack
 	for i := 0; i < fq2.NbWords; i++ {
@@ -125,13 +143,13 @@ func (fq2 *Fq2Amd64) generateMulE2Lazy(beta int64, forceCheck bool) {
 	fq2.mulNoReduce(&registers,
 		func(j int) string { return xPtr.At(j) },
 		func(i int) string { return yPtr.At(i) },
-		t0)
+		t0, mac, fold)
 
 	fq2.Comment("t1 = x.A1 * y.A1 (unreduced)")
 	fq2.mulNoReduce(&registers,
 		func(j int) string { return xPtr.At(j + fq2.NbWords) },
 		func(i int) string { return yPtr.At(i + fq2.NbWords) },
-		t1)
+		t1, mac, fold)
 
 	registers.UnsafePush(xPtr, yPtr)
 
@@ -139,7 +157,7 @@ func (fq2 *Fq2Amd64) generateMulE2Lazy(beta int64, forceCheck bool) {
 	fq2.mulNoReduce(&registers,
 		func(j int) string { return string(aSum[j]) },
 		func(i int) string { return string(bSum[i]) },
-		t2)
+		t2, mac, fold)
 
 	fq2.Comment("t2 = t2 - t0 - t1 = x.A0*y.A1 + x.A1*y.A0 (non-negative)")
 	fq2.subDW(t2, t0)
@@ -162,7 +180,7 @@ func (fq2 *Fq2Amd64) generateMulE2Lazy(beta int64, forceCheck bool) {
 	}
 
 	fq2.Comment("z.A1 = REDC(t2)")
-	res := fq2.redc(&registers, t2, qStack)
+	res := fq2.redc(&registers, t2, qStack, mac, fold)
 	r := registers.Pop()
 	fq2.MOVQ("res+0(FP)", r)
 	fq2.Mov(res, r, 0, fq2.NbWords)
@@ -170,7 +188,7 @@ func (fq2 *Fq2Amd64) generateMulE2Lazy(beta int64, forceCheck bool) {
 	registers.UnsafePush(res...)
 
 	fq2.Comment("z.A0 = REDC(t0)")
-	res = fq2.redc(&registers, t0, qStack)
+	res = fq2.redc(&registers, t0, qStack, mac, fold)
 	r = registers.Pop()
 	fq2.MOVQ("res+0(FP)", r)
 	fq2.Mov(res, r)
@@ -209,7 +227,7 @@ func (fq2 *Fq2Amd64) generateMulE2Lazy(beta int64, forceCheck bool) {
 // Requirement: the top word of both operands must be < 2^63 - 1 so that the
 // final carry fold of each row cannot overflow (holds for operands < 2p when
 // bitlen(p) ≤ 64N-2, checked by the caller).
-func (fq2 *Fq2Amd64) mulNoReduce(registers *amd64.Registers, xat, yat func(int) string, dst []amd64.Register) {
+func (fq2 *Fq2Amd64) mulNoReduce(registers *amd64.Registers, xat, yat func(int) string, dst []amd64.Register, mac, fold func(...any)) {
 	N := fq2.NbWords
 	ax := amd64.AX
 	dx := amd64.DX
@@ -241,14 +259,10 @@ func (fq2 *Fq2Amd64) mulNoReduce(registers *amd64.Registers, xat, yat func(int) 
 		fq2.MULXQ(xat(0), ax, A)
 		fq2.ADOXQ(ax, w[0])
 		for j := 1; j < N; j++ {
-			fq2.ADCXQ(A, w[j])
-			fq2.MULXQ(xat(j), ax, A)
-			fq2.ADOXQ(ax, w[j])
+			mac(A, w[j], xat(j))
 		}
 		// fold the two pending carries into A (cannot overflow, top word of x has a spare bit)
-		fq2.MOVQ(0, ax)
-		fq2.ADCXQ(ax, A)
-		fq2.ADOXQ(ax, A)
+		fold()
 		fq2.MOVQ(A, w[N])
 
 		fq2.MOVQ(w[0], dst[i])
@@ -267,7 +281,7 @@ func (fq2 *Fq2Amd64) mulNoReduce(registers *amd64.Registers, xat, yat func(int) 
 // redc generates a standalone Montgomery reduction (SOS): given t, a 2N-word
 // value on the stack with t < p·2^(64N), returns N registers holding
 // t·2^(-64N) mod p, fully reduced.
-func (fq2 *Fq2Amd64) redc(registers *amd64.Registers, t, qStack []amd64.Register) []amd64.Register {
+func (fq2 *Fq2Amd64) redc(registers *amd64.Registers, t, qStack []amd64.Register, mac, fold func(...any)) []amd64.Register {
 	N := fq2.NbWords
 	ax := amd64.AX
 	dx := amd64.DX
@@ -294,14 +308,10 @@ func (fq2 *Fq2Amd64) redc(registers *amd64.Registers, t, qStack []amd64.Register
 		fq2.MULXQ(qStack[0], ax, A)
 		fq2.ADOXQ(ax, w[0])
 		for j := 1; j < N; j++ {
-			fq2.ADCXQ(A, w[j])
-			fq2.MULXQ(qStack[j], ax, A)
-			fq2.ADOXQ(ax, w[j])
+			mac(A, w[j], qStack[j])
 		}
 		// fold the two pending carries into A (cannot overflow, top word of q has spare bits)
-		fq2.MOVQ(0, ax)
-		fq2.ADCXQ(ax, A)
-		fq2.ADOXQ(ax, A)
+		fold()
 		// w[N] += A + e; carries ripple into e
 		fq2.ADDQ(e, w[N])
 		fq2.MOVQ(0, e)
