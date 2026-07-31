@@ -111,6 +111,57 @@ func TestToLagrangeG1(t *testing.T) {
 	}
 }
 
+func TestToCanonicalG1(t *testing.T) {
+	assert := require.New(t)
+
+	const size = 32
+
+	coeffScalars := sampleG1TransformScalars(size)
+	expectedCanonical := g1PointsFromScalars(coeffScalars)
+
+	lagrangeScalars := slices.Clone(coeffScalars)
+	d := fft.NewDomain(uint64(size))
+	d.FFTInverse(lagrangeScalars, fft.DIF)
+	utils.BitReverse(lagrangeScalars)
+	lagrange := g1PointsFromScalars(lagrangeScalars)
+
+	canonical, err := ToCanonicalG1(lagrange)
+	assert.NoError(err)
+
+	for i := range size {
+		assert.True(expectedCanonical[i].Equal(&canonical[i]), "error canonical conversion %d", i)
+	}
+}
+
+func TestG1TransformRoundTrip(t *testing.T) {
+	assert := require.New(t)
+
+	const size = 32
+
+	canonical := g1PointsFromScalars(sampleG1TransformScalars(size))
+	lagrange, err := ToLagrangeG1(canonical)
+	assert.NoError(err)
+
+	roundTrip, err := ToCanonicalG1(lagrange)
+	assert.NoError(err)
+
+	for i := range size {
+		assert.True(canonical[i].Equal(&roundTrip[i]), "error G1 transform round-trip %d", i)
+	}
+}
+
+func TestG1TransformRejectsNonPowerOfTwo(t *testing.T) {
+	assert := require.New(t)
+
+	points := make([]curve.G1Affine, 3)
+
+	_, err := ToLagrangeG1(points)
+	assert.Error(err)
+
+	_, err = ToCanonicalG1(points)
+	assert.Error(err)
+}
+
 func TestCommitLagrange(t *testing.T) {
 	// sample a sparse polynomial (here in Lagrange form)
 	size := 64
@@ -719,6 +770,24 @@ func BenchmarkToLagrangeG1(b *testing.B) {
 	}
 }
 
+func BenchmarkToCanonicalG1(b *testing.B) {
+	const size = 1 << 14
+
+	var samplePoints [size]curve.G1Affine
+	fillBenchBasesG1(samplePoints[:])
+	lagrange, err := ToLagrangeG1(samplePoints[:])
+	if err != nil {
+		b.Fatal(err)
+	}
+	b.ResetTimer()
+
+	for range b.N {
+		if _, err := ToCanonicalG1(lagrange); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
 func BenchmarkSerializeSRS(b *testing.B) {
 	// let's create a quick SRS
 	srs, err := NewSRS(ecc.NextPowerOfTwo(1<<24), big.NewInt(-1))
@@ -815,4 +884,23 @@ func fillBenchBasesG1(samplePoints []curve.G1Affine) {
 		samplePoints[i].X.Add(&samplePoints[i-1].X, &one)
 		samplePoints[i].Y.Sub(&samplePoints[i-1].Y, &one)
 	}
+}
+
+func sampleG1TransformScalars(size int) []fr.Element {
+	res := make([]fr.Element, size)
+	for i := range size {
+		res[i].SetUint64(uint64(i + 1))
+	}
+	return res
+}
+
+func g1PointsFromScalars(values []fr.Element) []curve.G1Affine {
+	res := make([]curve.G1Affine, len(values))
+	_, _, g1Gen, _ := curve.Generators()
+	var scalar big.Int
+	for i := range len(values) {
+		values[i].BigInt(&scalar)
+		res[i].ScalarMultiplication(&g1Gen, &scalar)
+	}
+	return res
 }
