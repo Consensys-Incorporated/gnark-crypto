@@ -22,6 +22,18 @@ var errWrongSize = errors.New("wrong size buffer")
 var errSBiggerThanRMod = errors.New("s >= r_mod")
 var errRBiggerThanPMod = errors.New("r >= p_mod")
 var errZero = errors.New("zero value")
+var errPublicKeyMismatch = errors.New("public key does not match scalar")
+var errInvalidScalar = errors.New("invalid scalar")
+
+func validatePrivateScalar(scalar *[sizeFr]byte) error {
+	if scalar[sizeFr-1]&0x07 != 0 {
+		return errInvalidScalar
+	}
+	if scalar[0]&0x80 != 0 || scalar[0]&0x40 == 0 {
+		return errInvalidScalar
+	}
+	return nil
+}
 
 // Bytes returns the binary representation of the public key
 // follows https://tools.ietf.org/html/rfc8032#section-3.1
@@ -51,8 +63,8 @@ func (pk *PublicKey) SetBytes(buf []byte) (int, error) {
 		return 0, err
 	}
 	n += sizeFr
-	if !pk.A.IsOnCurve() {
-		return n, errNotOnCurve
+	if err := validatePublicKeyPoint(&pk.A); err != nil {
+		return n, err
 	}
 	return n, nil
 }
@@ -80,17 +92,38 @@ func (privKey *PrivateKey) SetBytes(buf []byte) (int, error) {
 	if len(buf) < sizePrivateKey {
 		return n, io.ErrShortBuffer
 	}
-	if _, err := privKey.PublicKey.A.SetBytes(buf[:sizeFr]); err != nil {
+	var pub PublicKey
+	if _, err := pub.A.SetBytes(buf[:sizeFr]); err != nil {
 		return 0, err
 	}
 	n += sizeFr
-	if !privKey.PublicKey.A.IsOnCurve() {
-		return n, errNotOnCurve
+	if err := validatePublicKeyPoint(&pub.A); err != nil {
+		return n, err
 	}
-	subtle.ConstantTimeCopy(1, privKey.scalar[:], buf[sizeFr:2*sizeFr])
+
+	var scalar [sizeFr]byte
+	subtle.ConstantTimeCopy(1, scalar[:], buf[sizeFr:2*sizeFr])
 	n += sizeFr
-	subtle.ConstantTimeCopy(1, privKey.randSrc[:], buf[2*sizeFr:])
-	n += sizeFr
+	if err := validatePrivateScalar(&scalar); err != nil {
+		return n, err
+	}
+
+	var bScalar big.Int
+	bScalar.SetBytes(scalar[:])
+	curveParams := twistededwards.GetEdwardsCurve()
+	var expectedPub twistededwards.PointAffine
+	expectedPub.ScalarMultiplication(&curveParams.Base, &bScalar)
+	if !expectedPub.Equal(&pub.A) {
+		return n, errPublicKeyMismatch
+	}
+
+	var randSrc [32]byte
+	subtle.ConstantTimeCopy(1, randSrc[:], buf[2*sizeFr:])
+	n += 32
+
+	privKey.PublicKey = pub
+	privKey.scalar = scalar
+	privKey.randSrc = randSrc
 	return n, nil
 }
 
@@ -158,8 +191,8 @@ func (sig *Signature) SetBytes(buf []byte) (int, error) {
 		return 0, err
 	}
 	n += sizeFr
-	if !sig.R.IsOnCurve() {
-		return n, errNotOnCurve
+	if !sig.R.IsInSubGroup() {
+		return n, errNotInSubgroup
 	}
 	subtle.ConstantTimeCopy(1, sig.S[:], buf[sizeFr:2*sizeFr])
 	n += sizeFr

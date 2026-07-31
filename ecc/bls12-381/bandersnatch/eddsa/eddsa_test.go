@@ -128,6 +128,101 @@ func TestNoZeros(t *testing.T) {
 	})
 }
 
+func TestRejectSmallSubgroupForgery(t *testing.T) {
+	cp := twistededwards.GetEdwardsCurve()
+
+	var pub PublicKey
+	pub.A.Y.SetOne().Neg(&pub.A.Y)
+	if !pub.A.IsOnCurve() {
+		t.Fatal("test public key should be on curve")
+	}
+	if pub.A.IsInSubGroup() {
+		t.Fatal("test public key should not be in the prime-order subgroup")
+	}
+
+	var sig Signature
+	sig.R.ScalarMultiplication(&cp.Base, big.NewInt(1))
+	big.NewInt(1).FillBytes(sig.S[:])
+
+	verified, err := pub.Verify(sig.Bytes(), []byte("forged message"), sha256.New())
+	if err == nil && verified {
+		t.Fatal("Verify accepted a forged signature under a small-subgroup public key")
+	}
+}
+
+func TestRejectSmallSubgroupEncoding(t *testing.T) {
+	var pub PublicKey
+	pub.A.Y.SetOne().Neg(&pub.A.Y)
+
+	var decodedPub PublicKey
+	if _, err := decodedPub.SetBytes(pub.Bytes()); err == nil {
+		t.Fatal("SetBytes accepted a small-subgroup public key")
+	}
+
+	var sig Signature
+	sig.R.Set(&pub.A)
+	big.NewInt(1).FillBytes(sig.S[:])
+
+	var decodedSig Signature
+	if _, err := decodedSig.SetBytes(sig.Bytes()); err == nil {
+		t.Fatal("SetBytes accepted a small-subgroup signature R")
+	}
+}
+
+func TestPrivateKeyDeserializationChecksPublicKeyAndScalar(t *testing.T) {
+	src := rand.NewSource(0)
+	r := rand.New(src) //#nosec G404 weak rng is fine here
+
+	privKey, err := GenerateKey(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	otherPrivKey, err := GenerateKey(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	privKeyBin := privKey.Bytes()
+
+	t.Run("public_key_mismatch", func(t *testing.T) {
+		tampered := append([]byte(nil), privKeyBin...)
+		copy(tampered[:sizeFr], otherPrivKey.PublicKey.Bytes())
+
+		var decoded PrivateKey
+		if _, err := decoded.SetBytes(tampered); err != errPublicKeyMismatch {
+			t.Fatalf("expected errPublicKeyMismatch, got %v", err)
+		}
+	})
+
+	t.Run("scalar_mismatch", func(t *testing.T) {
+		tampered := append([]byte(nil), privKeyBin...)
+		tampered[sizeFr+1] ^= 1
+
+		var decoded PrivateKey
+		if _, err := decoded.SetBytes(tampered); err != errPublicKeyMismatch {
+			t.Fatalf("expected errPublicKeyMismatch, got %v", err)
+		}
+	})
+
+	t.Run("invalid_scalar_pruning", func(t *testing.T) {
+		tampered := append([]byte(nil), privKeyBin...)
+		tampered[2*sizeFr-1] |= 1
+
+		var bScalar big.Int
+		bScalar.SetBytes(tampered[sizeFr : 2*sizeFr])
+		cp := twistededwards.GetEdwardsCurve()
+		var pub twistededwards.PointAffine
+		pub.ScalarMultiplication(&cp.Base, &bScalar)
+		pubBin := pub.Bytes()
+		copy(tampered[:sizeFr], pubBin[:])
+
+		var decoded PrivateKey
+		if _, err := decoded.SetBytes(tampered); err != errInvalidScalar {
+			t.Fatalf("expected errInvalidScalar, got %v", err)
+		}
+	})
+}
+
 func TestSerialization(t *testing.T) {
 
 	src := rand.NewSource(0)

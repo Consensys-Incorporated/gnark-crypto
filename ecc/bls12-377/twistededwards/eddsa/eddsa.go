@@ -19,6 +19,8 @@ import (
 )
 
 var errNotOnCurve = errors.New("point not on curve")
+var errNotInSubgroup = errors.New("point not in subgroup")
+var errIdentity = errors.New("identity point")
 var errHashNeeded = errors.New("hFunc cannot be nil. We need a hash for Fiat-Shamir")
 
 const (
@@ -46,6 +48,16 @@ type PrivateKey struct {
 type Signature struct {
 	R twistededwards.PointAffine
 	S [sizeFr]byte
+}
+
+func validatePublicKeyPoint(p *twistededwards.PointAffine) error {
+	if p.IsZero() {
+		return errIdentity
+	}
+	if !p.IsInSubGroup() {
+		return errNotInSubgroup
+	}
+	return nil
 }
 
 // GenerateKey generates a public and private key pair.
@@ -127,8 +139,9 @@ func (privKey *PrivateKey) Sign(message []byte, hFunc hash.Hash) ([]byte, error)
 	copy(randSrc, privKey.randSrc[:])
 	copy(randSrc[32:], message)
 
-	// randBytes = H(randSrc)
-	blindingFactorBytes := blake2b.Sum512(randSrc[:]) // TODO ensures that the hash used to build the key and the one used here is the same
+	// randBytes = H(randSrc). PrivateKey.SetBytes checks the serialized
+	// scalar pruning and public-key binding before randSrc is used here.
+	blindingFactorBytes := blake2b.Sum512(randSrc[:])
 	blindingFactorBigInt.SetBytes(blindingFactorBytes[:sizeFr])
 
 	// compute R = randScalar*Base
@@ -183,9 +196,9 @@ func (pub *PublicKey) Verify(sigBin, message []byte, hFunc hash.Hash) (bool, err
 
 	curveParams := twistededwards.GetEdwardsCurve()
 
-	// verify that pubKey and R are on the curve
-	if !pub.A.IsOnCurve() {
-		return false, errNotOnCurve
+	// verify that pubKey is a non-identity point in the prime-order subgroup
+	if err := validatePublicKeyPoint(&pub.A); err != nil {
+		return false, err
 	}
 
 	// Deserialize the signature
