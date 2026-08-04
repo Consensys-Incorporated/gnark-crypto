@@ -119,6 +119,9 @@ func (s *MpcSetup) Verify(next *MpcSetup) error {
 	if len(s.srs.Pk.G1) != len(next.srs.Pk.G1) {
 		return errors.New("different domain sizes")
 	}
+	if len(next.srs.Pk.G1) < 2 {
+		return errors.New("domain size must be at least 2")
+	}
 
 	if !next.srs.Vk.G2[1].IsInSubGroup() {
 		return errors.New("[x]₂ representation not in subgroup")
@@ -129,13 +132,16 @@ func (s *MpcSetup) Verify(next *MpcSetup) error {
 	}
 
 	if err := next.proof.Verify(append([]byte("KZG Setup"), challenge...), 0, mpcsetup.ValueUpdate{
+		Previous: s.srs.Pk.G1[1],
+		Next:     next.srs.Pk.G1[1],
+	}, mpcsetup.ValueUpdate{
 		Previous: s.srs.Vk.G2[1],
 		Next:     next.srs.Vk.G2[1],
 	}); err != nil {
 		return err
 	}
 
-	return mpcsetup.SameRatioMany(s.srs.Pk.G1, s.srs.Vk.G2[:])
+	return mpcsetup.SameRatioMany(next.srs.Pk.G1, next.srs.Vk.G2[:])
 }
 
 func (s *MpcSetup) Seal(beaconChallenge []byte) SRS {

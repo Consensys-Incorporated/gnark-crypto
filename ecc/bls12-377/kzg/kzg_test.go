@@ -20,6 +20,7 @@ import (
 	curve "github.com/consensys/gnark-crypto/ecc/bls12-377"
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr/fft"
+	"github.com/consensys/gnark-crypto/ecc/bls12-377/mpcsetup"
 	"github.com/consensys/gnark-crypto/utils"
 
 	"github.com/consensys/gnark-crypto/utils/testutils"
@@ -78,6 +79,25 @@ func TestMpcSetup(t *testing.T) {
 		require.NoError(t, prev.Verify(&p))
 		prev = p
 	}
+}
+
+func TestMpcSetupRejectsInconsistentG1Monomials(t *testing.T) {
+	prev := InitializeSetup(srsSize)
+	next := InitializeSetup(srsSize)
+
+	var contribution fr.Element
+	contribution.SetUint64(2)
+	challenge := prev.hash()
+	next.challenge = challenge
+	next.proof = mpcsetup.UpdateValues(&contribution, append([]byte("KZG Setup"), challenge...), 0, &next.srs.Vk.G2[1])
+	mpcsetup.UpdateMonomialsG1(next.srs.Pk.G1, &contribution)
+
+	_, _, g1, _ := curve.Generators()
+	for i := 2; i < len(next.srs.Pk.G1); i++ {
+		next.srs.Pk.G1[i] = g1
+	}
+
+	require.Error(t, prev.Verify(&next))
 }
 
 func TestToLagrangeG1(t *testing.T) {
