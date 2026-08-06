@@ -50,3 +50,7 @@ func permutation16x16xN_columns_avx512(matrix *fr.Element, roundKeys [][]fr.Elem
 func permutation16x16x512_arm64(matrix *fr.Element, roundKeys [][]fr.Element, result *fr.Element) {
 	panic("permutation16x16x512_arm64 is not implemented")
 }
+
+func permutation16x16xN_columns_arm64(matrix *fr.Element, roundKeys [][]fr.Element, result *fr.Element, nbSteps uint64) {
+	panic("permutation16x16xN_columns_arm64 is not implemented")
+}

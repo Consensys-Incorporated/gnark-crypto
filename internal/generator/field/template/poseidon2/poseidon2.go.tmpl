@@ -650,14 +650,16 @@ func (h *Permutation) Compressx16Columns(matrix []fr.Element, colSize int, resul
 		panic("invalid input: matrix must be 16*colSize, result must be 16, colSize must be multiple of 8")
 	}
 
-	// Only the AMD64 AVX-512 kernel exists for this layout; otherwise fall back
-	// to the generic implementation.
-	if runtime.GOARCH != "amd64" || !h.params.hasFast{{- $wc}}_{{- $fc}}_{{- $pc}} {
+	if !h.params.hasFast{{- $wc}}_{{- $fc}}_{{- $pc}} {
 		h.compressx16ColumnsGeneric(matrix, colSize, result)
 		return
 	}
 
 	nbSteps := uint64(colSize / 8)
+	if runtime.GOARCH == "arm64" {
+		permutation16x16xN_columns_arm64(&matrix[0], h.params.RoundKeys, &result[0][0], nbSteps)
+		return
+	}
 	permutation16x16xN_columns_avx512(&matrix[0], h.params.RoundKeys, &result[0][0], nbSteps)
 }
 
