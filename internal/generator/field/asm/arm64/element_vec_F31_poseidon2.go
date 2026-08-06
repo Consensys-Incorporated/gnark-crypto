@@ -44,7 +44,8 @@ func GenerateF31Poseidon2(w io.Writer, nbBits int, q, qInvNeg uint64, params []a
 	f := NewFFArm64(w, (nbBits+63)/64)
 	for _, p := range params {
 		if p.Width == 16 && p.HasCompressx16 {
-			f.generatePoseidon2_F31_16x16x512(p, q, qInvNeg)
+			f.generatePoseidon2_F31_16x16x512(p, q, qInvNeg, false)
+			f.generatePoseidon2_F31_16x16x512(p, q, qInvNeg, true)
 		}
 	}
 	return nil
@@ -57,6 +58,11 @@ func GenerateF31Poseidon2(w io.Writer, nbBits int, q, qInvNeg uint64, params []a
 //   - matrix: input data, 16 rows × 512 field elements each (total 16 × 512 × 4 = 32768 bytes)
 //   - roundKeys: slice header pointing to [][]fr.Element round keys
 //   - result: output buffer, 16 rows × 8 field elements each (total 16 × 8 × 4 = 512 bytes)
+//
+// With columns == true, it instead generates permutation16x16xN_columns_arm64: same
+// algorithm, but the input is column-major (matrix[pos*16+lane]) with a runtime nbSteps
+// argument (colSize = nbSteps*8). In that layout the 4 lanes of a batch are contiguous
+// in memory, so each rate coordinate is a single VLD1 instead of 4 scalar loads.
 //
 // Algorithm:
 //   - We process 4 rows in parallel (4 NEON lanes), so we need 4 batches to cover all 16 rows
@@ -73,7 +79,7 @@ func GenerateF31Poseidon2(w io.Writer, nbBits int, q, qInvNeg uint64, params []a
 //   - V29: used by mul as private temp
 //   - V30-V31: scratch for modular arithmetic
 //   - R0-R12: general purpose (addresses, counters, etc.)
-func (f *FFArm64) generatePoseidon2_F31_16x16x512(params amd64.Poseidon2Parameters, constQ, constQInvNeg uint64) {
+func (f *FFArm64) generatePoseidon2_F31_16x16x512(params amd64.Poseidon2Parameters, constQ, constQInvNeg uint64, columns bool) {
 	fullRounds := params.FullRounds
 	partialRounds := params.PartialRounds
 	rf := fullRounds / 2 // half rounds before and after partial rounds
@@ -82,8 +88,12 @@ func (f *FFArm64) generatePoseidon2_F31_16x16x512(params amd64.Poseidon2Paramete
 		panic("only width 16 is supported")
 	}
 
-	const fnName = "permutation16x16x512_arm64"
-	const argSize = 8 + 24 + 8 // matrix ptr + roundKeys slice header + result ptr
+	fnName := "permutation16x16x512_arm64"
+	argSize := 8 + 24 + 8 // matrix ptr + roundKeys slice header + result ptr
+	if columns {
+		fnName = "permutation16x16xN_columns_arm64"
+		argSize += 8 // + nbSteps
+	}
 
 	// Stack frame for temporary storage during each step (8 vectors × 16 bytes = 128 bytes)
 	const stackSize = 128
@@ -152,6 +162,12 @@ func (f *FFArm64) generatePoseidon2_F31_16x16x512(params amd64.Poseidon2Paramete
 	ptr2 := registers.Pop()    // data pointer for batch row 2
 	ptr3 := registers.Pop()    // data pointer for batch row 3
 	tmpCalc := registers.Pop() // temporary for address calculations
+
+	var nbSteps arm64.Register // number of steps (columns variant only)
+	if columns {
+		nbSteps = registers.Pop()
+		f.MOVD("nbSteps+40(FP)", nbSteps)
+	}
 
 	// =========================================================================
 	// Modular Arithmetic Macros (using Define)
@@ -536,28 +552,43 @@ func (f *FFArm64) generatePoseidon2_F31_16x16x512(params amd64.Poseidon2Paramete
 	const N = 512 / 8 // 64 steps per batch
 	f.MOVD(0, stepIdx)
 
-	f.WriteLn(fmt.Sprintf("    LSL $13, %s, %s", batchIdx, tmpCalc))
-	f.ADD(addrMatrix, tmpCalc, ptr0)
-	f.ADD(2048, ptr0, ptr1)
-	f.ADD(2048, ptr1, ptr2)
-	f.ADD(2048, ptr2, ptr3)
+	if columns {
+		// lanes 4b..4b+3 of position pos live at matrix + pos*64 + b*16
+		f.WriteLn(fmt.Sprintf("    LSL $4, %s, %s", batchIdx, tmpCalc))
+		f.ADD(addrMatrix, tmpCalc, ptr0)
+	} else {
+		f.WriteLn(fmt.Sprintf("    LSL $13, %s, %s", batchIdx, tmpCalc))
+		f.ADD(addrMatrix, tmpCalc, ptr0)
+		f.ADD(2048, ptr0, ptr1)
+		f.ADD(2048, ptr1, ptr2)
+		f.ADD(2048, ptr2, ptr3)
+	}
 
 	f.LABEL("step_loop")
 
-	// Load 8 elements from each of 4 lanes
-	for j := range 8 {
-		f.MOVWU(fmt.Sprintf("(%s)", ptr0), tmpCalc)
-		f.WriteLn(fmt.Sprintf("    VMOV %s, %s", tmpCalc, t[j].SAt(0)))
-		f.MOVWU(fmt.Sprintf("(%s)", ptr1), tmpCalc)
-		f.WriteLn(fmt.Sprintf("    VMOV %s, %s", tmpCalc, t[j].SAt(1)))
-		f.MOVWU(fmt.Sprintf("(%s)", ptr2), tmpCalc)
-		f.WriteLn(fmt.Sprintf("    VMOV %s, %s", tmpCalc, t[j].SAt(2)))
-		f.MOVWU(fmt.Sprintf("(%s)", ptr3), tmpCalc)
-		f.WriteLn(fmt.Sprintf("    VMOV %s, %s", tmpCalc, t[j].SAt(3)))
-		f.ADD(4, ptr0, ptr0)
-		f.ADD(4, ptr1, ptr1)
-		f.ADD(4, ptr2, ptr2)
-		f.ADD(4, ptr3, ptr3)
+	if columns {
+		// The 4 lanes of the batch are contiguous: one VLD1 per rate coordinate,
+		// consecutive positions are 64 bytes apart.
+		for j := range 8 {
+			f.VLD1_P(16, ptr0, t[j].S4())
+			f.ADD(48, ptr0, ptr0)
+		}
+	} else {
+		// Load 8 elements from each of 4 lanes
+		for j := range 8 {
+			f.MOVWU(fmt.Sprintf("(%s)", ptr0), tmpCalc)
+			f.WriteLn(fmt.Sprintf("    VMOV %s, %s", tmpCalc, t[j].SAt(0)))
+			f.MOVWU(fmt.Sprintf("(%s)", ptr1), tmpCalc)
+			f.WriteLn(fmt.Sprintf("    VMOV %s, %s", tmpCalc, t[j].SAt(1)))
+			f.MOVWU(fmt.Sprintf("(%s)", ptr2), tmpCalc)
+			f.WriteLn(fmt.Sprintf("    VMOV %s, %s", tmpCalc, t[j].SAt(2)))
+			f.MOVWU(fmt.Sprintf("(%s)", ptr3), tmpCalc)
+			f.WriteLn(fmt.Sprintf("    VMOV %s, %s", tmpCalc, t[j].SAt(3)))
+			f.ADD(4, ptr0, ptr0)
+			f.ADD(4, ptr1, ptr1)
+			f.ADD(4, ptr2, ptr2)
+			f.ADD(4, ptr3, ptr3)
+		}
 	}
 
 	// Copy input into state[8..15]
@@ -608,7 +639,11 @@ func (f *FFArm64) generatePoseidon2_F31_16x16x512(params amd64.Poseidon2Paramete
 
 	// Loop control
 	f.ADD(1, stepIdx, stepIdx)
-	f.CMP(N, stepIdx)
+	if columns {
+		f.CMP(nbSteps, stepIdx)
+	} else {
+		f.CMP(N, stepIdx)
+	}
 	f.WriteLn("    BNE step_loop")
 
 	// Store results for this batch
