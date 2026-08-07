@@ -5,6 +5,7 @@ package utils
 
 import (
 	"fmt"
+	"slices"
 	"testing"
 )
 
@@ -76,6 +77,63 @@ func TestBitReverse(t *testing.T) {
 	})
 }
 
+func TestBitReverseAlgorithms(t *testing.T) {
+	state := uint32(1)
+	next := func() uint32 {
+		state ^= state << 13
+		state ^= state >> 17
+		state ^= state << 5
+		return state
+	}
+	for logN := range 23 {
+		size := 1 << logN
+		src := make([]uint32, size)
+		for i := range src {
+			src[i] = next()
+		}
+
+		want := slices.Clone(src)
+		BitReverseNaive(want)
+
+		got := slices.Clone(src)
+		BitReverseCobra(got)
+		if !slices.Equal(got, want) {
+			t.Fatalf("COBRA result differs from naive at size 2^%d", logN)
+		}
+
+		for name, copyFn := range map[string]func([]uint32, []uint32){
+			"auto":  BitReverseCopy[uint32],
+			"naive": BitReverseCopyNaive[uint32],
+			"cobra": BitReverseCopyCobra[uint32],
+		} {
+			dst := make([]uint32, size)
+			copyFn(dst, src)
+			if !slices.Equal(dst, want) {
+				t.Fatalf("%s copy differs from naive at size 2^%d", name, logN)
+			}
+		}
+	}
+}
+
+func TestBitReverseInvalidInputs(t *testing.T) {
+	for name, f := range map[string]func(){
+		"empty in-place":     func() { BitReverseNaive([]uint32{}) },
+		"non-power in-place": func() { BitReverseCobra(make([]uint32, 3)) },
+		"empty copy":         func() { BitReverseCopy([]uint32{}, []uint32{}) },
+		"length mismatch":    func() { BitReverseCopy(make([]uint32, 2), make([]uint32, 1)) },
+		"same slice": func() {
+			v := make([]uint32, 2)
+			BitReverseCopy(v, v)
+		},
+		"partial overlap": func() {
+			v := make([]uint32, 4)
+			BitReverseCopy(v[:2], v[1:3])
+		},
+	} {
+		t.Run(name, func(t *testing.T) { assertPanic(t, f) })
+	}
+}
+
 func BenchmarkBitReverse(b *testing.B) {
 	sizes := []int{1 << 8, 1 << 9, 1 << 16, 1 << 21, maxSizeBitReverse}
 
@@ -108,6 +166,36 @@ func BenchmarkBitReverse(b *testing.B) {
 			})
 		}
 	})
+}
+
+func BenchmarkBitReverseAlgorithms(b *testing.B) {
+	for _, logN := range []int{20, 21, 22} {
+		v := make([]uint32, 1<<logN)
+		for name, reverse := range map[string]func([]uint32){
+			"naive": BitReverseNaive[uint32],
+			"cobra": BitReverseCobra[uint32],
+		} {
+			b.Run(fmt.Sprintf("in-place/%s/2^%d", name, logN), func(b *testing.B) {
+				b.SetBytes(int64(len(v)) * 4)
+				for b.Loop() {
+					reverse(v)
+				}
+			})
+		}
+
+		dst := make([]uint32, len(v))
+		for name, reverse := range map[string]func([]uint32, []uint32){
+			"naive": BitReverseCopyNaive[uint32],
+			"cobra": BitReverseCopyCobra[uint32],
+		} {
+			b.Run(fmt.Sprintf("copy/%s/2^%d", name, logN), func(b *testing.B) {
+				b.SetBytes(int64(len(v)) * 4)
+				for b.Loop() {
+					reverse(dst, v)
+				}
+			})
+		}
+	}
 }
 
 // / test helpers

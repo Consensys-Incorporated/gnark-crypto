@@ -644,8 +644,8 @@ func (_f *FFAmd64) generatePoseidon2_F31_16x16xN(params Poseidon2Parameters, gat
 	nbStepsArg := "nbSteps+48(FP)"
 	if !gather {
 		fnName = "permutation16x16xN_columns_avx512"
-		// func permutation16x16xN_columns_avx512(matrix *fr.Element, roundKeys [][]fr.Element, result *fr.Element, nbSteps uint64)
-		argSize = 6 * 8 // matrix(8) + roundKeys(24) + result(8) + nbSteps(8)
+		// func permutation16x16xN_columns_avx512(matrix *fr.Element, roundKeys [][]fr.Element, result *fr.Element, nbSteps uint64, state *fr.Element)
+		argSize = 7 * 8 // matrix(8) + roundKeys(24) + result(8) + nbSteps(8) + state(8)
 		nbStepsArg = "nbSteps+40(FP)"
 	}
 	stackSize := f.StackSize(f.NbWords*2+4, 2, 0)
@@ -677,10 +677,32 @@ func (_f *FFAmd64) generatePoseidon2_F31_16x16xN(params Poseidon2Parameters, gat
 	const blockSize = 4
 	const nbBlocks = 16 / blockSize
 
-	// Initialize the 16 transposed states to zero:
-	// for all lanes, state[lane] = 0.
-	for i := range 16 {
-		f.VXORPS(v[i], v[i], v[i])
+	if gather {
+		for i := range 16 {
+			f.VXORPS(v[i], v[i], v[i])
+		}
+	} else {
+		// The column kernel optionally starts from 16 caller-provided 8-element
+		// states in transposed layout. The nil check is outside the hot loop.
+		addrState := registers.Pop()
+		zeroState := f.NewLabel("zero_state")
+		stateReady := f.NewLabel("state_ready")
+		f.MOVQ("state+48(FP)", addrState)
+		f.TESTQ(addrState, addrState)
+		f.JEQ(zeroState)
+		for i := range 8 {
+			f.VMOVDQU32(addrState.AtD(i*16), v[i])
+		}
+		for i := 8; i < 16; i++ {
+			f.VXORPS(v[i], v[i], v[i])
+		}
+		f.JMP(stateReady)
+		f.LABEL(zeroState)
+		for i := range 16 {
+			f.VXORPS(v[i], v[i], v[i])
+		}
+		f.LABEL(stateReady)
+		registers.Push(addrState)
 	}
 
 	// Load nbSteps from parameter (instead of hardcoded 64)

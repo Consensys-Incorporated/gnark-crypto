@@ -646,12 +646,36 @@ func (h *Permutation) compressx16Generic(matrix []fr.Element, colSize int, resul
 // The result is written in the same row-major [16][8] layout as Compressx16:
 // result[lane] is the 8-element digest of leaf lane.
 func (h *Permutation) Compressx16Columns(matrix []fr.Element, colSize int, result [][8]fr.Element) {
-	if len(matrix) != 16*colSize || len(result) != 16 || colSize%8 != 0 {
+	if len(matrix) != 16*colSize || len(result) != 16 || colSize == 0 || colSize%8 != 0 {
 		panic("invalid input: matrix must be 16*colSize, result must be 16, colSize must be multiple of 8")
 	}
+	h.compressx16Columns(nil, matrix, colSize, result)
+}
 
-	if !h.params.hasFast{{- $wc}}_{{- $fc}}_{{- $pc}} {
-		h.compressx16ColumnsGeneric(matrix, colSize, result)
+// Compressx16ColumnsWithState runs 16 independent Poseidon2 compression
+// chains from caller-provided states. state[pos*16+lane] is coordinate pos of
+// lane's initial 8-element state, and matrix[(step*8+pos)*16+lane] is
+// coordinate pos of its block at step. Inputs are not mutated. result[lane]
+// receives the final state. result must not overlap state or matrix.
+func (h *Permutation) Compressx16ColumnsWithState(
+	state, matrix []fr.Element,
+	colSize int,
+	result [][8]fr.Element,
+) {
+	if len(state) != 16*8 || len(matrix) != 16*colSize || len(result) != 16 || colSize == 0 || colSize%8 != 0 {
+		panic("invalid input: state must be 16*8, matrix must be 16*colSize, result must be 16, colSize must be a positive multiple of 8")
+	}
+	h.compressx16Columns(state, matrix, colSize, result)
+}
+
+func (h *Permutation) compressx16Columns(
+	state, matrix []fr.Element,
+	colSize int,
+	result [][8]fr.Element,
+) {
+
+	if !h.params.hasFast{{- $wc}}_{{- $fc}}_{{- $pc}} || (runtime.GOARCH == "arm64" && state != nil) {
+		h.compressx16ColumnsGeneric(state, matrix, colSize, result)
 		return
 	}
 
@@ -660,12 +684,23 @@ func (h *Permutation) Compressx16Columns(matrix []fr.Element, colSize int, resul
 		permutation16x16xN_columns_arm64(&matrix[0], h.params.RoundKeys, &result[0][0], nbSteps)
 		return
 	}
-	permutation16x16xN_columns_avx512(&matrix[0], h.params.RoundKeys, &result[0][0], nbSteps)
+	var statePtr *fr.Element
+	if state != nil {
+		statePtr = &state[0]
+	}
+	permutation16x16xN_columns_avx512(&matrix[0], h.params.RoundKeys, &result[0][0], nbSteps, statePtr)
 }
 
 // compressx16ColumnsGeneric is the pure-Go fallback for Compressx16Columns.
-func (h *Permutation) compressx16ColumnsGeneric(matrix []fr.Element, colSize int, result [][8]fr.Element) {
+func (h *Permutation) compressx16ColumnsGeneric(state, matrix []fr.Element, colSize int, result [][8]fr.Element) {
 	var x [16][16]fr.Element
+	if state != nil {
+		for lane := range 16 {
+			for pos := range 8 {
+				x[lane][pos] = state[pos*16+lane]
+			}
+		}
+	}
 	nbSteps := colSize / 8
 	for step := range nbSteps {
 		for lane := range 16 {

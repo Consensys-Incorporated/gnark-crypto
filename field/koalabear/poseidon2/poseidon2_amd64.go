@@ -45,7 +45,7 @@ func permutation16x24_avx512(input *[24][16]fr.Element, roundKeys [][]fr.Element
 func permutation16x16xN_avx512(matrix *fr.Element, roundKeys [][]fr.Element, result *fr.Element, gatherIndices *uint32, nbSteps uint64)
 
 //go:noescape
-func permutation16x16xN_columns_avx512(matrix *fr.Element, roundKeys [][]fr.Element, result *fr.Element, nbSteps uint64)
+func permutation16x16xN_columns_avx512(matrix *fr.Element, roundKeys [][]fr.Element, result *fr.Element, nbSteps uint64, state *fr.Element)
 
 func permutation16x16x512_arm64(matrix *fr.Element, roundKeys [][]fr.Element, result *fr.Element) {
 	panic("permutation16x16x512_arm64 is not implemented")
