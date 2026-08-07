@@ -12,15 +12,124 @@ import (
 // BitReverse applies the bit-reversal permutation to v.
 // len(v) must be a power of 2
 func BitReverse[T any](v []T) {
-	n := uint64(len(v))
-	if bits.OnesCount64(n) != 1 {
-		panic("len(a) must be a power of 2")
-	}
+	checkBitReverseLength(len(v))
 
 	if runtime.GOARCH == "arm64" || len(v) < (1<<21) || unsafe.Sizeof(v[0]) < 8 {
 		bitReverseNaive(v)
 	} else {
 		bitReverseCobra(v)
+	}
+}
+
+// BitReverseNaive applies the bit-reversal permutation to v using direct
+// swaps. len(v) must be a power of two.
+func BitReverseNaive[T any](v []T) {
+	checkBitReverseLength(len(v))
+	bitReverseNaive(v)
+}
+
+// BitReverseCobra applies the cache-friendly COBRA bit-reversal permutation
+// to v. len(v) must be a power of two.
+func BitReverseCobra[T any](v []T) {
+	checkBitReverseLength(len(v))
+	if len(v) == 1 {
+		return
+	}
+	bitReverseCobra(v)
+}
+
+// BitReverseCopy writes dst[bitrev(i)] = src[i]. The slices must have the
+// same power-of-two length and must not overlap. It uses the same architecture,
+// input-size, and element-size heuristic as [BitReverse].
+func BitReverseCopy[T any](dst, src []T) {
+	checkBitReverseCopy(dst, src)
+	if runtime.GOARCH == "arm64" || len(src) < (1<<21) || unsafe.Sizeof(src[0]) < 8 {
+		bitReverseCopyNaive(dst, src)
+	} else {
+		bitReverseCopyCobra(dst, src)
+	}
+}
+
+// BitReverseCopyNaive writes dst[bitrev(i)] = src[i] using direct indexed
+// copies. The slices must have the same power-of-two length and must not
+// overlap.
+func BitReverseCopyNaive[T any](dst, src []T) {
+	checkBitReverseCopy(dst, src)
+	bitReverseCopyNaive(dst, src)
+}
+
+// BitReverseCopyCobra writes dst[bitrev(i)] = src[i] using cache-friendly
+// COBRA tiling. The slices must have the same power-of-two length and must not
+// overlap.
+func BitReverseCopyCobra[T any](dst, src []T) {
+	checkBitReverseCopy(dst, src)
+	bitReverseCopyCobra(dst, src)
+}
+
+func checkBitReverseLength(n int) {
+	if bits.OnesCount64(uint64(n)) != 1 {
+		panic("length must be a power of two")
+	}
+}
+
+func checkBitReverseCopy[T any](dst, src []T) {
+	if len(dst) != len(src) {
+		panic("source and destination lengths must match")
+	}
+	checkBitReverseLength(len(src))
+	if slicesOverlap(dst, src) {
+		panic("source and destination must not overlap")
+	}
+}
+
+func slicesOverlap[T any](a, b []T) bool {
+	elementSize := unsafe.Sizeof(*new(T))
+	if elementSize == 0 || len(a) == 0 || len(b) == 0 {
+		return false
+	}
+	aStart := uintptr(unsafe.Pointer(unsafe.SliceData(a)))
+	bStart := uintptr(unsafe.Pointer(unsafe.SliceData(b)))
+	aEnd := aStart + uintptr(len(a))*elementSize
+	bEnd := bStart + uintptr(len(b))*elementSize
+	return aStart < bEnd && bStart < aEnd
+}
+
+func bitReverseCopyNaive[T any](dst, src []T) {
+	n := uint64(len(src))
+	nn := uint64(64 - bits.TrailingZeros64(n))
+	for i := range n {
+		dst[bits.Reverse64(i)>>nn] = src[i]
+	}
+}
+
+func bitReverseCopyCobra[T any](dst, src []T) {
+	if len(src) == 1 {
+		dst[0] = src[0]
+		return
+	}
+
+	logN := uint64(bits.Len64(uint64(len(src))) - 1)
+	logTileSize := deriveLogTileSize(logN)
+	logBLen := logN - 2*logTileSize
+	bShift := logBLen + logTileSize
+	tileSize := uint64(1) << logTileSize
+	t := make([]T, tileSize*tileSize)
+
+	for b := range uint64(1) << logBLen {
+		for a := range tileSize {
+			aRev := (bits.Reverse64(a) >> (64 - logTileSize)) << logTileSize
+			for c := range tileSize {
+				t[aRev|c] = src[(a<<bShift)|(b<<logTileSize)|c]
+			}
+		}
+
+		bRev := (bits.Reverse64(b) >> (64 - logBLen)) << logTileSize
+		for c := range tileSize {
+			base := ((bits.Reverse64(c) >> (64 - logTileSize)) << bShift) | bRev
+			for aRev := range tileSize {
+				dst[base|aRev] = t[(aRev<<logTileSize)|c]
+			}
+		}
 	}
 }
 
