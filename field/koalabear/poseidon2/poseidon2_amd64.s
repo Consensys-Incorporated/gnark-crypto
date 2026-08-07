@@ -1545,7 +1545,7 @@ done_12:
 	VPSCATTERDD Z7, K1, 28(R13)(Z27*4)
 	RET
 
-TEXT ·permutation16x16xN_columns_avx512(SB), NOSPLIT, $0-48
+TEXT ·permutation16x16xN_columns_avx512(SB), NOSPLIT, $0-56
 	MOVD         $const_q, AX
 	VPBROADCASTD AX, Z16
 	MOVD         $const_qInvNeg, AX
@@ -1555,14 +1555,17 @@ TEXT ·permutation16x16xN_columns_avx512(SB), NOSPLIT, $0-48
 	MOVQ         matrix+0(FP), R14
 	MOVQ         roundKeys+8(FP), CX
 	MOVQ         result+32(FP), R13
-	VXORPS       Z0, Z0, Z0
-	VXORPS       Z1, Z1, Z1
-	VXORPS       Z2, Z2, Z2
-	VXORPS       Z3, Z3, Z3
-	VXORPS       Z4, Z4, Z4
-	VXORPS       Z5, Z5, Z5
-	VXORPS       Z6, Z6, Z6
-	VXORPS       Z7, Z7, Z7
+	MOVQ         state+48(FP), SI
+	TESTQ        SI, SI
+	JEQ          zero_state_19
+	VMOVDQU32    0(SI), Z0
+	VMOVDQU32    64(SI), Z1
+	VMOVDQU32    128(SI), Z2
+	VMOVDQU32    192(SI), Z3
+	VMOVDQU32    256(SI), Z4
+	VMOVDQU32    320(SI), Z5
+	VMOVDQU32    384(SI), Z6
+	VMOVDQU32    448(SI), Z7
 	VXORPS       Z8, Z8, Z8
 	VXORPS       Z9, Z9, Z9
 	VXORPS       Z10, Z10, Z10
@@ -1571,13 +1574,34 @@ TEXT ·permutation16x16xN_columns_avx512(SB), NOSPLIT, $0-48
 	VXORPS       Z13, Z13, Z13
 	VXORPS       Z14, Z14, Z14
 	VXORPS       Z15, Z15, Z15
-	MOVQ         nbSteps+40(FP), SI
-	MOVQ         $0xffffffffffffffff, DI
+	JMP          state_ready_20
 
-loop_19:
-	TESTQ     SI, SI
-	JEQ       done_20
-	DECQ      SI
+zero_state_19:
+	VXORPS Z0, Z0, Z0
+	VXORPS Z1, Z1, Z1
+	VXORPS Z2, Z2, Z2
+	VXORPS Z3, Z3, Z3
+	VXORPS Z4, Z4, Z4
+	VXORPS Z5, Z5, Z5
+	VXORPS Z6, Z6, Z6
+	VXORPS Z7, Z7, Z7
+	VXORPS Z8, Z8, Z8
+	VXORPS Z9, Z9, Z9
+	VXORPS Z10, Z10, Z10
+	VXORPS Z11, Z11, Z11
+	VXORPS Z12, Z12, Z12
+	VXORPS Z13, Z13, Z13
+	VXORPS Z14, Z14, Z14
+	VXORPS Z15, Z15, Z15
+
+state_ready_20:
+	MOVQ nbSteps+40(FP), DI
+	MOVQ $0xffffffffffffffff, R8
+
+loop_21:
+	TESTQ     DI, DI
+	JEQ       done_22
+	DECQ      DI
 	VMOVDQU32 0(R14), Z8
 	VMOVDQA32 Z8, Z18
 	VMOVDQU32 64(R14), Z9
@@ -1668,12 +1692,12 @@ loop_19:
 	ADD(Z15, Z28, Z16, Z30, Z15)
 
 	// loop over the first full rounds
-	MOVQ $0x0000000000000003, R9
+	MOVQ $0x0000000000000003, R10
 
-loop_21:
-	TESTQ        R9, R9
-	JEQ          done_22
-	DECQ         R9
+loop_23:
+	TESTQ        R10, R10
+	JEQ          done_24
+	DECQ         R10
 	MOVQ         0(CX), BX
 	VPBROADCASTD 0(BX), Z29
 	ADD(Z0, Z29, Z16, Z30, Z0)
@@ -1796,16 +1820,16 @@ loop_21:
 	ADD(Z14, Z31, Z16, Z27, Z14)
 	ADD(Z15, Z26, Z16, Z28, Z15)
 	ADDQ         $24, CX
-	JMP          loop_21
+	JMP          loop_23
 
-done_22:
+done_24:
 	// loop over the partial rounds
-	MOVQ $0x0000000000000015, R10
+	MOVQ $0x0000000000000015, R11
 
-loop_23:
-	TESTQ        R10, R10
-	JEQ          done_24
-	DECQ         R10
+loop_25:
+	TESTQ        R11, R11
+	JEQ          done_26
+	DECQ         R11
 	MOVQ         0(CX), BX
 	VPBROADCASTD 0(BX), Z27
 	ADD(Z0, Z27, Z16, Z28, Z0)
@@ -1862,16 +1886,16 @@ loop_23:
 	SUB(Z30, Z14, Z16, Z28, Z14)
 	SUB(Z30, Z15, Z16, Z29, Z15)
 	ADDQ         $24, CX
-	JMP          loop_23
+	JMP          loop_25
 
-done_24:
+done_26:
 	// loop over the final full rounds
-	MOVQ $0x0000000000000003, R11
+	MOVQ $0x0000000000000003, R12
 
-loop_25:
-	TESTQ        R11, R11
-	JEQ          done_26
-	DECQ         R11
+loop_27:
+	TESTQ        R12, R12
+	JEQ          done_28
+	DECQ         R12
 	MOVQ         0(CX), BX
 	VPBROADCASTD 0(BX), Z31
 	ADD(Z0, Z31, Z16, Z26, Z0)
@@ -1994,9 +2018,9 @@ loop_25:
 	ADD(Z14, Z28, Z16, Z30, Z14)
 	ADD(Z15, Z29, Z16, Z27, Z15)
 	ADDQ         $24, CX
-	JMP          loop_25
+	JMP          loop_27
 
-done_26:
+done_28:
 	ADD(Z18, Z8, Z16, Z30, Z0)
 	ADD(Z19, Z9, Z16, Z27, Z1)
 	ADD(Z20, Z10, Z16, Z26, Z2)
@@ -2007,25 +2031,25 @@ done_26:
 	ADD(Z25, Z15, Z16, Z27, Z7)
 	ADDQ $0x0000000000000200, R14
 	MOVQ roundKeys+8(FP), CX
-	JMP  loop_19
+	JMP  loop_21
 
-done_20:
-	MOVQ        ·indexScatter8+0(SB), R8
-	VMOVDQU32   0(R8), Z26
-	KMOVD       DI, K1
+done_22:
+	MOVQ        ·indexScatter8+0(SB), R9
+	VMOVDQU32   0(R9), Z26
+	KMOVD       R8, K1
 	VPSCATTERDD Z0, K1, 0(R13)(Z26*4)
-	KMOVD       DI, K1
+	KMOVD       R8, K1
 	VPSCATTERDD Z1, K1, 4(R13)(Z26*4)
-	KMOVD       DI, K1
+	KMOVD       R8, K1
 	VPSCATTERDD Z2, K1, 8(R13)(Z26*4)
-	KMOVD       DI, K1
+	KMOVD       R8, K1
 	VPSCATTERDD Z3, K1, 12(R13)(Z26*4)
-	KMOVD       DI, K1
+	KMOVD       R8, K1
 	VPSCATTERDD Z4, K1, 16(R13)(Z26*4)
-	KMOVD       DI, K1
+	KMOVD       R8, K1
 	VPSCATTERDD Z5, K1, 20(R13)(Z26*4)
-	KMOVD       DI, K1
+	KMOVD       R8, K1
 	VPSCATTERDD Z6, K1, 24(R13)(Z26*4)
-	KMOVD       DI, K1
+	KMOVD       R8, K1
 	VPSCATTERDD Z7, K1, 28(R13)(Z26*4)
 	RET
