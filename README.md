@@ -2,31 +2,55 @@
 
 [![Twitter URL](https://img.shields.io/twitter/url/https/twitter.com/gnark_team.svg?style=social&label=Follow%20%40gnark_team)](https://x.com/gnark_team) [![License](https://img.shields.io/badge/license-Apache%202-blue)](LICENSE)  [![Go Report Card](https://goreportcard.com/badge/github.com/Consensys/gnark-crypto)](https://goreportcard.com/badge/github.com/Consensys/gnark-crypto) [![PkgGoDev](https://pkg.go.dev/badge/mod/github.com/consensys/gnark-crypto)](https://pkg.go.dev/mod/github.com/consensys/gnark-crypto) [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.5815453.svg)](https://doi.org/10.5281/zenodo.5815453)
 
-`gnark-crypto` provides efficient cryptographic primitives, in Go:
+`gnark-crypto` provides efficient cryptographic primitives, in Go.
 
-* Elliptic curve cryptography & **Pairing** on:
-  * [`bn254`] ([audit report](https://github.com/consensys/gnark/blob/master/audits/2022-10%20-%20Kudelski%20-%20gnark-crypto.pdf))
-  * [`bls12-381`] ([audit report](https://github.com/consensys/gnark/blob/master/audits/2022-10%20-%20Kudelski%20-%20gnark-crypto.pdf))
-  * [`bls24-317`]
-  * [`bls12-377`] / [`bw6-761`]
-  * [`bls24-315`] / [`bw6-633`]
-  * Each of these curves has a [`twistededwards`] sub-package with its companion curve which allow efficient elliptic curve cryptography inside zkSNARK circuits.
-* Additional elliptic curves:
-  * [`secp256r1`] (P-256)
-  * [`secp256k1`]
-  * [`grumpkin`]
-  * [`stark-curve`]
-* [`field/generator`] - Finite field arithmetic code generator (blazingly fast big.Int)
-* [`fft`] - Fast Fourier Transform
-* [`fiatshamir`] - Fiat-Shamir transcript builder
+It is actively developed and maintained by the team (<gnark@consensys.net> | [HackMD](https://hackmd.io/@gnark)) behind [`gnark`: a framework to execute (and verify) algorithms in zero-knowledge](https://github.com/Consensys/gnark).
+
+## Features
+
+### Elliptic curves & pairings
+
+* [`bn254`] ([audit report](https://github.com/consensys/gnark/blob/master/audits/2022-10%20-%20Kudelski%20-%20gnark-crypto.pdf))
+* [`bls12-381`] ([audit report](https://github.com/consensys/gnark/blob/master/audits/2022-10%20-%20Kudelski%20-%20gnark-crypto.pdf))
+* [`bls24-317`]
+* [`bls12-377`] / [`bw6-761`]
+* [`bls24-315`] / [`bw6-633`]
+
+Each of these curves has a [`twistededwards`] sub-package with its companion curve, which allows efficient elliptic curve cryptography inside zkSNARK circuits.
+
+Additional (non pairing-friendly) curves: [`secp256r1`] (P-256), [`secp256k1`], [`grumpkin`], [`stark-curve`].
+
+### Small fields
+
+Small prime fields for STARK-style provers:
+
+* [`koalabear`], [`babybear`] (31-bit, with AVX-512 and NEON vector kernels), [`goldilocks`] (64-bit)
+* Each with `extensions` (degree 2/4/6), `fft`, `poseidon2`, `sis` (Ring-SIS) and `iop` sub-packages
+
+### Signatures & hashing
+
+* [`ecdsa`] - ECDSA signatures, on every curve above
+* [`eddsa`] - EdDSA signatures, on the companion [`twistededwards`] curves
 * [`mimc`] - MiMC hash function using Miyaguchi-Preneel construction
+* [`poseidon2`] - Poseidon2 permutation and compression function
+* [`hash`] - registry of field-typed hash functions
+
+### Polynomial commitments & protocols
+
 * [`kzg`] - KZG commitment scheme
+* [`mpcsetup`] - multiparty setup ceremony primitives ([MMPORPG](https://eprint.iacr.org/2017/1050.pdf))
+* [`shplonk`] / [`fflonk`] - batched polynomial commitment openings
+* [`pedersen`] - Pedersen vector commitments
+* [`fft`] - Fast Fourier Transform
+* [`iop`] - polynomial IOP building blocks (multilinear, quotients, ratios)
 * [`permutation`] - Permutation proofs
-* [`eddsa`] - EdDSA signatures (on the companion [`twistededwards`] curves)
+* [`fiatshamir`] - Fiat-Shamir transcript builder
 
-`gnark-crypto` is actively developed and maintained by the team (<gnark@consensys.net> | [HackMD](https://hackmd.io/@gnark)) behind:
+### Tooling & utilities
 
-* [`gnark`: a framework to execute (and verify) algorithms in zero-knowledge](https://github.com/Consensys/gnark)
+* [`field/generator`] - Finite field arithmetic code generator (blazingly fast big.Int)
+* [`merkletree`] - Merkle tree accumulator
+* [`eisenstein`] / [`lattice`] - Eisenstein integer arithmetic and lattice reduction for scalar decomposition
 
 ## Warning
 
@@ -34,7 +58,7 @@
 
 **To report a security bug, please refer to [`gnark` Security Policy](https://github.com/Consensys/gnark/blob/master/SECURITY.md).**
 
-`gnark-crypto` packages are optimized for 64bits architectures (x86 `amd64`) and tested on Unix (Linux / macOS).
+`gnark-crypto` packages are optimized for 64-bit architectures (`amd64` with AVX-512 where available, `arm64` with NEON) and tested on Linux, macOS and Windows. Pure Go fallbacks are provided for all other platforms.
 
 ## Audits
 
@@ -44,7 +68,7 @@ See [list of audits for `gnark` and `gnark-crypto`](https://github.com/Consensys
 
 ### Go version
 
-`gnark-crypto` is tested with the last 2 major releases of Go (currently 1.25 and 1.26).
+`gnark-crypto` requires Go 1.25 or newer (see `go.mod`); CI tests against Go 1.25.x.
 
 ### Install `gnark-crypto`
 
@@ -81,7 +105,7 @@ If you use `gnark-crypto` in your research a citation would be appreciated.
 Please use the following BibTeX to cite the most recent release.
 
 ```bib
-@software{gnark-crypto-v0.20,
+@software{gnark-crypto-v0.21,
   author       = {Gautam Botrel and
                   Thomas Piellard and
                   Youssef El Housni and
@@ -89,11 +113,11 @@ Please use the following BibTeX to cite the most recent release.
                   Gus Gutoski and
                   Ivo Kubjas and
                   Yao J. Galteland},
-  title        = {Consensys/gnark-crypto: v0.20.0},
-  month        = mar,
+  title        = {Consensys/gnark-crypto: v0.21.0},
+  month        = aug,
   year         = 2026,
   publisher    = {Zenodo},
-  version      = {v0.20.0},
+  version      = {v0.21.0},
   doi          = {10.5281/zenodo.5815453},
   url          = {https://doi.org/10.5281/zenodo.5815453}
 }
@@ -120,9 +144,23 @@ This project is licensed under the Apache 2 License - see the [LICENSE](LICENSE)
 [`grumpkin`]: https://pkg.go.dev/github.com/consensys/gnark-crypto/ecc/grumpkin
 [`stark-curve`]: https://pkg.go.dev/github.com/consensys/gnark-crypto/ecc/stark-curve
 [`twistededwards`]: https://pkg.go.dev/github.com/consensys/gnark-crypto/ecc/bn254/twistededwards
-[`eddsa`]: https://pkg.go.dev/github.com/consensys/gnark-crypto/ecc/bn254/twistededwards/eddsa
+[`eddsa`]: https://pkg.go.dev/github.com/consensys/gnark-crypto/signature/eddsa
+[`ecdsa`]: https://pkg.go.dev/github.com/consensys/gnark-crypto/signature/ecdsa
 [`fft`]: https://pkg.go.dev/github.com/consensys/gnark-crypto/ecc/bn254/fr/fft
 [`mimc`]: https://pkg.go.dev/github.com/consensys/gnark-crypto/ecc/bn254/fr/mimc
-[`kzg`]: https://pkg.go.dev/github.com/consensys/gnark-crypto/ecc/bn254/fr/kzg
+[`poseidon2`]: https://pkg.go.dev/github.com/consensys/gnark-crypto/ecc/bn254/fr/poseidon2
+[`hash`]: https://pkg.go.dev/github.com/consensys/gnark-crypto/hash
+[`kzg`]: https://pkg.go.dev/github.com/consensys/gnark-crypto/kzg
+[`mpcsetup`]: https://pkg.go.dev/github.com/consensys/gnark-crypto/ecc/bn254/mpcsetup
+[`shplonk`]: https://pkg.go.dev/github.com/consensys/gnark-crypto/ecc/bn254/shplonk
+[`fflonk`]: https://pkg.go.dev/github.com/consensys/gnark-crypto/ecc/bn254/fflonk
+[`pedersen`]: https://pkg.go.dev/github.com/consensys/gnark-crypto/ecc/bn254/fr/pedersen
+[`iop`]: https://pkg.go.dev/github.com/consensys/gnark-crypto/ecc/bn254/fr/iop
 [`permutation`]: https://pkg.go.dev/github.com/consensys/gnark-crypto/ecc/bn254/fr/permutation
 [`fiatshamir`]: https://pkg.go.dev/github.com/consensys/gnark-crypto/fiat-shamir
+[`koalabear`]: https://pkg.go.dev/github.com/consensys/gnark-crypto/field/koalabear
+[`babybear`]: https://pkg.go.dev/github.com/consensys/gnark-crypto/field/babybear
+[`goldilocks`]: https://pkg.go.dev/github.com/consensys/gnark-crypto/field/goldilocks
+[`merkletree`]: https://pkg.go.dev/github.com/consensys/gnark-crypto/accumulator/merkletree
+[`eisenstein`]: https://pkg.go.dev/github.com/consensys/gnark-crypto/algebra/eisenstein
+[`lattice`]: https://pkg.go.dev/github.com/consensys/gnark-crypto/algebra/lattice
