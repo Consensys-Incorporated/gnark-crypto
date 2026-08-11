@@ -6,6 +6,7 @@
 package poseidon2
 
 import (
+	"encoding/binary"
 	"hash"
 	"sync"
 
@@ -33,4 +34,110 @@ func init() {
 	gnarkHash.RegisterHash(gnarkHash.POSEIDON2_BN254, func() hash.Hash {
 		return NewMerkleDamgardHasher()
 	})
+}
+
+// spongeHasher implements a field-element-based sponge hash using Poseidon2
+// with t>=4 (HorizenLabs constants). It mirrors gnark's in-circuit
+// hash.FieldHasher interface, producing identical outputs to the in-circuit
+// Poseidon2 sponge hash.
+type spongeHasher struct {
+	inputs []fr.Element
+}
+
+// NewFieldHasher returns a Poseidon2 sponge-based field-element hasher.
+// This produces outputs compatible with gnark's in-circuit Poseidon2 hash
+// (std/hash/poseidon2).
+func NewFieldHasher() *spongeHasher {
+	return &spongeHasher{}
+}
+
+// Write adds field elements to the hash state.
+func (h *spongeHasher) Write(data ...fr.Element) {
+	h.inputs = append(h.inputs, data...)
+}
+
+// Sum computes the sponge hash of the accumulated inputs.
+func (h *spongeHasher) Sum() fr.Element {
+	return SpongeHash(h.inputs)
+}
+
+// Reset clears the accumulated inputs.
+func (h *spongeHasher) Reset() {
+	h.inputs = h.inputs[:0]
+}
+
+// spongeParams returns (width, fullRounds, partialRounds) for the given
+// number of inputs, matching the HorizenLabs BN254 Poseidon2 parameters.
+func spongeParams(n int) (int, int, int) {
+	switch {
+	case n <= 3:
+		return 4, 8, 56
+	case n <= 7:
+		return 8, 8, 57
+	case n <= 11:
+		return 12, 8, 57
+	default:
+		return 16, 8, 57
+	}
+}
+
+// SpongeHash computes a Poseidon2 sponge hash over field elements.
+// For 2 inputs, it uses a direct t=3 permutation. For ≥3 inputs, it uses
+// the sponge construction with automatic width selection (t=4,8,12,16) and
+// HorizenLabs constants. The IV is len(inputs)<<64 placed in the capacity slot.
+// Inputs longer than rate are absorbed in multiple blocks automatically.
+//
+// This matches the in-circuit Poseidon2 sponge hash used by gnark.
+func SpongeHash(inputs []fr.Element) fr.Element {
+	n := len(inputs)
+	if n < 2 {
+		panic("poseidon2: SpongeHash requires at least 2 inputs")
+	}
+
+	// 2 inputs: direct t=3 permutation (no sponge overhead)
+	if n == 2 {
+		perm := NewPermutation(3, 8, 56)
+		state := []fr.Element{inputs[0], inputs[1], {}}
+		perm.Permutation(state[:])
+		return state[0]
+	}
+
+	// >=3 inputs: sponge with auto-selected width
+	width, rf, rp := spongeParams(n)
+	perm := NewPermutation(width, rf, rp)
+
+	state := make([]fr.Element, width)
+	// IV = len(inputs) << 64 in capacity slot (last element)
+	var ivBuf [fr.Bytes]byte
+	binary.BigEndian.PutUint64(ivBuf[fr.Bytes-16:fr.Bytes-8], uint64(n))
+	state[width-1].SetBytes(ivBuf[:])
+
+	rate := width - 1
+	cache := make([]fr.Element, rate)
+	cacheSize := 0
+
+	for i := 0; i < n; i++ {
+		if cacheSize == rate {
+			for j := 0; j < rate; j++ {
+				state[j].Add(&state[j], &cache[j])
+			}
+			perm.Permutation(state)
+			cache[0].Set(&inputs[i])
+			cacheSize = 1
+		} else {
+			cache[cacheSize].Set(&inputs[i])
+			cacheSize++
+		}
+	}
+
+	// Final block: pad remaining cache with zeros and absorb
+	for j := cacheSize; j < rate; j++ {
+		cache[j].SetZero()
+	}
+	for j := 0; j < rate; j++ {
+		state[j].Add(&state[j], &cache[j])
+	}
+	perm.Permutation(state)
+
+	return state[0]
 }
