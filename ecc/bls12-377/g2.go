@@ -1025,8 +1025,13 @@ func (p *G2Affine) fromJacExtended(q *g2JacExtended) *G2Affine {
 		p.Y = fptower.E2{}
 		return p
 	}
-	p.X.Inverse(&q.ZZ).Mul(&p.X, &q.X)
-	p.Y.Inverse(&q.ZZZ).Mul(&p.Y, &q.Y)
+	// ZZ³ = ZZZ², so with w = ZZ/ZZZ we have w² = 1/ZZ: one inversion is
+	// enough to get both x = X/ZZ and y = Y/ZZZ.
+	var u, w fptower.E2
+	u.Inverse(&q.ZZZ)
+	w.Mul(&q.ZZ, &u)
+	p.Y.Mul(&q.Y, &u)
+	p.X.Square(&w).Mul(&p.X, &q.X)
 	return p
 }
 
@@ -1036,8 +1041,8 @@ func (p *G2Jac) fromJacExtended(q *g2JacExtended) *G2Jac {
 		p.Set(&g2Infinity)
 		return p
 	}
-	p.X.Mul(&q.ZZ, &q.X).Mul(&p.X, &q.ZZ)
-	p.Y.Mul(&q.ZZZ, &q.Y).Mul(&p.Y, &q.ZZZ)
+	p.X.Square(&q.ZZ).Mul(&p.X, &q.X)
+	p.Y.Square(&q.ZZZ).Mul(&p.Y, &q.Y)
 	p.Z.Set(&q.ZZZ)
 	return p
 }
@@ -1065,18 +1070,18 @@ func (p *g2JacExtended) add(q *g2JacExtended) *g2JacExtended {
 		return p
 	}
 
-	var A, B, U1, U2, S1, S2 fptower.E2
+	var P, R, U1, U2, S1, S2 fptower.E2
 
 	// p2: q, p1: p
 	U2.Mul(&q.X, &p.ZZ)
 	U1.Mul(&p.X, &q.ZZ)
-	A.Sub(&U2, &U1)
+	P.Sub(&U2, &U1)
 	S2.Mul(&q.Y, &p.ZZZ)
 	S1.Mul(&p.Y, &q.ZZZ)
-	B.Sub(&S2, &S1)
+	R.Sub(&S2, &S1)
 
-	if A.IsZero() {
-		if B.IsZero() {
+	if P.IsZero() {
+		if R.IsZero() {
 			return p.double(q)
 
 		}
@@ -1085,9 +1090,7 @@ func (p *g2JacExtended) add(q *g2JacExtended) *g2JacExtended {
 		return p
 	}
 
-	var P, R, PP, PPP, Q, V fptower.E2
-	P.Sub(&U2, &U1)
-	R.Sub(&S2, &S1)
+	var PP, PPP, Q, V fptower.E2
 	PP.Square(&P)
 	PPP.Mul(&P, &PP)
 	Q.Mul(&U1, &PP)
