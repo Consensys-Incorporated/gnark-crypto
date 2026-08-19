@@ -82,12 +82,15 @@ func (p *G2Affine) ScalarMultiplicationBase(s *big.Int) *G2Affine {
 }
 
 // Add adds two points in affine coordinates.
-// It uses the Jacobian addition with a.Z=b.Z=1 and converts the result to affine coordinates.
+// It computes the slope directly: the result is affine, so the inversion is
+// paid either way, and going through Jacobian coordinates only adds the
+// multiplications of the detour.
 //
-// https://www.hyperelliptic.org/EFD/g1p/auto-shortw-jacobian-0.html#addition-mmadd-2007-bl
-// ~Cost: 4M + 2S
+//	λ = (y₂-y₁)/(x₂-x₁), x₃ = λ²-x₁-x₂, y₃ = λ(x₁-x₃)-y₁
+//
+// https://hyperelliptic.org/EFD/g1p/auto-shortw.html
+// ~Cost: 1I + 2M + 1S
 func (p *G2Affine) Add(a, b *G2Affine) *G2Affine {
-	var q G2Jac
 	// a is infinity, return b
 	if a.IsInfinity() {
 		p.Set(b)
@@ -101,45 +104,78 @@ func (p *G2Affine) Add(a, b *G2Affine) *G2Affine {
 	if a.X.Equal(&b.X) {
 		// if b == a, we double instead
 		if a.Y.Equal(&b.Y) {
-			q.DoubleMixed(a)
-			return p.FromJacobian(&q)
+			return p.Double(a)
 		} else {
 			// if b == -a, we return 0
 			return p.SetInfinity()
 		}
 	}
-	var H, HH, I, J, r, V fptower.E4
-	H.Sub(&b.X, &a.X)
-	HH.Square(&H)
-	I.Double(&HH).Double(&I)
-	J.Mul(&H, &I)
-	r.Sub(&b.Y, &a.Y)
-	r.Double(&r)
-	V.Mul(&a.X, &I)
-	q.X.Square(&r).
-		Sub(&q.X, &J).
-		Sub(&q.X, &V).
-		Sub(&q.X, &V)
-	q.Y.Sub(&V, &q.X).
-		Mul(&q.Y, &r)
-	J.Mul(&a.Y, &J).Double(&J)
-	q.Y.Sub(&q.Y, &J)
-	q.Z.Double(&H)
 
-	return p.FromJacobian(&q)
+	var lambda, xr, t fptower.E4
+
+	// λ = (y₂-y₁)/(x₂-x₁)
+	t.Sub(&b.X, &a.X).Inverse(&t)
+	lambda.Sub(&b.Y, &a.Y).Mul(&lambda, &t)
+
+	// x₃ = λ²-x₁-x₂
+	xr.Square(&lambda).
+		Sub(&xr, &a.X).
+		Sub(&xr, &b.X)
+
+	// y₃ = λ(x₁-x₃)-y₁
+	t.Sub(&a.X, &xr).
+		Mul(&t, &lambda).
+		Sub(&t, &a.Y)
+
+	// N.B.: p may alias a or b, so we write the result only now that a and b
+	// have been read for the last time.
+	p.X.Set(&xr)
+	p.Y.Set(&t)
+
+	return p
 }
 
 // Double doubles a point in affine coordinates.
-// It converts the point to Jacobian coordinates, doubles it using Jacobian
-// addition with a.Z=1, and converts it back to affine coordinates.
+// It computes the tangent slope directly: the result is affine, so the
+// inversion is paid either way, and going through Jacobian coordinates only
+// adds the multiplications of the detour.
 //
-// http://www.hyperelliptic.org/EFD/g1p/auto-shortw-jacobian-0.html#doubling-mdbl-2007-bl
-// ~Cost: 1M + 5S
+//	λ = (3x²+a)/(2y), x₃ = λ²-2x, y₃ = λ(x-x₃)-y
+//
+// https://hyperelliptic.org/EFD/g1p/auto-shortw.html
+// ~Cost: 1I + 2M + 2S
 func (p *G2Affine) Double(a *G2Affine) *G2Affine {
-	var q G2Jac
-	q.FromAffine(a)
-	q.DoubleMixed(a)
-	p.FromJacobian(&q)
+	// The tangent is vertical when y=0, in which case [2]a is infinity. This
+	// covers the point at infinity, encoded as (0,0), and the points of order 2,
+	// which are on E(𝔽ₚ) for some of the curves (they are not in the r-torsion
+	// subgroup, but Double is defined on the whole curve).
+	if a.Y.IsZero() {
+		return p.SetInfinity()
+	}
+
+	var lambda, xr, t fptower.E4
+
+	// λ = (3x²+a)/(2y)
+	t.Square(&a.X)
+	lambda.Double(&t).Add(&lambda, &t)
+	t.Double(&a.Y).Inverse(&t)
+	lambda.Mul(&lambda, &t)
+
+	// x₃ = λ²-2x
+	xr.Square(&lambda).
+		Sub(&xr, &a.X).
+		Sub(&xr, &a.X)
+
+	// y₃ = λ(x-x₃)-y
+	t.Sub(&a.X, &xr).
+		Mul(&t, &lambda).
+		Sub(&t, &a.Y)
+
+	// N.B.: p may alias a, so we write the result only now that a has been read
+	// for the last time.
+	p.X.Set(&xr)
+	p.Y.Set(&t)
+
 	return p
 }
 
