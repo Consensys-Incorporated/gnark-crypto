@@ -325,10 +325,11 @@ func TestG2AffineOps(t *testing.T) {
 
 	properties.Property("[BW6-633] Doubling a point of order 2 should return the point at infinity", prop.ForAll(
 		func(a fp.Element) bool {
-			// A point (x,0) has order 2: the tangent there is vertical, so
-			// [2](x,0) = O. Such a point is on E(𝔽ₚ) for some of the curves,
-			// outside the r-torsion subgroup, and the affine slope (3x²+a)/2y
-			// is undefined for it.
+			// Any (x,0) has a vertical tangent, so Double must return O and
+			// cannot evaluate the slope (3x²+a)/2y. This pins that guard over
+			// arbitrary x, most of which are off-curve; the on-curve points of
+			// order 2 are covered by TestG2Order2 on the
+			// curves that have one.
 			var op1, op2, op3 G2Affine
 			op1.X.Set(&a)
 			op1.Y.SetZero()

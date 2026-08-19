@@ -338,10 +338,11 @@ func TestG1AffineOps(t *testing.T) {
 
 	properties.Property("[BW6-761] Doubling a point of order 2 should return the point at infinity", prop.ForAll(
 		func(a fp.Element) bool {
-			// A point (x,0) has order 2: the tangent there is vertical, so
-			// [2](x,0) = O. Such a point is on E(𝔽ₚ) for some of the curves,
-			// outside the r-torsion subgroup, and the affine slope (3x²+a)/2y
-			// is undefined for it.
+			// Any (x,0) has a vertical tangent, so Double must return O and
+			// cannot evaluate the slope (3x²+a)/2y. This pins that guard over
+			// arbitrary x, most of which are off-curve; the on-curve points of
+			// order 2 are covered by TestG1Order2 on the
+			// curves that have one.
 			var op1, op2, op3 G1Affine
 			op1.X.Set(&a)
 			op1.Y.SetZero()
@@ -567,6 +568,60 @@ func TestG1AffineOps(t *testing.T) {
 	))
 
 	properties.TestingRun(t, gopter.ConsoleReporter(false))
+}
+
+// TestG1Order2 exercises the point of order 2 that exists
+// on this curve. It is on E(𝔽ₚ) but outside the r-torsion subgroup, and it is
+// the case the affine slope cannot evaluate.
+func TestG1Order2(t *testing.T) {
+	t.Parallel()
+
+	var P G1Affine
+	// G1 is Y² = X³ - 1, so (1,0) is on the curve.
+	P.X.SetOne()
+	P.Y.SetZero()
+
+	if !P.IsOnCurve() {
+		t.Fatal("the order-2 point should be on the curve")
+	}
+	if P.IsInfinity() {
+		t.Fatal("the order-2 point should not be the point at infinity")
+	}
+	if P.IsInSubGroup() {
+		t.Fatal("the order-2 point should not be in the r-torsion subgroup")
+	}
+
+	var got G1Affine
+	if !got.Double(&P).IsInfinity() {
+		t.Fatalf("[2]P = %s, want the point at infinity", got.String())
+	}
+	if !got.Add(&P, &P).IsInfinity() {
+		t.Fatalf("P + P = %s, want the point at infinity", got.String())
+	}
+	// aliasing: the destination is the operand
+	got.Set(&P)
+	if !got.Double(&got).IsInfinity() {
+		t.Fatal("Double(p, p) on the order-2 point should be the point at infinity")
+	}
+	got.Set(&P)
+	if !got.Add(&got, &got).IsInfinity() {
+		t.Fatal("Add(p, p, p) on the order-2 point should be the point at infinity")
+	}
+	// P + Q against the generic path
+	var Q, sum, back G1Affine
+	Q.Set(&g1GenAff)
+	sum.Add(&P, &Q)
+	if sum.IsInfinity() {
+		t.Fatal("P + G should not be the point at infinity")
+	}
+	if !sum.IsOnCurve() {
+		t.Fatal("P + G should be on the curve")
+	}
+	// (P + Q) - Q = P
+	back.Sub(&sum, &Q)
+	if !back.Equal(&P) {
+		t.Fatalf("(P + G) - G = %s, want %s", back.String(), P.String())
+	}
 }
 
 func TestG1CofactorClearing(t *testing.T) {
