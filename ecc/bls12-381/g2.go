@@ -261,7 +261,7 @@ func (p *G2Affine) IsInSubGroup() bool {
 }
 
 // IsInSubGroupBatchG2 checks if a batch of points P_i are in G2.
-// It uses a deterministic naive method for batch size < 80 and a probabilistic
+// It uses a deterministic naive method for batch size < 160 and a probabilistic
 // method otherwise.
 func IsInSubGroupBatchG2(points []G2Affine) bool {
 	if len(points) < 160 {

@@ -349,15 +349,12 @@ func (p *{{ $TAffine }}) IsInSubGroup() bool {
 {{- end}}
 }
 
+{{ $batchThreshold := 80 }}{{ if eq .PointName "g2" }}{{ $batchThreshold = 160 }}{{ end -}}
 // IsInSubGroupBatch{{ toUpper .PointName}} checks if a batch of points P_i are in {{ toUpper .PointName}}.
-// It uses a deterministic naive method for batch size < 80 and a probabilistic
+// It uses a deterministic naive method for batch size < {{ $batchThreshold }} and a probabilistic
 // method otherwise.
 func IsInSubGroupBatch{{ toUpper .PointName}}(points []{{ $TAffine }}) bool {
-	{{- if eq .PointName "g1"}}
-	if len(points) < 80 {
-	{{- else if eq .PointName "g2"}}
-	if len(points) < 160 {
-	{{- end}}
+	if len(points) < {{ $batchThreshold }} {
 		return isInSubGroupBatch{{ toUpper .PointName}}Naive(points)
 	} else {
 		return isInSubGroupBatch{{ toUpper .PointName}}Prob(points)
