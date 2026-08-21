@@ -85,7 +85,14 @@ func (p *G1Jac) MultiExp(points []G1Affine, scalars []fr.Element, config ecc.Mul
 		for _, c := range implementedCs {
 			cc := (fr.Bits + 1) * (nbPoints + (1 << c))
 			cost := float64(cc) / float64(c)
-			if cost < min {
+			// on ties, prefer the larger window. The cost model counts a bucket
+			// accumulation and a bucket reduction as one group operation each, but
+			// windows c >= 10 use the batch-affine chunk processor, which amortises
+			// a single field inversion over a whole batch of bucket additions and is
+			// substantially cheaper per point than the extended-Jacobian path used
+			// for c <= 9. The model cannot see that, so a tie is never actually a tie:
+			// the larger c is the faster one.
+			if cost <= min {
 				min = cost
 				C = c
 			}
@@ -359,7 +366,14 @@ func (p *G2Jac) MultiExp(points []G2Affine, scalars []fr.Element, config ecc.Mul
 		for _, c := range implementedCs {
 			cc := (fr.Bits + 1) * (nbPoints + (1 << c))
 			cost := float64(cc) / float64(c)
-			if cost < min {
+			// on ties, prefer the larger window. The cost model counts a bucket
+			// accumulation and a bucket reduction as one group operation each, but
+			// windows c >= 10 use the batch-affine chunk processor, which amortises
+			// a single field inversion over a whole batch of bucket additions and is
+			// substantially cheaper per point than the extended-Jacobian path used
+			// for c <= 9. The model cannot see that, so a tie is never actually a tie:
+			// the larger c is the faster one.
+			if cost <= min {
 				min = cost
 				C = c
 			}
