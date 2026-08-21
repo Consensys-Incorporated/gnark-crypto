@@ -73,34 +73,7 @@ func (p *G1Jac) MultiExp(points []G1Affine, scalars []fr.Element, config ecc.Mul
 
 	// here, we compute the best C for nbPoints
 	// we split recursively until nbChunks(c) >= nbTasks,
-	bestC := func(nbPoints int) uint64 {
-		// implemented msmC methods (the c we use must be in this slice)
-		implementedCs := []uint64{4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
-		var C uint64
-		// approximate cost (in group operations)
-		// cost = bits/c * (nbPoints + 2^{c})
-		// this needs to be verified empirically.
-		// for example, on a MBP 2016, for G2 MultiExp > 8M points, hand picking c gives better results
-		min := math.MaxFloat64
-		for _, c := range implementedCs {
-			cc := (fr.Bits + 1) * (nbPoints + (1 << c))
-			cost := float64(cc) / float64(c)
-			// on ties, prefer the larger window. The cost model counts a bucket
-			// accumulation and a bucket reduction as one group operation each, but
-			// windows c >= 10 use the batch-affine chunk processor, which amortises
-			// a single field inversion over a whole batch of bucket additions and is
-			// substantially cheaper per point than the extended-Jacobian path used
-			// for c <= 9. The model cannot see that, so a tie is never actually a tie:
-			// the larger c is the faster one.
-			if cost <= min {
-				min = cost
-				C = c
-			}
-		}
-		return C
-	}
-
-	C := bestC(nbPoints)
+	C := bestCG1(nbPoints)
 	nbChunks := int(computeNbChunks(C))
 
 	// should we recursively split the msm in half? (see below)
@@ -128,7 +101,7 @@ func (p *G1Jac) MultiExp(points []G1Affine, scalars []fr.Element, config ecc.Mul
 
 	costPreSplit := costFunction(nbChunks, config.NbTasks, costPerTask(C, nbPoints))
 
-	cPostSplit := bestC(nbPoints / 2)
+	cPostSplit := bestCG1(nbPoints / 2)
 	nbChunksPostSplit := int(computeNbChunks(cPostSplit))
 	costPostSplit := costFunction(nbChunksPostSplit*2, config.NbTasks, costPerTask(cPostSplit, nbPoints/2))
 
@@ -151,6 +124,39 @@ func (p *G1Jac) MultiExp(points []G1Affine, scalars []fr.Element, config ecc.Mul
 	_innerMsmG1(p, C, points, scalars, config)
 
 	return p, nil
+}
+
+// bestCG1 returns the window size c to use for a msm of size nbPoints.
+//
+// It minimises an approximate group-operation count:
+//
+//	cost = bits/c * (nbPoints + 2^{c})
+//
+// this needs to be verified empirically.
+// for example, on a MBP 2016, for G2 MultiExp > 8M points, hand picking c gives better results
+//
+// When several window sizes score the same, the largest is returned. Such ties
+// are exact rather than an artefact of rounding: two window sizes c1 < c2 tie at
+// nbPoints = (c1*2^c2 - c2*2^c1) / (c2 - c1), which is 2^c1 * (c1 - 1) when c2 is
+// c1 + 1. They are not ties in practice: windows c >= 10 use the batch-affine chunk
+// processor, which amortises a single field inversion over a whole batch of
+// bucket additions, while c <= 9 uses the extended-Jacobian one. The cost model
+// counts a bucket accumulation and a bucket reduction as one group operation
+// each and so cannot see that difference, but the larger c is the faster one.
+func bestCG1(nbPoints int) uint64 {
+	// implemented msmC methods (the c we use must be in this slice)
+	implementedCs := []uint64{4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
+	var C uint64
+	min := math.MaxFloat64
+	for _, c := range implementedCs {
+		cc := (fr.Bits + 1) * (nbPoints + (1 << c))
+		cost := float64(cc) / float64(c)
+		if cost <= min {
+			min = cost
+			C = c
+		}
+	}
+	return C
 }
 
 func _innerMsmG1(p *G1Jac, c uint64, points []G1Affine, scalars []fr.Element, config ecc.MultiExpConfig) *G1Jac {
@@ -405,34 +411,7 @@ func (p *G2Jac) MultiExp(points []G2Affine, scalars []fr.Element, config ecc.Mul
 
 	// here, we compute the best C for nbPoints
 	// we split recursively until nbChunks(c) >= nbTasks,
-	bestC := func(nbPoints int) uint64 {
-		// implemented msmC methods (the c we use must be in this slice)
-		implementedCs := []uint64{4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
-		var C uint64
-		// approximate cost (in group operations)
-		// cost = bits/c * (nbPoints + 2^{c})
-		// this needs to be verified empirically.
-		// for example, on a MBP 2016, for G2 MultiExp > 8M points, hand picking c gives better results
-		min := math.MaxFloat64
-		for _, c := range implementedCs {
-			cc := (fr.Bits + 1) * (nbPoints + (1 << c))
-			cost := float64(cc) / float64(c)
-			// on ties, prefer the larger window. The cost model counts a bucket
-			// accumulation and a bucket reduction as one group operation each, but
-			// windows c >= 10 use the batch-affine chunk processor, which amortises
-			// a single field inversion over a whole batch of bucket additions and is
-			// substantially cheaper per point than the extended-Jacobian path used
-			// for c <= 9. The model cannot see that, so a tie is never actually a tie:
-			// the larger c is the faster one.
-			if cost <= min {
-				min = cost
-				C = c
-			}
-		}
-		return C
-	}
-
-	C := bestC(nbPoints)
+	C := bestCG2(nbPoints)
 	nbChunks := int(computeNbChunks(C))
 
 	// should we recursively split the msm in half? (see below)
@@ -460,7 +439,7 @@ func (p *G2Jac) MultiExp(points []G2Affine, scalars []fr.Element, config ecc.Mul
 
 	costPreSplit := costFunction(nbChunks, config.NbTasks, costPerTask(C, nbPoints))
 
-	cPostSplit := bestC(nbPoints / 2)
+	cPostSplit := bestCG2(nbPoints / 2)
 	nbChunksPostSplit := int(computeNbChunks(cPostSplit))
 	costPostSplit := costFunction(nbChunksPostSplit*2, config.NbTasks, costPerTask(cPostSplit, nbPoints/2))
 
@@ -483,6 +462,39 @@ func (p *G2Jac) MultiExp(points []G2Affine, scalars []fr.Element, config ecc.Mul
 	_innerMsmG2(p, C, points, scalars, config)
 
 	return p, nil
+}
+
+// bestCG2 returns the window size c to use for a msm of size nbPoints.
+//
+// It minimises an approximate group-operation count:
+//
+//	cost = bits/c * (nbPoints + 2^{c})
+//
+// this needs to be verified empirically.
+// for example, on a MBP 2016, for G2 MultiExp > 8M points, hand picking c gives better results
+//
+// When several window sizes score the same, the largest is returned. Such ties
+// are exact rather than an artefact of rounding: two window sizes c1 < c2 tie at
+// nbPoints = (c1*2^c2 - c2*2^c1) / (c2 - c1), which is 2^c1 * (c1 - 1) when c2 is
+// c1 + 1. They are not ties in practice: windows c >= 10 use the batch-affine chunk
+// processor, which amortises a single field inversion over a whole batch of
+// bucket additions, while c <= 9 uses the extended-Jacobian one. The cost model
+// counts a bucket accumulation and a bucket reduction as one group operation
+// each and so cannot see that difference, but the larger c is the faster one.
+func bestCG2(nbPoints int) uint64 {
+	// implemented msmC methods (the c we use must be in this slice)
+	implementedCs := []uint64{4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
+	var C uint64
+	min := math.MaxFloat64
+	for _, c := range implementedCs {
+		cc := (fr.Bits + 1) * (nbPoints + (1 << c))
+		cost := float64(cc) / float64(c)
+		if cost <= min {
+			min = cost
+			C = c
+		}
+	}
+	return C
 }
 
 func _innerMsmG2(p *G2Jac, c uint64, points []G2Affine, scalars []fr.Element, config ecc.MultiExpConfig) *G2Jac {

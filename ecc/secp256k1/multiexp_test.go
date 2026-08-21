@@ -20,6 +20,72 @@ import (
 	"github.com/leanovate/gopter/prop"
 )
 
+func TestBestCG1(t *testing.T) {
+	implementedCs := []uint64{4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}
+
+	// mirrors the cost model used by bestCG1
+	cost := func(nbPoints int, c uint64) float64 {
+		cc := (fr.Bits + 1) * (nbPoints + (1 << c))
+		return float64(cc) / float64(c)
+	}
+
+	// bestC must return the largest window size among those minimising the cost.
+	// Where the model ties, the smaller c selects the extended-Jacobian chunk
+	// processor instead of the batch-affine one and is measurably slower.
+	assertLargestMinimiser := func(nbPoints int) {
+		t.Helper()
+		best := cost(nbPoints, implementedCs[0])
+		for _, c := range implementedCs[1:] {
+			if v := cost(nbPoints, c); v < best {
+				best = v
+			}
+		}
+		var want uint64
+		for _, c := range implementedCs {
+			if cost(nbPoints, c) == best {
+				want = c // implementedCs is ascending, so this ends on the largest
+			}
+		}
+		if got := bestCG1(nbPoints); got != want {
+			t.Fatalf("bestCG1(%d) = %d, want %d (largest cost-minimising window)", nbPoints, got, want)
+		}
+	}
+
+	sweep := 1 << 16
+	if testing.Short() {
+		sweep = 1 << 12
+	}
+	for nbPoints := 1; nbPoints <= sweep; nbPoints++ {
+		assertLargestMinimiser(nbPoints)
+	}
+
+	// exercise the exact tie points, including any beyond the sweep range.
+	// for consecutive window sizes c1 < c2 the model is indifferent at
+	// nbPoints = (c1*2^c2 - c2*2^c1) / (c2 - c1)
+	nbTies := 0
+	for i := 0; i+1 < len(implementedCs); i++ {
+		c1, c2 := implementedCs[i], implementedCs[i+1]
+		num := int(c1)*(1<<c2) - int(c2)*(1<<c1)
+		den := int(c2 - c1)
+		if num <= 0 || num%den != 0 {
+			continue
+		}
+		nbPoints := num / den
+		if cost(nbPoints, c1) != cost(nbPoints, c2) {
+			continue // not an exact tie in float64
+		}
+		nbTies++
+		if got := bestCG1(nbPoints); got != c2 {
+			t.Fatalf("nbPoints=%d ties between c=%d and c=%d: bestCG1 = %d, want %d",
+				nbPoints, c1, c2, got, c2)
+		}
+		assertLargestMinimiser(nbPoints)
+	}
+	if nbTies == 0 {
+		t.Fatal("no exact tie found; this test no longer covers the tie-break")
+	}
+}
+
 func TestMultiExpG1(t *testing.T) {
 
 	parameters := gopter.DefaultTestParameters()
