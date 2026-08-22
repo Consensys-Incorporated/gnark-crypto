@@ -570,6 +570,208 @@ func TestG1AffineOps(t *testing.T) {
 	properties.TestingRun(t, gopter.ConsoleReporter(false))
 }
 
+// addG1AffineViaJacobian is the affine addition as it was implemented
+// before the slope was computed directly: mmadd-2007-bl with a.Z=b.Z=1,
+// followed by a conversion back to affine coordinates. It is kept here only as
+// the reference side of TestG1AffineAgainstJacobian.
+func addG1AffineViaJacobian(p, a, b *G1Affine) *G1Affine {
+	var q G1Jac
+	// a is infinity, return b
+	if a.IsInfinity() {
+		p.Set(b)
+		return p
+	}
+	// b is infinity, return a
+	if b.IsInfinity() {
+		p.Set(a)
+		return p
+	}
+	if a.X.Equal(&b.X) {
+		// if b == a, we double instead
+		if a.Y.Equal(&b.Y) {
+			q.DoubleMixed(a)
+			return p.FromJacobian(&q)
+		} else {
+			// if b == -a, we return 0
+			return p.SetInfinity()
+		}
+	}
+	var H, HH, I, J, r, V fp.Element
+	H.Sub(&b.X, &a.X)
+	HH.Square(&H)
+	I.Double(&HH).Double(&I)
+	J.Mul(&H, &I)
+	r.Sub(&b.Y, &a.Y)
+	r.Double(&r)
+	V.Mul(&a.X, &I)
+	q.X.Square(&r).
+		Sub(&q.X, &J).
+		Sub(&q.X, &V).
+		Sub(&q.X, &V)
+	q.Y.Sub(&V, &q.X).
+		Mul(&q.Y, &r)
+	J.Mul(&a.Y, &J).Double(&J)
+	q.Y.Sub(&q.Y, &J)
+	q.Z.Double(&H)
+
+	return p.FromJacobian(&q)
+}
+
+// doubleG1AffineViaJacobian is the affine doubling as it was implemented
+// before the tangent slope was computed directly: mdbl-2007-bl with a.Z=1,
+// followed by a conversion back to affine coordinates. The vertical tangent
+// needed no special case there, because it came out of the formula as Z₃=2y=0.
+// The FromAffine call is dead, and is reproduced only so that the reference is
+// the previous implementation verbatim. It is kept here only as the reference
+// side of TestG1AffineAgainstJacobian.
+func doubleG1AffineViaJacobian(p, a *G1Affine) *G1Affine {
+	var q G1Jac
+	q.FromAffine(a)
+	q.DoubleMixed(a)
+	p.FromJacobian(&q)
+	return p
+}
+
+// TestG1AffineAgainstJacobian pins Add and Double against the Jacobian
+// implementations they replaced. The two are compared on their coordinates
+// rather than as curve points, so a divergence in how the point at infinity is
+// encoded would fail as well.
+//
+// The domain covers the generic case, P+P, P+(-P), an operand at infinity on
+// either side, y=0 (the vertical tangent, which the Jacobian doubling absorbed
+// as Z₃=2y=0 and the affine slope has to special-case), points off the curve,
+// and every way the destination can alias an operand.
+func TestG1AffineAgainstJacobian(t *testing.T) {
+	t.Parallel()
+
+	checkAdd := func(name string, a, b *G1Affine) {
+		t.Helper()
+		var want G1Affine
+		addG1AffineViaJacobian(&want, a, b)
+
+		var got G1Affine
+		got.Add(a, b)
+		if !got.Equal(&want) {
+			t.Fatalf("%s: Add(a,b) = %s, want %s", name, got.String(), want.String())
+		}
+		// the destination aliases the first operand
+		got.Set(a)
+		got.Add(&got, b)
+		if !got.Equal(&want) {
+			t.Fatalf("%s: Add(a,b) with p==a = %s, want %s", name, got.String(), want.String())
+		}
+		// the destination aliases the second operand
+		got.Set(b)
+		got.Add(a, &got)
+		if !got.Equal(&want) {
+			t.Fatalf("%s: Add(a,b) with p==b = %s, want %s", name, got.String(), want.String())
+		}
+		if a.Equal(b) {
+			// the destination aliases both operands
+			got.Set(a)
+			got.Add(&got, &got)
+			if !got.Equal(&want) {
+				t.Fatalf("%s: Add(a,a) with p==a = %s, want %s", name, got.String(), want.String())
+			}
+		}
+	}
+
+	checkDouble := func(name string, a *G1Affine) {
+		t.Helper()
+		var want G1Affine
+		doubleG1AffineViaJacobian(&want, a)
+
+		var got G1Affine
+		got.Double(a)
+		if !got.Equal(&want) {
+			t.Fatalf("%s: Double(a) = %s, want %s", name, got.String(), want.String())
+		}
+		// the destination aliases the operand
+		got.Set(a)
+		got.Double(&got)
+		if !got.Equal(&want) {
+			t.Fatalf("%s: Double(a) with p==a = %s, want %s", name, got.String(), want.String())
+		}
+	}
+
+	// A randomized walk through the subgroup: [s]G, [s+t]G, [s+2t]G, and so on.
+	// The multiples are built in Jacobian coordinates, so none of the inputs
+	// comes out of the functions under test.
+	nbSamples := 300
+	var s, step fr.Element
+	s.MustSetRandom()
+	step.MustSetRandom()
+
+	var acc, stride G1Jac
+	acc.ScalarMultiplication(&g1Gen, s.BigInt(new(big.Int)))
+	stride.ScalarMultiplication(&g1Gen, step.BigInt(new(big.Int)))
+
+	pts := make([]G1Affine, nbSamples)
+	for i := range pts {
+		pts[i].FromJacobian(&acc)
+		acc.AddAssign(&stride)
+	}
+
+	for i := range pts {
+		// pairing i with its mirror makes the middle sample of an odd-sized
+		// walk land on the doubling branch of Add
+		checkAdd(fmt.Sprintf("pair %d", i), &pts[i], &pts[nbSamples-1-i])
+		checkDouble(fmt.Sprintf("point %d", i), &pts[i])
+	}
+
+	var inf, negP, yZero, offCurve G1Affine
+	inf.SetInfinity()
+	negP.Neg(&pts[0])
+	// (x,0) for a random x: the vertical tangent. It is off the curve for
+	// almost every x, but neither implementation checks, so the comparison
+	// stays exact.
+	yZero.X.MustSetRandom()
+	yZero.Y.SetZero()
+	offCurve.X.MustSetRandom()
+	offCurve.Y.MustSetRandom()
+
+	for _, tc := range []struct {
+		name string
+		a, b *G1Affine
+	}{
+		{"P+P", &pts[0], &pts[0]},
+		{"P+(-P)", &pts[0], &negP},
+		{"O+P", &inf, &pts[0]},
+		{"P+O", &pts[0], &inf},
+		{"O+O", &inf, &inf},
+		{"(x,0)+(x,0)", &yZero, &yZero},
+		{"(x,0)+P", &yZero, &pts[0]},
+		{"P+(x,0)", &pts[0], &yZero},
+		{"(x,0)+O", &yZero, &inf},
+		{"offCurve+P", &offCurve, &pts[0]},
+		{"offCurve+offCurve", &offCurve, &offCurve},
+	} {
+		checkAdd(tc.name, tc.a, tc.b)
+	}
+
+	for _, tc := range []struct {
+		name string
+		a    *G1Affine
+	}{
+		{"[2]O", &inf},
+		{"[2](x,0)", &yZero},
+		{"[2]offCurve", &offCurve},
+	} {
+		checkDouble(tc.name, tc.a)
+	}
+
+	// the on-curve point of order 2, the one input where the vertical tangent
+	// is reached by a point that is genuinely on E(𝔽ₚ)
+	var order2 G1Affine
+	order2.X.SetOne()
+	order2.X.Neg(&order2.X)
+	order2.Y.SetZero()
+	checkAdd("T+T", &order2, &order2)
+	checkAdd("T+P", &order2, &pts[0])
+	checkAdd("P+T", &pts[0], &order2)
+	checkDouble("[2]T", &order2)
+}
+
 // TestG1Order2 exercises the point of order 2 that exists
 // on this curve. It is on E(𝔽ₚ) but outside the r-torsion subgroup, and it is
 // the case the affine slope cannot evaluate.
