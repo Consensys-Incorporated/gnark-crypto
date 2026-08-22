@@ -81,9 +81,14 @@ func (p *G1Jac) MultiExp(points []G1Affine, scalars []fr.Element, config ecc.Mul
 	// splitting the msm will **add** operations, but if it allows to use more CPU, it might be worth it.
 
 	// costFunction returns a metric that represent the "wall time" of the algorithm
-	costFunction := func(nbTasks, nbCpus, costPerTask int) int {
-		// cost for the reduction of all tasks (msmReduceChunk)
-		totalCost := nbTasks
+	costFunction := func(c uint64, nbTasks, nbCpus int, costPerTask float64) float64 {
+		// cost for the reduction of all tasks (msmReduceChunk). It walks the chunks
+		// back to front, doubling c times and adding once per chunk, and it runs
+		// sequentially, so it lands on wall time in full. Counting it in group
+		// operations, the same unit as costPerTask, is what makes the two terms
+		// addable; counting one per chunk understated it by a factor of c and made
+		// the comparison below turn on rounding.
+		totalCost := float64(nbTasks) * float64(c+1)
 
 		// cost for the computation of each task (msmProcessChunk)
 		for nbTasks >= nbCpus {
@@ -96,14 +101,25 @@ func (p *G1Jac) MultiExp(points []G1Affine, scalars []fr.Element, config ecc.Mul
 		return totalCost
 	}
 
-	// costPerTask is the approximate number of group ops per task
-	costPerTask := func(c uint64, nbPoints int) int { return (nbPoints + int((1 << c))) }
+	// costPerTask is the approximate number of group ops per task; one task is one
+	// chunk, so this is the same per-chunk model bestCG1 minimises.
+	// It has to be, otherwise the split probe below would compare a window chosen
+	// under one cost model against a cost computed under another.
+	costPerTask := msmChunkCost
 
-	costPreSplit := costFunction(nbChunks, config.NbTasks, costPerTask(C, nbPoints))
+	// how many chunks can actually run at the same time. costFunction counts a
+	// wave of chunks per pass over the CPUs, and splitting only pays by filling
+	// CPUs a single msm would leave idle, so this has to be a count of CPUs.
+	// config.NbTasks is not one: it defaults to twice runtime.NumCPU(), and
+	// handing that over as the CPU count invents parallelism that is not there,
+	// which makes splitting look free at sizes where it is measurably a loss.
+	nbCpus := min(config.NbTasks, runtime.NumCPU())
+
+	costPreSplit := costFunction(C, nbChunks, nbCpus, costPerTask(C, nbPoints))
 
 	cPostSplit := bestCG1(nbPoints / 2)
 	nbChunksPostSplit := int(computeNbChunks(cPostSplit))
-	costPostSplit := costFunction(nbChunksPostSplit*2, config.NbTasks, costPerTask(cPostSplit, nbPoints/2))
+	costPostSplit := costFunction(cPostSplit, nbChunksPostSplit*2, nbCpus, costPerTask(cPostSplit, nbPoints/2))
 
 	// if the cost of the split msm is lower than the cost of the non split msm, we split
 	if costPostSplit < costPreSplit {
@@ -128,36 +144,31 @@ func (p *G1Jac) MultiExp(points []G1Affine, scalars []fr.Element, config ecc.Mul
 
 // bestCG1 returns the window size c to use for a msm of size nbPoints.
 //
-// It minimises an approximate group-operation count:
+// It minimises msmCost over the window sizes that have a generated chunk
+// processor, so the returned c is always one of them; returning anything else
+// would fall through to the default branch of getChunkProcessorG1
+// and process every chunk with the wrong bucket array.
 //
-//	cost = bits/c * (nbPoints + 2^{c})
+// The model is only an approximation and still wants verifying empirically; for
+// example on a MBP 2016, for G2 MultiExp > 8M points, hand picking c gave better
+// results.
 //
-// this needs to be verified empirically.
-// for example, on a MBP 2016, for G2 MultiExp > 8M points, hand picking c gives better results
-//
-// When several window sizes score the same, the largest is returned. Such ties
-// are exact rather than an artefact of rounding: two window sizes c1 < c2 tie at
-// nbPoints = (c1*2^c2 - c2*2^c1) / (c2 - c1), which is 2^c1 * (c1 - 1) when c2 is
-// c1 + 1.
-//
-// Exactly one tie per curve straddles the two chunk processors: windows c >= 10
-// use the batch-affine one, which amortises a single field inversion over a whole
-// batch of bucket additions, while c <= 9 uses the extended-Jacobian one. The cost
-// model counts a bucket accumulation and a bucket reduction as one group operation
-// each and so cannot see that difference; at that tie the larger window is
-// measurably the faster one. The remaining ties fall wholly inside one processor
-// or the other, where the model has no known bias; the larger window is taken
-// there too, so the rule stays uniform and because it yields fewer chunks, hence
-// fewer goroutines and channels per msm.
+// When several window sizes score the same, the largest is returned. Ties are
+// exact rather than an artefact of rounding: within one chunk processor, where
+// the point term carries the same weight at both window sizes, c1 < c2 tie at
+// nbPoints = (c1*2^c2 - c2*2^c1) / (c2 - c1). The model has no known bias at
+// those points, so the tie goes to the larger window because it yields fewer
+// chunks, hence fewer goroutines and channels per msm. A tie across the two
+// chunk processors is not expected, since the batch affine bucket cost has no
+// exact binary representation, and taking the larger window would be right
+// anyway.
 func bestCG1(nbPoints int) uint64 {
 	// implemented msmC methods (the c we use must be in this slice)
 	implementedCs := []uint64{4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
-	var C uint64
+	C := implementedCs[0]
 	min := math.MaxFloat64
 	for _, c := range implementedCs {
-		cc := (fr.Bits + 1) * (nbPoints + (1 << c))
-		cost := float64(cc) / float64(c)
-		if cost <= min {
+		if cost := msmCost(c, nbPoints); cost <= min {
 			min = cost
 			C = c
 		}
@@ -385,6 +396,92 @@ func computeNbChunks(c uint64) uint64 {
 func lastC(c uint64) uint64 {
 	nbAvailableBits := (computeNbChunks(c) * c) - fr.Bits
 	return c + 1 - nbAvailableBits
+}
+
+// msmBatchAffineC is the smallest window size whose chunk processor accumulates
+// buckets with the batch affine method; every smaller window accumulates with
+// extended jacobian formulas. It and the boundary in getChunkProcessor{G1,G2}
+// are generated from the same constant, so the cost model cannot drift away
+// from the processor it is pricing.
+const msmBatchAffineC = 10
+
+// msmBatchSize returns the size of the batch the batch affine chunk processor
+// accumulates at window size c, or 0 for the window sizes that accumulate with
+// extended jacobian formulas. Generated from the same batch sizes as
+// getChunkProcessor{G1,G2}.
+func msmBatchSize(c uint64) int {
+	switch c {
+	case 10:
+		return 80
+	case 11:
+		return 150
+	case 12:
+		return 200
+	case 13:
+		return 350
+	case 14:
+		return 400
+	case 15:
+		return 500
+	case 16:
+		return 640
+	}
+	return 0
+}
+
+// Costs below are relative to one extended jacobian bucket addition, which is
+// what the c < msmBatchAffineC chunk processor does per point.
+//
+// They are ratios of field operation mixes, so they drift with the curve and
+// with the host: a calibration, not a derivation. Both were fitted by timing
+// _innerMsm at fixed c on an Apple M2, over BLS12-381 and BN254 G1, nbPoints
+// from 1024 to 32768 and c from 8 to 13, serially and again at NbTasks 8 and
+// 16. The fit is flat, so the exact split between the two hardly matters:
+// anything from (0.5, 14) to (0.6, 10) picks the same window at every size
+// measured. Their ratio to each other is what carries the shape.
+const (
+	// an affine bucket addition, once the batch has been inverted
+	msmAffineAddCost = 0.5
+	// a field inversion, which the batch affine processor pays once per batch
+	msmInverseCost = 14.0
+)
+
+// msmBucketAddCost approximates what accumulating one point into its bucket
+// costs at window size c.
+//
+// This is the whole reason the model can tell the two chunk processors apart.
+// Batch affine replaces the inversion inside every bucket addition with one
+// inversion shared across a batch, so its per-point cost falls as the batch
+// grows, and the batch grows with c. A single discount for every batch affine
+// window would price c = 16 the same as c = 10, which is 8x the batch.
+func msmBucketAddCost(c uint64) float64 {
+	batchSize := msmBatchSize(c)
+	if batchSize == 0 {
+		return 1.0 // extended jacobian: the unit the other costs are relative to
+	}
+	return msmAffineAddCost + msmInverseCost/float64(batchSize)
+}
+
+// msmChunkCost approximates, in extended jacobian bucket additions, the work one
+// chunk of a msm over nbPoints points costs at window size c: one bucket
+// accumulation per point, then the reduction of the chunk's 2^{c-1} buckets,
+// counted here as 2^{c} because reducing a bucket costs an addition and a
+// doubling.
+func msmChunkCost(c uint64, nbPoints int) float64 {
+	return msmBucketAddCost(c)*float64(nbPoints) + float64(uint64(1)<<c)
+}
+
+// msmCost approximates the total group operation count of a msm over nbPoints
+// points at window size c, over all of its (fr.Bits+1)/c chunks.
+//
+// It depends on nbPoints only, never on the scalars, so the window size a msm
+// runs at leaks nothing beyond the length of its input.
+//
+// The arithmetic is float64 throughout on purpose: forming (fr.Bits+1)*nbPoints
+// as an int overflows on a 32-bit host at a few million points, and a cost that
+// wrapped negative would hand back a nonsense window.
+func msmCost(c uint64, nbPoints int) float64 {
+	return float64(fr.Bits+1) * msmChunkCost(c, nbPoints) / float64(c)
 }
 
 type chunkStat struct {

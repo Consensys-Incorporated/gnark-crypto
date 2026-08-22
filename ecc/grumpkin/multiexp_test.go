@@ -7,9 +7,11 @@ package grumpkin
 
 import (
 	"fmt"
+	"math"
 	"math/big"
 	"math/bits"
 	"math/rand/v2"
+	"reflect"
 	"runtime"
 	"sync"
 	"testing"
@@ -23,32 +25,38 @@ import (
 func TestBestCG1(t *testing.T) {
 	implementedCs := []uint64{4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
 
-	// mirrors the cost model used by bestCG1
-	cost := func(nbPoints int, c uint64) float64 {
-		cc := (fr.Bits + 1) * (nbPoints + (1 << c))
-		return float64(cc) / float64(c)
+	isImplemented := func(c uint64) bool {
+		for _, v := range implementedCs {
+			if v == c {
+				return true
+			}
+		}
+		return false
 	}
 
-	// bestC must return the largest window size among those minimising the cost.
-	// See bestCG1 for why ties resolve upward; the one that matters
-	// most is the tie crossing from the extended-Jacobian chunk processor to the
-	// batch-affine one, where the smaller c is measurably slower.
+	// bestC must return the largest window size among those minimising msmCost.
+	// Anything outside implementedCs would fall through to the default branch of
+	// getChunkProcessorG1 and silently use the wrong bucket array.
 	assertLargestMinimiser := func(nbPoints int) {
 		t.Helper()
-		best := cost(nbPoints, implementedCs[0])
+		best := msmCost(implementedCs[0], nbPoints)
 		for _, c := range implementedCs[1:] {
-			if v := cost(nbPoints, c); v < best {
+			if v := msmCost(c, nbPoints); v < best {
 				best = v
 			}
 		}
 		var want uint64
 		for _, c := range implementedCs {
-			if cost(nbPoints, c) == best {
+			if msmCost(c, nbPoints) == best {
 				want = c // implementedCs is ascending, so this ends on the largest
 			}
 		}
-		if got := bestCG1(nbPoints); got != want {
+		got := bestCG1(nbPoints)
+		if got != want {
 			t.Fatalf("bestCG1(%d) = %d, want %d (largest cost-minimising window)", nbPoints, got, want)
+		}
+		if !isImplemented(got) {
+			t.Fatalf("bestCG1(%d) = %d, which has no generated chunk processor", nbPoints, got)
 		}
 	}
 
@@ -56,34 +64,159 @@ func TestBestCG1(t *testing.T) {
 	if testing.Short() {
 		sweep = 1 << 12
 	}
-	for nbPoints := 1; nbPoints <= sweep; nbPoints++ {
+	prev := bestCG1(0)
+	for nbPoints := 0; nbPoints <= sweep; nbPoints++ {
 		assertLargestMinimiser(nbPoints)
+		// each cost line has a smaller slope and a larger intercept than the one
+		// before it, so the window size can only grow with nbPoints
+		if got := bestCG1(nbPoints); got < prev {
+			t.Fatalf("bestCG1 is not monotonic: %d at nbPoints=%d after %d", got, nbPoints, prev)
+		} else {
+			prev = got
+		}
 	}
 
-	// exercise the exact tie points, including any beyond the sweep range.
-	// for consecutive window sizes c1 < c2 the model is indifferent at
-	// nbPoints = (c1*2^c2 - c2*2^c1) / (c2 - c1)
+	// exercise the exact tie points, including any beyond the sweep range. Two
+	// window sizes tie where their cost lines cross; the slope and intercept are
+	// read back out of msmCost so this does not restate the model.
 	nbTies := 0
 	for i := 0; i+1 < len(implementedCs); i++ {
 		c1, c2 := implementedCs[i], implementedCs[i+1]
-		num := int(c1)*(1<<c2) - int(c2)*(1<<c1)
-		den := int(c2 - c1)
-		if num <= 0 || num%den != 0 {
-			continue
+		b1, b2 := msmCost(c1, 0), msmCost(c2, 0)
+		a1, a2 := msmCost(c1, 1)-b1, msmCost(c2, 1)-b2
+		if a1 <= a2 {
+			t.Fatalf("cost slope for c=%d is not above c=%d; the monotonicity argument above no longer holds", c1, c2)
 		}
-		nbPoints := num / den
-		if cost(nbPoints, c1) != cost(nbPoints, c2) {
-			continue // not an exact tie in float64
+		nbPoints := int((b2 - b1) / (a1 - a2))
+		if nbPoints <= 0 || msmCost(c1, nbPoints) != msmCost(c2, nbPoints) {
+			continue // the crossing does not land on an exact tie
+		}
+		assertLargestMinimiser(nbPoints)
+
+		// c1 and c2 cost the same here, but a third window may be cheaper than
+		// both, in which case the tie-break never gets a say
+		tied := msmCost(c1, nbPoints)
+		global := true
+		for _, c := range implementedCs {
+			if msmCost(c, nbPoints) < tied {
+				global = false
+				break
+			}
+		}
+		if !global {
+			continue
 		}
 		nbTies++
 		if got := bestCG1(nbPoints); got != c2 {
 			t.Fatalf("nbPoints=%d ties between c=%d and c=%d: bestCG1 = %d, want %d",
 				nbPoints, c1, c2, got, c2)
 		}
-		assertLargestMinimiser(nbPoints)
 	}
 	if nbTies == 0 {
 		t.Fatal("no exact tie found; this test no longer covers the tie-break")
+	}
+}
+
+// TestBestCBatchAffineCrossoverG1 pins the fix that msmBatchAffineWeight
+// exists for: the unweighted model counted a batch-affine bucket accumulation and
+// an extended jacobian one as the same group operation, so it stayed on the
+// extended jacobian chunk processor well past the size where batch affine wins.
+// TestMsmBatchSizeG1 checks the cost model against the processor it
+// prices: msmBatchSize must report a batch exactly for the window sizes that
+// getChunkProcessorG1 sends to the batch affine path, and must
+// report the same batch size that path switches on.
+func TestMsmBatchSizeG1(t *testing.T) {
+	implementedCs := []uint64{4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
+	isBatchAffine := func(c uint64, nbBucketFilled int) bool {
+		// with no bucket filled the batch affine path always declines, so any
+		// window whose processor changes with the statistic has one
+		lo := getChunkProcessorG1(c, chunkStat{nbBucketFilled: 0})
+		got := getChunkProcessorG1(c, chunkStat{nbBucketFilled: nbBucketFilled})
+		return reflect.ValueOf(got).Pointer() != reflect.ValueOf(lo).Pointer()
+	}
+	for _, c := range implementedCs {
+		batchSize := msmBatchSize(c)
+		if batchSize == 0 {
+			if isBatchAffine(c, 1<<(c-1)) {
+				t.Fatalf("c=%d reaches the batch affine processor but msmBatchSize reports no batch, so the cost model prices it as extended jacobian", c)
+			}
+			if got := msmBucketAddCost(c); got != 1 {
+				t.Fatalf("msmBucketAddCost(%d) = %v, want 1 for an extended jacobian window", c, got)
+			}
+			continue
+		}
+		if c < msmBatchAffineC {
+			t.Fatalf("msmBatchSize(%d) = %d below msmBatchAffineC = %d", c, batchSize, msmBatchAffineC)
+		}
+		if !isBatchAffine(c, batchSize) {
+			t.Fatalf("c=%d does not take the batch affine processor at nbBucketFilled=%d, so msmBatchSize disagrees with getChunkProcessorG1", c, batchSize)
+		}
+		if isBatchAffine(c, batchSize-1) {
+			t.Fatalf("c=%d takes the batch affine processor at nbBucketFilled=%d, one below msmBatchSize", c, batchSize-1)
+		}
+		// a larger batch amortises the inversion further, so it must cost less
+		if got := msmBucketAddCost(c); got >= 1 {
+			t.Fatalf("msmBucketAddCost(%d) = %v, want below the extended jacobian unit", c, got)
+		}
+	}
+}
+
+func TestBestCBatchAffineCrossoverG1(t *testing.T) {
+	implementedCs := []uint64{4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
+	if implementedCs[len(implementedCs)-1] < msmBatchAffineC {
+		t.Skip("no batch affine window is generated for this curve")
+	}
+
+	// the model as it shipped before the weight was introduced
+	unweighted := func(nbPoints int) uint64 {
+		best, C := math.MaxFloat64, implementedCs[0]
+		for _, c := range implementedCs {
+			cost := float64(fr.Bits+1) * (float64(nbPoints) + float64(uint64(1)<<c)) / float64(c)
+			if cost <= best {
+				best, C = cost, c
+			}
+		}
+		return C
+	}
+
+	// both models are monotonic in nbPoints, so binary search the first size that
+	// reaches the batch affine processor
+	firstBatchAffine := func(f func(int) uint64) int {
+		lo, hi := 0, 1
+		for f(hi) < msmBatchAffineC {
+			hi *= 2
+			if hi > 1<<30 {
+				t.Fatal("no batch affine window is ever selected")
+			}
+		}
+		for lo < hi {
+			mid := lo + (hi-lo)/2
+			if f(mid) < msmBatchAffineC {
+				lo = mid + 1
+			} else {
+				hi = mid
+			}
+		}
+		return lo
+	}
+
+	was := firstBatchAffine(unweighted)
+	now := firstBatchAffine(bestCG1)
+	if now >= was {
+		t.Fatalf("batch affine crossover is at nbPoints=%d, no earlier than the unweighted model's %d", now, was)
+	}
+	if got := bestCG1(was); got < msmBatchAffineC {
+		t.Fatalf("bestCG1(%d) = %d, want a batch affine window", was, got)
+	}
+
+	// bestC runs before partitionScalars, so it has to assume the batch affine
+	// processor is actually taken. getChunkProcessorG1 falls back to
+	// extended jacobian when a chunk fills fewer than batchSize of its 2^{c-1}
+	// buckets, so the crossover must sit well above that threshold for the
+	// assumption to hold on non-degenerate scalars.
+	nbBuckets := 1 << (msmBatchAffineC - 1)
+	if now < 2*nbBuckets {
+		t.Fatalf("batch affine crossover at nbPoints=%d is too close to the %d buckets of a c=%d window", now, nbBuckets, msmBatchAffineC)
 	}
 }
 
