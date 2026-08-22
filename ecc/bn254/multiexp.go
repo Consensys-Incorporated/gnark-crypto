@@ -138,11 +138,17 @@ func (p *G1Jac) MultiExp(points []G1Affine, scalars []fr.Element, config ecc.Mul
 // When several window sizes score the same, the largest is returned. Such ties
 // are exact rather than an artefact of rounding: two window sizes c1 < c2 tie at
 // nbPoints = (c1*2^c2 - c2*2^c1) / (c2 - c1), which is 2^c1 * (c1 - 1) when c2 is
-// c1 + 1. They are not ties in practice: windows c >= 10 use the batch-affine chunk
-// processor, which amortises a single field inversion over a whole batch of
-// bucket additions, while c <= 9 uses the extended-Jacobian one. The cost model
-// counts a bucket accumulation and a bucket reduction as one group operation
-// each and so cannot see that difference, but the larger c is the faster one.
+// c1 + 1.
+//
+// Exactly one tie per curve straddles the two chunk processors: windows c >= 10
+// use the batch-affine one, which amortises a single field inversion over a whole
+// batch of bucket additions, while c <= 9 uses the extended-Jacobian one. The cost
+// model counts a bucket accumulation and a bucket reduction as one group operation
+// each and so cannot see that difference; at that tie the larger window is
+// measurably the faster one. The remaining ties fall wholly inside one processor
+// or the other, where the model has no known bias; the larger window is taken
+// there too, so the rule stays uniform and because it yields fewer chunks, hence
+// fewer goroutines and channels per msm.
 func bestCG1(nbPoints int) uint64 {
 	// implemented msmC methods (the c we use must be in this slice)
 	implementedCs := []uint64{4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
@@ -476,11 +482,17 @@ func (p *G2Jac) MultiExp(points []G2Affine, scalars []fr.Element, config ecc.Mul
 // When several window sizes score the same, the largest is returned. Such ties
 // are exact rather than an artefact of rounding: two window sizes c1 < c2 tie at
 // nbPoints = (c1*2^c2 - c2*2^c1) / (c2 - c1), which is 2^c1 * (c1 - 1) when c2 is
-// c1 + 1. They are not ties in practice: windows c >= 10 use the batch-affine chunk
-// processor, which amortises a single field inversion over a whole batch of
-// bucket additions, while c <= 9 uses the extended-Jacobian one. The cost model
-// counts a bucket accumulation and a bucket reduction as one group operation
-// each and so cannot see that difference, but the larger c is the faster one.
+// c1 + 1.
+//
+// Exactly one tie per curve straddles the two chunk processors: windows c >= 10
+// use the batch-affine one, which amortises a single field inversion over a whole
+// batch of bucket additions, while c <= 9 uses the extended-Jacobian one. The cost
+// model counts a bucket accumulation and a bucket reduction as one group operation
+// each and so cannot see that difference; at that tie the larger window is
+// measurably the faster one. The remaining ties fall wholly inside one processor
+// or the other, where the model has no known bias; the larger window is taken
+// there too, so the rule stays uniform and because it yields fewer chunks, hence
+// fewer goroutines and channels per msm.
 func bestCG2(nbPoints int) uint64 {
 	// implemented msmC methods (the c we use must be in this slice)
 	implementedCs := []uint64{4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}

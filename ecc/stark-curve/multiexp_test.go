@@ -30,8 +30,9 @@ func TestBestCG1(t *testing.T) {
 	}
 
 	// bestC must return the largest window size among those minimising the cost.
-	// Where the model ties, the smaller c selects the extended-Jacobian chunk
-	// processor instead of the batch-affine one and is measurably slower.
+	// See bestCG1 for why ties resolve upward; the one that matters
+	// most is the tie crossing from the extended-Jacobian chunk processor to the
+	// batch-affine one, where the smaller c is measurably slower.
 	assertLargestMinimiser := func(nbPoints int) {
 		t.Helper()
 		best := cost(nbPoints, implementedCs[0])
