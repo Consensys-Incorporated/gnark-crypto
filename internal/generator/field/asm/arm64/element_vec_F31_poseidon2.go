@@ -105,7 +105,7 @@ func (f *FFArm64) generatePoseidon2_F31_16x16(params amd64.Poseidon2Parameters, 
 	argSize := 8 + 24 + 8 // matrix ptr + roundKeys slice header + result ptr
 	if columns {
 		fnName = "permutation16x16xN_columns_arm64"
-		argSize += 8 // + nbSteps
+		argSize += 16 // + nbSteps + state ptr
 	}
 
 	// Stack frame for temporary storage during each step (8 vectors × 16 bytes = 128 bytes)
@@ -172,16 +172,18 @@ func (f *FFArm64) generatePoseidon2_F31_16x16(params amd64.Poseidon2Parameters, 
 	batchIdx := registers.Pop() // outer loop counter (0..3)
 	stepIdx := registers.Pop()  // inner loop counter (0..N-1)
 	// Pointers to 4 rows for current batch
-	ptr0 := registers.Pop()    // data pointer for batch row 0
-	ptr1 := registers.Pop()    // data pointer for batch row 1
-	ptr2 := registers.Pop()    // data pointer for batch row 2
-	ptr3 := registers.Pop()    // data pointer for batch row 3
-	tmpCalc := registers.Pop() // temporary for address calculations
+	ptr0 := registers.Pop()      // data pointer for batch row 0
+	ptr1 := registers.Pop()      // data pointer for batch row 1
+	ptr2 := registers.Pop()      // data pointer for batch row 2
+	ptr3 := registers.Pop()      // data pointer for batch row 3
+	tmpCalc := registers.Pop()   // temporary for address calculations
+	addrState := registers.Pop() // optional initial state, in column-major layout
 
 	var nbSteps arm64.Register // number of steps (columns variant only)
 	if columns {
 		nbSteps = registers.Pop()
 		f.MOVD("nbSteps+40(FP)", nbSteps)
+		f.MOVD("state+48(FP)", addrState)
 	}
 
 	// defineOnce defines a macro on the first kernel generation and reuses it on
@@ -607,7 +609,25 @@ func (f *FFArm64) generatePoseidon2_F31_16x16(params amd64.Poseidon2Parameters, 
 	f.MOVD(0, batchIdx)
 	f.LABEL("batch_loop")
 
-	zeroState()
+	if columns {
+		stateIsZero := f.NewLabel("state_is_zero")
+		stateReady := f.NewLabel("state_ready")
+		f.CBZ(addrState, stateIsZero)
+		// state[pos*16+lane] is transposed in the same way as the result:
+		// load four lanes for each of the eight capacity coordinates.
+		f.WriteLn(fmt.Sprintf("    LSL $4, %s, %s", batchIdx, tmpCalc))
+		f.ADD(addrState, tmpCalc, tmpCalc)
+		for pos := range 8 {
+			f.VLD1_P(16, tmpCalc, v[pos].S4())
+			f.ADD(48, tmpCalc, tmpCalc)
+		}
+		f.JMP(stateReady)
+		f.LABEL(stateIsZero)
+		zeroState()
+		f.LABEL(stateReady)
+	} else {
+		zeroState()
+	}
 
 	// Initialize pointers for 4 parallel inputs
 	const N = 512 / 8 // 64 steps per batch
