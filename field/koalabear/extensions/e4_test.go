@@ -7,6 +7,7 @@ package extensions
 
 import (
 	"bytes"
+	"encoding/binary"
 	"math/big"
 	"os"
 	"reflect"
@@ -721,6 +722,45 @@ func TestVectorEmptyRoundTrip(t *testing.T) {
 
 	assert.True(reflect.DeepEqual(v1, v2))
 	assert.True(reflect.DeepEqual(v3, v2))
+}
+
+// TestVectorAsyncReadFromLengthBound checks that the announced element count does
+// not size the allocation past what the reader can supply. The assertion is on
+// allocation volume rather than on getting an error, because a truncated stream
+// errors either way once io.ReadFull runs out of input.
+func TestVectorAsyncReadFromLengthBound(t *testing.T) {
+	assert := require.New(t)
+
+	// Four bytes announcing 2^20 elements, with no element data behind them.
+	var hdr [4]byte
+	binary.BigEndian.PutUint32(hdr[:], 1<<20)
+
+	var before, after runtime.MemStats
+	runtime.GC()
+	runtime.ReadMemStats(&before)
+	var v Vector
+	_, err, chErr := v.AsyncReadFrom(bytes.NewReader(hdr[:]))
+	runtime.ReadMemStats(&after)
+	if chErr != nil {
+		for range chErr {
+		}
+	}
+	assert.Error(err, "a length with no element data behind it must be refused")
+
+	allocated := after.TotalAlloc - before.TotalAlloc
+	assert.Less(allocated, uint64(1<<20),
+		"reading a vector that announces 2^20 elements from a 4 byte input allocated %d bytes", allocated)
+
+	// A well formed vector must still round trip.
+	v1 := make(Vector, 4)
+	for i := range v1 {
+		v1[i].MustSetRandom()
+	}
+	buf, err := v1.MarshalBinary()
+	assert.NoError(err)
+	var v2 Vector
+	assert.NoError(v2.unmarshalBinaryAsync(buf))
+	assert.True(reflect.DeepEqual(v1, v2))
 }
 
 func (vector *Vector) unmarshalBinaryAsync(data []byte) error {
