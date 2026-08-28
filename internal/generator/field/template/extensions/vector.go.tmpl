@@ -468,6 +468,17 @@ func (vector *Vector) AsyncReadFrom(r io.Reader) (int64, error, chan error) { //
 	sliceLen := binary.BigEndian.Uint32(bufSizeSlice[:])
 
 	n := int64(4)
+	// sliceLen is read from the input, so it must not size an allocation on its
+	// own: it is a uint32 and each element occupies 4*fr.Bytes, so a 4 byte header
+	// could otherwise ask for tens of gigabytes before a single element has
+	// arrived. When the reader can report how much data remains, refuse a length
+	// that cannot possibly be backed by it.
+	if lr, ok := r.(interface{ Len() int }); ok {
+		if maxLen := uint32(lr.Len() / (4 * fr.Bytes)); sliceLen > maxLen {
+			close(chErr)
+			return n, io.ErrUnexpectedEOF, chErr
+		}
+	}
 	(*vector) = make(Vector, sliceLen)
 	if sliceLen == 0 {
 		close(chErr)
