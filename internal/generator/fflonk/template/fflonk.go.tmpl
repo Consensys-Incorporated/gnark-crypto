@@ -144,6 +144,9 @@ func BatchVerify(proof OpeningProof, digests []kzg.Digest, points [][]fr.Element
 	// step 0: consistency checks between the folded claimed values of shplonk and the claimed
 	// values at the powers of the Sᵢ
 	for i := range len(proof.ClaimedValues) {
+		if len(proof.ClaimedValues[i]) == 0 {
+			return ErrNbPolynomialsNbPoints
+		}
 		sizeSi := len(proof.ClaimedValues[i][0])
 		for j := 1; j < len(proof.ClaimedValues[i]); j++ {
 			// each set of opening must be of the same size (openings on powers of Si)
