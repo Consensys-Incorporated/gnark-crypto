@@ -439,6 +439,87 @@ func TestBatchVerifySinglePoint(t *testing.T) {
 	t.Run("mpcsetup", test(mpcGetSrs(t)))
 }
 
+// recordingCommitter is a Committer that delegates to a ProvingKey and counts calls.
+type recordingCommitter struct {
+	pk    ProvingKey
+	calls int
+}
+
+func (c *recordingCommitter) Commit(p []fr.Element) (Digest, error) {
+	c.calls++
+	return c.pk.Commit(p)
+}
+
+func TestOpenWithCommitter(t *testing.T) {
+	assert := require.New(t)
+
+	// ProvingKey must satisfy Committer
+	var _ Committer = testSrs.Pk
+
+	f := randomPolynomial(60)
+	digest, err := Commit(f, testSrs.Pk)
+	assert.NoError(err)
+
+	var point fr.Element
+	point.SetString("4321")
+
+	// open with the default committer and with a custom committer
+	expected, err := Open(f, point, testSrs.Pk)
+	assert.NoError(err)
+
+	c := &recordingCommitter{pk: testSrs.Pk}
+	proof, err := OpenWithCommitter(f, point, c)
+	assert.NoError(err)
+	assert.Equal(1, c.calls, "custom committer should be called exactly once")
+
+	// both proofs must be identical and verify
+	assert.True(proof.H.Equal(&expected.H), "quotient commitments differ")
+	assert.True(proof.ClaimedValue.Equal(&expected.ClaimedValue), "claimed values differ")
+	assert.NoError(Verify(&digest, &proof, point, testSrs.Vk))
+
+	// polynomial larger than the SRS is rejected by the ProvingKey committer
+	tooLarge := randomPolynomial(len(testSrs.Pk.G1) + 2)
+	_, err = OpenWithCommitter(tooLarge, point, testSrs.Pk)
+	assert.ErrorIs(err, ErrInvalidPolynomialSize)
+}
+
+func TestBatchOpenSinglePointWithCommitter(t *testing.T) {
+	assert := require.New(t)
+
+	f := make([][]fr.Element, 10)
+	digests := make([]Digest, len(f))
+	var err error
+	for i := range f {
+		f[i] = randomPolynomial(40)
+		digests[i], err = Commit(f[i], testSrs.Pk)
+		assert.NoError(err)
+	}
+
+	hf := sha256.New()
+	var point, salt fr.Element
+	point.SetString("4321")
+	salt.MustSetRandom()
+
+	// open with the default committer and with a custom committer
+	expected, err := BatchOpenSinglePoint(f, digests, point, hf, testSrs.Pk, salt.Marshal())
+	assert.NoError(err)
+
+	c := &recordingCommitter{pk: testSrs.Pk}
+	proof, err := BatchOpenSinglePointWithCommitter(f, digests, point, hf, c, salt.Marshal())
+	assert.NoError(err)
+	assert.Equal(1, c.calls, "custom committer should be called exactly once")
+
+	// both proofs must be identical and verify
+	assert.True(proof.H.Equal(&expected.H), "quotient commitments differ")
+	assert.Equal(expected.ClaimedValues, proof.ClaimedValues)
+	assert.NoError(BatchVerifySinglePoint(digests, &proof, point, hf, testSrs.Vk, salt.Marshal()))
+
+	// polynomial larger than the SRS is rejected by the ProvingKey committer
+	tooLarge := [][]fr.Element{randomPolynomial(len(testSrs.Pk.G1) + 2)}
+	_, err = BatchOpenSinglePointWithCommitter(tooLarge, digests[:1], point, hf, testSrs.Pk)
+	assert.ErrorIs(err, ErrInvalidPolynomialSize)
+}
+
 func TestBatchVerifyMultiPoints(t *testing.T) {
 
 	// create polynomials
