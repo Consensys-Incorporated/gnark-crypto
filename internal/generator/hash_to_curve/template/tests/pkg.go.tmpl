@@ -96,6 +96,91 @@ func Test{{$CurveTitle}}SqrtRatio(t *testing.T) {
 }
 
 {{if notNil .Isogeny}}
+{{- $chains := .Isogeny.Chains}}
+{{- $anyChain := or (notNil $chains.XNum) (notNil $chains.XDen) (notNil $chains.YNum) (notNil $chains.YDen)}}
+{{- if $anyChain}}
+// Test{{$CurveTitle}}IsogenyChains checks the preprocessed multiplication chains of the
+// isogeny polynomials against Horner's rule on the original coefficients.
+func Test{{$CurveTitle}}IsogenyChains(t *testing.T) {
+	t.Parallel()
+
+	check := func(x, y *{{$CoordType}}) {
+		var got, want {{$CoordType}}
+		{{- if notNil $chains.XNum}}
+		{{$CurveName}}IsogenyXNumerator(&got, x)
+		{{$CurveName}}EvalPolynomial(&want, false, {{$CurveName}}IsogenyXNumeratorMap, x)
+		if !got.Equal(&want) {
+			t.Fatal("x numerator: chain and Horner disagree")
+		}
+		{{- end}}
+		{{- if notNil $chains.XDen}}
+		{{$CurveName}}IsogenyXDenominator(&got, x)
+		{{$CurveName}}EvalPolynomial(&want, true, {{$CurveName}}IsogenyXDenominatorMap, x)
+		if !got.Equal(&want) {
+			t.Fatal("x denominator: chain and Horner disagree")
+		}
+		{{- end}}
+		{{- if notNil $chains.YNum}}
+		{{$CurveName}}IsogenyYNumerator(&got, x, y)
+		{{$CurveName}}EvalPolynomial(&want, false, {{$CurveName}}IsogenyYNumeratorMap, x)
+		want.Mul(&want, y)
+		if !got.Equal(&want) {
+			t.Fatal("y numerator: chain and Horner disagree")
+		}
+		{{- end}}
+		{{- if notNil $chains.YDen}}
+		{{$CurveName}}IsogenyYDenominator(&got, x)
+		{{$CurveName}}EvalPolynomial(&want, true, {{$CurveName}}IsogenyYDenominatorMap, x)
+		if !got.Equal(&want) {
+			t.Fatal("y denominator: chain and Horner disagree")
+		}
+		{{- end}}
+	}
+
+	// 0, 1, -1 and random points
+	var special [3]{{$CoordType}}
+	special[1].SetOne()
+	special[2].Neg(&special[1])
+	var y {{$CoordType}}
+	y.MustSetRandom()
+	for i := range special {
+		check(&special[i], &y)
+	}
+	n := 1000
+	if testing.Short() {
+		n = 100
+	}
+	for i := 0; i < n; i++ {
+		var x {{$CoordType}}
+		x.MustSetRandom()
+		y.MustSetRandom()
+		check(&x, &y)
+	}
+
+	// aliasing as used by {{$CurveTitle}}Isogeny: dst == x and dst == y
+	var x {{$CoordType}}
+	x.MustSetRandom()
+	y.MustSetRandom()
+	var want {{$CoordType}}
+	{{- if notNil $chains.XNum}}
+	{{$CurveName}}IsogenyXNumerator(&want, &x)
+	x2 := x
+	{{$CurveName}}IsogenyXNumerator(&x2, &x2)
+	if !x2.Equal(&want) {
+		t.Fatal("x numerator: aliased evaluation differs")
+	}
+	{{- end}}
+	{{- if notNil $chains.YNum}}
+	{{$CurveName}}IsogenyYNumerator(&want, &x, &y)
+	y2 := y
+	{{$CurveName}}IsogenyYNumerator(&y2, &x, &y2)
+	if !y2.Equal(&want) {
+		t.Fatal("y numerator: aliased evaluation differs")
+	}
+	{{- end}}
+}
+{{- end}}
+
 // Benchmark{{$CurveTitle}}IsogenyPolynomials evaluates the four isogeny polynomials as
 // {{$CurveTitle}}Isogeny does (without the final batch inversion).
 func Benchmark{{$CurveTitle}}IsogenyPolynomials(b *testing.B) {

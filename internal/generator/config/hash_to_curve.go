@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"math/big"
 
 	field "github.com/consensys/gnark-crypto/internal/generator/field/config"
@@ -18,6 +19,47 @@ type Isogeny struct {
 	//Isogeny to original curve
 	XMap RationalPolynomial
 	YMap RationalPolynomial // The y map is also evaluated on x. The result is multiplied by y.
+
+	// Chains holds optional preprocessed multiplication chains for the four maps
+	// (see PolyChain). Maps without a chain are evaluated with Horner's rule.
+	Chains *IsogenyChains
+}
+
+// PolyChain is a straight-line multiplication chain evaluating one isogeny polynomial
+// with floor(n/2)+1 multiplications (+1 when the leading coefficient is not 1) instead
+// of Horner's n-1 (+1). It is produced offline from the polynomial's coefficients by
+// internal/generator/hash_to_curve/gen_isogeny_chains.py, the decoder of
+//
+//	T. D. Ahle, "Fast Evaluation of Polynomials with Rational Preprocessing",
+//	https://arxiv.org/abs/2609.06022
+//
+// Wire 0 is the input x and the output of gate i (0-based) is wire i+1. Every gate
+// multiplies two linear forms in the wires; the polynomial is the output linear form,
+// times Leading when the polynomial is not monic.
+type PolyChain struct {
+	Degree    int
+	Leading   []string   // leading coefficient (one string per coordinate); nil when monic
+	Constants [][]string // field constants referenced by LinearForm.Const
+	Gates     []ChainGate
+	Output    LinearForm
+}
+
+// ChainGate is the product of two linear forms.
+type ChainGate struct {
+	Left, Right LinearForm
+}
+
+// LinearForm is Σ coeff·wire + Constants[Const] (no constant when Const < 0).
+// The integer coefficients are small (|coeff| ≤ 64) and are realised by doublings
+// and additions in the generated code.
+type LinearForm struct {
+	Terms [][2]int // {wire, coefficient}
+	Const int
+}
+
+// IsogenyChains are the chains of the four isogeny maps; a nil entry means Horner.
+type IsogenyChains struct {
+	XNum, XDen, YNum, YDen *PolyChain
 }
 
 type RationalPolynomial struct {
@@ -182,7 +224,7 @@ func newIsogenousCurveInfoOptional(isogenousCurve *Isogeny) *IsogenyInfo {
 	if isogenousCurve == nil {
 		return nil
 	}
-	return &IsogenyInfo{
+	info := &IsogenyInfo{
 		XMap: RationalPolynomialInfo{
 			stringMatrixToIntMatrix(isogenousCurve.XMap.Num),
 			stringMatrixToIntMatrix(isogenousCurve.XMap.Den),
@@ -191,7 +233,65 @@ func newIsogenousCurveInfoOptional(isogenousCurve *Isogeny) *IsogenyInfo {
 			stringMatrixToIntMatrix(isogenousCurve.YMap.Num),
 			stringMatrixToIntMatrix(isogenousCurve.YMap.Den),
 		},
+		Chains: &IsogenyChainsInfo{},
 	}
+	if c := isogenousCurve.Chains; c != nil {
+		info.Chains.XNum = newPolyChainInfo(c.XNum, len(isogenousCurve.XMap.Num)-1)
+		info.Chains.XDen = newPolyChainInfo(c.XDen, len(isogenousCurve.XMap.Den))
+		info.Chains.YNum = newPolyChainInfo(c.YNum, len(isogenousCurve.YMap.Num)-1)
+		info.Chains.YDen = newPolyChainInfo(c.YDen, len(isogenousCurve.YMap.Den))
+	}
+	return info
+}
+
+func newPolyChainInfo(c *PolyChain, degree int) *PolyChainInfo {
+	if c == nil {
+		return nil
+	}
+	if c.Degree != degree {
+		panic(fmt.Sprintf("isogeny chain of degree %d for a polynomial of degree %d", c.Degree, degree))
+	}
+	info := &PolyChainInfo{
+		Degree:    c.Degree,
+		Constants: stringMatrixToIntMatrix(c.Constants),
+		Gates:     c.Gates,
+		Output:    c.Output,
+	}
+	if c.Leading != nil {
+		info.Leading = field.NewElement(c.Leading)
+	}
+	return info
+}
+
+// PolyChainInfo is PolyChain with the constants parsed into field elements.
+type PolyChainInfo struct {
+	Degree    int
+	Leading   field.Element // nil when monic
+	Constants []field.Element
+	Gates     []ChainGate
+	Output    LinearForm
+}
+
+// Multiplications is the number of field multiplications of the chain.
+func (c *PolyChainInfo) Multiplications() int {
+	if c.Leading != nil {
+		return len(c.Gates) + 1
+	}
+	return len(c.Gates)
+}
+
+// HornerMultiplications is the number of field multiplications Horner's rule uses
+// for the same polynomial.
+func (c *PolyChainInfo) HornerMultiplications() int {
+	if c.Leading != nil {
+		return c.Degree
+	}
+	return c.Degree - 1
+}
+
+// IsogenyChainsInfo mirrors IsogenyChains; a nil entry means Horner.
+type IsogenyChainsInfo struct {
+	XNum, XDen, YNum, YDen *PolyChainInfo
 }
 
 // computeSarkarBlockSizes computes optimal block sizes for Sarkar's algorithm.
@@ -216,8 +316,9 @@ func computeSarkarBlockSizes(e int) (int, []int) {
 }
 
 type IsogenyInfo struct {
-	XMap RationalPolynomialInfo
-	YMap RationalPolynomialInfo // The y map is also evaluated on x. The result is multiplied by y.
+	XMap   RationalPolynomialInfo
+	YMap   RationalPolynomialInfo // The y map is also evaluated on x. The result is multiplied by y.
+	Chains *IsogenyChainsInfo     // never nil; its entries are nil for maps evaluated with Horner
 }
 
 type RationalPolynomialInfo struct {
