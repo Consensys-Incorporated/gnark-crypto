@@ -94,4 +94,48 @@ func Test{{$CurveTitle}}SqrtRatio(t *testing.T) {
 
 	properties.TestingRun(t, gopter.ConsoleReporter(false))
 }
+
+{{if notNil .Isogeny}}
+// Benchmark{{$CurveTitle}}IsogenyPolynomials evaluates the four isogeny polynomials as
+// {{$CurveTitle}}Isogeny does (without the final batch inversion).
+func Benchmark{{$CurveTitle}}IsogenyPolynomials(b *testing.B) {
+	var x, y, xn, xd, yn, yd {{$CoordType}}
+	x.MustSetRandom()
+	y.MustSetRandom()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		{{$CurveName}}IsogenyYDenominator(&yd, &x)
+		{{$CurveName}}IsogenyXDenominator(&xd, &x)
+		{{$CurveName}}IsogenyYNumerator(&yn, &x, &y)
+		{{$CurveName}}IsogenyXNumerator(&xn, &x)
+	}
+}
+
+// Benchmark{{$CurveTitle}}IsogenyPolynomialsHorner evaluates the same polynomials with
+// Horner's rule on the coefficient tables, for reference.
+func Benchmark{{$CurveTitle}}IsogenyPolynomialsHorner(b *testing.B) {
+	var x, y, xn, xd, yn, yd {{$CoordType}}
+	x.MustSetRandom()
+	y.MustSetRandom()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		{{$CurveName}}EvalPolynomial(&yd, true, {{$CurveName}}IsogenyYDenominatorMap, &x)
+		{{$CurveName}}EvalPolynomial(&xd, true, {{$CurveName}}IsogenyXDenominatorMap, &x)
+		{{$CurveName}}EvalPolynomial(&yn, false, {{$CurveName}}IsogenyYNumeratorMap, &x)
+		yn.Mul(&yn, &y)
+		{{$CurveName}}EvalPolynomial(&xn, false, {{$CurveName}}IsogenyXNumeratorMap, &x)
+	}
+}
+
+// Benchmark{{$CurveTitle}}Isogeny measures the full isogeny map, batch inversion included.
+func Benchmark{{$CurveTitle}}Isogeny(b *testing.B) {
+	var x, y {{$CoordType}}
+	x.MustSetRandom()
+	y.MustSetRandom()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		{{$CurveTitle}}Isogeny(&x, &y)
+	}
+}
+{{- end}}
 {{end}}
