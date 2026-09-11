@@ -9,7 +9,7 @@ import (
 	"fmt"
 
 	"github.com/consensys/gnark-crypto/hash"
-	"github.com/consensys/gnark-crypto/ecc/{{.Name}}/twistededwards"
+	{{if ne .Package "twistededwards"}}twistededwards {{end}}"github.com/consensys/gnark-crypto/ecc/{{.Name}}/{{.Package}}"
 	"github.com/consensys/gnark-crypto/ecc/{{.Name}}/fr"
 	"github.com/consensys/gnark-crypto/ecc/{{.Name}}/fr/mimc"
 )

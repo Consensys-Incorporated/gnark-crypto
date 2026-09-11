@@ -1,6 +1,6 @@
-// Package {{.Package}} provides EdDSA signature scheme on {{.Name}}'s twisted edwards curve.
+// Package eddsa provides EdDSA signature scheme on {{.Name}}'s {{if ne .Package "twistededwards"}}{{.Package}} {{end}}twisted edwards curve.
 // 
 // See also
 //
 // https://en.wikipedia.org/wiki/EdDSA
-package {{.Package}}
+package eddsa

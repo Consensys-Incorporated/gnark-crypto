@@ -11,8 +11,8 @@ import (
 	"io"
 	"math/big"
 
+	twistededwards "github.com/consensys/gnark-crypto/ecc/bls12-381/bandersnatch"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
-	"github.com/consensys/gnark-crypto/ecc/bls12-381/twistededwards"
 )
 
 // cf point.go (ugly copy)

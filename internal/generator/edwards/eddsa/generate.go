@@ -10,9 +10,9 @@ import (
 )
 
 func Generate(conf config.TwistedEdwardsCurve, baseDir string, gen *common.Generator) error {
-	// eddsa
-	conf.Package = "eddsa"
-	baseDir = filepath.Join(baseDir, conf.Package)
+	// eddsa; conf.Package stays the curve package ("twistededwards" or
+	// "bandersnatch") so that the templates import the curve they sign on.
+	baseDir = filepath.Join(baseDir, "eddsa")
 
 	entries := []bavard.Entry{
 		{File: filepath.Join(baseDir, "doc.go"), Templates: []string{"doc.go.tmpl"}},
@@ -21,6 +21,6 @@ func Generate(conf config.TwistedEdwardsCurve, baseDir string, gen *common.Gener
 		{File: filepath.Join(baseDir, "marshal.go"), Templates: []string{"marshal.go.tmpl"}},
 	}
 	eddsaGen := common.NewDefaultGenerator(template.FS)
-	return eddsaGen.Generate(conf, conf.Package, "", "", entries...)
+	return eddsaGen.Generate(conf, "eddsa", "", "", entries...)
 
 }
