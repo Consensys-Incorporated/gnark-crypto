@@ -176,12 +176,30 @@ func Commit(p []fr.Element, pk ProvingKey, nbTasks ...int) (Digest, error) {
 	return res, nil
 }
 
+// Committer computes KZG commitments to polynomials in canonical form.
+// ProvingKey implements Committer using a multi-exponentiation against its SRS;
+// alternative implementations (for example hardware-accelerated MSM) can be
+// supplied to OpenWithCommitter and BatchOpenSinglePointWithCommitter.
+type Committer interface {
+	Commit(p []fr.Element) (Digest, error)
+}
+
+// Commit implements Committer.
+func (pk ProvingKey) Commit(p []fr.Element) (Digest, error) {
+	return Commit(p, pk)
+}
+
 // Open computes an opening proof of polynomial p at given point.
 // fft.Domain Cardinality must be larger than p.Degree()
 func Open(p []fr.Element, point fr.Element, pk ProvingKey) (OpeningProof, error) {
 	if len(p) > len(pk.G1) {
 		return OpeningProof{}, ErrInvalidPolynomialSize
 	}
+	return OpenWithCommitter(p, point, pk)
+}
+
+// OpenWithCommitter is like Open but uses c to commit to the quotient polynomial.
+func OpenWithCommitter(p []fr.Element, point fr.Element, c Committer) (OpeningProof, error) {
 
 	// build the proof
 	res := OpeningProof{
@@ -195,7 +213,7 @@ func Open(p []fr.Element, point fr.Element, pk ProvingKey) (OpeningProof, error)
 	h := dividePolyByXminusA(_p, res.ClaimedValue, point)
 
 	// commit to H
-	hCommit, err := Commit(h, pk)
+	hCommit, err := c.Commit(h)
 	if err != nil {
 		return OpeningProof{}, err
 	}
@@ -253,6 +271,19 @@ func Verify(commitment *Digest, proof *OpeningProof, point fr.Element, vk Verify
 // * polynomials is the list of polynomials to open, they are supposed to be of the same size.
 // * dataTranscript extra data that might be needed to derive the challenge used for folding
 func BatchOpenSinglePoint(polynomials [][]fr.Element, digests []Digest, point fr.Element, hf hash.Hash, pk ProvingKey, dataTranscript ...[]byte) (BatchOpeningProof, error) {
+	if len(digests) != len(polynomials) {
+		return BatchOpeningProof{}, ErrInvalidNbDigests
+	}
+	for _, p := range polynomials {
+		if len(p) > len(pk.G1) {
+			return BatchOpeningProof{}, ErrInvalidPolynomialSize
+		}
+	}
+	return BatchOpenSinglePointWithCommitter(polynomials, digests, point, hf, pk, dataTranscript...)
+}
+
+// BatchOpenSinglePointWithCommitter is like BatchOpenSinglePoint but uses c to commit to the folded quotient polynomial.
+func BatchOpenSinglePointWithCommitter(polynomials [][]fr.Element, digests []Digest, point fr.Element, hf hash.Hash, c Committer, dataTranscript ...[]byte) (BatchOpeningProof, error) {
 
 	// check for invalid sizes
 	nbDigests := len(digests)
@@ -263,9 +294,6 @@ func BatchOpenSinglePoint(polynomials [][]fr.Element, digests []Digest, point fr
 	// TODO ensure the polynomials are of the same size
 	largestPoly := -1
 	for _, p := range polynomials {
-		if len(p) > len(pk.G1) {
-			return BatchOpeningProof{}, ErrInvalidPolynomialSize
-		}
 		if len(p) > largestPoly {
 			largestPoly = len(p)
 		}
@@ -332,7 +360,7 @@ func BatchOpenSinglePoint(polynomials [][]fr.Element, digests []Digest, point fr
 	h := dividePolyByXminusA(foldedPolynomials, foldedEvaluations, point)
 	foldedPolynomials = nil // same memory as h
 
-	res.H, err = Commit(h, pk)
+	res.H, err = c.Commit(h)
 	if err != nil {
 		return BatchOpeningProof{}, err
 	}
