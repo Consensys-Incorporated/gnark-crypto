@@ -510,14 +510,18 @@ func (h *Permutation) compressx16Columns(
 	result [][8]fr.Element,
 ) {
 
-	if !h.params.hasFast16_6_21 || (runtime.GOARCH == "arm64" && state != nil) {
+	if !h.params.hasFast16_6_21 {
 		h.compressx16ColumnsGeneric(state, matrix, colSize, result)
 		return
 	}
 
 	nbSteps := uint64(colSize / 8)
 	if runtime.GOARCH == "arm64" {
-		permutation16x16xN_columns_arm64(&matrix[0], h.params.RoundKeys, &result[0][0], nbSteps)
+		var statePtr *fr.Element
+		if state != nil {
+			statePtr = &state[0]
+		}
+		permutation16x16xN_columns_arm64(&matrix[0], h.params.RoundKeys, &result[0][0], nbSteps, statePtr)
 		return
 	}
 	var statePtr *fr.Element

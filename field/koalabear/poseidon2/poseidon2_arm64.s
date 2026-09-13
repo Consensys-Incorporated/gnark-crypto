@@ -810,7 +810,7 @@ step_loop:
 	BNE batch_loop
 	RET
 
-TEXT ·permutation16x16xN_columns_arm64(SB), $128-48
+TEXT ·permutation16x16xN_columns_arm64(SB), $128-56
 	MOVD matrix+0(FP), R0
 	MOVD roundKeys+8(FP), R1
 	MOVD result+32(FP), R2
@@ -820,11 +820,36 @@ TEXT ·permutation16x16xN_columns_arm64(SB), $128-48
 	VDUP R4, V1.S4
 	MOVD $1, R5
 	VDUP R5, V28.S4
-	MOVD nbSteps+40(FP), R14
+	MOVD nbSteps+40(FP), R15
+	MOVD state+48(FP), R14
 	MOVD $0, R7
 
 batch_loop:
+	CBZ    R14, state_is_zero1
+	LSL    $4, R7, R13
+	ADD    R14, R13, R13
+	VLD1.P 16(R13), [V2.S4]
+	ADD    $0x30, R13, R13
+	VLD1.P 16(R13), [V3.S4]
+	ADD    $0x30, R13, R13
+	VLD1.P 16(R13), [V4.S4]
+	ADD    $0x30, R13, R13
+	VLD1.P 16(R13), [V5.S4]
+	ADD    $0x30, R13, R13
+	VLD1.P 16(R13), [V6.S4]
+	ADD    $0x30, R13, R13
+	VLD1.P 16(R13), [V7.S4]
+	ADD    $0x30, R13, R13
+	VLD1.P 16(R13), [V8.S4]
+	ADD    $0x30, R13, R13
+	VLD1.P 16(R13), [V9.S4]
+	ADD    $0x30, R13, R13
+	JMP    state_ready2
+
+state_is_zero1:
 	ZERO_STATE()
+
+state_ready2:
 	MOVD $0, R8
 	LSL  $4, R7, R13
 	ADD  R0, R13, R9
@@ -877,7 +902,7 @@ step_loop:
 	FULL_ROUND(624)
 	FEED_FORWARD()
 	ADD    $1, R8, R8
-	CMP    R14, R8
+	CMP    R15, R8
 	BNE    step_loop
 	LSL    $7, R7, R13
 	ADD    R2, R13, R9
