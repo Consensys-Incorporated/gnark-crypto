@@ -6,8 +6,9 @@ import (
 	"math/big"
 	"reflect"
 	"sort"
-	"runtime"
+	"io"
 	"bytes"
+	"encoding/binary"
 
 	fr "{{ .FieldPackagePath }}"
 	"fmt"
@@ -718,6 +719,105 @@ func TestVectorEmptyRoundTrip(t *testing.T) {
 	assert.True(reflect.DeepEqual(v3, v2))
 }
 
+func TestVectorReuseSliceDeserialization(t *testing.T) {
+	assert := require.New(t)
+
+	v1 := make(Vector, 4)
+	for i := range v1 {
+		v1[i].MustSetRandom()
+	}
+	buf, err := v1.MarshalBinary()
+	assert.NoError(err)
+
+	const capacity = 16
+	v2 := make(Vector, capacity)
+	n, err, errCh := v2.AsyncReadFrom(bytes.NewReader(buf))
+	assert.Equal(int64(len(buf)), n)
+	assert.NoError(err)
+	assert.NoError(<-errCh)
+	assert.Len(v2, len(v1))
+	assert.Equal(capacity, cap(v2))
+	assert.True(reflect.DeepEqual(v1, v2))
+
+	v3 := make(Vector, capacity)
+	n, err = v3.ReadFrom(bytes.NewReader(buf))
+	assert.Equal(int64(len(buf)), n)
+	assert.NoError(err)
+	assert.Len(v3, len(v1))
+	assert.Equal(capacity, cap(v3))
+	assert.True(reflect.DeepEqual(v1, v3))
+}
+
+
+func TestVectorReadTamperedHeader(t *testing.T) {
+	assert := require.New(t)
+
+	var input [4]byte
+	binary.BigEndian.PutUint32(input[:], 1<<12)
+
+	newVector := func() Vector {
+		v := make(Vector, 1)
+		v[0].SetOne()
+		return v
+	}
+	assertUnchanged := func(v Vector) {
+		assert.Len(v, 1)
+		assert.Equal(1, cap(v))
+		var one E4
+		one.SetOne()
+		assert.True(v[0].Equal(&one))
+	}
+
+	v := newVector()
+	n, err, errCh := v.AsyncReadFrom(bytes.NewReader(input[:]))
+	assert.Equal(int64(4), n)
+	assert.ErrorIs(err, io.ErrUnexpectedEOF)
+	_, open := <-errCh
+	assert.False(open)
+	assertUnchanged(v)
+
+	v = newVector()
+	n, err = v.ReadFrom(bytes.NewReader(input[:]))
+	assert.Equal(int64(4), n)
+	assert.ErrorIs(err, io.ErrUnexpectedEOF)
+	assertUnchanged(v)
+
+	v = newVector()
+	err = v.UnmarshalBinary(input[:])
+	assert.ErrorIs(err, io.ErrUnexpectedEOF)
+	assertUnchanged(v)
+}
+
+func TestVectorReadTamperedHeaderWithoutLen(t *testing.T) {
+	assert := require.New(t)
+
+	v1 := make(Vector, 4)
+	for i := range v1 {
+		v1[i].MustSetRandom()
+	}
+	buf, err := v1.MarshalBinary()
+	assert.NoError(err)
+	binary.BigEndian.PutUint32(buf[:4], 1<<12)
+
+	readerWithoutLen := func() io.Reader {
+		return struct{ io.Reader }{Reader: bytes.NewReader(buf)}
+	}
+
+	r := readerWithoutLen()
+	_, hasLen := r.(interface{ Len() int })
+	assert.False(hasLen)
+	var v2 Vector
+	n, err := v2.ReadFrom(r)
+	assert.Equal(int64(len(buf)), n)
+	assert.Error(err)
+
+	var v3 Vector
+	n, err, errCh := v3.AsyncReadFrom(readerWithoutLen())
+	assert.Equal(int64(len(buf)), n)
+	assert.Error(err)
+	_, open := <-errCh
+	assert.False(open)
+}
 
 func (vector *Vector) unmarshalBinaryAsync(data []byte) error {
 	r := bytes.NewReader(data)
