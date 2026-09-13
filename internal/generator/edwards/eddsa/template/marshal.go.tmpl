@@ -3,7 +3,7 @@ import (
 	"errors"
 	"io"
 	"math/big"
-	"github.com/consensys/gnark-crypto/ecc/{{.Name}}/twistededwards"
+	{{if ne .Package "twistededwards"}}twistededwards {{end}}"github.com/consensys/gnark-crypto/ecc/{{.Name}}/{{.Package}}"
 	"github.com/consensys/gnark-crypto/ecc/{{.Name}}/fr"
 )
 
