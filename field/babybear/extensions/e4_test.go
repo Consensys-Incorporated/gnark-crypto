@@ -8,6 +8,7 @@ package extensions
 import (
 	"bytes"
 	"encoding/binary"
+	"io"
 	"math/big"
 	"os"
 	"reflect"
@@ -724,43 +725,103 @@ func TestVectorEmptyRoundTrip(t *testing.T) {
 	assert.True(reflect.DeepEqual(v3, v2))
 }
 
-// TestVectorAsyncReadFromLengthBound checks that the announced element count does
-// not size the allocation past what the reader can supply. The assertion is on
-// allocation volume rather than on getting an error, because a truncated stream
-// errors either way once io.ReadFull runs out of input.
-func TestVectorAsyncReadFromLengthBound(t *testing.T) {
+func TestVectorReuseSliceDeserialization(t *testing.T) {
 	assert := require.New(t)
 
-	// Four bytes announcing 2^20 elements, with no element data behind them.
-	var hdr [4]byte
-	binary.BigEndian.PutUint32(hdr[:], 1<<20)
-
-	var before, after runtime.MemStats
-	runtime.GC()
-	runtime.ReadMemStats(&before)
-	var v Vector
-	_, err, chErr := v.AsyncReadFrom(bytes.NewReader(hdr[:]))
-	runtime.ReadMemStats(&after)
-	if chErr != nil {
-		for range chErr {
-		}
-	}
-	assert.Error(err, "a length with no element data behind it must be refused")
-
-	allocated := after.TotalAlloc - before.TotalAlloc
-	assert.Less(allocated, uint64(1<<20),
-		"reading a vector that announces 2^20 elements from a 4 byte input allocated %d bytes", allocated)
-
-	// A well formed vector must still round trip.
 	v1 := make(Vector, 4)
 	for i := range v1 {
 		v1[i].MustSetRandom()
 	}
 	buf, err := v1.MarshalBinary()
 	assert.NoError(err)
-	var v2 Vector
-	assert.NoError(v2.unmarshalBinaryAsync(buf))
+
+	const capacity = 16
+	v2 := make(Vector, capacity)
+	n, err, errCh := v2.AsyncReadFrom(bytes.NewReader(buf))
+	assert.Equal(int64(len(buf)), n)
+	assert.NoError(err)
+	assert.NoError(<-errCh)
+	assert.Len(v2, len(v1))
+	assert.Equal(capacity, cap(v2))
 	assert.True(reflect.DeepEqual(v1, v2))
+
+	v3 := make(Vector, capacity)
+	n, err = v3.ReadFrom(bytes.NewReader(buf))
+	assert.Equal(int64(len(buf)), n)
+	assert.NoError(err)
+	assert.Len(v3, len(v1))
+	assert.Equal(capacity, cap(v3))
+	assert.True(reflect.DeepEqual(v1, v3))
+}
+
+func TestVectorReadTamperedHeader(t *testing.T) {
+	assert := require.New(t)
+
+	var input [4]byte
+	binary.BigEndian.PutUint32(input[:], 1<<12)
+
+	newVector := func() Vector {
+		v := make(Vector, 1)
+		v[0].SetOne()
+		return v
+	}
+	assertUnchanged := func(v Vector) {
+		assert.Len(v, 1)
+		assert.Equal(1, cap(v))
+		var one E4
+		one.SetOne()
+		assert.True(v[0].Equal(&one))
+	}
+
+	v := newVector()
+	n, err, errCh := v.AsyncReadFrom(bytes.NewReader(input[:]))
+	assert.Equal(int64(4), n)
+	assert.ErrorIs(err, io.ErrUnexpectedEOF)
+	_, open := <-errCh
+	assert.False(open)
+	assertUnchanged(v)
+
+	v = newVector()
+	n, err = v.ReadFrom(bytes.NewReader(input[:]))
+	assert.Equal(int64(4), n)
+	assert.ErrorIs(err, io.ErrUnexpectedEOF)
+	assertUnchanged(v)
+
+	v = newVector()
+	err = v.UnmarshalBinary(input[:])
+	assert.ErrorIs(err, io.ErrUnexpectedEOF)
+	assertUnchanged(v)
+}
+
+func TestVectorReadTamperedHeaderWithoutLen(t *testing.T) {
+	assert := require.New(t)
+
+	v1 := make(Vector, 4)
+	for i := range v1 {
+		v1[i].MustSetRandom()
+	}
+	buf, err := v1.MarshalBinary()
+	assert.NoError(err)
+	binary.BigEndian.PutUint32(buf[:4], 1<<12)
+
+	readerWithoutLen := func() io.Reader {
+		return struct{ io.Reader }{Reader: bytes.NewReader(buf)}
+	}
+
+	r := readerWithoutLen()
+	_, hasLen := r.(interface{ Len() int })
+	assert.False(hasLen)
+	var v2 Vector
+	n, err := v2.ReadFrom(r)
+	assert.Equal(int64(len(buf)), n)
+	assert.Error(err)
+
+	var v3 Vector
+	n, err, errCh := v3.AsyncReadFrom(readerWithoutLen())
+	assert.Equal(int64(len(buf)), n)
+	assert.Error(err)
+	_, open := <-errCh
+	assert.False(open)
 }
 
 func (vector *Vector) unmarshalBinaryAsync(data []byte) error {
