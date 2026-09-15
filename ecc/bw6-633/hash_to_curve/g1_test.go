@@ -58,3 +58,109 @@ func TestG1SqrtRatio(t *testing.T) {
 
 	properties.TestingRun(t, gopter.ConsoleReporter(false))
 }
+
+// TestG1IsogenyChains checks the preprocessed multiplication chains of the
+// isogeny polynomials against Horner's rule on the original coefficients.
+func TestG1IsogenyChains(t *testing.T) {
+	t.Parallel()
+
+	check := func(x, y *fp.Element) {
+		var got, want fp.Element
+		g1IsogenyXNumerator(&got, x)
+		g1EvalPolynomial(&want, false, g1IsogenyXNumeratorMap, x)
+		if !got.Equal(&want) {
+			t.Fatal("x numerator: chain and Horner disagree")
+		}
+		g1IsogenyYNumerator(&got, x, y)
+		g1EvalPolynomial(&want, false, g1IsogenyYNumeratorMap, x)
+		want.Mul(&want, y)
+		if !got.Equal(&want) {
+			t.Fatal("y numerator: chain and Horner disagree")
+		}
+		g1IsogenyYDenominator(&got, x)
+		g1EvalPolynomial(&want, true, g1IsogenyYDenominatorMap, x)
+		if !got.Equal(&want) {
+			t.Fatal("y denominator: chain and Horner disagree")
+		}
+	}
+
+	// 0, 1, -1 and random points
+	var special [3]fp.Element
+	special[1].SetOne()
+	special[2].Neg(&special[1])
+	var y fp.Element
+	y.MustSetRandom()
+	for i := range special {
+		check(&special[i], &y)
+	}
+	n := 1000
+	if testing.Short() {
+		n = 100
+	}
+	for i := 0; i < n; i++ {
+		var x fp.Element
+		x.MustSetRandom()
+		y.MustSetRandom()
+		check(&x, &y)
+	}
+
+	// aliasing as used by G1Isogeny: dst == x and dst == y
+	var x fp.Element
+	x.MustSetRandom()
+	y.MustSetRandom()
+	var want fp.Element
+	g1IsogenyXNumerator(&want, &x)
+	x2 := x
+	g1IsogenyXNumerator(&x2, &x2)
+	if !x2.Equal(&want) {
+		t.Fatal("x numerator: aliased evaluation differs")
+	}
+	g1IsogenyYNumerator(&want, &x, &y)
+	y2 := y
+	g1IsogenyYNumerator(&y2, &x, &y2)
+	if !y2.Equal(&want) {
+		t.Fatal("y numerator: aliased evaluation differs")
+	}
+}
+
+// BenchmarkG1IsogenyPolynomials evaluates the four isogeny polynomials as
+// G1Isogeny does (without the final batch inversion).
+func BenchmarkG1IsogenyPolynomials(b *testing.B) {
+	var x, y, xn, xd, yn, yd fp.Element
+	x.MustSetRandom()
+	y.MustSetRandom()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		g1IsogenyYDenominator(&yd, &x)
+		g1IsogenyXDenominator(&xd, &x)
+		g1IsogenyYNumerator(&yn, &x, &y)
+		g1IsogenyXNumerator(&xn, &x)
+	}
+}
+
+// BenchmarkG1IsogenyPolynomialsHorner evaluates the same polynomials with
+// Horner's rule on the coefficient tables, for reference.
+func BenchmarkG1IsogenyPolynomialsHorner(b *testing.B) {
+	var x, y, xn, xd, yn, yd fp.Element
+	x.MustSetRandom()
+	y.MustSetRandom()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		g1EvalPolynomial(&yd, true, g1IsogenyYDenominatorMap, &x)
+		g1EvalPolynomial(&xd, true, g1IsogenyXDenominatorMap, &x)
+		g1EvalPolynomial(&yn, false, g1IsogenyYNumeratorMap, &x)
+		yn.Mul(&yn, &y)
+		g1EvalPolynomial(&xn, false, g1IsogenyXNumeratorMap, &x)
+	}
+}
+
+// BenchmarkG1Isogeny measures the full isogeny map, batch inversion included.
+func BenchmarkG1Isogeny(b *testing.B) {
+	var x, y fp.Element
+	x.MustSetRandom()
+	y.MustSetRandom()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		G1Isogeny(&x, &y)
+	}
+}
