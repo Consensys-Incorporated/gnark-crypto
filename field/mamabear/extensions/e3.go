@@ -143,14 +143,88 @@ func (z *E3) MulByNonResidue(x *E3) *E3 {
 	return z
 }
 
-// Mul sets z to x * y using Karatsuba multiplication (6 base-field multiplications).
+// mamabearQ is p = 2^49 − 2^34 + 1; duplicated here to avoid importing the unexported constant.
+const mamabearQ = uint64(562932773552129)
+
+// reduceMB applies Algorithm 3 (fast reduction for the MamaBear prime) to x ∈ [0, 5p)
+// and returns a value in [0, p).
+//
+// Correctness: let x = xLo + xHi·2^49. Then
+//
+//	y = xLo + xHi·(2^34−1) ≡ xLo + xHi·2^49 − xHi·p ≡ x (mod p).
+//
+// For x < 5p: xHi ≤ 4, so y < 2^49 + 4·2^34 < 2p. One conditional subtract suffices.
+func reduceMB(x uint64) uint64 {
+	xHi := x >> 49
+	y := (x & ((1 << 49) - 1)) + (xHi<<34 - xHi)
+	if y >= mamabearQ {
+		y -= mamabearQ
+	}
+	return y
+}
+
+// mulSchoolbook sets z to x * y using schoolbook multiplication (9 base-field multiplications).
+//
+// With t³ = t + 1 the 9 products reduce to three coefficient sums:
+//
+//	c0 = a0·b0 + a1·b2 + a2·b1          (3 terms)
+//	c1 = a0·b1 + a1·b0 + a1·b2 + a2·b1 + a2·b2  (5 terms)
+//	c2 = a0·b2 + a1·b1 + a2·b0 + a2·b2          (4 terms)
+//
+// Each fr.Mul result is in [0,p); accumulating at most 5 of them gives a sum < 5p < 2^52,
+// which fits in uint64 without overflow. A single reduceMB call per coefficient (Algorithm 3)
+// replaces the per-add conditional subtracts used by the Karatsuba path.
+func (z *E3) mulSchoolbook(x, y *E3) *E3 {
+	var t00, t01, t02, t10, t11, t12, t20, t21, t22 fr.Element
+	t00.Mul(&x.A0, &y.A0)
+	t01.Mul(&x.A0, &y.A1)
+	t02.Mul(&x.A0, &y.A2)
+	t10.Mul(&x.A1, &y.A0)
+	t11.Mul(&x.A1, &y.A1)
+	t12.Mul(&x.A1, &y.A2)
+	t20.Mul(&x.A2, &y.A0)
+	t21.Mul(&x.A2, &y.A1)
+	t22.Mul(&x.A2, &y.A2)
+
+	z.A0[0] = reduceMB(t00[0] + t12[0] + t21[0])
+	z.A1[0] = reduceMB(t01[0] + t10[0] + t12[0] + t21[0] + t22[0])
+	z.A2[0] = reduceMB(t02[0] + t11[0] + t20[0] + t22[0])
+	return z
+}
+
+// squareSchoolbook sets z to x * x using schoolbook squaring (3 squarings + 3 multiplications).
+//
+// The 9 schoolbook products collapse to 6 (3 diagonal + 3 off-diagonal, each off-diagonal
+// counted twice):
+//
+//	c0 = a0² + 2·a1·a2
+//	c1 = 2·a0·a1 + 2·a1·a2 + a2²
+//	c2 = 2·a0·a2 + a1² + a2²
+//
+// The coefficient sums have at most 5 terms in [0,p), so uint64 accumulation is safe.
+func (z *E3) squareSchoolbook(x *E3) *E3 {
+	var t00, t11, t22, t01, t02, t12 fr.Element
+	t00.Square(&x.A0)
+	t11.Square(&x.A1)
+	t22.Square(&x.A2)
+	t01.Mul(&x.A0, &x.A1)
+	t02.Mul(&x.A0, &x.A2)
+	t12.Mul(&x.A1, &x.A2)
+
+	z.A0[0] = reduceMB(t00[0] + t12[0] + t12[0])
+	z.A1[0] = reduceMB(t01[0] + t01[0] + t12[0] + t12[0] + t22[0])
+	z.A2[0] = reduceMB(t02[0] + t02[0] + t11[0] + t22[0])
+	return z
+}
+
+// mulKaratsuba sets z to x * y using Karatsuba multiplication (6 base-field multiplications).
 //
 // With t³ = t + 1 the product coefficients are:
 //
 //	c0 = a0·b0 + a1·b2 + a2·b1
 //	c1 = a0·b1 + a1·b0 + a1·b2 + a2·b1 + a2·b2
 //	c2 = a0·b2 + a1·b1 + a2·b0 + a2·b2
-func (z *E3) Mul(x, y *E3) *E3 {
+func (z *E3) mulKaratsuba(x, y *E3) *E3 {
 	// t0 = a0·b0, t1 = a1·b1, t2 = a2·b2
 	// t3 = (a1+a2)·(b1+b2), t4 = (a0+a1)·(b0+b1), t5 = (a0+a2)·(b0+b2)
 	//
@@ -186,9 +260,8 @@ func (z *E3) Mul(x, y *E3) *E3 {
 	return z
 }
 
-// Square sets z to x * x (6 base-field squarings).
-func (z *E3) Square(x *E3) *E3 {
-	// Same as Mul with b = a:
+// squareKaratsuba sets z to x * x using Karatsuba squaring (6 base-field squarings).
+func (z *E3) squareKaratsuba(x *E3) *E3 {
 	// t0 = a0², t1 = a1², t2 = a2²
 	// t3 = (a1+a2)², t4 = (a0+a1)², t5 = (a0+a2)²
 	//
@@ -216,6 +289,17 @@ func (z *E3) Square(x *E3) *E3 {
 	z.A2.Add(&t5, &t1).Sub(&z.A2, &t0)
 
 	return z
+}
+
+// Mul sets z to x * y. Uses Karatsuba (6 multiplications); schoolbook costs 9.
+func (z *E3) Mul(x, y *E3) *E3 {
+	return z.mulKaratsuba(x, y)
+}
+
+// Square sets z to x * x. Uses schoolbook squaring (3 squarings + 3 multiplications),
+// which is faster than Karatsuba squaring (6 squarings) for this field.
+func (z *E3) Square(x *E3) *E3 {
+	return z.squareSchoolbook(x)
 }
 
 // Inverse sets z to 1/x.
