@@ -7,6 +7,7 @@ import (
 	"math/big"
 	"testing"
 
+	fr "github.com/consensys/gnark-crypto/field/mamabear"
 	"github.com/consensys/gnark-crypto/field/mamabear/extensions"
 )
 
@@ -247,6 +248,102 @@ func TestBatchInvertE3(t *testing.T) {
 		prod.Mul(&ai, &inv[i])
 		if !prod.IsOne() {
 			t.Fatalf("BatchInvertE3: a[%d] * inv[%d] != 1", i, i)
+		}
+	}
+}
+
+// ---- Vector tests ------------------------------------------------------------
+
+func TestE3VectorButterfly(t *testing.T) {
+	const n = 64
+	a := make(extensions.Vector, n)
+	b := make(extensions.Vector, n)
+	for i := range n {
+		a[i].MustSetRandom()
+		b[i].MustSetRandom()
+	}
+	aOrig := make(extensions.Vector, n)
+	bOrig := make(extensions.Vector, n)
+	copy(aOrig, a)
+	copy(bOrig, b)
+
+	a.Butterfly(b)
+
+	for i := range n {
+		var expectedA, expectedB extensions.E3
+		expectedA.Add(&aOrig[i], &bOrig[i])
+		expectedB.Sub(&aOrig[i], &bOrig[i])
+		if !a[i].Equal(&expectedA) {
+			t.Fatalf("Butterfly[%d]: a wrong", i)
+		}
+		if !b[i].Equal(&expectedB) {
+			t.Fatalf("Butterfly[%d]: b wrong", i)
+		}
+	}
+}
+
+func TestE3VectorButterflyPair(t *testing.T) {
+	const n = 64
+	v := make(extensions.Vector, n)
+	for i := range n {
+		v[i].MustSetRandom()
+	}
+	orig := make(extensions.Vector, n)
+	copy(orig, v)
+
+	v.ButterflyPair()
+
+	for i := 0; i < n; i += 2 {
+		var ea, eb extensions.E3
+		ea.Add(&orig[i], &orig[i+1])
+		eb.Sub(&orig[i], &orig[i+1])
+		if !v[i].Equal(&ea) {
+			t.Fatalf("ButterflyPair[%d]: wrong", i)
+		}
+		if !v[i+1].Equal(&eb) {
+			t.Fatalf("ButterflyPair[%d]: wrong", i+1)
+		}
+	}
+}
+
+func TestE3VectorMulByElement(t *testing.T) {
+	const n = 32
+	a := make(extensions.Vector, n)
+	var scalars [n]fr.Element
+	for i := range n {
+		a[i].MustSetRandom()
+		scalars[i].MustSetRandom()
+	}
+
+	res := make(extensions.Vector, n)
+	res.MulByElement(a, scalars[:])
+
+	for i := range n {
+		var expected extensions.E3
+		expected.MulByElement(&a[i], &scalars[i])
+		if !res[i].Equal(&expected) {
+			t.Fatalf("MulByElement[%d] wrong", i)
+		}
+	}
+}
+
+func TestE3VectorScalarMulByElement(t *testing.T) {
+	const n = 32
+	a := make(extensions.Vector, n)
+	for i := range n {
+		a[i].MustSetRandom()
+	}
+	var s fr.Element
+	s.MustSetRandom()
+
+	res := make(extensions.Vector, n)
+	res.ScalarMulByElement(a, &s)
+
+	for i := range n {
+		var expected extensions.E3
+		expected.MulByElement(&a[i], &s)
+		if !res[i].Equal(&expected) {
+			t.Fatalf("ScalarMulByElement[%d] wrong", i)
 		}
 	}
 }

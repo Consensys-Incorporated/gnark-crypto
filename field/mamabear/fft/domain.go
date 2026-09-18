@@ -1,0 +1,392 @@
+// Copyright 2020-2026 Consensys Software Inc.
+// Licensed under the Apache License, Version 2.0. See the LICENSE file for details.
+
+package fft
+
+import (
+	"encoding/binary"
+	"errors"
+	"io"
+	"math/big"
+	"math/bits"
+	"runtime"
+	"sync"
+	"weak"
+
+	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark-crypto/field/mamabear"
+	"github.com/consensys/gnark-crypto/utils"
+)
+
+// Domain with a power of 2 cardinality
+// compute a 2^k-th root of unity and store it in Generator
+// all other values are derived from it (e.g. GeneratorInv)
+type Domain struct {
+	Cardinality            uint64
+	CardinalityInv         mamabear.Element
+	Generator              mamabear.Element
+	GeneratorInv           mamabear.Element
+	FrMultiplicativeGen    mamabear.Element // generator of Fr*
+	FrMultiplicativeGenInv mamabear.Element
+
+	// this is set with the WithoutPrecompute option;
+	// if true, the domain does some pre-computation and stores it.
+	// if false, the FFT will compute the twiddles on the fly (this is less CPU efficient, but uses less memory)
+	withPrecompute bool
+
+	// the following slices are not serialized and are (re)computed through domain.preComputeTwiddles()
+
+	// twiddles factor for the FFT using Generator for each stage of the recursive FFT
+	twiddles [][]mamabear.Element
+
+	// twiddles factor for the FFT using GeneratorInv for each stage of the recursive FFT
+	twiddlesInv [][]mamabear.Element
+
+	// cosetTable <1, u, u², ..., uⁿ⁻¹> where u is the shifting element
+	cosetTable []mamabear.Element
+	// cosetTableBitReversed stores the coset table in bit-reversed order
+	cosetTableBitReversed []mamabear.Element
+
+	// cosetTableInv same as cosetTable but with u⁻¹
+	cosetTableInv []mamabear.Element
+	// cosetTableInvBitReversed stores the inverse coset table in bit-reversed order
+	cosetTableInvBitReversed []mamabear.Element
+}
+
+// GeneratorFullMultiplicativeGroup returns a generator of 𝔽ᵣˣ
+func GeneratorFullMultiplicativeGroup() mamabear.Element {
+	var res mamabear.Element
+	res.SetUint64(3)
+	return res
+}
+
+// domainCacheKey is the composite key for the cache.
+type domainCacheKey struct {
+	m   uint64
+	gen mamabear.Element
+}
+
+var (
+	domainCache    = make(map[domainCacheKey]weak.Pointer[Domain])
+	domainGenLocks = make(map[domainCacheKey]*sync.Mutex)
+	keyMapLock     sync.Mutex
+	domainMapLock  sync.Mutex
+)
+
+// NewDomain returns a subgroup with a power of 2 cardinality >= m.
+//
+// Parameters:
+//   - m: minimum cardinality (will be rounded up to next power of 2)
+//   - opts: configuration options (WithShift, WithCache, WithoutPrecompute, etc.)
+//
+// The domain can be cached when both withCache and withPrecompute are enabled.
+// Cached domains are automatically cleaned up when no longer in use.
+func NewDomain(m uint64, opts ...DomainOption) *Domain {
+	opt := domainOptions(opts...)
+
+	// Skip caching if disabled or precomputation is off
+	if !opt.withCache || !opt.withPrecompute {
+		return createDomain(m, opt)
+	}
+
+	// Compute the cache key.
+	key := domainCacheKey{m: m}
+	if opt.shift != nil {
+		key.gen.Set(opt.shift)
+	} else {
+		key.gen = GeneratorFullMultiplicativeGroup()
+	}
+
+	keyMapLock.Lock()
+	keyLock := domainGenLocks[key]
+	if keyLock == nil {
+		keyLock = new(sync.Mutex)
+		domainGenLocks[key] = keyLock
+	}
+	keyLock.Lock()
+	defer keyLock.Unlock()
+	keyMapLock.Unlock()
+
+	domainMapLock.Lock()
+	if weakDomain, exists := domainCache[key]; exists {
+		if domain := weakDomain.Value(); domain != nil {
+			domainMapLock.Unlock()
+			return domain
+		}
+	}
+	domainMapLock.Unlock()
+
+	domain := createDomain(m, opt)
+
+	weakDomain := weak.Make(domain)
+	domainMapLock.Lock()
+	domainCache[key] = weakDomain
+	domainMapLock.Unlock()
+
+	runtime.AddCleanup(domain, func(key domainCacheKey) {
+		go func() {
+			keyMapLock.Lock()
+			defer keyMapLock.Unlock()
+			if keyLock, ok := domainGenLocks[key]; ok {
+				keyLock.Lock()
+				defer keyLock.Unlock()
+				domainMapLock.Lock()
+				defer domainMapLock.Unlock()
+				if cacheWeakDomain := domainCache[key]; cacheWeakDomain == weakDomain {
+					delete(domainCache, key)
+					delete(domainGenLocks, key)
+				}
+			}
+		}()
+	}, key)
+	return domain
+}
+
+func createDomain(m uint64, opt domainConfig) *Domain {
+	domain := &Domain{}
+	x := ecc.NextPowerOfTwo(m)
+	domain.Cardinality = uint64(x)
+	domain.FrMultiplicativeGen = GeneratorFullMultiplicativeGroup()
+
+	if opt.shift != nil {
+		domain.FrMultiplicativeGen.Set(opt.shift)
+	}
+	domain.FrMultiplicativeGenInv.Inverse(&domain.FrMultiplicativeGen)
+
+	var err error
+	domain.Generator, err = Generator(m)
+	if err != nil {
+		panic(err)
+	}
+	domain.GeneratorInv.Inverse(&domain.Generator)
+	domain.CardinalityInv.SetUint64(uint64(x)).Inverse(&domain.CardinalityInv)
+
+	domain.withPrecompute = opt.withPrecompute
+	if domain.withPrecompute {
+		domain.preComputeTwiddles()
+	}
+
+	return domain
+}
+
+// Generator returns a generator for Z/2^(log(m))Z
+// or an error if m is too big (required root of unity doesn't exist)
+func Generator(m uint64) (mamabear.Element, error) {
+	return mamabear.Generator(m)
+}
+
+// Twiddles returns the twiddles factor for the FFT using Generator for each stage of the recursive FFT
+// or an error if the domain was created with the WithoutPrecompute option
+func (d *Domain) Twiddles() ([][]mamabear.Element, error) {
+	if d.twiddles == nil {
+		return nil, errors.New("twiddles not precomputed")
+	}
+	return d.twiddles, nil
+}
+
+// TwiddlesInv returns the twiddles factor for the FFT using GeneratorInv for each stage of the recursive FFT
+// or an error if the domain was created with the WithoutPrecompute option
+func (d *Domain) TwiddlesInv() ([][]mamabear.Element, error) {
+	if d.twiddlesInv == nil {
+		return nil, errors.New("twiddles not precomputed")
+	}
+	return d.twiddlesInv, nil
+}
+
+// CosetTable returns the cosetTable u*<1,g,..,g^(n-1)>
+// or an error if the domain was created with the WithoutPrecompute option
+func (d *Domain) CosetTable() ([]mamabear.Element, error) {
+	if d.cosetTable == nil {
+		return nil, errors.New("cosetTable not precomputed")
+	}
+	return d.cosetTable, nil
+}
+
+// CosetTableInv returns the cosetTableInv u*<1,g,..,g^(n-1)>
+// or an error if the domain was created with the WithoutPrecompute option
+func (d *Domain) CosetTableInv() ([]mamabear.Element, error) {
+	if d.cosetTableInv == nil {
+		return nil, errors.New("cosetTableInv not precomputed")
+	}
+	return d.cosetTableInv, nil
+}
+
+func (d *Domain) preComputeTwiddles() {
+	nbStages := uint64(bits.TrailingZeros64(d.Cardinality))
+
+	d.twiddles = make([][]mamabear.Element, nbStages)
+	d.twiddlesInv = make([][]mamabear.Element, nbStages)
+	d.cosetTable = make([]mamabear.Element, d.Cardinality)
+	d.cosetTableInv = make([]mamabear.Element, d.Cardinality)
+
+	var wg sync.WaitGroup
+
+	expTable := func(x mamabear.Element, t []mamabear.Element) {
+		BuildExpTable(x, t)
+		wg.Done()
+	}
+
+	wg.Add(4)
+	go func() {
+		buildTwiddles(d.twiddles, d.Generator, nbStages)
+		wg.Done()
+	}()
+	go func() {
+		buildTwiddles(d.twiddlesInv, d.GeneratorInv, nbStages)
+		wg.Done()
+	}()
+	go expTable(d.FrMultiplicativeGen, d.cosetTable)
+	go expTable(d.FrMultiplicativeGenInv, d.cosetTableInv)
+
+	wg.Wait()
+	if d.Cardinality <= 1<<22 {
+		d.cosetTableBitReversed = make([]mamabear.Element, d.Cardinality)
+		copy(d.cosetTableBitReversed, d.cosetTable)
+		utils.BitReverse(d.cosetTableBitReversed)
+
+		d.cosetTableInvBitReversed = make([]mamabear.Element, d.Cardinality)
+		copy(d.cosetTableInvBitReversed, d.cosetTableInv)
+		utils.BitReverse(d.cosetTableInvBitReversed)
+	}
+}
+
+func buildTwiddles(t [][]mamabear.Element, omega mamabear.Element, nbStages uint64) {
+	if nbStages == 0 {
+		return
+	}
+	if len(t) != int(nbStages) {
+		panic("invalid twiddle table")
+	}
+	// compute the first stage
+	t[0] = make([]mamabear.Element, 1+(1<<(nbStages-1)))
+	BuildExpTable(omega, t[0])
+
+	// for the next stages, iterate on the first stage with larger stride
+	for i := uint64(1); i < nbStages; i++ {
+		t[i] = make([]mamabear.Element, 1+(1<<(nbStages-i-1)))
+		k := 0
+		for j := range len(t[i]) {
+			t[i][j] = t[0][k]
+			k += 1 << i
+		}
+	}
+}
+
+// BuildExpTable precomputes the first n powers of w in parallel
+// table[0] = w^0
+// table[1] = w^1
+// ...
+func BuildExpTable(w mamabear.Element, table []mamabear.Element) {
+	table[0].SetOne()
+	n := len(table)
+
+	interval := 0
+	if runtime.NumCPU() >= 4 {
+		interval = (n - 1) / (runtime.NumCPU() / 4)
+	}
+
+	const ratioExpMul = 6000 / 17
+
+	if interval < ratioExpMul {
+		precomputeExpTableChunk(w, 1, table[1:])
+		return
+	}
+
+	var wg sync.WaitGroup
+	for i := 1; i < n; i += interval {
+		start := i
+		end := min(i+interval, n)
+		wg.Go(func() {
+			precomputeExpTableChunk(w, uint64(start), table[start:end])
+		})
+	}
+	wg.Wait()
+}
+
+func precomputeExpTableChunk(w mamabear.Element, power uint64, table []mamabear.Element) {
+	if len(table) > 0 {
+		table[0].Exp(w, new(big.Int).SetUint64(power))
+		for i := 1; i < len(table); i++ {
+			table[i].Mul(&table[i-1], &w)
+		}
+	}
+}
+
+// WriteTo writes a binary representation of the domain (without the precomputed twiddle factors)
+// to the provided writer
+func (d *Domain) WriteTo(w io.Writer) (int64, error) {
+	var written int64
+	var err error
+
+	err = binary.Write(w, binary.BigEndian, d.Cardinality)
+	if err != nil {
+		return written, err
+	}
+	written += 8
+
+	toEncode := []*mamabear.Element{&d.CardinalityInv, &d.Generator, &d.GeneratorInv, &d.FrMultiplicativeGen, &d.FrMultiplicativeGenInv}
+	for _, v := range toEncode {
+		buf := v.Bytes()
+		_, err = w.Write(buf[:])
+		if err != nil {
+			return written, err
+		}
+		written += mamabear.Bytes
+	}
+
+	err = binary.Write(w, binary.BigEndian, d.withPrecompute)
+	if err != nil {
+		return written, err
+	}
+	written += 1
+
+	return written, nil
+}
+
+// ReadFrom attempts to decode a domain from Reader
+func (d *Domain) ReadFrom(r io.Reader) (int64, error) {
+	var read int64
+	var err error
+
+	err = binary.Read(r, binary.BigEndian, &d.Cardinality)
+	if err != nil {
+		return read, err
+	}
+	read += 8
+
+	toDecode := []*mamabear.Element{&d.CardinalityInv, &d.Generator, &d.GeneratorInv, &d.FrMultiplicativeGen, &d.FrMultiplicativeGenInv}
+
+	for _, v := range toDecode {
+		var buf [mamabear.Bytes]byte
+		_, err = r.Read(buf[:])
+		if err != nil {
+			return read, err
+		}
+		read += mamabear.Bytes
+		*v, err = mamabear.BigEndian.Element(&buf)
+		if err != nil {
+			return read, err
+		}
+	}
+
+	err = binary.Read(r, binary.BigEndian, &d.withPrecompute)
+	if err != nil {
+		return read, err
+	}
+	read += 1
+
+	if d.withPrecompute {
+		d.preComputeTwiddles()
+	}
+
+	return read, nil
+}
+
+// BitReverse applies the bit-reversal permutation to v.
+//
+// The length of v must be a power of 2.
+//
+// Deprecated: Use [utils.BitReverse] instead.
+func BitReverse[T any](v []T) {
+	utils.BitReverse(v)
+}
