@@ -76,6 +76,26 @@ func BenchmarkElementSqrt(b *testing.B) {
 	}
 }
 
+func BenchmarkElementSqrtSarkar(b *testing.B) {
+	var a Element
+	a.MustSetRandom()
+	a.Square(&a)
+	b.ResetTimer()
+	for range b.N {
+		benchResElement.SqrtSarkar(&a)
+	}
+}
+
+func BenchmarkElementSqrtTonelliShanks(b *testing.B) {
+	var a Element
+	a.MustSetRandom()
+	a.Square(&a)
+	b.ResetTimer()
+	for range b.N {
+		benchResElement.SqrtTonelliShanks(&a)
+	}
+}
+
 func BenchmarkElementCbrt(b *testing.B) {
 	var a Element
 	a.SetUint64(8)

@@ -3,19 +3,20 @@
 
 package mamabear
 
+import "sync"
+
 // Sqrt z = √x (mod p)
 //
-// Uses Tonelli-Shanks with p − 1 = 2^34 · Q, Q = 32767 (odd).
-// If x is not a quadratic residue, Sqrt returns nil and leaves z unchanged.
+// if x is not a quadratic residue, Sqrt returns nil and leaves z unchanged.
 func (z *Element) Sqrt(x *Element) *Element {
-	// p ≡ 1 (mod 4), 2-adicity = 34, odd part Q = 32767 = 2^15 − 1.
-	// Tonelli-Shanks:
-	//   w = x^{(Q-1)/2}  → w = x^16383
-	//   y = x · w        → y = x^{(Q+1)/2}
-	//   b = w · y        → b = x^Q
-	//   g = nonResidue^Q (precomputed, order 2^34)
-	//   r = 34
+	return z.SqrtSarkar(x)
+}
 
+// SqrtTonelliShanks z = √x (mod p) using Tonelli-Shanks.
+//
+// p − 1 = 2^34 · Q, Q = 32767 (odd).  2-adicity = 34.
+// If x is not a quadratic residue, SqrtTonelliShanks returns nil and leaves z unchanged.
+func (z *Element) SqrtTonelliShanks(x *Element) *Element {
 	var y, b, t, w Element
 
 	// w = x^16383 = x^{(Q-1)/2}
@@ -24,11 +25,11 @@ func (z *Element) Sqrt(x *Element) *Element {
 	y.Mul(x, &w)  // y = x^{(Q+1)/2}
 	b.Mul(&w, &y) // b = x^Q
 
-	// g = 3^Q mod p in Montgomery form (nonResidue^Q, order 2^34)
-	var g = Element{393730615033094} // precomputed: 3^32767 mod p, in Montgomery form
+	// g = 3^Q mod p, order 2^34
+	var g = Element{393730615033094}
 	r := uint64(34)
 
-	// Legendre check: t = b^{2^{r-1}} should be 1 for x to be a QR.
+	// Legendre check: t = b^{2^{r-1}} = x^{(p-1)/2}; must be 1 for a QR.
 	t = b
 	for i := uint64(0); i < r-1; i++ {
 		t.Square(&t)
@@ -50,7 +51,6 @@ func (z *Element) Sqrt(x *Element) *Element {
 		if m == 0 {
 			return z.Set(&y)
 		}
-		// t = g^{2^{r-m-1}}
 		ge := int(r - m - 1)
 		t = g
 		for ge > 0 {
@@ -157,5 +157,154 @@ func (z *Element) expByCbrtExp(x Element) *Element {
 	} // t2 = x^{375288515657728} (<< 17)
 	t2.Mul(&t2, &t3) // t2 = x^{375288515701417} (+ i20)
 	z.Mul(&t2, &t0)  // z  = x^{375288515701419} (+ _10)
+	return z
+}
+
+// ---- Sarkar square root -------------------------------------------------------
+//
+// Implements the algorithm from:
+//   "Computing Square Roots Faster than the Tonelli-Shanks/Adleman-Manders-Miller Algorithm"
+// as used in gnark-crypto's bls12-377/fp package.
+//
+// p − 1 = 2^N · Q, N = sarkarN = 34, Q = 32767.
+// The 2-torsion subgroup <g> has generator g = 3^Q, precomputed as sarkarG.
+// The table sarkarGPow[i] = g^{2^i} is built once and cached.
+//
+// Total cost (amortising the one-time table build):
+//   18 (expByLegendreExp) + 2 (xM) + 33 (Legendre sqrs) + 33 (xPow sqrs)
+//   + ≤ K·L_max·2 ≈ 70 (chunk eval) ≈ 156 field ops = O(N) instead of O(N²).
+
+const (
+	sarkarN = 34
+	sarkarK = 5
+)
+
+var sarkarL = [sarkarK]uint64{7, 7, 7, 6, 6} // sum = 33 = sarkarN - 1
+
+// sarkarG = 3^32767 mod p, order 2^34 in F_p* (Montgomery form).
+var sarkarG = Element{393730615033094}
+
+var sarkarGPow [sarkarN]Element
+var sarkarMinusOne Element
+var initSarkarOnce sync.Once
+
+func initSarkar() {
+	sarkarGPow[0] = sarkarG
+	for i := 1; i < sarkarN; i++ {
+		sarkarGPow[i].Square(&sarkarGPow[i-1])
+	}
+	sarkarMinusOne.SetOne()
+	sarkarMinusOne.Neg(&sarkarMinusOne)
+}
+
+// sarkarPowG sets z = g^exp (g = sarkarG, order 2^sarkarN).
+func sarkarPowG(z *Element, exp uint64) *Element {
+	if exp == 0 {
+		return z.SetOne()
+	}
+	var acc Element
+	acc.SetOne()
+	for i := 0; exp > 0; i++ {
+		if exp&1 == 1 {
+			acc.Mul(&acc, &sarkarGPow[i])
+		}
+		exp >>= 1
+	}
+	return z.Set(&acc)
+}
+
+// sarkarFind returns the smallest i ≥ 0 such that delta^{2^i} = −1.
+func sarkarFind(delta *Element) uint64 {
+	var mu Element
+	mu.Set(delta)
+	var i uint64
+	for !mu.Equal(&sarkarMinusOne) {
+		mu.Square(&mu)
+		i++
+	}
+	return i
+}
+
+// sarkarEval returns s such that alpha · g^s = 1.
+func sarkarEval(alpha *Element) uint64 {
+	var delta Element
+	delta.Set(alpha)
+	var s uint64
+	for !delta.IsOne() {
+		i := sarkarFind(&delta)
+		s += uint64(1) << uint(sarkarN-1-int(i))
+		if i > 0 {
+			delta.Mul(&delta, &sarkarGPow[sarkarN-1-int(i)])
+		} else {
+			delta.Neg(&delta)
+		}
+	}
+	return s
+}
+
+// SqrtSarkar z = √x (mod p) using Sarkar's algorithm.
+//
+// Runs in O(N) = O(34) field ops regardless of the input.
+// If x is not a quadratic residue, SqrtSarkar returns nil and leaves z unchanged.
+func (z *Element) SqrtSarkar(x *Element) *Element {
+	if x.IsZero() {
+		return z.SetZero()
+	}
+
+	initSarkarOnce.Do(initSarkar)
+
+	// v = x^{(Q-1)/2} = x^16383
+	var v Element
+	v.expByLegendreExp(*x)
+
+	// xM = x^Q = x · v^2
+	var xM Element
+	xM.Square(&v)
+	xM.Mul(&xM, x)
+
+	// Legendre check: xM^{2^{N-1}} must be 1 (else x is not a QR).
+	t := xM
+	for range sarkarN - 1 {
+		t.Square(&t)
+	}
+	if t.IsZero() {
+		return z.SetZero()
+	}
+	if !t.IsOne() {
+		return nil
+	}
+
+	// Precompute xPow[i] = xM^{2^i} for i = 0 .. N-1.
+	var xPow [sarkarN]Element
+	xPow[0] = xM
+	for i := 1; i < sarkarN; i++ {
+		xPow[i].Square(&xPow[i-1])
+	}
+
+	// xis[k] = xM^{2^{N-1-Σ_{j≤k} L[j]}}  — one entry per chunk.
+	var xis [sarkarK]Element
+	var sumL uint64
+	for i := range sarkarK {
+		sumL += sarkarL[i]
+		xis[i] = xPow[sarkarN-1-int(sumL)]
+	}
+
+	// Chunked discrete-log: find tt such that xM · g^{tt} = 1.
+	var s, tt uint64
+	for i := range sarkarK {
+		tt = (s + tt) >> sarkarL[i]
+		var gamma Element
+		sarkarPowG(&gamma, tt)
+		var alpha Element
+		alpha.Mul(&xis[i], &gamma)
+		s = sarkarEval(&alpha)
+	}
+
+	// sqrt(x) = x · v · g^{tt/2}  where tt = s + tt (final correction).
+	tt = s + tt
+	var gamma Element
+	sarkarPowG(&gamma, tt>>1)
+	z.Mul(x, &v)
+	z.Mul(z, &gamma)
 	return z
 }
