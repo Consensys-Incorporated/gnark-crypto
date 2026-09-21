@@ -1,0 +1,77 @@
+// Copyright 2020-2026 Consensys Software Inc.
+// Licensed under the Apache License, Version 2.0. See the LICENSE file for details.
+
+package iop
+
+import (
+	"math/big"
+	"math/bits"
+
+	"github.com/consensys/gnark-crypto/parallel"
+
+	"github.com/consensys/gnark-crypto/field/mamabear"
+	"github.com/consensys/gnark-crypto/field/mamabear/fft"
+)
+
+// DivideByXMinusOne
+// The input must be in LagrangeCoset.
+// The result is in Canonical Regular.
+func DivideByXMinusOne(a *Polynomial, domains [2]*fft.Domain) (*Polynomial, error) {
+
+	// check that the basis is LagrangeCoset
+	if a.Basis != LagrangeCoset {
+		return nil, ErrMustBeLagrangeCoset
+	}
+
+	// prepare the evaluations of x^n-1 on the big domain's coset
+	xnMinusOneInverseLagrangeCoset := evaluateXnMinusOneDomainBigCoset(domains)
+
+	rho := a.coefficients.Len() / a.size
+
+	nbElmts := a.coefficients.Len()
+
+	coeffs := make([]mamabear.Element, a.coefficients.Len())
+	res := NewPolynomial(&coeffs, Form{Layout: BitReverse, Basis: LagrangeCoset})
+	res.size = a.size
+
+	nn := uint64(64 - bits.TrailingZeros(uint(nbElmts)))
+	parallel.Execute(a.coefficients.Len(), func(start, end int) {
+		for i := start; i < end; i++ {
+			iRev := bits.Reverse64(uint64(i)) >> nn
+			c := a.GetCoeff(i)
+			(*res.coefficients)[iRev].
+				Mul(&c, &xnMinusOneInverseLagrangeCoset[i%rho])
+		}
+	})
+
+	res.ToCanonical(domains[1])
+
+	return res, nil
+
+}
+
+// evaluateXnMinusOneDomainBigCoset evaluates Xᵐ-1 on DomainBig coset
+func evaluateXnMinusOneDomainBigCoset(domains [2]*fft.Domain) []mamabear.Element {
+
+	ratio := domains[1].Cardinality / domains[0].Cardinality
+
+	res := make([]mamabear.Element, ratio)
+
+	expo := big.NewInt(int64(domains[0].Cardinality))
+	res[0].Exp(domains[1].FrMultiplicativeGen, expo)
+
+	var t mamabear.Element
+	t.Exp(domains[1].Generator, big.NewInt(int64(domains[0].Cardinality)))
+
+	one := mamabear.One()
+
+	for i := 1; i < int(ratio); i++ {
+		res[i].Mul(&res[i-1], &t)
+		res[i-1].Sub(&res[i-1], &one)
+	}
+	res[len(res)-1].Sub(&res[len(res)-1], &one)
+
+	res = mamabear.BatchInvert(res)
+
+	return res
+}
