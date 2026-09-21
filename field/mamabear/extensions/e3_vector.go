@@ -71,3 +71,51 @@ func (vector Vector) ScalarMulByElement(a Vector, b *fr.Element) {
 	vRes := fr.Vector(unsafe.Slice((*fr.Element)(unsafe.Pointer(&vector[0])), M))
 	vRes.ScalarMul(vBase, b)
 }
+
+// ScalarMul sets vector[i] = a[i] * b for all i, where b ∈ E3.
+func (vector Vector) ScalarMul(a Vector, b *E3) {
+	if len(vector) != len(a) {
+		panic("vector.ScalarMul: length mismatch")
+	}
+	for i := range vector {
+		vector[i].Mul(&a[i], b)
+	}
+}
+
+// InnerProduct returns ∑ vector[i] * a[i] over E3.
+func (vector Vector) InnerProduct(a Vector) E3 {
+	if len(vector) != len(a) {
+		panic("vector.InnerProduct: vectors don't have the same length")
+	}
+	var res, tmp E3
+	for i := range vector {
+		tmp.Mul(&vector[i], &a[i])
+		res.Add(&res, &tmp)
+	}
+	return res
+}
+
+// InnerProductByElement returns ∑ vector[i] * a[i] where a[i] ∈ F_p.
+func (vector Vector) InnerProductByElement(a fr.Vector) E3 {
+	if len(vector) != len(a) {
+		panic("vector.InnerProductByElement: vectors don't have the same length")
+	}
+	var res, tmp E3
+	for i := range vector {
+		tmp.MulByElement(&vector[i], &a[i])
+		res.Add(&res, &tmp)
+	}
+	return res
+}
+
+// MulAccByElement adds scale[i] * alpha to vector[i] for all i.
+func (vector Vector) MulAccByElement(scale []fr.Element, alpha *E3) {
+	if len(vector) != len(scale) {
+		panic("vector.MulAccByElement: length mismatch")
+	}
+	var tmp E3
+	for i := range vector {
+		tmp.MulByElement(alpha, &scale[i])
+		vector[i].Add(&vector[i], &tmp)
+	}
+}

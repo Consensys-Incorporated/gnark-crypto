@@ -101,6 +101,8 @@ const (
 	POSEIDON2_BABYBEAR
 	// POSEIDON2_GOLDILOCKS is the Poseidon2 hash function for the Goldilocks field.
 	POSEIDON2_GOLDILOCKS
+	// POSEIDON2_MAMABEAR is the Poseidon2 hash function for the MamaBear field.
+	POSEIDON2_MAMABEAR
 
 	maxHash
 )
@@ -128,6 +130,7 @@ var digestSize = []uint8{
 	POSEIDON2_KOALABEAR:  4,
 	POSEIDON2_BABYBEAR:   4,
 	POSEIDON2_GOLDILOCKS: 8,
+	POSEIDON2_MAMABEAR:   8,
 }
 
 // New initializes the hash function. This is a convenience function which does
@@ -189,6 +192,8 @@ func (m Hash) String() string {
 		return "POSEIDON2_BABYBEAR"
 	case POSEIDON2_GOLDILOCKS:
 		return "POSEIDON2_GOLDILOCKS"
+	case POSEIDON2_MAMABEAR:
+		return "POSEIDON2_MAMABEAR"
 	default:
 		return "unknown hash function"
 	}
