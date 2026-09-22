@@ -28,3 +28,25 @@ func Generate(conf config.FieldDependency, baseDir string, generateTests bool, g
 	polyGen := common.NewDefaultGenerator(template.FS)
 	return polyGen.Generate(conf, "polynomial", "", "", entries...)
 }
+
+// GenerateMultilin generates only the multilinear polynomial API (MultiLin and
+// its memory Pool) over conf.ElementType. Unlike Generate, it does not require
+// the element type to have the full base-field API (e.g. SetInt64, Vector
+// helpers, big.Int conversions), so it can be used for field extensions such
+// as koalabear's E6.
+func GenerateMultilin(conf config.FieldDependency, baseDir string, generateTests bool, gen *common.Generator) error {
+	entries := []bavard.Entry{
+		{File: filepath.Join(baseDir, "doc.go"), Templates: []string{"doc.multilin.go.tmpl"}},
+		{File: filepath.Join(baseDir, "multilin.go"), Templates: []string{"multilin.go.tmpl"}},
+		{File: filepath.Join(baseDir, "pool.go"), Templates: []string{"pool.go.tmpl"}},
+	}
+
+	if generateTests {
+		entries = append(entries,
+			bavard.Entry{File: filepath.Join(baseDir, "multilin_test.go"), Templates: []string{"multilin.test.go.tmpl"}},
+		)
+	}
+
+	polyGen := common.NewDefaultGenerator(template.FS)
+	return polyGen.Generate(conf, "polynomial", "", "", entries...)
+}

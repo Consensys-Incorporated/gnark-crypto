@@ -11,7 +11,9 @@ func TestFoldBilinear(t *testing.T) {
 
 		// f = c₀ + c₁ X₁ + c₂ X₂ + c₃ X₁ X₂
 		var coefficients [4]{{.ElementType}}
-		fr.Vector(coefficients[:]).MustSetRandom()
+		for i := range coefficients {
+			coefficients[i].MustSetRandom()
+		}
 
 		var r {{.ElementType}}
 		r.MustSetRandom()
@@ -47,9 +49,12 @@ func TestFoldBilinear(t *testing.T) {
 // TODO: Benchmark folding? Algorithms is pretty straightforward; unless we want to measure how well memory management is working
 
 func TestFoldedEqTable(t *testing.T) {
+	var one {{.ElementType}}
+	one.SetOne()
+
 	q := make([]{{.ElementType}}, 2)
-	q[0].SetInt64(2)
-	q[1].SetInt64(3)
+	q[0].Double(&one)     // q₀ = 2
+	q[1].Add(&q[0], &one) // q₁ = 3
 
 	m := make(MultiLin, 4)
 	m[0].SetOne()
@@ -57,9 +62,6 @@ func TestFoldedEqTable(t *testing.T) {
 
 	eq := make([]{{.ElementType}}, 4)
 	p := make([]{{.ElementType}}, 2)
-
-	var one {{.ElementType}}
-	one.SetOne()
 
 	for p0 := range 2 {
 		p[1].SetZero()
@@ -74,4 +76,48 @@ func TestFoldedEqTable(t *testing.T) {
 		assert.Equal(t, eq[i], m[i], "folded table disagrees with EqEval", i)
 	}
 
+}
+
+func TestEvaluateMatchesEqInnerProduct(t *testing.T) {
+	const n = 3
+
+	var one {{.ElementType}}
+	one.SetOne()
+
+	m := make(MultiLin, 1<<n)
+	for i := range m {
+		m[i].MustSetRandom()
+	}
+
+	r := make([]{{.ElementType}}, n)
+	for i := range r {
+		r[i].MustSetRandom()
+	}
+
+	// m(r) = ∑_{b ∈ {0,1}ⁿ} m(b) Eq(r, b), where m[∑ᵢ 2ⁿ⁻ⁱ bᵢ] = m(b₁, ..., bₙ)
+	var expected, term {{.ElementType}}
+	b := make([]{{.ElementType}}, n)
+	for i := range m {
+		for j := range n {
+			if (i>>(n-1-j))&1 == 1 {
+				b[j] = one
+			} else {
+				b[j].SetZero()
+			}
+		}
+		term = EvalEq(r, b)
+		term.Mul(&term, &m[i])
+		expected.Add(&expected, &term)
+	}
+
+	pool := NewPool(1 << n)
+	for _, p := range []*Pool{nil, &pool} {
+		clone := m.Clone()
+		res := m.Evaluate(r, p)
+		assert.True(t, res.Equal(&expected), "evaluation disagrees with Eq inner product")
+		for i := range m {
+			assert.True(t, m[i].Equal(&clone[i]), "Evaluate must not modify its receiver")
+		}
+	}
+	assert.Equal(t, n, m.NumVars())
 }
