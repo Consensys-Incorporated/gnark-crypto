@@ -15,6 +15,13 @@ import (
 const q = uint64(562932773552129)
 const qInvNeg = uint64(562932773552127)
 
+// butterfly sets a = a + b (mod q) and b = a - b (mod q).
+func butterfly(a, b *mamabear.Element) {
+	t := *a
+	a.Add(a, b)
+	b.Sub(&t, b)
+}
+
 //go:noescape
 func innerDIFWithTwiddles_avx512(a, twiddles *mamabear.Element, start, end, m int)
 

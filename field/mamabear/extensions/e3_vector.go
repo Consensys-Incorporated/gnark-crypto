@@ -7,6 +7,7 @@ import (
 	"unsafe"
 
 	fr "github.com/consensys/gnark-crypto/field/mamabear"
+	"github.com/consensys/gnark-crypto/utils/cpu"
 )
 
 // Butterfly sets a = a+b and b = a-b (mod p) for each component.
@@ -108,11 +109,63 @@ func (vector Vector) InnerProductByElement(a fr.Vector) E3 {
 	return res
 }
 
+// mulAccByElementThreshold is the minimum vector length above which
+// MulAccByElement batches through fr.Vector's Mul/Add kernels. Below it, the
+// tiling overhead outweighs the win even when those kernels are accelerated.
+const mulAccByElementThreshold = 64
+
 // MulAccByElement adds scale[i] * alpha to vector[i] for all i.
+//
+// On AVX-512IFMA hardware, and for large enough vectors, the interleaved E3
+// layout (A0, A1, A2 per element) is reinterpreted as a flat fr.Vector and
+// processed with fr.Vector's Mul/Add, which dispatch to the AVX-512IFMA
+// kernels. Without AVX-512IFMA, fr.Vector.Mul/Add fall back to the same
+// per-element scalar loop this batching wraps around, so the extra tiling
+// work is pure overhead — in that case we use the plain scalar loop instead.
 func (vector Vector) MulAccByElement(scale []fr.Element, alpha *E3) {
-	if len(vector) != len(scale) {
+	n := len(vector)
+	if n != len(scale) {
 		panic("vector.MulAccByElement: length mismatch")
 	}
+	if n == 0 {
+		return
+	}
+	if !cpu.SupportAVX512IFMA || n < mulAccByElementThreshold {
+		mulAccByElementGeneric(vector, scale, alpha)
+		return
+	}
+	mulAccByElementBatched(vector, scale, alpha)
+}
+
+// mulAccByElementBatched implements MulAccByElement by reinterpreting the
+// interleaved E3 layout (A0, A1, A2 per element) as a flat fr.Vector and
+// processing it with fr.Vector's Mul/Add, which dispatch to the AVX-512IFMA
+// kernels on amd64. Split out from MulAccByElement so its correctness can be
+// tested independently of cpu.SupportAVX512IFMA.
+func mulAccByElementBatched(vector Vector, scale []fr.Element, alpha *E3) {
+	n := len(vector)
+
+	// E3 = {A0, A1, A2} with no padding — safe to reinterpret as 3×fr.Element.
+	M := n * 3
+	flatVector := fr.Vector(unsafe.Slice((*fr.Element)(unsafe.Pointer(&vector[0])), M))
+
+	tiledScale := make(fr.Vector, M)
+	tiledAlpha := make(fr.Vector, M)
+	for i := range scale {
+		tiledScale[3*i] = scale[i]
+		tiledScale[3*i+1] = scale[i]
+		tiledScale[3*i+2] = scale[i]
+		tiledAlpha[3*i] = alpha.A0
+		tiledAlpha[3*i+1] = alpha.A1
+		tiledAlpha[3*i+2] = alpha.A2
+	}
+
+	tmp := make(fr.Vector, M)
+	tmp.Mul(tiledScale, tiledAlpha)
+	flatVector.Add(flatVector, tmp)
+}
+
+func mulAccByElementGeneric(vector Vector, scale []fr.Element, alpha *E3) {
 	var tmp E3
 	for i := range vector {
 		tmp.MulByElement(alpha, &scale[i])

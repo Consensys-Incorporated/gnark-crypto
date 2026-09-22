@@ -348,6 +348,33 @@ func TestE3VectorScalarMulByElement(t *testing.T) {
 	}
 }
 
+func TestE3VectorMulAccByElement(t *testing.T) {
+	for _, n := range []int{0, 1, 7, 8, 16, 63, 64, 65, 100, 1000} {
+		dst := make(extensions.Vector, n)
+		scale := make([]fr.Element, n)
+		for i := range n {
+			dst[i].MustSetRandom()
+			scale[i].MustSetRandom()
+		}
+		alpha := randE3(t)
+
+		expected := make(extensions.Vector, n)
+		copy(expected, dst)
+		var tmp extensions.E3
+		for i := range n {
+			tmp.MulByElement(&alpha, &scale[i])
+			expected[i].Add(&expected[i], &tmp)
+		}
+
+		dst.MulAccByElement(scale, &alpha)
+		for i := range n {
+			if !dst[i].Equal(&expected[i]) {
+				t.Fatalf("n=%d: MulAccByElement[%d] wrong", n, i)
+			}
+		}
+	}
+}
+
 // ---- Benchmarks ---------------------------------------------------------------
 
 var sinkE3 extensions.E3
@@ -396,5 +423,21 @@ func BenchmarkE3Exp(b *testing.B) {
 	b.ResetTimer()
 	for range b.N {
 		sinkE3.Exp(x, e)
+	}
+}
+
+func BenchmarkE3VectorMulAccByElement(b *testing.B) {
+	const n = 1 << 16
+	dst := make(extensions.Vector, n)
+	scale := make([]fr.Element, n)
+	for i := range n {
+		dst[i].MustSetRandom()
+		scale[i].MustSetRandom()
+	}
+	alpha := extensions.E3{}
+	alpha.MustSetRandom()
+	b.ResetTimer()
+	for range b.N {
+		dst.MulAccByElement(scale, &alpha)
 	}
 }
