@@ -4,7 +4,7 @@
 
 `gnark-crypto` provides efficient cryptographic primitives, in Go.
 
-It is actively developed and maintained by the team (<gnark@consensys.net> | [HackMD](https://hackmd.io/@gnark)) behind [`gnark`: a framework to execute (and verify) algorithms in zero-knowledge](https://github.com/Consensys/gnark).
+It is actively developed and maintained by the team (<gnark@consensys.com> | [HackMD](https://hackmd.io/@gnark)) behind [`gnark`: a framework to execute (and verify) algorithms in zero-knowledge](https://github.com/Consensys/gnark).
 
 ## Features
 
