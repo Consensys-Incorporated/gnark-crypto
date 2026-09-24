@@ -72,6 +72,20 @@ func (z *E6) SetOne() *E6 {
 	return z
 }
 
+// SetInt64 sets z to v (embedded via the unique ring homomorphism ℤ→𝔽₆) and returns z
+func (z *E6) SetInt64(v int64) *E6 {
+	*z = E6{}
+	z.B0.A0.SetInt64(v)
+	return z
+}
+
+// SetUint64 sets z to v (embedded via the unique ring homomorphism ℤ→𝔽₆) and returns z
+func (z *E6) SetUint64(v uint64) *E6 {
+	*z = E6{}
+	z.B0.A0.SetUint64(v)
+	return z
+}
+
 // MulByElement multiplies an element in E6 by an element in fr.
 // y may alias a coordinate of x, so we copy it first.
 func (z *E6) MulByElement(x *E6, y *fr.Element) *E6 {
@@ -469,6 +483,25 @@ func ButterflyE6(a, b *E6) {
 
 // VectorE6 represents a vector of E6 elements
 type VectorE6 []E6
+
+// SetRandom sets all elements of vector to random values, returning the first error encountered, if any.
+func (vector VectorE6) SetRandom() error {
+	for i := range vector {
+		if _, err := vector[i].SetRandom(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// MustSetRandom sets all elements of vector to random values, panicking if an error is encountered.
+func (vector VectorE6) MustSetRandom() {
+	for i := range vector {
+		if _, err := vector[i].SetRandom(); err != nil {
+			panic(err)
+		}
+	}
+}
 
 // Butterfly computes the in-place butterfly operation on two vectors of E6 elements.
 // If other overlaps with vector, the result is undefined; the caller should use a temp vector.

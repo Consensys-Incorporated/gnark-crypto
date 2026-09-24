@@ -11,6 +11,19 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestVectorE6MustSetRandom(t *testing.T) {
+	vector := make(VectorE6, 17)
+	vector.MustSetRandom()
+
+	var zero E6
+	for i := range vector {
+		require.False(t, vector[i].Equal(&zero), "element %d was left zero", i)
+		for j := range vector[:i] {
+			require.False(t, vector[i].Equal(&vector[j]), "elements %d and %d collided", j, i)
+		}
+	}
+}
+
 func TestVectorE6ButterflyPair(t *testing.T) {
 	for _, size := range []int{2, 4, 8, 16, 18} {
 		t.Run(strconv.Itoa(size), func(t *testing.T) {

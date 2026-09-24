@@ -84,14 +84,16 @@ func main() {
 				field.WithIOP(),
 			))
 
-			// multilinear polynomials over the degree-6 extension E6
+			// polynomial package (Polynomial, MultiLin, Pool, ...) over the
+			// degree-6 extension E6
 			if f.Name == "koalabear" {
 				extInfo := fieldConfig.FieldDependency{
 					FieldPackagePath: "github.com/consensys/gnark-crypto/field/" + f.Name + "/extensions",
 					FieldPackageName: "extensions",
 					ElementType:      "extensions.E6",
+					ExtensionDegree:  6,
 				}
-				assertNoError(polynomial.GenerateMultilin(extInfo, filepath.Join(outputDir, "extensions", "polynomial"), true, gen))
+				assertNoError(polynomial.Generate(extInfo, filepath.Join(outputDir, "extensions", "polynomial"), true, gen))
 			}
 		}(conf)
 	}
