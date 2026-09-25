@@ -433,7 +433,11 @@ func NewFieldConfig(packageName, elementName, modulus string, useAddChain bool, 
 			// We use Sarkar when:
 			// - the field has high 2-adicity. Otherwise, due to smaller constants Tonelli-Shanks is more efficient
 			// - the field is not a small field (i.e. not F31 nor goldilocks-like 64-bit fields)
-			if e >= 10 && !F.F31 && F.NbBits > 64 {
+			//
+			// Sub-word radix fields are the exception to "small": they are one
+			// word wide but can carry a 2-adicity high enough that the
+			// Tonelli-Shanks loop dominates (mamabear: 34).
+			if e >= 10 && !F.F31 && (F.NbBits > 64 || F.RadixSubWord) {
 				F.SqrtSarkar = true
 				F.SqrtSarkarK, F.SqrtSarkarL = chooseSarkarParams(int(e))
 			}

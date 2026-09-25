@@ -96,6 +96,23 @@ func TestMontgomeryRadixOverride(t *testing.T) {
 	if len(f.SqrtS) == 0 || f.SqrtS[0] != 32767 {
 		t.Errorf("SqrtS = %v, want [32767]", f.SqrtS)
 	}
+	// With a 2-adicity of 34 the Tonelli-Shanks loop dominates, so this field
+	// must take the Sarkar path, as the hand-written implementation does.
+	if !f.SqrtSarkar {
+		t.Error("SqrtSarkar = false, want true at 2-adicity 34")
+	}
+
+	// Existing single-word fields must NOT be dragged onto the Sarkar path by
+	// the widened gate.
+	for _, m := range []string{"0x7f000001", "0xFFFFFFFF00000001"} {
+		other, err := NewFieldConfig("x", "Element", m, false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if other.SqrtSarkar {
+			t.Errorf("modulus %s: SqrtSarkar = true, want false", m)
+		}
+	}
 }
 
 // TestMontgomeryRadixRejected checks that unsupported radix overrides fail loudly
