@@ -38,8 +38,16 @@ func generateFFT(F *config.Field, fft *config.FFT, outputDir string) error {
 		Kernels:          []int{5, 8},
 		Package:          "fft",
 		SmallField:       F.F31 || F.SingleWordSmall,
-		ExtType:          "E4",
-		ExtAlign:         4,
+		Q:                F.Q[0],
+		QInvNeg:          F.QInverse[0],
+		// RandN is the math/rand/v2 method matching the element's word width,
+		// used by the generated tests to draw a value below the modulus.
+		RandN:    "Uint32N",
+		ExtType:  "E4",
+		ExtAlign: 4,
+	}
+	if F.Word.BitSize == 64 {
+		data.RandN = "Uint64N"
 	}
 	if F.Q[0] == 562932773552129 {
 		// mamabear builds its FFTExt over the cubic extension.
@@ -74,8 +82,6 @@ func generateFFT(F *config.Field, fft *config.FFT, outputDir string) error {
 		entries = append(entries, bavard.Entry{File: filepath.Join(outputDir, "fftext6.go"), Templates: []string{"fftext6.go.tmpl"}})
 	}
 	if data.HasASMKernel {
-		data.Q = F.Q[0]
-		data.QInvNeg = F.QInverse[0]
 		entries = append(entries,
 			bavard.Entry{
 				File:      filepath.Join(outputDir, "kernel_amd64.go"),
@@ -148,6 +154,7 @@ type fftTemplateData struct {
 	// and ExtAlign the parallel alignment that matches its element size.
 	ExtType  string
 	ExtAlign int
+	RandN    string
 }
 
 func anyToUint64(x any) uint64 {

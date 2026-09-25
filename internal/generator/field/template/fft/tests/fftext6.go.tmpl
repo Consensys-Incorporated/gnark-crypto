@@ -239,12 +239,12 @@ func TestFFTExt6(t *testing.T) {
 
 func randElementExt6(rng *rand.Rand) fext.E6 {
 	var v fext.E6
-	v.B0.A0 = {{ .FF }}.Element{rng.Uint32N({{.Q}})}
-	v.B0.A1 = {{ .FF }}.Element{rng.Uint32N({{.Q}})}
-	v.B1.A0 = {{ .FF }}.Element{rng.Uint32N({{.Q}})}
-	v.B1.A1 = {{ .FF }}.Element{rng.Uint32N({{.Q}})}
-	v.B2.A0 = {{ .FF }}.Element{rng.Uint32N({{.Q}})}
-	v.B2.A1 = {{ .FF }}.Element{rng.Uint32N({{.Q}})}
+	v.B0.A0 = {{ .FF }}.Element{rng.{{.RandN}}({{.Q}})}
+	v.B0.A1 = {{ .FF }}.Element{rng.{{.RandN}}({{.Q}})}
+	v.B1.A0 = {{ .FF }}.Element{rng.{{.RandN}}({{.Q}})}
+	v.B1.A1 = {{ .FF }}.Element{rng.{{.RandN}}({{.Q}})}
+	v.B2.A0 = {{ .FF }}.Element{rng.{{.RandN}}({{.Q}})}
+	v.B2.A1 = {{ .FF }}.Element{rng.{{.RandN}}({{.Q}})}
 	return v
 }
 

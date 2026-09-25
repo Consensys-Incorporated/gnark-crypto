@@ -242,7 +242,7 @@ func TestFFT(t *testing.T) {
 {{- if .SmallField}}
 
 func randElement(rng *rand.Rand) {{ .FF }}.Element {
-	return {{ .FF }}.Element{rng.Uint32N({{.Q}})}
+	return {{ .FF }}.Element{rng.{{.RandN}}({{.Q}})}
 }
 
 func FuzzFFT(f *testing.F) {

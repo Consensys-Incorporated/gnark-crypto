@@ -269,7 +269,11 @@ func (r *RSis) InnerHash(it *LimbIterator, res, k, kz {{ .FF }}.Vector, polId in
 			break
 		}
 		zero |= l
+		{{- if ne $tReturn $.ElemWordType}}
+		k[j][0] = {{$.ElemWordType}}(l)
+		{{- else}}
 		k[j][0] = l
+		{{- end}}
 	}
 	if zero == 0 {
 		// means m[i*r.Degree : (i+1)*r.Degree] == [0...0]

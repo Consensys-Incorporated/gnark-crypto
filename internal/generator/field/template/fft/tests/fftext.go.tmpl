@@ -239,10 +239,16 @@ func TestFFTExt(t *testing.T) {
 
 func randElementExt(rng *rand.Rand) fext.{{.ExtType}} {
 	var v fext.{{.ExtType}}
-	v.B0.A0 = {{ .FF }}.Element{rng.Uint32N({{.Q}})}
-	v.B0.A1 = {{ .FF }}.Element{rng.Uint32N({{.Q}})}
-	v.B1.A0 = {{ .FF }}.Element{rng.Uint32N({{.Q}})}
-	v.B1.A1 = {{ .FF }}.Element{rng.Uint32N({{.Q}})}
+	{{- if eq .ExtType "E3"}}
+	v.A0 = {{ .FF }}.Element{rng.{{.RandN}}({{.Q}})}
+	v.A1 = {{ .FF }}.Element{rng.{{.RandN}}({{.Q}})}
+	v.A2 = {{ .FF }}.Element{rng.{{.RandN}}({{.Q}})}
+	{{- else}}
+	v.B0.A0 = {{ .FF }}.Element{rng.{{.RandN}}({{.Q}})}
+	v.B0.A1 = {{ .FF }}.Element{rng.{{.RandN}}({{.Q}})}
+	v.B1.A0 = {{ .FF }}.Element{rng.{{.RandN}}({{.Q}})}
+	v.B1.A1 = {{ .FF }}.Element{rng.{{.RandN}}({{.Q}})}
+	{{- end}}
 	return v
 }
 
