@@ -389,6 +389,14 @@ func (d *Domain) ReadFrom(r io.Reader) (int64, error) {
 	}
 	read += 8
 
+	// Cardinality must be a non-zero power of 2 within the field's 2-adicity.
+	if d.Cardinality == 0 || bits.OnesCount64(d.Cardinality) != 1 {
+		return read, errors.New("fft: invalid domain cardinality: must be a non-zero power of 2")
+	}
+	if _, err = Generator(d.Cardinality); err != nil {
+		return read, err
+	}
+
 	toDecode := []*fr.Element{&d.CardinalityInv, &d.Generator, &d.GeneratorInv, &d.FrMultiplicativeGen, &d.FrMultiplicativeGenInv}
 
 	for _, v := range toDecode {
