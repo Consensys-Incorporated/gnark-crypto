@@ -28,7 +28,14 @@ func generatePoseidon2(F *config.Field, outputDir string) error {
 	}
 
 	type poseidon2TemplateData struct {
-		FF                string
+		FF string
+		// Family names the parameter family this field shares: the state widths
+		// it supports, the sBox degree, and the shape of the internal diagonal.
+		// It is the field's own name except for fields that deliberately reuse
+		// another's parameters, so templates can branch on the parameters rather
+		// than on the field name. It says nothing about which assembly exists -
+		// gate that on F31 or on HasCompressx16 instead.
+		Family            string
 		FieldPackagePath  string
 		F31               bool
 		Q, QInvNeg        uint64
@@ -39,8 +46,14 @@ func generatePoseidon2(F *config.Field, outputDir string) error {
 
 	data := &poseidon2TemplateData{
 		FF:               F.PackageName,
+		Family:           F.PackageName,
 		FieldPackagePath: fieldImportPath,
 		F31:              F.F31,
+	}
+	if data.FF == "mamabear" {
+		// mamabear uses koalabear's widths, sBox degree and diagonal shape,
+		// with the diagonal entries reduced mod its own modulus.
+		data.Family = "koalabear"
 	}
 	switch data.FF {
 	case "koalabear":
@@ -101,6 +114,33 @@ func generatePoseidon2(F *config.Field, outputDir string) error {
 			// same as https://github.com/Plonky3/Plonky3/blob/f91c76545cf5c4ae9182897bcc557715817bcbdc/goldilocks/src/poseidon2.rs#L65
 			DiagInternal: []uint64{0xc3b6c08e23ba9300, 0xd84b5de94a324fb6, 0x0d0c371c5b35b84f, 0x7964f570e7188037, 0x5daf18bbd996604b, 0x6743bc47b9595257, 0x5528b9362c59bb70, 0xac45e25b7127b68b, 0xa2077d7dfbb606b5, 0xf3faac6faee378ae, 0x0c6388b51545e883, 0xd27dbb6944917b60},
 		}
+		data.Params = []amd64.Poseidon2Parameters{
+			data.ParamsSponge,
+			data.ParamsCompression,
+		}
+	case "mamabear":
+		// Same round structure and the same semantic diagonal as koalabear; the
+		// entries below are those values reduced mod the mamabear prime. They
+		// are canonical residues, not Montgomery-encoded, so they do not depend
+		// on the radix.
+		data.ParamsCompression = amd64.Poseidon2Parameters{
+			Width:         16,
+			FullRounds:    6,
+			PartialRounds: 21,
+			SBoxDegree:    3,
+			// [-2, 1, 2, 1/2, 3, 4, -1/2, -3, -4, 1/2^8, 1/8, 1/2^24, -1/2^8, -1/8, -1/16, -1/2^24]
+			DiagInternal: []uint64{562932773552127, 1, 2, 281466386776065, 3, 4, 281466386776064, 562932773552126, 562932773552125, 560733817405441, 492566176858113, 562932739998721, 2198956146688, 70366596694016, 35183298347008, 33553408},
+		}
+
+		data.ParamsSponge = amd64.Poseidon2Parameters{
+			Width:         24,
+			FullRounds:    6,
+			PartialRounds: 21,
+			SBoxDegree:    3,
+			// [-2, 1, 2, 1/2, 3, 4, -1/2, -3, -4, 1/2^8, 1/4, 1/8, 1/16, 1/32, 1/64, 1/2^24, -1/2^8, -1/8, -1/16, -1/32, -1/64, -1/2^7, -1/2^9, -1/2^24]
+			DiagInternal: []uint64{562932773552127, 1, 2, 281466386776065, 3, 4, 281466386776064, 562932773552126, 562932773552125, 560733817405441, 422199580164097, 492566176858113, 527749475205121, 545341124378625, 554136948965377, 562932739998721, 2198956146688, 70366596694016, 35183298347008, 17591649173504, 8795824586752, 4397912293376, 1099478073344, 33553408},
+		}
+
 		data.Params = []amd64.Poseidon2Parameters{
 			data.ParamsSponge,
 			data.ParamsCompression,

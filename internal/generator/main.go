@@ -69,7 +69,11 @@ func main() {
 		wg.Add(1)
 		go func(f config.Field) {
 			defer wg.Done()
-			fc, err := fieldConfig.NewFieldConfig(f.Name, "Element", f.Modulus, true)
+			var fieldOpts []fieldConfig.FieldOption
+			if f.RBits != 0 {
+				fieldOpts = append(fieldOpts, fieldConfig.WithMontgomeryRadixBits(f.RBits))
+			}
+			fc, err := fieldConfig.NewFieldConfig(f.Name, "Element", f.Modulus, true, fieldOpts...)
 			assertNoError(err)
 			outputDir := filepath.Join(baseDir, "field", f.Name)
 			relAsmDir, err := filepath.Rel(outputDir, asmDirBuildPath)

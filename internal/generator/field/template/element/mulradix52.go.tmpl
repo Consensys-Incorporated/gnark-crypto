@@ -1,0 +1,44 @@
+{{- if .RadixSubWord}}
+
+// montMul computes a · b · R⁻¹ mod q where R = 2^{{.RBits}}.
+//
+// The Montgomery radix is narrower than the word the element is stored in, so
+// unlike the word-aligned case the shift by R is not free: the high half of the
+// product has to be restitched across the {{.RBits}}-bit boundary, and the carry
+// out of the low half has to be recovered explicitly.
+//
+//	t     ← ⌊a·b / R⌋                    (high bits of the product)
+//	c₀    ← a·b mod R                    (low {{.RBits}} bits)
+//	m₀    ← c₀ · qInvNeg mod R
+//	q'    ← ⌊m₀ · q / R⌋
+//	carry ← 1 if c₀ > 0, else 0          (c₀ + m₀·q mod R is exactly 0 or R)
+//	r     ← t + q' + carry
+//
+// For canonical inputs a, b ∈ [0, q) the result is in [0, 9q/8) ⊂ [0, 2q), so a
+// single conditional subtract brings it back to [0, q). Callers that need a
+// canonical value must do that subtract themselves.
+func montMul(a, b uint64) uint64 {
+	// Full product as hi:lo.
+	hi, lo := bits.Mul64(a, b)
+
+	// c₀ = a·b mod 2^{{.RBits}}
+	c0 := lo & rMask
+
+	// t = ⌊a·b / 2^{{.RBits}}⌋, restitched across the word boundary.
+	t := (lo >> rBits) | (hi << (64 - rBits))
+
+	// m₀ = c₀ · (-q⁻¹) mod 2^{{.RBits}}
+	m0 := (c0 * qInvNeg) & rMask
+
+	// ⌊m₀ · q / 2^{{.RBits}}⌋; the low {{.RBits}} bits of m₀·q are (R − c₀) by
+	// construction of m₀.
+	mHi, mLo := bits.Mul64(m0, q)
+	qVal := (mLo >> rBits) | (mHi << (64 - rBits))
+
+	// carry = 1 when c₀ > 0: then c₀ + (m₀·q mod R) = R exactly and the addition
+	// carries into bit {{.RBits}}. When c₀ = 0 so is m₀, and the sum is 0.
+	carry := (c0 + (mLo & rMask)) >> rBits
+
+	return t + qVal + carry
+}
+{{- end}}

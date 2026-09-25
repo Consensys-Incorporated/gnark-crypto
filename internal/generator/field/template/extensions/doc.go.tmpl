@@ -1,3 +1,10 @@
+{{- if not .GenerateE2}}
+// Package extensions implements the 𝔽r³ extension of the {{ .FF }} field.
+//
+// - For extension 3:
+//		𝔽r³[t] = 𝔽r/t³-t-1
+package extensions
+{{- else}}
 // Package extensions implements the fields arithmetic of the 𝔽r² {{- if ne .FF "goldilocks"}} and 𝔽r⁴ {{- end}}
 // extensions of the {{ .FF }} field.
 //
@@ -24,3 +31,4 @@
 //	𝔽r²[u] = 𝔽r/u²-7
 {{- end}}
 package extensions
+{{- end}}

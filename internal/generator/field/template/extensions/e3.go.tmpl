@@ -1,0 +1,444 @@
+import (
+	"math/big"
+	"sync"
+
+	fr "{{ .FieldPackagePath }}"
+)
+
+// E3 is an element of F_{p³} = F_p[t]/(t³ - t - 1).
+// Elements are represented as a0 + a1·t + a2·t² with a0, a1, a2 ∈ F_p.
+type E3 struct {
+	A0, A1, A2 fr.Element
+}
+
+// Equal returns z == x.
+func (z *E3) Equal(x *E3) bool {
+	return z.A0.Equal(&x.A0) && z.A1.Equal(&x.A1) && z.A2.Equal(&x.A2)
+}
+
+// SetZero sets z to 0.
+func (z *E3) SetZero() *E3 {
+	z.A0.SetZero()
+	z.A1.SetZero()
+	z.A2.SetZero()
+	return z
+}
+
+// SetOne sets z to 1.
+func (z *E3) SetOne() *E3 {
+	z.A0.SetOne()
+	z.A1.SetZero()
+	z.A2.SetZero()
+	return z
+}
+
+// IsZero reports whether z is zero.
+func (z *E3) IsZero() bool {
+	return z.A0.IsZero() && z.A1.IsZero() && z.A2.IsZero()
+}
+
+// IsOne reports whether z is one.
+func (z *E3) IsOne() bool {
+	return z.A0.IsOne() && z.A1.IsZero() && z.A2.IsZero()
+}
+
+// Set sets z to x and returns z.
+func (z *E3) Set(x *E3) *E3 {
+	z.A0.Set(&x.A0)
+	z.A1.Set(&x.A1)
+	z.A2.Set(&x.A2)
+	return z
+}
+
+// Clone returns a copy of z.
+func (z *E3) Clone() *E3 {
+	var r E3
+	r.Set(z)
+	return &r
+}
+
+// SetRandom sets z to a uniformly random element.
+func (z *E3) SetRandom() (*E3, error) {
+	if _, err := z.A0.SetRandom(); err != nil {
+		return nil, err
+	}
+	if _, err := z.A1.SetRandom(); err != nil {
+		return nil, err
+	}
+	if _, err := z.A2.SetRandom(); err != nil {
+		return nil, err
+	}
+	return z, nil
+}
+
+// MustSetRandom sets z to a uniformly random element; panics on error.
+func (z *E3) MustSetRandom() *E3 {
+	if _, err := z.SetRandom(); err != nil {
+		panic(err)
+	}
+	return z
+}
+
+// String returns a human-readable string representation.
+func (z *E3) String() string {
+	return z.A0.String() + " + (" + z.A1.String() + ")*u + (" + z.A2.String() + ")*u²"
+}
+
+// Neg sets z to -x.
+func (z *E3) Neg(x *E3) *E3 {
+	z.A0.Neg(&x.A0)
+	z.A1.Neg(&x.A1)
+	z.A2.Neg(&x.A2)
+	return z
+}
+
+// Add sets z to x + y.
+func (z *E3) Add(x, y *E3) *E3 {
+	z.A0.Add(&x.A0, &y.A0)
+	z.A1.Add(&x.A1, &y.A1)
+	z.A2.Add(&x.A2, &y.A2)
+	return z
+}
+
+// Sub sets z to x - y.
+func (z *E3) Sub(x, y *E3) *E3 {
+	z.A0.Sub(&x.A0, &y.A0)
+	z.A1.Sub(&x.A1, &y.A1)
+	z.A2.Sub(&x.A2, &y.A2)
+	return z
+}
+
+// Double sets z to 2x.
+func (z *E3) Double(x *E3) *E3 {
+	z.A0.Double(&x.A0)
+	z.A1.Double(&x.A1)
+	z.A2.Double(&x.A2)
+	return z
+}
+
+// MulByElement sets z to x * s where s ∈ F_p.
+func (z *E3) MulByElement(x *E3, s *fr.Element) *E3 {
+	z.A0.Mul(&x.A0, s)
+	z.A1.Mul(&x.A1, s)
+	z.A2.Mul(&x.A2, s)
+	return z
+}
+
+// MulByNonResidue multiplies x by the polynomial non-residue α = t.
+//
+// t · (a0 + a1·t + a2·t²) = a2·t³ + a0·t + a1·t²
+//
+// Using t³ = t + 1: = a2 + (a0+a2)·t + a1·t²
+func (z *E3) MulByNonResidue(x *E3) *E3 {
+	a0, a1, a2 := x.A0, x.A1, x.A2
+	z.A0 = a2
+	z.A1.Add(&a0, &a2)
+	z.A2 = a1
+	return z
+}
+
+// q is the field modulus. It is emitted here because the base field keeps its
+// own copy unexported, and the lazy reduction below works on raw limbs.
+const q = uint64({{.Q}})
+
+// reduceSparse reduces x ∈ [0, 5q) to [0, q) using the sparse form of the modulus.
+//
+// Since q = 2^{{.PHiBit}} − 2^{{.PLoBit}} + 1 we have 2^{{.PHiBit}} ≡ 2^{{.PLoBit}} − 1 (mod q), so writing
+// x = xLo + xHi·2^{{.PHiBit}},
+//
+//	y = xLo + xHi·(2^{{.PLoBit}}−1) ≡ xLo + xHi·2^{{.PHiBit}} − xHi·q ≡ x (mod q).
+//
+// For x < 5q we have xHi ≤ 4, so y < 2^{{.PHiBit}} + 4·2^{{.PLoBit}} < 2q and one
+// conditional subtract suffices. Callers must respect the [0, 5q) bound: the
+// schoolbook routines below accumulate at most five products, each < q.
+func reduceSparse(x uint64) uint64 {
+	xHi := x >> {{.PHiBit}}
+	y := (x & ((1 << {{.PHiBit}}) - 1)) + (xHi<<{{.PLoBit}} - xHi)
+	if y >= q {
+		y -= q
+	}
+	return y
+}
+
+// mulSchoolbook sets z to x * y using schoolbook multiplication (9 base-field multiplications).
+//
+// With t³ = t + 1 the 9 products reduce to three coefficient sums:
+//
+//	c0 = a0·b0 + a1·b2 + a2·b1          (3 terms)
+//	c1 = a0·b1 + a1·b0 + a1·b2 + a2·b1 + a2·b2  (5 terms)
+//	c2 = a0·b2 + a1·b1 + a2·b0 + a2·b2          (4 terms)
+//
+// Each fr.Mul result is in [0,p); accumulating at most 5 of them gives a sum < 5p < 2^52,
+// which fits in uint64 without overflow. A single reduceSparse call per coefficient (Algorithm 3)
+// replaces the per-add conditional subtracts used by the Karatsuba path.
+func (z *E3) mulSchoolbook(x, y *E3) *E3 {
+	var t00, t01, t02, t10, t11, t12, t20, t21, t22 fr.Element
+	t00.Mul(&x.A0, &y.A0)
+	t01.Mul(&x.A0, &y.A1)
+	t02.Mul(&x.A0, &y.A2)
+	t10.Mul(&x.A1, &y.A0)
+	t11.Mul(&x.A1, &y.A1)
+	t12.Mul(&x.A1, &y.A2)
+	t20.Mul(&x.A2, &y.A0)
+	t21.Mul(&x.A2, &y.A1)
+	t22.Mul(&x.A2, &y.A2)
+
+	z.A0[0] = reduceSparse(t00[0] + t12[0] + t21[0])
+	z.A1[0] = reduceSparse(t01[0] + t10[0] + t12[0] + t21[0] + t22[0])
+	z.A2[0] = reduceSparse(t02[0] + t11[0] + t20[0] + t22[0])
+	return z
+}
+
+// squareSchoolbook sets z to x * x using schoolbook squaring (3 squarings + 3 multiplications).
+//
+// The 9 schoolbook products collapse to 6 (3 diagonal + 3 off-diagonal, each off-diagonal
+// counted twice):
+//
+//	c0 = a0² + 2·a1·a2
+//	c1 = 2·a0·a1 + 2·a1·a2 + a2²
+//	c2 = 2·a0·a2 + a1² + a2²
+//
+// The coefficient sums have at most 5 terms in [0,p), so uint64 accumulation is safe.
+func (z *E3) squareSchoolbook(x *E3) *E3 {
+	var t00, t11, t22, t01, t02, t12 fr.Element
+	t00.Square(&x.A0)
+	t11.Square(&x.A1)
+	t22.Square(&x.A2)
+	t01.Mul(&x.A0, &x.A1)
+	t02.Mul(&x.A0, &x.A2)
+	t12.Mul(&x.A1, &x.A2)
+
+	z.A0[0] = reduceSparse(t00[0] + t12[0] + t12[0])
+	z.A1[0] = reduceSparse(t01[0] + t01[0] + t12[0] + t12[0] + t22[0])
+	z.A2[0] = reduceSparse(t02[0] + t02[0] + t11[0] + t22[0])
+	return z
+}
+
+// mulKaratsuba sets z to x * y using Karatsuba multiplication (6 base-field multiplications).
+//
+// With t³ = t + 1 the product coefficients are:
+//
+//	c0 = a0·b0 + a1·b2 + a2·b1
+//	c1 = a0·b1 + a1·b0 + a1·b2 + a2·b1 + a2·b2
+//	c2 = a0·b2 + a1·b1 + a2·b0 + a2·b2
+func (z *E3) mulKaratsuba(x, y *E3) *E3 {
+	// t0 = a0·b0, t1 = a1·b1, t2 = a2·b2
+	// t3 = (a1+a2)·(b1+b2), t4 = (a0+a1)·(b0+b1), t5 = (a0+a2)·(b0+b2)
+	//
+	// c0 = t0 + (t3 - t1 - t2)
+	// c1 = t4 + t3 - t0 - 2·t1
+	// c2 = t5 + t1 - t0
+	var t0, t1, t2, t3, t4, t5, tmp fr.Element
+
+	t0.Mul(&x.A0, &y.A0)
+	t1.Mul(&x.A1, &y.A1)
+	t2.Mul(&x.A2, &y.A2)
+
+	tmp.Add(&x.A1, &x.A2)
+	t3.Add(&y.A1, &y.A2)
+	t3.Mul(&t3, &tmp)
+
+	tmp.Add(&x.A0, &x.A1)
+	t4.Add(&y.A0, &y.A1)
+	t4.Mul(&t4, &tmp)
+
+	tmp.Add(&x.A0, &x.A2)
+	t5.Add(&y.A0, &y.A2)
+	t5.Mul(&t5, &tmp)
+
+	// c0 = t0 + t3 - t1 - t2
+	z.A0.Add(&t0, &t3).Sub(&z.A0, &t1).Sub(&z.A0, &t2)
+	// c1 = t4 + t3 - t0 - 2·t1
+	tmp.Double(&t1)
+	z.A1.Add(&t4, &t3).Sub(&z.A1, &t0).Sub(&z.A1, &tmp)
+	// c2 = t5 + t1 - t0
+	z.A2.Add(&t5, &t1).Sub(&z.A2, &t0)
+
+	return z
+}
+
+// squareKaratsuba sets z to x * x using Karatsuba squaring (6 base-field squarings).
+func (z *E3) squareKaratsuba(x *E3) *E3 {
+	// t0 = a0², t1 = a1², t2 = a2²
+	// t3 = (a1+a2)², t4 = (a0+a1)², t5 = (a0+a2)²
+	//
+	// c0 = t0 + t3 - t1 - t2
+	// c1 = t4 + t3 - t0 - 2·t1
+	// c2 = t5 + t1 - t0
+	var t0, t1, t2, t3, t4, t5, tmp fr.Element
+
+	t0.Square(&x.A0)
+	t1.Square(&x.A1)
+	t2.Square(&x.A2)
+
+	tmp.Add(&x.A1, &x.A2)
+	t3.Square(&tmp)
+
+	tmp.Add(&x.A0, &x.A1)
+	t4.Square(&tmp)
+
+	tmp.Add(&x.A0, &x.A2)
+	t5.Square(&tmp)
+
+	z.A0.Add(&t0, &t3).Sub(&z.A0, &t1).Sub(&z.A0, &t2)
+	tmp.Double(&t1)
+	z.A1.Add(&t4, &t3).Sub(&z.A1, &t0).Sub(&z.A1, &tmp)
+	z.A2.Add(&t5, &t1).Sub(&z.A2, &t0)
+
+	return z
+}
+
+// Mul sets z to x * y. Uses Karatsuba (6 multiplications); schoolbook costs 9.
+func (z *E3) Mul(x, y *E3) *E3 {
+	return z.mulKaratsuba(x, y)
+}
+
+// Square sets z to x * x. Uses schoolbook squaring (3 squarings + 3 multiplications),
+// which is faster than Karatsuba squaring (6 squarings) for this field.
+func (z *E3) Square(x *E3) *E3 {
+	return z.squareSchoolbook(x)
+}
+
+// Inverse sets z to 1/x.
+//
+// If x is zero, z is set to zero.
+// Uses cofactor/Cramer's rule for E3 = F_p[t]/(t³-t-1):
+//
+//	b0 = (a0+a2)² - a1·(a1+a2)
+//	b1 = a2² - a0·a1
+//	b2 = a1² - a0·a2 - a2²
+//	det = a0·b0 + a1·b2 + a2·b1
+//	(z0, z1, z2) = (b0/det, b1/det, b2/det)
+func (z *E3) Inverse(x *E3) *E3 {
+	if x.IsZero() {
+		return z.SetZero()
+	}
+
+	var a02, a12 fr.Element
+	a02.Add(&x.A0, &x.A2)
+	a12.Add(&x.A1, &x.A2)
+
+	var sq0, sq1, sq2 fr.Element
+	sq0.Square(&a02)  // (a0+a2)²
+	sq1.Square(&x.A2) // a2²
+	sq2.Square(&x.A1) // a1²
+
+	var m0, m1, m2 fr.Element
+	m0.Mul(&x.A1, &a12)  // a1·(a1+a2)
+	m1.Mul(&x.A0, &x.A1) // a0·a1
+	m2.Mul(&x.A0, &x.A2) // a0·a2
+
+	var b0, b1, b2 fr.Element
+	b0.Sub(&sq0, &m0)                // (a0+a2)² - a1·(a1+a2)
+	b1.Sub(&sq1, &m1)                // a2² - a0·a1
+	b2.Sub(&sq2, &m2).Sub(&b2, &sq1) // a1² - a0·a2 - a2²
+
+	// det = a0·b0 + a1·b2 + a2·b1
+	var d fr.Element
+	var d1, d2 fr.Element
+	d.Mul(&x.A0, &b0)
+	d1.Mul(&x.A1, &b2)
+	d2.Mul(&x.A2, &b1)
+	d.Add(&d, &d1).Add(&d, &d2)
+	d.Inverse(&d)
+
+	z.A0.Mul(&b0, &d)
+	z.A1.Mul(&b1, &d)
+	z.A2.Mul(&b2, &d)
+	return z
+}
+
+// Exp sets z = x^k using square-and-multiply.
+func (z *E3) Exp(x E3, k *big.Int) *E3 {
+	if k.Sign() == 0 {
+		return z.SetOne()
+	}
+	e := k
+	if k.Sign() == -1 {
+		x.Inverse(&x)
+		e = new(big.Int).Neg(k)
+	}
+	var res E3
+	res.SetOne()
+	b := e.Bytes()
+	for _, w := range b {
+		for j := 7; j >= 0; j-- {
+			res.Square(&res)
+			if (w>>uint(j))&1 == 1 {
+				res.Mul(&res, &x)
+			}
+		}
+	}
+	return z.Set(&res)
+}
+
+// ---- Frobenius ---------------------------------------------------------------
+
+var (
+	frobCoeff1   E3 // t^p in F_{p³}
+	frobCoeff2   E3 // t^(2p) in F_{p³}
+	initFrobOnce sync.Once
+)
+
+func initFrob() {
+	// t^p where t = (0,1,0) is the polynomial variable.
+	var t E3
+	t.A1.SetOne()
+	frobCoeff1.Exp(t, fr.Modulus())
+	frobCoeff2.Square(&frobCoeff1)
+}
+
+// Frobenius sets z to the p-power Frobenius of x: φ(a0+a1·t+a2·t²) = a0 + a1·t^p + a2·t^(2p).
+//
+// Since ai ∈ F_p, Fermat gives ai^p = ai, so only the polynomial variable is
+// transformed: t → t^p, t² → (t^p)².
+func (z *E3) Frobenius(x *E3) *E3 {
+	initFrobOnce.Do(initFrob)
+	a0, a1, a2 := x.A0, x.A1, x.A2
+
+	var c1, c2 E3
+	c1.MulByElement(&frobCoeff1, &a1)
+	c2.MulByElement(&frobCoeff2, &a2)
+
+	z.A0.Add(&a0, &c1.A0).Add(&z.A0, &c2.A0)
+	z.A1.Add(&c1.A1, &c2.A1)
+	z.A2.Add(&c1.A2, &c2.A2)
+	return z
+}
+
+// ---- Batch inverse -----------------------------------------------------------
+
+// BatchInvertE3 returns a new slice with every element in a inverted.
+// It uses the Montgomery batch inversion trick.
+// If a[i] == 0, result[i] == 0.
+func BatchInvertE3(a []E3) []E3 {
+	res := make([]E3, len(a))
+	if len(a) == 0 {
+		return res
+	}
+
+	zeroes := make([]bool, len(a))
+	var accumulator E3
+	accumulator.SetOne()
+
+	for i := range a {
+		if a[i].IsZero() {
+			zeroes[i] = true
+			continue
+		}
+		res[i].Set(&accumulator)
+		accumulator.Mul(&accumulator, &a[i])
+	}
+
+	accumulator.Inverse(&accumulator)
+
+	for i := len(a) - 1; i >= 0; i-- {
+		if zeroes[i] {
+			continue
+		}
+		res[i].Mul(&res[i], &accumulator)
+		accumulator.Mul(&accumulator, &a[i])
+	}
+
+	return res
+}

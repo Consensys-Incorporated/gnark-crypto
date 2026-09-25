@@ -17,9 +17,29 @@ import (
 )
 
 var (
-	errParseModulus   = errors.New("can't parse modulus")
-	errInvalidModulus = errors.New("modulus must be an odd integer greater than 2")
+	errParseModulus     = errors.New("can't parse modulus")
+	errInvalidModulus   = errors.New("modulus must be an odd integer greater than 2")
+	errUnsupportedRadix = errors.New("a Montgomery radix narrower than the storage word is only supported for single-word fields with NbBits < RBits < 64")
 )
+
+// sparsePrimeExponents reports whether q == 2^hi - 2^lo + 1 with hi > lo > 0,
+// the shape that admits a cheap reduction via 2^hi = 2^lo - 1 (mod q).
+func sparsePrimeExponents(q *big.Int) (hi, lo uint, ok bool) {
+	// q - 1 == 2^hi - 2^lo, i.e. lo trailing zeros followed by (hi-lo) ones.
+	t := new(big.Int).Sub(q, big.NewInt(1))
+	if t.Sign() <= 0 {
+		return 0, 0, false
+	}
+	lo = uint(t.TrailingZeroBits())
+	hi = uint(t.BitLen())
+	// rebuild and compare, so we accept only the exact shape
+	want := new(big.Int).Lsh(big.NewInt(1), hi)
+	want.Sub(want, new(big.Int).Lsh(big.NewInt(1), lo))
+	if hi <= lo || want.Cmp(t) != 0 {
+		return 0, 0, false
+	}
+	return hi, lo, true
+}
 
 // Field precomputed values used in template for code generation of field element APIs
 type Field struct {
@@ -105,6 +125,37 @@ type Field struct {
 	Word Word // 32 iff Q < 2^32, else 64
 	F31  bool // 31 bits field
 
+	// Montgomery radix: R = 2^RBits.
+	//
+	// Defaults to NbWords*Word.BitSize, which is what every word-aligned field
+	// uses (2^32 for F31, 2^64*NbWords otherwise). A field may override it via
+	// WithMontgomeryRadixBits when the radix is deliberately narrower than the
+	// storage word, as for AVX-512IFMA fields whose products go through
+	// VPMADD52 and therefore want R = 2^52.
+	//
+	// Not to be confused with QRadix52 below, which is a radix-52 *limb
+	// decomposition* of a 4-word modulus whose R is still 2^256.
+	RBits uint
+	RMask uint64 // (1<<RBits)-1; only meaningful when RadixSubWord
+
+	// RadixSubWord is true when RBits is not a whole number of words, i.e. the
+	// Montgomery shift does not line up with a word boundary, so the reduction
+	// cannot be expressed as the usual word-aligned CIOS/no-carry loop.
+	// Implies NbWords == 1 today.
+	RadixSubWord bool
+
+	// SingleWordSmall is true when the element fits in one word with at least
+	// one spare bit (NbWords == 1 && NbBits < Word.BitSize). True for koalabear,
+	// babybear and mamabear; false for goldilocks, whose modulus fills the word.
+	// This is the property several templates were really testing when they
+	// tested F31.
+	SingleWordSmall bool
+
+	// SparsePrime is set when q == 2^PHiBit - 2^PLoBit + 1, which admits a
+	// cheap reduction using 2^PHiBit = 2^PLoBit - 1 (mod q).
+	SparsePrime    bool
+	PHiBit, PLoBit uint
+
 	// asm code generation
 	GenerateOpsAMD64       bool
 	GenerateOpsARM64       bool
@@ -131,10 +182,22 @@ type Word struct {
 	Len       string // Len64 or Len32
 }
 
+// FieldOption customizes a Field before its derived constants are computed.
+type FieldOption func(*Field)
+
+// WithMontgomeryRadixBits overrides the Montgomery radix, so that R = 2^n
+// instead of the default 2^(NbWords*Word.BitSize).
+//
+// Only single-word fields with n < 64 are supported; NewFieldConfig returns an
+// error otherwise.
+func WithMontgomeryRadixBits(n uint) FieldOption {
+	return func(f *Field) { f.RBits = n }
+}
+
 // NewFieldConfig returns a data structure with needed information to generate apis for field element
 //
 // See field/generator package
-func NewFieldConfig(packageName, elementName, modulus string, useAddChain bool) (*Field, error) {
+func NewFieldConfig(packageName, elementName, modulus string, useAddChain bool, opts ...FieldOption) (*Field, error) {
 	// parse modulus
 	var bModulus big.Int
 	if _, ok := bModulus.SetString(modulus, 0); !ok {
@@ -188,11 +251,30 @@ func NewFieldConfig(packageName, elementName, modulus string, useAddChain bool) 
 
 	F.NbBytes = F.NbWords * F.Word.ByteSize
 
-	//  setting qInverse
-	radix := uint(F.Word.BitSize)
+	// Montgomery radix. The default lines the radix up with the storage words,
+	// which is what every field did before RBits existed; options may narrow it.
+	wordAlignedRBits := uint(F.NbWords) * uint(F.Word.BitSize)
+	F.RBits = wordAlignedRBits
+	for _, o := range opts {
+		o(F)
+	}
+	F.RadixSubWord = F.RBits != wordAlignedRBits
+	if F.RadixSubWord {
+		if F.NbWords != 1 || F.RBits >= 64 || F.RBits <= uint(F.NbBits) {
+			return nil, errUnsupportedRadix
+		}
+		F.RMask = (uint64(1) << F.RBits) - 1
+	}
+	F.SingleWordSmall = F.NbWords == 1 && F.NbBits < F.Word.BitSize
 
+	// Sparse prime detection: q == 2^hi - 2^lo + 1.
+	if hi, lo, ok := sparsePrimeExponents(&bModulus); ok {
+		F.SparsePrime, F.PHiBit, F.PLoBit = true, hi, lo
+	}
+
+	//  setting qInverse
 	_r := big.NewInt(1)
-	_r.Lsh(_r, uint(F.NbWords)*radix)
+	_r.Lsh(_r, F.RBits)
 	_rInv := big.NewInt(1)
 	_qInv := big.NewInt(0)
 	extendedEuclideanAlgo(_r, &bModulus, _rInv, _qInv)
@@ -222,25 +304,25 @@ func NewFieldConfig(packageName, elementName, modulus string, useAddChain bool) 
 
 	// rsquare
 	_rSquare := big.NewInt(1)
-	_rSquare.Lsh(_rSquare, uint(F.NbWords)*radix*2).Mod(_rSquare, &bModulus)
+	_rSquare.Lsh(_rSquare, F.RBits*2).Mod(_rSquare, &bModulus)
 	F.RSquare = toUint64Slice(_rSquare, F.NbWords)
 
 	var one big.Int
 	one.SetUint64(1)
-	one.Lsh(&one, uint(F.NbWords)*radix).Mod(&one, &bModulus)
+	one.Lsh(&one, F.RBits).Mod(&one, &bModulus)
 	F.One = toUint64Slice(&one, F.NbWords)
 
 	{
 		var n big.Int
 		n.SetUint64(11)
-		n.Lsh(&n, uint(F.NbWords)*radix).Mod(&n, &bModulus)
+		n.Lsh(&n, F.RBits).Mod(&n, &bModulus)
 		F.Eleven = toUint64Slice(&n, F.NbWords)
 	}
 
 	{
 		var n big.Int
 		n.SetUint64(13)
-		n.Lsh(&n, uint(F.NbWords)*radix).Mod(&n, &bModulus)
+		n.Lsh(&n, F.RBits).Mod(&n, &bModulus)
 		F.Thirteen = toUint64Slice(&n, F.NbWords)
 	}
 
@@ -334,7 +416,7 @@ func NewFieldConfig(packageName, elementName, modulus string, useAddChain bool) 
 			var g big.Int
 			g.Exp(&nonResidue, &s, &bModulus)
 			// store g in montgomery form
-			g.Lsh(&g, uint(F.NbWords)*radix).Mod(&g, &bModulus)
+			g.Lsh(&g, F.RBits).Mod(&g, &bModulus)
 			F.SqrtG = toUint64Slice(&g, F.NbWords)
 
 			// store non residue in montgomery form
@@ -351,7 +433,11 @@ func NewFieldConfig(packageName, elementName, modulus string, useAddChain bool) 
 			// We use Sarkar when:
 			// - the field has high 2-adicity. Otherwise, due to smaller constants Tonelli-Shanks is more efficient
 			// - the field is not a small field (i.e. not F31 nor goldilocks-like 64-bit fields)
-			if e >= 10 && !F.F31 && F.NbBits > 64 {
+			//
+			// Sub-word radix fields are the exception to "small": they are one
+			// word wide but can carry a 2-adicity high enough that the
+			// Tonelli-Shanks loop dominates (mamabear: 34).
+			if e >= 10 && !F.F31 && (F.NbBits > 64 || F.RadixSubWord) {
 				F.SqrtSarkar = true
 				F.SqrtSarkarK, F.SqrtSarkarL = chooseSarkarParams(int(e))
 			}
@@ -491,18 +577,18 @@ func NewFieldConfig(packageName, elementName, modulus string, useAddChain bool) 
 		// Note: ζ⁶ and ζ³ are the two primitive 3rd roots of unity (since ζ⁹ = 1)
 
 		// Convert all to montgomery form and store
-		g.Lsh(&g, uint(F.NbWords)*radix).Mod(&g, &bModulus)
+		g.Lsh(&g, F.RBits).Mod(&g, &bModulus)
 		F.CbrtG = toUint64Slice(&g, F.NbWords)
 
-		g2.Lsh(&g2, uint(F.NbWords)*radix).Mod(&g2, &bModulus)
+		g2.Lsh(&g2, F.RBits).Mod(&g2, &bModulus)
 		F.CbrtG2 = toUint64Slice(&g2, F.NbWords)
 
 		// ThirdRootOne = ζ⁶ (matches thirdRootOneG1)
-		g6.Lsh(&g6, uint(F.NbWords)*radix).Mod(&g6, &bModulus)
+		g6.Lsh(&g6, F.RBits).Mod(&g6, &bModulus)
 		F.ThirdRootOne = toUint64Slice(&g6, F.NbWords)
 
 		// ThirdRootOneSquare = ζ³ (matches thirdRootOneG2 = thirdRootOneG1²)
-		g3.Lsh(&g3, uint(F.NbWords)*radix).Mod(&g3, &bModulus)
+		g3.Lsh(&g3, F.RBits).Mod(&g3, &bModulus)
 		F.ThirdRootOneSquare = toUint64Slice(&g3, F.NbWords)
 
 		// store non-cubic residue in montgomery form
@@ -718,7 +804,7 @@ func (f *Field) StringToMont(str string) big.Int {
 
 func (f *Field) ToMont(nonMont big.Int) big.Int {
 	var mont big.Int
-	mont.Lsh(&nonMont, uint(f.NbWords)*uint(f.Word.BitSize))
+	mont.Lsh(&nonMont, f.RBits)
 	mont.Mod(&mont, f.ModulusBig)
 	return mont
 }

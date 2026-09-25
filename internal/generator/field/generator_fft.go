@@ -37,7 +37,22 @@ func generateFFT(F *config.Field, fft *config.FFT, outputDir string) error {
 		HasASMKernel:     F.F31,
 		Kernels:          []int{5, 8},
 		Package:          "fft",
-		F31:              F.F31,
+		SmallField:       F.F31 || F.SingleWordSmall,
+		Q:                F.Q[0],
+		QInvNeg:          F.QInverse[0],
+		// RandN is the math/rand/v2 method matching the element's word width,
+		// used by the generated tests to draw a value below the modulus.
+		RandN:    "Uint32N",
+		ExtType:  "E4",
+		ExtAlign: 4,
+	}
+	if F.Word.BitSize == 64 {
+		data.RandN = "Uint64N"
+	}
+	if F.Q[0] == 562932773552129 {
+		// mamabear builds its FFTExt over the cubic extension.
+		data.ExtType = "E3"
+		data.ExtAlign = 1
 	}
 	outputDir = filepath.Join(outputDir, "fft")
 
@@ -56,15 +71,17 @@ func generateFFT(F *config.Field, fft *config.FFT, outputDir string) error {
 		{File: filepath.Join(outputDir, "kernel_purego.go"), Templates: []string{"kernel.purego.go.tmpl"}, BuildTag: pureGoBuildTag},
 		{File: filepath.Join(outputDir, "options.go"), Templates: []string{"options.go.tmpl"}},
 	}
-	if F.F31 {
+	// every small field gets an FFT over its extension; only the F31 fields
+	// additionally carry the degree-6 variant.
+	if data.SmallField {
 		entries = append(entries, bavard.Entry{File: filepath.Join(outputDir, "fftext_test.go"), Templates: []string{"tests/fftext.go.tmpl"}})
 		entries = append(entries, bavard.Entry{File: filepath.Join(outputDir, "fftext.go"), Templates: []string{"fftext.go.tmpl"}})
+	}
+	if F.F31 {
 		entries = append(entries, bavard.Entry{File: filepath.Join(outputDir, "fftext6_test.go"), Templates: []string{"tests/fftext6.go.tmpl"}})
 		entries = append(entries, bavard.Entry{File: filepath.Join(outputDir, "fftext6.go"), Templates: []string{"fftext6.go.tmpl"}})
 	}
 	if data.HasASMKernel {
-		data.Q = F.Q[0]
-		data.QInvNeg = F.QInverse[0]
 		entries = append(entries,
 			bavard.Entry{
 				File:      filepath.Join(outputDir, "kernel_amd64.go"),
@@ -128,7 +145,16 @@ type fftTemplateData struct {
 	Kernels          []int  // indicates which kernels to generate
 	Package          string // package name
 	Q, QInvNeg       uint64
-	F31              bool
+	// SmallField is set for fields whose element fits in one word with a spare
+	// bit. Those FFTs keep bit-reversed coset tables and use aligned parallel
+	// execution. This is what .F31 meant here before a non-31-bit field
+	// qualified.
+	SmallField bool
+	// ExtType is the extension the FFTExt variant operates over ("E4" or "E3"),
+	// and ExtAlign the parallel alignment that matches its element size.
+	ExtType  string
+	ExtAlign int
+	RandN    string
 }
 
 func anyToUint64(x any) uint64 {
@@ -211,6 +237,15 @@ func init() {
 		3,
 		"1791270792",
 		"24",
+	))
+
+	// mama bear: q - 1 = 2^34 * 32767, so the largest NTT is 2^34.
+	// 3 is the smallest multiplicative generator, and 3^32767 mod q has order
+	// exactly 2^34.
+	fftConfigs["562932773552129"] = (config.NewConfig(
+		3,
+		"57971402726332",
+		"34",
 	))
 
 	// baby bear

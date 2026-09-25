@@ -44,6 +44,16 @@ const (
 	{{- end}}
 {{- end}}
 )
+{{- if .RadixSubWord}}
+
+// Montgomery radix R = 2^rBits, narrower than the {{.Word.BitSize}}-bit word the
+// element is stored in. The {{sub .Word.BitSize .RBits}} bits of headroom are what let intermediate
+// sums be carried unreduced.
+const (
+	rBits = {{.RBits}}
+	rMask = uint64((1 << rBits) - 1)
+)
+{{- end}}
 
 var qElement = {{.ElementName}}{
 	{{- range $i := $.NbWordsIndexesFull}}
@@ -75,8 +85,8 @@ func init() {
 // 		var v {{.ElementName}}
 // 		v.SetUint64(...)
 func New{{.ElementName}}(v uint64) {{.ElementName}} {
-	{{- if .F31}}
-		z := {{.ElementName}}{ uint32(v % uint64(q0)) }
+	{{- if .SingleWordSmall}}
+		z := {{.ElementName}}{ {{.Word.TypeLower}}(v % uint64(q0)) }
 		z.toMont()
 		return z
 	{{- else }}
@@ -89,8 +99,8 @@ func New{{.ElementName}}(v uint64) {{.ElementName}} {
 // SetUint64 sets z to v and returns z
 func (z *{{.ElementName}}) SetUint64(v uint64) *{{.ElementName}} {
 	//  sets z LSB to v (non-Montgomery form) and convert z to Montgomery form
-	{{- if .F31}}
-		*z = {{.ElementName}}{ uint32(v % uint64(q0)) }
+	{{- if .SingleWordSmall}}
+		*z = {{.ElementName}}{ {{.Word.TypeLower}}(v % uint64(q0)) }
 		return z.toMont()
 	{{- else }}
 		*z = {{.ElementName}}{ v }
@@ -462,7 +472,7 @@ func (z *{{.ElementName}}) Add( x, y *{{.ElementName}}) *{{.ElementName}} {
 // Double z = x + x (mod q), aka Lsh 1
 func (z *{{.ElementName}}) Double( x *{{.ElementName}}) *{{.ElementName}} {
 	{{- if eq .NbWords 1}}
-		{{- if .F31}}
+		{{- if .SingleWordSmall}}
 			t := x[0] << 1
 			if t >= q {
 					t -= q
@@ -514,7 +524,9 @@ func (z *{{.ElementName}}) Double( x *{{.ElementName}}) *{{.ElementName}} {
 
 // Sub z = x - y (mod q)
 func (z *{{.ElementName}}) Sub( x, y *{{.ElementName}}) *{{.ElementName}} {
-	{{- if $.F31}}
+	{{- if $.SingleWordSmall}}
+		// valid only because the modulus leaves a spare high bit: on underflow
+		// the wrapped difference is always > q.
 		t := x[0] - y[0]
 		if t > q { // underflow occurred
 			t += q
@@ -595,6 +607,13 @@ func _mulGeneric(z,x,y *{{.ElementName}}) {
 func _fromMontGeneric(z *{{.ElementName}}) {
 	{{- if .F31}}
 		z[0] = montReduce(uint64(z[0]))
+	{{- else if .RadixSubWord}}
+		// z * 1 * R⁻¹ = z * R⁻¹
+		r := montMul(z[0], 1)
+		if r >= q {
+			r -= q
+		}
+		z[0] = r
 	{{- else}}
 		// the following lines implement z = z * 1
 		// with a modified CIOS montgomery multiplication
@@ -697,6 +716,39 @@ func Hash(msg, dst []byte, count int) ([]{{.ElementName}}, error) {
 
 	return res, nil
 }
+
+{{- if and .SparsePrime .RadixSubWord}}
+
+// LazyAdd returns a + b without reduction; the result is in [0, 2q).
+//
+// Callers are responsible for reducing before any operation that requires a
+// canonical value.
+func LazyAdd(z, x, y *{{.ElementName}}) {
+	z[0] = x[0] + y[0]
+}
+
+// ConSubP performs z = min(z, z − q), i.e. a conditional subtract of q.
+func ConSubP(z *{{.ElementName}}) {
+	if z[0] >= q {
+		z[0] -= q
+	}
+}
+
+// ReduceFast reduces x to [0, 2^{{add .PHiBit 1}}) using the sparse form of q.
+//
+// Since q = 2^{{.PHiBit}} − 2^{{.PLoBit}} + 1 we have 2^{{.PHiBit}} ≡ 2^{{.PLoBit}} − 1 (mod q), so writing
+// x = x_lo + x_hi · 2^{{.PHiBit}},
+//
+//	x ≡ x_lo + x_hi · (2^{{.PLoBit}} − 1)   (mod q).
+//
+// The result is NOT fully reduced; call [ConSubP] to bring it into [0, q).
+func ReduceFast(x uint64) uint64 {
+	xHi := x >> {{.PHiBit}}
+	xLo := x & ((1 << {{.PHiBit}}) - 1)
+	t := (xHi << {{.PLoBit}}) - xHi // xHi * (2^{{.PLoBit}} − 1)
+	return xLo + t
+}
+{{- end}}
 
 
 {{ define "rsh V nbWords" }}

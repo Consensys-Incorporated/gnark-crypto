@@ -125,8 +125,10 @@ func generateField(F *config.Field, outputDir, asmDirIncludePath, hashArm64, has
 		pureGoVectorBuildTag = "purego || (!amd64)"
 	}
 
-	if F.F31 {
-		pureGoBuildTag = "" // always generate pure go for F31
+	if F.F31 || F.RadixSubWord {
+		// element.go calls into the generic Mul/Square unconditionally for these
+		// fields, so the "purego" file must always be compiled.
+		pureGoBuildTag = ""
 	}
 
 	var g errgroup.Group
@@ -134,17 +136,17 @@ func generateField(F *config.Field, outputDir, asmDirIncludePath, hashArm64, has
 	g.Go(generate("element.go", sourceFiles))
 	g.Go(generate("doc.go", []string{"element/doc.go.tmpl"}))
 	g.Go(generate("vector.go", []string{"element/vector.go.tmpl"}))
-	g.Go(generate("arith.go", []string{"element/arith.go.tmpl"}, only(!F.F31)))
+	g.Go(generate("arith.go", []string{"element/arith.go.tmpl"}, only(!F.F31 && !F.RadixSubWord)))
 	g.Go(generate("element_test.go", testFiles))
 	g.Go(generate("vector_test.go", []string{"element/testvector.go.tmpl"}))
 
 	g.Go(generate("element_amd64.s", []string{"element/asm_include.s.tmpl"}, only(F.GenerateOpsAMD64 && hashAMD64 != ""), withBuildTag("!purego"), withData(amd64d)))
 	g.Go(generate("element_arm64.s", []string{"element/asm_include.s.tmpl"}, only(F.GenerateOpsARM64 && hashArm64 != ""), withBuildTag("!purego"), withData(arm64d)))
 
-	g.Go(generate("element_amd64.go", []string{"element/opsamd64.go.tmpl", "element/muldoc.go.tmpl"}, only(F.GenerateOpsAMD64 && !F.F31 && hashAMD64 != ""), withBuildTag("!purego")))
-	g.Go(generate("element_arm64.go", []string{"element/opsarm64.go.tmpl", "element/mulnocarry.go.tmpl", "element/reduce.go.tmpl"}, only(F.GenerateOpsARM64 && !F.F31 && hashArm64 != ""), withBuildTag("!purego")))
+	g.Go(generate("element_amd64.go", []string{"element/opsamd64.go.tmpl", "element/muldoc.go.tmpl"}, only(F.GenerateOpsAMD64 && !F.F31 && !F.RadixSubWord && hashAMD64 != ""), withBuildTag("!purego")))
+	g.Go(generate("element_arm64.go", []string{"element/opsarm64.go.tmpl", "element/mulnocarry.go.tmpl", "element/reduce.go.tmpl"}, only(F.GenerateOpsARM64 && !F.F31 && !F.RadixSubWord && hashArm64 != ""), withBuildTag("!purego")))
 
-	g.Go(generate("element_purego.go", []string{"element/opsnoasm.go.tmpl", "element/mulcios.go.tmpl", "element/mulnocarry.go.tmpl", "element/reduce.go.tmpl", "element/muldoc.go.tmpl"}, withBuildTag(pureGoBuildTag)))
+	g.Go(generate("element_purego.go", []string{"element/opsnoasm.go.tmpl", "element/mulradix52.go.tmpl", "element/mulcios.go.tmpl", "element/mulnocarry.go.tmpl", "element/reduce.go.tmpl", "element/muldoc.go.tmpl"}, withBuildTag(pureGoBuildTag)))
 
 	g.Go(generate("vector_amd64.go", []string{"element/vectoropsamd64.go.tmpl"}, only(F.GenerateVectorOpsAMD64 && !F.F31 && hashAMD64 != ""), withBuildTag("!purego")))
 	g.Go(generate("vector_amd64.go", []string{"element/vectoropsamd64f31.go.tmpl"}, only(F.GenerateVectorOpsAMD64 && F.F31 && hashAMD64 != ""), withBuildTag("!purego")))

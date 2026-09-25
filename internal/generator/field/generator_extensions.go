@@ -19,8 +19,11 @@ func generateExtensions(F *config.Field, outputDir string) error {
 
 	outputDir = filepath.Join(outputDir, "extensions")
 
-	entries_ext2 := []bavard.Entry{
+	entries_doc := []bavard.Entry{
 		{File: filepath.Join(outputDir, "doc.go"), Templates: []string{"doc.go.tmpl"}},
+	}
+
+	entries_ext2 := []bavard.Entry{
 		{File: filepath.Join(outputDir, "utils.go"), Templates: []string{"utils.go.tmpl"}},
 		{File: filepath.Join(outputDir, "e2.go"), Templates: []string{"e2.go.tmpl"}},
 		{File: filepath.Join(outputDir, "e2_test.go"), Templates: []string{"e2_test.go.tmpl"}},
@@ -30,11 +33,19 @@ func generateExtensions(F *config.Field, outputDir string) error {
 		FF               string
 		FieldPackagePath string
 		F31              bool
-		Q, QInvNeg       uint64
+		QInvNeg          uint64
 		IsKoalaBear      bool
 		IsBabyBear       bool
 		// QuadraticNonResidue is α, where E2 = Fr[u]/(u²-α).
 		QuadraticNonResidue uint64
+		// GenerateE2 is false for fields that build a cubic extension instead.
+		// Emitting E2 for them would fall through the QuadraticNonResidue
+		// switch and silently produce α = 0, i.e. u² = 0, which is not a field.
+		GenerateE2 bool
+		// Cubic extension (Fr[t]/(t³-t-1)); mutually exclusive with E2 today.
+		GenerateE3     bool
+		Q              uint64
+		PHiBit, PLoBit uint
 		// E6ReplA / E6ReplB are the VPERMI2D index tables for the gather-free E6
 		// scalar-mul kernels, split into rows of 16 for the generated Go literals.
 		// See amd64.E6ReplicationTables.
@@ -50,6 +61,8 @@ func generateExtensions(F *config.Field, outputDir string) error {
 	case isBabyBear:
 		quadraticNonResidue = 11
 	}
+	isMamaBear := F.Q[0] == 562932773552129
+
 	data := &extensionsTemplateData{
 		FF:                  F.PackageName,
 		FieldPackagePath:    fieldImportPath,
@@ -59,6 +72,10 @@ func generateExtensions(F *config.Field, outputDir string) error {
 		Q:                   F.Q[0],
 		QInvNeg:             F.QInverse[0],
 		QuadraticNonResidue: quadraticNonResidue,
+		GenerateE2:          !isMamaBear,
+		GenerateE3:          isMamaBear,
+		PHiBit:              F.PHiBit,
+		PLoBit:              F.PLoBit,
 	}
 
 	if isKoalaBear {
@@ -69,8 +86,26 @@ func generateExtensions(F *config.Field, outputDir string) error {
 
 	g := NewGenerator(template.FS)
 
-	if err := g.Generate(data, "extensions", "", "extensions", entries_ext2...); err != nil {
+	if err := g.Generate(data, "extensions", "", "extensions", entries_doc...); err != nil {
 		return err
+	}
+
+	if data.GenerateE2 {
+		if err := g.Generate(data, "extensions", "", "extensions", entries_ext2...); err != nil {
+			return err
+		}
+	}
+
+	if data.GenerateE3 {
+		entries_ext3 := []bavard.Entry{
+			{File: filepath.Join(outputDir, "e3.go"), Templates: []string{"e3.go.tmpl"}},
+			{File: filepath.Join(outputDir, "e3_test.go"), Templates: []string{"e3_test.go.tmpl"}},
+			{File: filepath.Join(outputDir, "e3_vector.go"), Templates: []string{"e3vector.go.tmpl"}},
+			{File: filepath.Join(outputDir, "e3_vector_internal_test.go"), Templates: []string{"e3vector_test.go.tmpl"}},
+		}
+		if err := g.Generate(data, "extensions", "", "extensions", entries_ext3...); err != nil {
+			return err
+		}
 	}
 	if F.F31 {
 		entries_ext4 := []bavard.Entry{

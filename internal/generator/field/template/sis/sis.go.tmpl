@@ -15,7 +15,7 @@ import (
 )
 
 {{$tReturn := "uint64"}}
-{{- if .F31 }}
+{{- if not .SisHasLimb8 }}
 	{{$tReturn = "uint32"}}
 {{- end -}}
 
@@ -269,7 +269,11 @@ func (r *RSis) InnerHash(it *LimbIterator, res, k, kz {{ .FF }}.Vector, polId in
 			break
 		}
 		zero |= l
+		{{- if ne $tReturn $.ElemWordType}}
+		k[j][0] = {{$.ElemWordType}}(l)
+		{{- else}}
 		k[j][0] = l
+		{{- end}}
 	}
 	if zero == 0 {
 		// means m[i*r.Degree : (i+1)*r.Degree] == [0...0]
@@ -352,8 +356,10 @@ type LimbIterator struct {
 func NewLimbIterator(it ElementIterator, limbSize int) LimbIterator {
 	switch limbSize {
 	case 1, 2:
-	{{if not .F31 }}
+	{{if .SisHasLimb8 }}
 	case 4, 8:
+	{{- else if .SisHasLimb4}}
+	case 4:
 	{{- end}}
 	default:
 		panic("unsupported limb size")
@@ -391,11 +397,14 @@ func (vr *LimbIterator) NextLimb() ({{$tReturn}}, bool) {
 		r = {{$tReturn}}(vr.buf[vr.j])
 	case 2:
 		r = {{$tReturn}}(binary.LittleEndian.Uint16(vr.buf[vr.j:]))
-	{{if not .F31 }}
+	{{if .SisHasLimb8 }}
 	case 4:
 		r = {{$tReturn}}(binary.LittleEndian.Uint32(vr.buf[vr.j:]))
 	case 8:
 		r = {{$tReturn}}(binary.LittleEndian.Uint64(vr.buf[vr.j:]))
+	{{- else if .SisHasLimb4}}
+	case 4:
+		r = {{$tReturn}}(binary.LittleEndian.Uint32(vr.buf[vr.j:]))
 	{{- end}}
 	default:
 		panic("unsupported limb size")

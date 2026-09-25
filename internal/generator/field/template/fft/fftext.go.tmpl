@@ -17,7 +17,7 @@ import (
 // FFTExt computes the discrete Fourier transform of a slice of extension field elements.
 // Coefficients and evaluations are extension field elements.
 // The root of unity domain is the same as FFT.
-func (domain *Domain) FFTExt(a []fext.E4, decimation Decimation, opts ...Option) {
+func (domain *Domain) FFTExt(a []fext.{{.ExtType}}, decimation Decimation, opts ...Option) {
 
 	opt := fftOptions(opts)
 
@@ -53,7 +53,7 @@ func (domain *Domain) FFTExt(a []fext.E4, decimation Decimation, opts ...Option)
 				BuildExpTable(domain.FrMultiplicativeGen, cosetTable)
 			}
 		}
-		parallel.ExecuteAligned(len(a), 4, func(start, end int) {
+		parallel.ExecuteAligned(len(a), {{.ExtAlign}}, func(start, end int) {
 			va := fext.Vector(a[start:end])
 			va.MulByElement(va, cosetTable[start:end])
 		}, opt.nbTasks)
@@ -89,7 +89,7 @@ func (domain *Domain) FFTExt(a []fext.E4, decimation Decimation, opts ...Option)
 // if decimation == DIF (decimation in frequency), the output will be in bit-reversed order
 // coset sets the shift of the fft (0 = no shift, standard fft)
 // len(a) must be a power of 2, and w must be a len(a)th root of unity in field F.
-func (domain *Domain) FFTInverseExt(a []fext.E4, decimation Decimation, opts ...Option) {
+func (domain *Domain) FFTInverseExt(a []fext.{{.ExtType}}, decimation Decimation, opts ...Option) {
 	opt := fftOptions(opts)
 
 	// find the stage where we should stop spawning go routines in our recursive calls
@@ -123,7 +123,7 @@ func (domain *Domain) FFTInverseExt(a []fext.E4, decimation Decimation, opts ...
 
 	// scale by CardinalityInv
 	if !opt.coset {
-		parallel.ExecuteAligned(len(a), 4, func(start, end int) {
+		parallel.ExecuteAligned(len(a), {{.ExtAlign}}, func(start, end int) {
 			va := fext.Vector(a[start:end])
 			va.ScalarMulByElement(va, &domain.CardinalityInv)
 		}, opt.nbTasks)
@@ -153,7 +153,7 @@ func (domain *Domain) FFTInverseExt(a []fext.E4, decimation Decimation, opts ...
 			utils.BitReverse(cosetTableInv)
 		}
 	}
-	parallel.ExecuteAligned(len(a), 4, func(start, end int) {
+	parallel.ExecuteAligned(len(a), {{.ExtAlign}}, func(start, end int) {
 		va := fext.Vector(a[start:end])
 		va.MulByElement(va, cosetTableInv[start:end])
 		va.ScalarMulByElement(va, &domain.CardinalityInv)
@@ -162,7 +162,7 @@ func (domain *Domain) FFTInverseExt(a []fext.E4, decimation Decimation, opts ...
 }
 
 
-func difFFTExt(a []fext.E4, w {{ .FF }}.Element, twiddles [][]{{ .FF }}.Element, twiddlesStartStage, stage, maxSplits int, chDone chan struct{}, nbTasks int) {
+func difFFTExt(a []fext.{{.ExtType}}, w {{ .FF }}.Element, twiddles [][]{{ .FF }}.Element, twiddlesStartStage, stage, maxSplits int, chDone chan struct{}, nbTasks int) {
 	if chDone != nil {
 		defer close(chDone)
 	}
@@ -224,14 +224,14 @@ func difFFTExt(a []fext.E4, w {{ .FF }}.Element, twiddles [][]{{ .FF }}.Element,
 
 }
 
-func innerDIFWithTwiddlesExt(a []fext.E4, twiddles []{{ .FF }}.Element, start, end, m int) {
+func innerDIFWithTwiddlesExt(a []fext.{{.ExtType}}, twiddles []{{ .FF }}.Element, start, end, m int) {
 	va0 := fext.Vector(a[start:end])
 	va1 := fext.Vector(a[start+m : end+m])
 	va0.Butterfly(va1)
 	va1.MulByElement(va1, twiddles[start:end])
 }
 
-func innerDIFWithoutTwiddlesExt(a []fext.E4, at, w {{ .FF }}.Element, start, end, m int) {
+func innerDIFWithoutTwiddlesExt(a []fext.{{.ExtType}}, at, w {{ .FF }}.Element, start, end, m int) {
 	if start == 0 {
 		fext.Butterfly(&a[0], &a[m])
 		start++
@@ -243,7 +243,7 @@ func innerDIFWithoutTwiddlesExt(a []fext.E4, at, w {{ .FF }}.Element, start, end
 	}
 }
 
-func ditFFTExt(a []fext.E4, w {{ .FF }}.Element, twiddles [][]{{ .FF }}.Element, twiddlesStartStage, stage, maxSplits int, chDone chan struct{}, nbTasks int) {
+func ditFFTExt(a []fext.{{.ExtType}}, w {{ .FF }}.Element, twiddles [][]{{ .FF }}.Element, twiddlesStartStage, stage, maxSplits int, chDone chan struct{}, nbTasks int) {
 	if chDone != nil {
 		defer close(chDone)
 	}
@@ -307,21 +307,21 @@ func ditFFTExt(a []fext.E4, w {{ .FF }}.Element, twiddles [][]{{ .FF }}.Element,
 }
 
 
-func innerDITWithTwiddlesExt(a []fext.E4, twiddles []{{ .FF }}.Element, start, end, m int) {
+func innerDITWithTwiddlesExt(a []fext.{{.ExtType}}, twiddles []{{ .FF }}.Element, start, end, m int) {
 	va0 := fext.Vector(a[start:end])
 	va1 := fext.Vector(a[start+m : end+m])
 	va1.MulByElement(va1, twiddles[start:end])
 	va0.Butterfly(va1)
 }
 
-func innerDITWithTwiddlesExtM2(a []fext.E4, twiddles []{{ .FF }}.Element) {
+func innerDITWithTwiddlesExtM2(a []fext.{{.ExtType}}, twiddles []{{ .FF }}.Element) {
 	fext.Butterfly(&a[0], &a[2])
 	a[3].MulByElement(&a[3], &twiddles[1])
 	fext.Butterfly(&a[1], &a[3])
 }
 
 
-func innerDITWithoutTwiddlesExt(a []fext.E4, at, w {{ .FF }}.Element, start, end, m int) {
+func innerDITWithoutTwiddlesExt(a []fext.{{.ExtType}}, at, w {{ .FF }}.Element, start, end, m int) {
 	if start == 0 {
 		fext.Butterfly(&a[0], &a[m])
 		start++
@@ -334,11 +334,11 @@ func innerDITWithoutTwiddlesExt(a []fext.E4, at, w {{ .FF }}.Element, start, end
 }
 
 
-{{genKernel $.FF $kSizeExt $kLog2Ext}}
+{{genKernel $.FF $kSizeExt $kLog2Ext $.ExtType}}
 
-{{define "genKernel FF sizeKernel sizeKernelLog2"}}
+{{define "genKernel FF sizeKernel sizeKernelLog2 ExtType"}}
 
-func kerDIFNP_{{.sizeKernel}}Ext(a []fext.E4, twiddles [][]{{ .FF }}.Element, stage int) {
+func kerDIFNP_{{.sizeKernel}}Ext(a []fext.{{.ExtType}}, twiddles [][]{{ .FF }}.Element, stage int) {
 	// code unrolled & generated by internal/generator/fft/template/fftext.go.tmpl
 
 	{{ $n := shl 1 .sizeKernelLog2}}
@@ -367,7 +367,7 @@ func kerDIFNP_{{.sizeKernel}}Ext(a []fext.E4, twiddles [][]{{ .FF }}.Element, st
 	{{- end}}
 }
 
-func kerDITNP_{{.sizeKernel}}Ext(a []fext.E4, twiddles [][]{{ .FF }}.Element, stage int) {
+func kerDITNP_{{.sizeKernel}}Ext(a []fext.{{.ExtType}}, twiddles [][]{{ .FF }}.Element, stage int) {
 	// code unrolled & generated by internal/generator/fft/template/fftext.go.tmpl
 	{{ $n := 2}}
 	{{ $m := div $n 2}}

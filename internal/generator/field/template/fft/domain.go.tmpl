@@ -43,14 +43,14 @@ type Domain struct {
 	// cosetTable <1, u, u², ..., uⁿ⁻¹> where u is the shifting element
 	cosetTable []{{ .FF }}.Element
 
-	{{- if .F31}}
+	{{- if .SmallField}}
 	// cosetTableBitReversed stores the coset table in bit-reversed order
 	cosetTableBitReversed         []{{ .FF }}.Element
 	{{- end}}
 
 	// cosetTableInv same as cosetTable but with u⁻¹
 	cosetTableInv         []{{ .FF }}.Element
-	{{- if .F31}}
+	{{- if .SmallField}}
 	// cosetTableInvBitReversed stores the inverse coset table in bit-reversed order
 	cosetTableInvBitReversed []{{ .FF }}.Element
 	{{- end}}
@@ -276,7 +276,7 @@ func (d *Domain) preComputeTwiddles() {
 	go expTable(d.FrMultiplicativeGenInv, d.cosetTableInv)
 
 	wg.Wait()
-{{- if .F31}}
+{{- if .SmallField}}
 	if d.Cardinality <= 1<<22 {
 		d.cosetTableBitReversed = make([]{{ .FF }}.Element, d.Cardinality)
 		copy(d.cosetTableBitReversed, d.cosetTable)
