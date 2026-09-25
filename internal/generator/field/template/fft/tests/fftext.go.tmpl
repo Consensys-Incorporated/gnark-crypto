@@ -12,7 +12,7 @@ import (
 	"github.com/leanovate/gopter/gen"
 
 	"fmt"
-	{{- if .F31}}
+	{{- if .SmallField}}
 	"github.com/stretchr/testify/require"
 	"encoding/binary"
 	"math/rand/v2"
@@ -39,8 +39,8 @@ func TestFFTExt(t *testing.T) {
 				// checks that a random evaluation of a dual function eval(gen**ithpower) is consistent with the FFT result
 				func(ithpower int) bool {
 
-					pol := make([]fext.E4, maxSize)
-					backupPol := make([]fext.E4, maxSize)
+					pol := make([]fext.{{.ExtType}}, maxSize)
+					backupPol := make([]fext.{{.ExtType}}, maxSize)
 
 					for i := range maxSize {
 						pol[i].MustSetRandom()
@@ -66,8 +66,8 @@ func TestFFTExt(t *testing.T) {
 				// checks that a random evaluation of a dual function eval(gen**ithpower) is consistent with the FFT result
 				func(ithpower int) bool {
 
-					pol := make([]fext.E4, maxSize)
-					backupPol := make([]fext.E4, maxSize)
+					pol := make([]fext.{{.ExtType}}, maxSize)
+					backupPol := make([]fext.{{.ExtType}}, maxSize)
 
 					for i := range maxSize {
 						pol[i].MustSetRandom()
@@ -94,8 +94,8 @@ func TestFFTExt(t *testing.T) {
 				// checks that a random evaluation of a dual function eval(gen**ithpower) is consistent with the FFT result
 				func(ithpower int) bool {
 
-					pol := make([]fext.E4, maxSize)
-					backupPol := make([]fext.E4, maxSize)
+					pol := make([]fext.{{.ExtType}}, maxSize)
+					backupPol := make([]fext.{{.ExtType}}, maxSize)
 
 					for i := range maxSize {
 						pol[i].MustSetRandom()
@@ -120,8 +120,8 @@ func TestFFTExt(t *testing.T) {
 
 				func() bool {
 
-					pol := make([]fext.E4, maxSize)
-					backupPol := make([]fext.E4, maxSize)
+					pol := make([]fext.{{.ExtType}}, maxSize)
+					backupPol := make([]fext.{{.ExtType}}, maxSize)
 
 					for i := range maxSize {
 						pol[i].MustSetRandom()
@@ -146,8 +146,8 @@ func TestFFTExt(t *testing.T) {
 
 					func() bool {
 
-						pol := make([]fext.E4, maxSize)
-						backupPol := make([]fext.E4, maxSize)
+						pol := make([]fext.{{.ExtType}}, maxSize)
+						backupPol := make([]fext.{{.ExtType}}, maxSize)
 
 						for i := range maxSize {
 							pol[i].MustSetRandom()
@@ -177,8 +177,8 @@ func TestFFTExt(t *testing.T) {
 
 				func() bool {
 
-					pol := make([]fext.E4, maxSize)
-					backupPol := make([]fext.E4, maxSize)
+					pol := make([]fext.{{.ExtType}}, maxSize)
+					backupPol := make([]fext.{{.ExtType}}, maxSize)
 
 					for i := range maxSize {
 						pol[i].MustSetRandom()
@@ -200,8 +200,8 @@ func TestFFTExt(t *testing.T) {
 
 				func() bool {
 
-					pol := make([]fext.E4, maxSize)
-					backupPol := make([]fext.E4, maxSize)
+					pol := make([]fext.{{.ExtType}}, maxSize)
+					backupPol := make([]fext.{{.ExtType}}, maxSize)
 
 					for i := range maxSize {
 						pol[i].MustSetRandom()
@@ -235,10 +235,10 @@ func TestFFTExt(t *testing.T) {
 	}
 
 }
-{{- if .F31}}
+{{- if .SmallField}}
 
-func randElementExt(rng *rand.Rand) fext.E4 {
-	var v fext.E4
+func randElementExt(rng *rand.Rand) fext.{{.ExtType}} {
+	var v fext.{{.ExtType}}
 	v.B0.A0 = {{ .FF }}.Element{rng.Uint32N({{.Q}})}
 	v.B0.A1 = {{ .FF }}.Element{rng.Uint32N({{.Q}})}
 	v.B1.A0 = {{ .FF }}.Element{rng.Uint32N({{.Q}})}
@@ -265,7 +265,7 @@ func FuzzFFTExt(f *testing.F) {
 		cardinality := domain.Cardinality
 
 		// we just check that FFT-1(FFT(pol)) == pol
-		a, b := make([]fext.E4, cardinality), make([]fext.E4, cardinality)
+		a, b := make([]fext.{{.ExtType}}, cardinality), make([]fext.{{.ExtType}}, cardinality)
 		for i := range int(cardinality) {
 			a[i] = randElementExt(rng)
 		}
@@ -290,7 +290,7 @@ func BenchmarkFFTExt(b *testing.B) {
 
 	const maxSize = 1 << 20
 
-	pol := make([]fext.E4, maxSize)
+	pol := make([]fext.{{.ExtType}}, maxSize)
 	pol[0].MustSetRandom()
 	for i := 1; i < maxSize; i++ {
 		pol[i] = pol[i-1]
@@ -319,7 +319,7 @@ func BenchmarkFFTExt(b *testing.B) {
 func BenchmarkFFTDITCosetReferenceExt(b *testing.B) {
 	const maxSize = 1 << 18
 
-	pol := make([]fext.E4, maxSize)
+	pol := make([]fext.{{.ExtType}}, maxSize)
 	pol[0].MustSetRandom()
 	for i := 1; i < maxSize; i++ {
 		pol[i] = pol[i-1]
@@ -336,7 +336,7 @@ func BenchmarkFFTDITCosetReferenceExt(b *testing.B) {
 func BenchmarkFFTDITReferenceSmallExt(b *testing.B) {
 	const maxSize = 1 << 9
 
-	pol := make([]fext.E4, maxSize)
+	pol := make([]fext.{{.ExtType}}, maxSize)
 	pol[0].MustSetRandom()
 	for i := 1; i < maxSize; i++ {
 		pol[i] = pol[i-1]
@@ -353,7 +353,7 @@ func BenchmarkFFTDITReferenceSmallExt(b *testing.B) {
 func BenchmarkFFTDIFReferenceExt(b *testing.B) {
 	const maxSize = 1 << 18
 
-	pol := make([]fext.E4, maxSize)
+	pol := make([]fext.{{.ExtType}}, maxSize)
 	pol[0].MustSetRandom()
 	for i := 1; i < maxSize; i++ {
 		pol[i] = pol[i-1]
@@ -369,7 +369,7 @@ func BenchmarkFFTDIFReferenceExt(b *testing.B) {
 func BenchmarkFFTDIFReferenceSmallExt(b *testing.B) {
 	const maxSize = 1 << 9
 
-	pol := make([]fext.E4, maxSize)
+	pol := make([]fext.{{.ExtType}}, maxSize)
 	pol[0].MustSetRandom()
 	for i := 1; i < maxSize; i++ {
 		pol[i] = pol[i-1]
@@ -383,8 +383,8 @@ func BenchmarkFFTDIFReferenceSmallExt(b *testing.B) {
 	}
 }
 
-func evaluatePolynomialExt(pol []fext.E4, val {{ .FF }}.Element) fext.E4 {
-	var res, tmp fext.E4
+func evaluatePolynomialExt(pol []fext.{{.ExtType}}, val {{ .FF }}.Element) fext.{{.ExtType}} {
+	var res, tmp fext.{{.ExtType}}
 	var acc {{ .FF }}.Element
 	res.Set(&pol[0])
 	acc.Set(&val)

@@ -147,7 +147,7 @@ type Permutation struct {
 
 // NewPermutation returns a new Poseidon2 permutation instance.
 func NewPermutation(t, rf, rp int) *Permutation {
-    {{- if or (eq .FF "babybear") (eq .FF "koalabear")}}
+    {{- if or (eq .Family "babybear") (eq .Family "koalabear")}}
 	if t != 16 && t != 24 {
 		panic("only Width=16,24 are supported")
 	}
@@ -164,7 +164,7 @@ func NewPermutation(t, rf, rp int) *Permutation {
 // NewPermutationWithSeed returns a new Poseidon2 permutation instance with a
 // given seed.
 func NewPermutationWithSeed(t, rf, rp int, seed string) *Permutation {
-	{{- if or (eq .FF "babybear") (eq .FF "koalabear")}}
+	{{- if or (eq .Family "babybear") (eq .Family "koalabear")}}
 	if t != 16 && t != 24 {
 		panic("only Width=16,24 are supported")
 	}
@@ -305,7 +305,7 @@ func (h *Permutation) matMulInternalInPlace(input []fr.Element) {
     default:
 		panic("only Width=8,12 are supported")
 	}
-{{- else if eq .FF "koalabear"}}
+{{- else if eq .Family "koalabear"}}
 	switch h.params.Width {
 	case 16:
 		var sum fr.Element

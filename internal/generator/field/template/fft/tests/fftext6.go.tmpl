@@ -12,7 +12,7 @@ import (
 	"github.com/leanovate/gopter/gen"
 
 	"fmt"
-	{{- if .F31}}
+	{{- if .SmallField}}
 	"github.com/stretchr/testify/require"
 	"encoding/binary"
 	"math/rand/v2"
@@ -235,7 +235,7 @@ func TestFFTExt6(t *testing.T) {
 	}
 
 }
-{{- if .F31}}
+{{- if .SmallField}}
 
 func randElementExt6(rng *rand.Rand) fext.E6 {
 	var v fext.E6

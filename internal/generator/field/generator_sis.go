@@ -32,7 +32,11 @@ func generateSIS(F *config.Field, outputDir string) error {
 		FieldPackagePath string
 		HasUnrolledFFT   bool
 		F31              bool
-		Q, QInvNeg       uint64
+		// Limb sizes the iterator supports. A limb of s bytes is only usable if
+		// 8*s bits always fit under the modulus.
+		SisHasLimb4 bool
+		SisHasLimb8 bool
+		Q, QInvNeg  uint64
 	}
 
 	data := &sisTemplateData{
@@ -40,6 +44,8 @@ func generateSIS(F *config.Field, outputDir string) error {
 		FieldPackagePath: fieldImportPath,
 		HasUnrolledFFT:   F.NbBytes == 32,
 		F31:              F.F31,
+		SisHasLimb4:      !F.F31,
+		SisHasLimb8:      !F.F31 && !F.RadixSubWord,
 	}
 
 	if data.F31 {
