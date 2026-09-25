@@ -333,7 +333,11 @@ func TestE12Ops(t *testing.T) {
 			a.Inverse(a)
 			b.Mul(&b, a)
 			a.FrobeniusSquare(&b).Mul(a, &b)
-			// _a (g3 == 0)
+			// _a: any element of Fp maps to 1 under the easy part, since x^p = x
+			// gives x^(p^6-1) = 1. So _a == 1, and it exercises only the
+			// g2 == g3 == 0 shortcut, not the general g3 == 0 formula. There is no
+			// known cheap construction of a cyclotomic element with g3 == 0 and
+			// g2 != 0; that branch is pinned by the branch-selection property below.
 			b.Conjugate(&_a)
 			_a.Inverse(&_a)
 			b.Mul(&b, &_a)
@@ -343,11 +347,11 @@ func TestE12Ops(t *testing.T) {
 			c.Square(a)
 			d.CyclotomicSquareCompressed(a).DecompressKarabina(&d)
 
-			// case g3 == 0
+			// case g2 == g3 == 0
 			_c.Square(&_a)
 			_d.CyclotomicSquareCompressed(&_a).DecompressKarabina(&_d)
 
-			return c.Equal(&d)
+			return c.Equal(&d) && _c.Equal(&_d)
 		},
 		genA,
 	))
@@ -363,7 +367,7 @@ func TestE12Ops(t *testing.T) {
 			a.Inverse(a)
 			b.Mul(&b, a)
 			a.FrobeniusSquare(&b).Mul(a, &b)
-			// _a (g3 == 0)
+			// _a == 1 (see above): exercises the g2 == g3 == 0 shortcut
 			b.Conjugate(&_a)
 			_a.Inverse(&_a)
 			b.Mul(&b, &_a)
@@ -373,7 +377,7 @@ func TestE12Ops(t *testing.T) {
 			a2.Set(&_a)
             a4.Set(a)
             a17.Set(a)
-			a2.nSquareCompressed(2) // case g3 == 0
+			a2.nSquareCompressed(2) // case g2 == g3 == 0
 			a4.nSquareCompressed(4)
 			a17.nSquareCompressed(17)
 			batch := BatchDecompressKarabina([]E12{a2, a4, a17})
@@ -382,6 +386,61 @@ func TestE12Ops(t *testing.T) {
 			a17.DecompressKarabina(&a17)
 
 			return a2.Equal(&batch[0]) && a4.Equal(&batch[1]) && a17.Equal(&batch[2])
+		},
+		genA,
+	))
+
+	properties.Property("[{{ toUpper $Name }}] decompress (Karabina) must follow its documented formula on both branches", prop.ForAll(
+		func(a *E12) bool {
+			var b E12
+
+			// put a in the cyclotomic subgroup
+			b.Conjugate(a)
+			a.Inverse(a)
+			b.Mul(&b, a)
+			a.FrobeniusSquare(&b).Mul(a, &b)
+
+			// g4 as the doc comment of DecompressKarabina defines it, under the
+			// coordinate labelling CyclotomicSquareCompressed works in:
+			// g1 = C0.B1, g2 = C0.B2, g3 = C1.B0, g4 = C1.B1, g5 = C1.B2
+			refG4 := func(x *E12) E2 {
+				var num, den, t0, t1, g4 E2
+				if x.C1.B0.IsZero() /* g3 == 0 */ {
+					// g4 = 2 * g1 * g5 / g2
+					num.Mul(&x.C0.B1, &x.C1.B2).Double(&num)
+					den.Set(&x.C0.B2)
+				} else /* g3 != 0 */ {
+					// g4 = (E * g5^2 + 3 * g1^2 - 2 * g2) / 4g3
+					t0.Square(&x.C1.B2)
+					num.MulByNonResidue(&t0)
+					t0.Square(&x.C0.B1)
+					t1.Double(&t0).Add(&t1, &t0)
+					num.Add(&num, &t1)
+					t1.Double(&x.C0.B2)
+					num.Sub(&num, &t1)
+					den.Double(&x.C1.B0).Double(&den)
+				}
+				g4.Div(&num, &den)
+				return g4
+			}
+
+			// the generic case, plus the two degenerate coordinate patterns the
+			// branch exists to tell apart. Neither is reachable by sampling, so
+			// both have to be planted.
+			x := []E12{*a, *a, *a}
+			x[1].C1.B0.SetZero() // g3 == 0, g5 != 0
+			x[2].C1.B2.SetZero() // g5 == 0, g3 != 0
+
+			batch := BatchDecompressKarabina(append([]E12{}, x...))
+			for i := range x {
+				want := refG4(&x[i])
+				var single E12
+				single.DecompressKarabina(&x[i])
+				if !single.C1.B1.Equal(&want) || !batch[i].C1.B1.Equal(&want) {
+					return false
+				}
+			}
+			return true
 		},
 		genA,
 	))
