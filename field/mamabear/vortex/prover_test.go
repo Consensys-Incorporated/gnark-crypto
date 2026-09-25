@@ -37,7 +37,8 @@ func TestZeroMatrix(t *testing.T) {
 	var (
 		numCol = 16
 		numRow = 8
-		rng    = rand.New(rand.NewChaCha8([32]byte{}))
+		// #nosec G404 -- test case generation does not require a cryptographic PRNG
+		rng = rand.New(rand.NewChaCha8([32]byte{}))
 	)
 
 	var (
