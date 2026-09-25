@@ -77,6 +77,7 @@ func (s *MpcSetup) ReadFrom(r io.Reader) (int64, error) {
 	dec := curve.NewDecoder(r)
 	s.srs.Pk.G1 = make([]curve.G1Affine, N)
 	s.srs.Pk.G1[0] = g1
+	s.srs.Vk.G1 = g1
 	s.srs.Vk.G2[0] = g2
 	for i := range N - 1 {
 		if err = dec.Decode(&s.srs.Pk.G1[i+1]); err != nil {
