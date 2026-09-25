@@ -36,20 +36,20 @@
 // B : ZMM read-only multiplier;
 // Q : ZMM broadcast(p) read-only; QINV : ZMM broadcast(qInvNeg) read-only;
 // C0, C1, M0 : ZMM temporaries (clobbered).
-#define MULMB(A, B, Q, QINV, C0, C1, M0)  \
-	VPXORQ       C0, C0, C0         \
-	VPMADD52LUQ  B, A, C0           \
-	VMOVDQA64    Q, C1              \
-	VPMADD52HUQ  B, A, C1           \
-	VPXORQ       M0, M0, M0         \
-	VPMADD52LUQ  QINV, C0, M0      \
-	VPMADD52LUQ  Q, M0, C0         \
-	VPMADD52HUQ  Q, M0, C1         \
-	VPSRLQ       $52, C0, C0       \
-	VPADDQ       C0, C1, A         \
-	VPSUBQ       Q, A, A           \
-	VPSUBQ       Q, A, C0          \
-	VPMINUQ      A, C0, A          \
+#define MULMB(A, B, Q, QINV, C0, C1, M0) \
+	VPXORQ      C0, C0, C0   \
+	VPMADD52LUQ B, A, C0     \
+	VMOVDQA64   Q, C1        \
+	VPMADD52HUQ B, A, C1     \
+	VPXORQ      M0, M0, M0   \
+	VPMADD52LUQ QINV, C0, M0 \
+	VPMADD52LUQ Q, M0, C0    \
+	VPMADD52HUQ Q, M0, C1    \
+	VPSRLQ      $52, C0, C0  \
+	VPADDQ      C0, C1, A    \
+	VPSUBQ      Q, A, A      \
+	VPSUBQ      Q, A, C0     \
+	VPMINUQ     A, C0, A     \
 
 // innerDIFWithTwiddles_avx512(a, twiddles *Element, start, end, m int)
 // DIF butterfly: for each 8-element block i in [0, end/8):

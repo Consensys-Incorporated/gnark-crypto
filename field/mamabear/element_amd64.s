@@ -39,9 +39,9 @@ loop_1:
 	DECQ      BX
 	VMOVDQU64 0(R14), Z0
 	VMOVDQU64 0(DX), Z1
-	VPADDQ    Z1, Z0, Z0    // z = a + b
-	VPSUBQ    Z3, Z0, Z2    // t = z - p (wraps if z < p)
-	VPMINUQ   Z0, Z2, Z0   // z = min(z, t); unsigned min gives correct mod-p result
+	VPADDQ    Z1, Z0, Z0 // z = a + b
+	VPSUBQ    Z3, Z0, Z2 // t = z - p (wraps if z < p)
+	VPMINUQ   Z0, Z2, Z0 // z = min(z, t); unsigned min gives correct mod-p result
 	VMOVDQU64 Z0, 0(CX)
 
 	ADDQ $64, R14
@@ -68,9 +68,9 @@ loop_3:
 	DECQ      BX
 	VMOVDQU64 0(R14), Z0
 	VMOVDQU64 0(DX), Z1
-	VPSUBQ    Z1, Z0, Z0    // z = a - b (wraps if a < b)
-	VPADDQ    Z3, Z0, Z2    // t = z + p (wraps back to [0,p) on underflow)
-	VPMINUQ   Z0, Z2, Z0   // z = min(z, t); picks corrected value on underflow
+	VPSUBQ    Z1, Z0, Z0 // z = a - b (wraps if a < b)
+	VPADDQ    Z3, Z0, Z2 // t = z + p (wraps back to [0,p) on underflow)
+	VPMINUQ   Z0, Z2, Z0 // z = min(z, t); picks corrected value on underflow
 	VMOVDQU64 Z0, 0(CX)
 
 	ADDQ $64, R14
@@ -86,49 +86,50 @@ done_4:
 // Inputs must be in canonical form [0, p).  Output is canonical.
 TEXT ·mulVec(SB), NOSPLIT, $0-32
 	MOVQ         $const_q, AX
-	VPBROADCASTQ AX, Z16           // Z16 = broadcast(p)
+	VPBROADCASTQ AX, Z16            // Z16 = broadcast(p)
 	MOVQ         $const_qInvNeg, AX
-	VPBROADCASTQ AX, Z17           // Z17 = broadcast(-p^{-1} mod 2^52)
+	VPBROADCASTQ AX, Z17            // Z17 = broadcast(-p^{-1} mod 2^52)
 	MOVQ         res+0(FP), CX
 	MOVQ         a+8(FP), R14
 	MOVQ         b+16(FP), DX
 	MOVQ         n+24(FP), BX
 
 loop_5:
-	TESTQ     BX, BX
-	JEQ       done_6
-	DECQ      BX
+	TESTQ BX, BX
+	JEQ   done_6
+	DECQ  BX
 
-	VMOVDQU64 0(R14), Z0           // a[0..7]
-	VMOVDQU64 0(DX), Z1            // b[0..7]
+	VMOVDQU64 0(R14), Z0 // a[0..7]
+	VMOVDQU64 0(DX), Z1  // b[0..7]
 
 	// c₀ = a·b mod 2^52
-	VPXORQ       Z2, Z2, Z2
-	VPMADD52LUQ  Z1, Z0, Z2       // Z2 = c₀
+	VPXORQ      Z2, Z2, Z2
+	VPMADD52LUQ Z1, Z0, Z2 // Z2 = c₀
 
 	// c₁ = p + floor(a·b / 2^52)
-	VMOVDQA64    Z16, Z3
-	VPMADD52HUQ  Z1, Z0, Z3       // Z3 = p + t
+	VMOVDQA64   Z16, Z3
+	VPMADD52HUQ Z1, Z0, Z3 // Z3 = p + t
 
 	// m₀ = c₀ · (-p^{-1}) mod 2^52
-	VPXORQ       Z4, Z4, Z4
-	VPMADD52LUQ  Z17, Z2, Z4      // Z4 = m₀
+	VPXORQ      Z4, Z4, Z4
+	VPMADD52LUQ Z17, Z2, Z4 // Z4 = m₀
 
 	// Z2 = c₀ + low52(m₀·p) ∈ {0, R=2^52} (for carry extraction)
-	VPMADD52LUQ  Z16, Z4, Z2      // Z2 += low52(m₀ · p)
+	VPMADD52LUQ Z16, Z4, Z2 // Z2 += low52(m₀ · p)
 
 	// c₁ += floor(m₀·p / 2^52)
-	VPMADD52HUQ  Z16, Z4, Z3      // Z3 = p + t + qVal
+	VPMADD52HUQ Z16, Z4, Z3 // Z3 = p + t + qVal
 
 	// carry = Z2 >> 52 ∈ {0, 1}
-	VPSRLQ       $52, Z2, Z2
-	VPADDQ       Z2, Z3, Z0       // Z0 = p + t + qVal + carry
+	VPSRLQ $52, Z2, Z2
+	VPADDQ Z2, Z3, Z0  // Z0 = p + t + qVal + carry
 
 	// Unconditional subtract (removes the initial p): Z0 ∈ [0, 9p/8)
-	VPSUBQ       Z16, Z0, Z0
+	VPSUBQ Z16, Z0, Z0
+
 	// Conditional subtract: Z2 = Z0 - p (wraps if Z0 < p); pick min
-	VPSUBQ       Z16, Z0, Z2
-	VPMINUQ      Z0, Z2, Z0      // Z0 ∈ [0, p)
+	VPSUBQ  Z16, Z0, Z2
+	VPMINUQ Z0, Z2, Z0  // Z0 ∈ [0, p)
 
 	VMOVDQU64 Z0, 0(CX)
 
@@ -151,32 +152,32 @@ TEXT ·scalarMulVec(SB), NOSPLIT, $0-32
 	MOVQ         a+8(FP), R14
 	MOVQ         b+16(FP), DX
 	MOVQ         n+24(FP), BX
-	VPBROADCASTQ 0(DX), Z1         // Z1 = broadcast(*b)
+	VPBROADCASTQ 0(DX), Z1          // Z1 = broadcast(*b)
 
 loop_7:
-	TESTQ     BX, BX
-	JEQ       done_8
-	DECQ      BX
+	TESTQ BX, BX
+	JEQ   done_8
+	DECQ  BX
 
-	VMOVDQU64    0(R14), Z0
+	VMOVDQU64 0(R14), Z0
 
-	VPXORQ       Z2, Z2, Z2
-	VPMADD52LUQ  Z1, Z0, Z2       // c₀
+	VPXORQ      Z2, Z2, Z2
+	VPMADD52LUQ Z1, Z0, Z2 // c₀
 
-	VMOVDQA64    Z16, Z3
-	VPMADD52HUQ  Z1, Z0, Z3       // p + t
+	VMOVDQA64   Z16, Z3
+	VPMADD52HUQ Z1, Z0, Z3 // p + t
 
-	VPXORQ       Z4, Z4, Z4
-	VPMADD52LUQ  Z17, Z2, Z4      // m₀
+	VPXORQ      Z4, Z4, Z4
+	VPMADD52LUQ Z17, Z2, Z4 // m₀
 
-	VPMADD52LUQ  Z16, Z4, Z2      // Z2 = c₀ + low52(m₀·p) ∈ {0, R}
-	VPMADD52HUQ  Z16, Z4, Z3      // Z3 = p + t + qVal
+	VPMADD52LUQ Z16, Z4, Z2 // Z2 = c₀ + low52(m₀·p) ∈ {0, R}
+	VPMADD52HUQ Z16, Z4, Z3 // Z3 = p + t + qVal
 
-	VPSRLQ       $52, Z2, Z2      // carry
-	VPADDQ       Z2, Z3, Z0       // p + t + qVal + carry
-	VPSUBQ       Z16, Z0, Z0      // t + qVal + carry ∈ [0, 9p/8)
-	VPSUBQ       Z16, Z0, Z2      // tentative second subtract
-	VPMINUQ      Z0, Z2, Z0      // conditional: Z0 ∈ [0, p)
+	VPSRLQ  $52, Z2, Z2 // carry
+	VPADDQ  Z2, Z3, Z0  // p + t + qVal + carry
+	VPSUBQ  Z16, Z0, Z0 // t + qVal + carry ∈ [0, 9p/8)
+	VPSUBQ  Z16, Z0, Z2 // tentative second subtract
+	VPMINUQ Z0, Z2, Z0  // conditional: Z0 ∈ [0, p)
 
 	VMOVDQU64 Z0, 0(CX)
 
@@ -194,7 +195,7 @@ TEXT ·sumVec(SB), NOSPLIT, $0-24
 	MOVQ      t+0(FP), R14
 	MOVQ      a+8(FP), R13
 	MOVQ      n+16(FP), CX
-	VMOVDQU64 0(R14), Z0           // load existing accumulator
+	VMOVDQU64 0(R14), Z0   // load existing accumulator
 
 loop_9:
 	TESTQ     CX, CX
@@ -223,35 +224,35 @@ TEXT ·innerProdVec(SB), NOSPLIT, $0-32
 	MOVQ         a+8(FP), R13
 	MOVQ         b+16(FP), DX
 	MOVQ         n+24(FP), BX
-	VMOVDQU64    0(R14), Z0        // load existing accumulator
+	VMOVDQU64    0(R14), Z0         // load existing accumulator
 
 loop_11:
-	TESTQ     BX, BX
-	JEQ       done_12
-	DECQ      BX
+	TESTQ BX, BX
+	JEQ   done_12
+	DECQ  BX
 
-	VMOVDQU64    0(R13), Z1
-	VMOVDQU64    0(DX), Z2
+	VMOVDQU64 0(R13), Z1
+	VMOVDQU64 0(DX), Z2
 
-	VPXORQ       Z3, Z3, Z3
-	VPMADD52LUQ  Z2, Z1, Z3       // c₀
+	VPXORQ      Z3, Z3, Z3
+	VPMADD52LUQ Z2, Z1, Z3 // c₀
 
-	VMOVDQA64    Z16, Z4
-	VPMADD52HUQ  Z2, Z1, Z4      // p + t
+	VMOVDQA64   Z16, Z4
+	VPMADD52HUQ Z2, Z1, Z4 // p + t
 
-	VPXORQ       Z5, Z5, Z5
-	VPMADD52LUQ  Z17, Z3, Z5     // m₀
+	VPXORQ      Z5, Z5, Z5
+	VPMADD52LUQ Z17, Z3, Z5 // m₀
 
-	VPMADD52LUQ  Z16, Z5, Z3     // Z3 = c₀ + low52(m₀·p) ∈ {0, R}
-	VPMADD52HUQ  Z16, Z5, Z4     // Z4 = p + t + qVal
+	VPMADD52LUQ Z16, Z5, Z3 // Z3 = c₀ + low52(m₀·p) ∈ {0, R}
+	VPMADD52HUQ Z16, Z5, Z4 // Z4 = p + t + qVal
 
-	VPSRLQ       $52, Z3, Z3     // carry
-	VPADDQ       Z3, Z4, Z3      // p + t + qVal + carry
-	VPSUBQ       Z16, Z3, Z3     // t + qVal + carry ∈ [0, 9p/8)
-	VPSUBQ       Z16, Z3, Z5     // tentative second subtract
-	VPMINUQ      Z3, Z5, Z3     // conditional: product ∈ [0, p)
+	VPSRLQ  $52, Z3, Z3 // carry
+	VPADDQ  Z3, Z4, Z3  // p + t + qVal + carry
+	VPSUBQ  Z16, Z3, Z3 // t + qVal + carry ∈ [0, 9p/8)
+	VPSUBQ  Z16, Z3, Z5 // tentative second subtract
+	VPMINUQ Z3, Z5, Z3  // conditional: product ∈ [0, p)
 
-	VPADDQ    Z3, Z0, Z0          // accumulate
+	VPADDQ Z3, Z0, Z0 // accumulate
 
 	ADDQ $64, R13
 	ADDQ $64, DX
