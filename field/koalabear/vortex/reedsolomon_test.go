@@ -98,6 +98,8 @@ func TestReedSolomonProperty(t *testing.T) {
 	}
 
 	assert.True(params.IsReedSolomonCodewords(encodedVFext), "codeword does not pass rs check")
+	assert.False(params.IsReedSolomonCodewords(encodedVFext[:len(encodedVFext)-1]), "short codeword must be rejected")
+	assert.False(params.IsReedSolomonCodewords(append(encodedVFext, fext.E4{})), "oversized codeword must be rejected")
 
 	y0, err := EvalBasePolyLagrange(v, randX)
 	assert.NoError(err)
