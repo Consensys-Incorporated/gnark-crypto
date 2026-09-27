@@ -341,7 +341,7 @@ func Test{{ $.TAffine }}Serialization(t *testing.T) {
 			}
 		}
 		{{- if ge $.FpUnusedBits 3}}
-		// point (0,0) wtithout infinity bit set should be rejected
+		// point (0,0) without infinity bit set should be rejected
 		{
 			var p {{ $.TAffine }}
 			var buf [SizeOf{{ $.TAffine }}Uncompressed]byte
