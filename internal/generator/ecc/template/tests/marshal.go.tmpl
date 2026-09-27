@@ -340,6 +340,16 @@ func Test{{ $.TAffine }}Serialization(t *testing.T) {
 				t.Fatal("deserialization of uncompressed infinity point is not infinity")
 			}
 		}
+		{{- if ge $.FpUnusedBits 3}}
+		// point (0,0) wtithout infinity bit set should be rejected
+		{
+			var p {{ $.TAffine }}
+			var buf [SizeOf{{ $.TAffine }}Uncompressed]byte
+			if _, err := p.SetBytes(buf[:]); err != ErrInvalidEncoding {
+				t.Fatal("all-zero uncompressed buffer should be rejected, got", err)
+			}
+		}
+		{{- end}}
 	}
 
 	parameters := gopter.DefaultTestParameters()

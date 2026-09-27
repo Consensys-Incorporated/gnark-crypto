@@ -289,6 +289,14 @@ func TestG1AffineSerialization(t *testing.T) {
 				t.Fatal("deserialization of uncompressed infinity point is not infinity")
 			}
 		}
+		// point (0,0) wtithout infinity bit set should be rejected
+		{
+			var p G1Affine
+			var buf [SizeOfG1AffineUncompressed]byte
+			if _, err := p.SetBytes(buf[:]); err != ErrInvalidEncoding {
+				t.Fatal("all-zero uncompressed buffer should be rejected, got", err)
+			}
+		}
 	}
 
 	parameters := gopter.DefaultTestParameters()
@@ -400,6 +408,14 @@ func TestG2AffineSerialization(t *testing.T) {
 			}
 			if !(p2.X.IsZero() && p2.Y.IsZero()) { // nolint QF1001
 				t.Fatal("deserialization of uncompressed infinity point is not infinity")
+			}
+		}
+		// point (0,0) wtithout infinity bit set should be rejected
+		{
+			var p G2Affine
+			var buf [SizeOfG2AffineUncompressed]byte
+			if _, err := p.SetBytes(buf[:]); err != ErrInvalidEncoding {
+				t.Fatal("all-zero uncompressed buffer should be rejected, got", err)
 			}
 		}
 	}

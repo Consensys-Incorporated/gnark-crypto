@@ -995,6 +995,12 @@ func (p *{{ $.TAffine }}) setBytes(buf []byte, subGroupCheck bool) (int, error) 
 
 	// uncompressed point
 	if mData == mUncompressed {
+		{{- if ge .all.FpUnusedBits 3}}
+			// (0,0) is the in-memory sentinel for the point at infinity and is not on the curve.
+			if isZeroed(buf[0] & ^mMask, buf[1:SizeOf{{ $.TAffine }}Uncompressed]) {
+					return 0, ErrInvalidEncoding
+			}
+		{{- end}}
 		// read X and Y coordinates
 		{{- if eq $.CoordType "fptower.E2"}}
 			// p.X.A1 | p.X.A0
