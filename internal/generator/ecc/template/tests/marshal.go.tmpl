@@ -14,6 +14,9 @@ import (
 	"bytes"
 	"io"
 	"reflect"
+	{{- if ge .FpUnusedBits 3}}
+	"errors"
+	{{- end}}
 
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/prop"
@@ -345,7 +348,7 @@ func Test{{ $.TAffine }}Serialization(t *testing.T) {
 		{
 			var p {{ $.TAffine }}
 			var buf [SizeOf{{ $.TAffine }}Uncompressed]byte
-			if _, err := p.SetBytes(buf[:]); err != ErrInvalidEncoding {
+			if _, err := p.SetBytes(buf[:]); !errors.Is(err, ErrInvalidEncoding) {
 				t.Fatal("all-zero uncompressed buffer should be rejected, got", err)
 			}
 		}

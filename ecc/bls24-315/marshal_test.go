@@ -8,6 +8,7 @@ package bls24315
 import (
 	"bytes"
 	crand "crypto/rand"
+	"errors"
 	"io"
 	"math/big"
 	"math/rand/v2"
@@ -289,11 +290,11 @@ func TestG1AffineSerialization(t *testing.T) {
 				t.Fatal("deserialization of uncompressed infinity point is not infinity")
 			}
 		}
-		// point (0,0) wtithout infinity bit set should be rejected
+		// point (0,0) without infinity bit set should be rejected
 		{
 			var p G1Affine
 			var buf [SizeOfG1AffineUncompressed]byte
-			if _, err := p.SetBytes(buf[:]); err != ErrInvalidEncoding {
+			if _, err := p.SetBytes(buf[:]); !errors.Is(err, ErrInvalidEncoding) {
 				t.Fatal("all-zero uncompressed buffer should be rejected, got", err)
 			}
 		}
@@ -410,11 +411,11 @@ func TestG2AffineSerialization(t *testing.T) {
 				t.Fatal("deserialization of uncompressed infinity point is not infinity")
 			}
 		}
-		// point (0,0) wtithout infinity bit set should be rejected
+		// point (0,0) without infinity bit set should be rejected
 		{
 			var p G2Affine
 			var buf [SizeOfG2AffineUncompressed]byte
-			if _, err := p.SetBytes(buf[:]); err != ErrInvalidEncoding {
+			if _, err := p.SetBytes(buf[:]); !errors.Is(err, ErrInvalidEncoding) {
 				t.Fatal("all-zero uncompressed buffer should be rejected, got", err)
 			}
 		}
