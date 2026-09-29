@@ -205,15 +205,28 @@ func (h *Permutation) matMulExternalInPlace(input []fr.Element) {
 	}
 }
 
+// sumState returns the sum of the state elements.
+//
+// Each element is < q < 2^49 and the state is at most 24 wide, so the raw
+// accumulation is < 24·2^49 < 2^54 and cannot overflow a uint64. Reducing once
+// at the end is cheaper than the conditional subtract fr.Add performs per
+// element.
+func sumState(input []fr.Element) fr.Element {
+	var acc uint64
+	for i := range input {
+		acc += input[i][0]
+	}
+	var sum fr.Element
+	sum[0] = fr.ReduceFast(fr.ReduceFast(acc))
+	fr.ConSubP(&sum)
+	return sum
+}
+
 // when Width = 0 mod 4 the matrix is filled with ones except on the diagonal
 func (h *Permutation) matMulInternalInPlace(input []fr.Element) {
 	switch h.params.Width {
 	case 16:
-		var sum fr.Element
-		sum.Set(&input[0])
-		for i := 1; i < h.params.Width; i++ {
-			sum.Add(&sum, &input[i])
-		}
+		sum := sumState(input[:h.params.Width])
 		// mul by diag16:
 		// [-2, 1, 2, 1/2, 3, 4, -1/2, -3, -4, 1/2^8, 1/8, 1/2^24, -1/2^8, -1/8, -1/16, -1/2^24]
 		var temp fr.Element
@@ -236,11 +249,7 @@ func (h *Permutation) matMulInternalInPlace(input []fr.Element) {
 		input[14].Sub(&sum, temp.Mul2ExpNegN(&input[14], 4))
 		input[15].Sub(&sum, temp.Mul2ExpNegN(&input[15], 24))
 	case 24:
-		var sum fr.Element
-		sum.Set(&input[0])
-		for i := 1; i < h.params.Width; i++ {
-			sum.Add(&sum, &input[i])
-		}
+		sum := sumState(input[:h.params.Width])
 		// mul by diag24:
 		// [-2, 1, 2, 1/2, 3, 4, -1/2, -3, -4, 1/2^8, 1/4, 1/8, 1/16, 1/32, 1/64, 1/2^24, -1/2^8, -1/8, -1/16, -1/32, -1/64, -1/2^7, -1/2^9, -1/2^24]
 		var temp fr.Element
