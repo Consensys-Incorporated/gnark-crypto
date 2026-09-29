@@ -31,6 +31,7 @@ func TestReviewKernelWindowDispatch(t *testing.T) {
 	if !cpu.SupportAVX512IFMA {
 		t.Skip("AVX-512IFMA absent: asm kernels not exercised")
 	}
+	// #nosec G404 -- test case generation does not require a cryptographic PRNG
 	rng := rand.New(rand.NewPCG(42, 43))
 
 	for _, m := range []int{8, 16, 32, 64} {
@@ -83,6 +84,7 @@ func TestReviewKernelWindowDispatch(t *testing.T) {
 // results for different task counts — the failure mode of the start-window
 // bug was overlapping writes under parallel.Execute.
 func TestReviewFFTNbTasksDeterminism(t *testing.T) {
+	// #nosec G404 -- test case generation does not require a cryptographic PRNG
 	rng := rand.New(rand.NewPCG(7, 7))
 	for _, logN := range []uint64{3, 4, 5, 8, 10, 12, 14} {
 		n := uint64(1) << logN

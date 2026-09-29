@@ -56,6 +56,7 @@ func TestReviewVectorKernelsVsGeneric(t *testing.T) {
 	if !cpu.SupportAVX512IFMA {
 		t.Skip("AVX-512IFMA absent: asm kernels not exercised")
 	}
+	// #nosec G404 -- test case generation does not require a cryptographic PRNG
 	rng := rand.New(rand.NewPCG(0xdeadbeef, 0xcafef00d))
 	edges := ifmaEdgeElements()
 
@@ -98,7 +99,7 @@ func TestReviewVectorKernelsVsGeneric(t *testing.T) {
 			}
 			check(op+"-edges", gotAsm, gotGen)
 		}
-		var bScalar Element = b8[0]
+		bScalar := b8[0]
 		gotAsm := make(Vector, 8)
 		gotGen := make(Vector, 8)
 		scalarMulVec(&gotAsm[0], &a8[0], &bScalar, 1)
@@ -110,8 +111,7 @@ func TestReviewVectorKernelsVsGeneric(t *testing.T) {
 	for _, n := range sizes {
 		a := randVector(rng, n)
 		b := randVector(rng, n)
-		var scalar Element
-		scalar = randCanonical(rng)
+		scalar := randCanonical(rng)
 
 		got := make(Vector, n)
 		want := make(Vector, n)
@@ -167,6 +167,7 @@ func TestReviewSumChunkBoundary(t *testing.T) {
 	if !cpu.SupportAVX512IFMA {
 		t.Skip("AVX-512IFMA absent: asm kernels not exercised")
 	}
+	// #nosec G404 -- test case generation does not require a cryptographic PRNG
 	rng := rand.New(rand.NewPCG(1, 2))
 	base := maxSumBlocks * blockSize // 65536
 	for _, n := range []int{base - 1, base, base + 1, 2*base + 7, 2*base + 8, 3*base + 5} {
@@ -198,6 +199,7 @@ func FuzzReviewVectorOps(f *testing.F) {
 			t.Skip("AVX-512IFMA absent")
 		}
 		n := int(nRaw % 3000)
+		// #nosec G404 -- test case generation does not require a cryptographic PRNG
 		rng := rand.New(rand.NewPCG(seed, seed^0x9e3779b9))
 		a := randVector(rng, n)
 		b := randVector(rng, n)
