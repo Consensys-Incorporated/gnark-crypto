@@ -120,6 +120,131 @@ func TestFflonk(t *testing.T) {
 
 }
 
+// TestBatchVerifyMalformedShape checks that BatchVerify rejects proofs whose
+// dimensions are inconsistent instead of panicking with an index out of range.
+// All of these shapes are reachable from deserialised, attacker supplied data.
+func TestBatchVerifyMalformedShape(t *testing.T) {
+
+	assert := require.New(t)
+
+	// build one valid proof, then deform it in various ways
+	nbSets := 3
+	p := make([][][]fr.Element, nbSets)
+	for i := range nbSets {
+		nbPolysInSet := 4
+		p[i] = make([][]fr.Element, nbPolysInSet)
+		for j := range nbPolysInSet {
+			curSizePoly := j + 10
+			p[i][j] = make([]fr.Element, curSizePoly)
+			for k := range curSizePoly {
+				p[i][j][k].MustSetRandom()
+			}
+		}
+	}
+
+	x := make([][]fr.Element, nbSets)
+	for i := range nbSets {
+		curSetSize := i + 4
+		x[i] = make([]fr.Element, curSetSize)
+		for j := range curSetSize {
+			x[i][j].MustSetRandom()
+		}
+	}
+
+	digests := make([]kzg.Digest, nbSets)
+	var err error
+	for i := range nbSets {
+		digests[i], err = FoldAndCommit(p[i], testSrs.Pk)
+		assert.NoError(err)
+	}
+
+	hf := sha256.New()
+	validProof, err := BatchOpen(p, digests, x, hf, testSrs.Pk)
+	assert.NoError(err)
+	assert.NoError(BatchVerify(validProof, digests, x, hf, testSrs.Vk))
+
+	// deep copy so that each subtest starts from the valid proof
+	cloneProof := func() OpeningProof {
+		var c OpeningProof
+		c.SOpeningProof.W = validProof.SOpeningProof.W
+		c.SOpeningProof.WPrime = validProof.SOpeningProof.WPrime
+		c.SOpeningProof.ClaimedValues = make([][]fr.Element, len(validProof.SOpeningProof.ClaimedValues))
+		for i := range c.SOpeningProof.ClaimedValues {
+			c.SOpeningProof.ClaimedValues[i] = append([]fr.Element{}, validProof.SOpeningProof.ClaimedValues[i]...)
+		}
+		c.ClaimedValues = make([][][]fr.Element, len(validProof.ClaimedValues))
+		for i := range c.ClaimedValues {
+			c.ClaimedValues[i] = make([][]fr.Element, len(validProof.ClaimedValues[i]))
+			for j := range c.ClaimedValues[i] {
+				c.ClaimedValues[i][j] = append([]fr.Element{}, validProof.ClaimedValues[i][j]...)
+			}
+		}
+		return c
+	}
+	clonePoints := func() [][]fr.Element {
+		c := make([][]fr.Element, len(x))
+		for i := range x {
+			c[i] = append([]fr.Element{}, x[i]...)
+		}
+		return c
+	}
+
+	testCases := []struct {
+		name   string
+		deform func(proof *OpeningProof, digests *[]kzg.Digest, points *[][]fr.Element)
+	}{
+		{
+			name: "empty pack in ClaimedValues",
+			deform: func(proof *OpeningProof, _ *[]kzg.Digest, _ *[][]fr.Element) {
+				proof.ClaimedValues[0] = nil
+			},
+		},
+		{
+			name: "SOpeningProof.ClaimedValues shorter than ClaimedValues",
+			deform: func(proof *OpeningProof, _ *[]kzg.Digest, _ *[][]fr.Element) {
+				proof.SOpeningProof.ClaimedValues = proof.SOpeningProof.ClaimedValues[:len(proof.SOpeningProof.ClaimedValues)-1]
+			},
+		},
+		{
+			name: "points row shorter than the claimed row",
+			deform: func(_ *OpeningProof, _ *[]kzg.Digest, points *[][]fr.Element) {
+				(*points)[0] = (*points)[0][:len((*points)[0])-1]
+			},
+		},
+		{
+			name: "points longer than ClaimedValues",
+			deform: func(proof *OpeningProof, _ *[]kzg.Digest, _ *[][]fr.Element) {
+				proof.ClaimedValues = proof.ClaimedValues[:len(proof.ClaimedValues)-1]
+			},
+		},
+		{
+			name: "digests shorter than points",
+			deform: func(_ *OpeningProof, digests *[]kzg.Digest, _ *[][]fr.Element) {
+				*digests = (*digests)[:len(*digests)-1]
+			},
+		},
+		{
+			name: "inconsistent row sizes within a pack",
+			deform: func(proof *OpeningProof, _ *[]kzg.Digest, _ *[][]fr.Element) {
+				proof.ClaimedValues[0][1] = proof.ClaimedValues[0][1][:len(proof.ClaimedValues[0][1])-1]
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			proof := cloneProof()
+			points := clonePoints()
+			ds := append([]kzg.Digest{}, digests...)
+			tc.deform(&proof, &ds, &points)
+
+			// must return an error, and in particular must not panic
+			err := BatchVerify(proof, ds, points, sha256.New(), testSrs.Vk)
+			require.Error(t, err)
+		})
+	}
+}
+
 func TestCommit(t *testing.T) {
 
 	assert := require.New(t)
