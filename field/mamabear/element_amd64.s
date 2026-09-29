@@ -219,7 +219,10 @@ done_10:
 
 // innerProdVec(t *uint64, a, b *Element, n uint64)
 // Accumulates into t[0..7]: t[i] += sum_j a[j*8+i] * b[j*8+i] * R^{-1} mod p.
-// Each Montgomery product is reduced to [0, p) before accumulation.
+// Products are accumulated lazily in [0, 9p/8): the conditional subtract that
+// would make each one canonical is skipped, since the accumulator does not need
+// canonical summands. 9p/8 < 2^49.17, so the caller's chunk bound still holds:
+// 2^13 blocks × 9p/8 < 2^13 × 2^49.17 = 2^62.2 < 2^64.
 // Caller must ensure accumulated values do not exceed 2^64 (use chunk-and-reduce).
 TEXT ·innerProdVec(SB), NOSPLIT, $0-32
 	MOVQ         $const_q, AX
@@ -252,11 +255,9 @@ loop_11:
 	VPMADD52LUQ Z16, Z5, Z3 // Z3 = c₀ + low52(m₀·p) ∈ {0, R}
 	VPMADD52HUQ Z16, Z5, Z4 // Z4 = p + t + qVal
 
-	VPSRLQ  $52, Z3, Z3 // carry
-	VPADDQ  Z3, Z4, Z3  // p + t + qVal + carry
-	VPSUBQ  Z16, Z3, Z3 // t + qVal + carry ∈ [0, 9p/8)
-	VPSUBQ  Z16, Z3, Z5 // tentative second subtract
-	VPMINUQ Z3, Z5, Z3  // conditional: product ∈ [0, p)
+	VPSRLQ $52, Z3, Z3 // carry
+	VPADDQ Z3, Z4, Z3  // p + t + qVal + carry
+	VPSUBQ Z16, Z3, Z3 // lazy product ∈ [0, 9p/8)
 
 	VPADDQ Z3, Z0, Z0 // accumulate
 

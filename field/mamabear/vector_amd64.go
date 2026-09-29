@@ -32,8 +32,25 @@ func innerProdVec(t *uint64, a, b *Element, n uint64)
 const blockSize = 8
 
 // maxSumBlocks is the largest number of 8-element blocks that can be accumulated
-// per lane before 64-bit overflow. Each element < p < 2^49; 2^14 × 2^49 = 2^63 < 2^64.
+// per lane before 64-bit overflow. For [Vector.Sum] each summand is < p < 2^49,
+// so 2^13 × 2^49 = 2^62 < 2^64. For [Vector.InnerProduct] the kernel accumulates
+// lazily and each summand is < 9p/8 < 2^49.17, so 2^13 × 2^49.17 = 2^62.2 < 2^64.
 const maxSumBlocks = 1 << 13
+
+// reduceLanes reduces a per-lane accumulator (each lane < 2^63) into res.
+//
+// Two [ReduceFast] steps suffice: the first brings a lane below 2^49 + 2^48, the
+// second below 2^49 + 2^34 − 1 < 2q, and a single [ConSubP] makes it canonical.
+// A lane is a sum of Montgomery-form residues, so reducing it mod q keeps the
+// shared R-scaling.
+func reduceLanes(res *Element, t *[blockSize]uint64) {
+	var v Element
+	for i := range blockSize {
+		v[0] = ReduceFast(ReduceFast(t[i]))
+		ConSubP(&v)
+		res.Add(res, &v)
+	}
+}
 
 // Add adds two vectors element-wise and stores the result in self.
 // It panics if the vectors don't have the same length.
@@ -111,7 +128,6 @@ func (vector *Vector) Sum() (res Element) {
 	// Process in chunks to prevent 64-bit accumulator overflow.
 	// Each element < p < 2^49; per lane, maxSumBlocks × 2^49 < 2^63 < 2^64.
 	var t [blockSize]uint64
-	var v Element
 	fullBlocks := n / blockSize
 	for start := uint64(0); start < fullBlocks; {
 		chunk := fullBlocks - start
@@ -123,10 +139,7 @@ func (vector *Vector) Sum() (res Element) {
 			t[i] = 0
 		}
 		sumVec(&t[0], &(*vector)[start*blockSize], chunk)
-		for i := range blockSize {
-			v[0] = t[i] % q
-			res.Add(&res, &v)
-		}
+		reduceLanes(&res, &t)
 		start += chunk
 	}
 	if n%blockSize != 0 {
@@ -152,7 +165,6 @@ func (vector *Vector) InnerProduct(other Vector) (res Element) {
 	}
 	// Chunk-and-reduce to prevent 64-bit accumulator overflow.
 	var t [blockSize]uint64
-	var v Element
 	fullBlocks := n / blockSize
 	for start := uint64(0); start < fullBlocks; {
 		chunk := fullBlocks - start
@@ -163,10 +175,7 @@ func (vector *Vector) InnerProduct(other Vector) (res Element) {
 			t[i] = 0
 		}
 		innerProdVec(&t[0], &(*vector)[start*blockSize], &other[start*blockSize], chunk)
-		for i := range blockSize {
-			v[0] = t[i] % q
-			res.Add(&res, &v)
-		}
+		reduceLanes(&res, &t)
 		start += chunk
 	}
 	if n%blockSize != 0 {
