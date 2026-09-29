@@ -504,16 +504,40 @@ func LazyAdd(z, x, y *Element) {
 	z[0] = x[0] + y[0]
 }
 
-// LazyMul returns x·y·R⁻¹ mod q without the final conditional subtract, so the
-// result is in [0, 9q/8) rather than [0, q).
+// LazySub returns x − y without reduction.
+//
+// The caller must ensure x >= y, typically by first adding a multiple of q with
+// [LazyAddXP] large enough to cover the subtrahend's upper bound.
+func LazySub(z, x, y *Element) {
+	z[0] = x[0] - y[0]
+}
+
+// LazyAddXP returns x + k·q, which is congruent to x and at least k·q.
+//
+// It is used ahead of [LazySub] to keep a lazy difference non-negative: choose k
+// so that k·q is at least the upper bound of everything being subtracted. The
+// caller owns the resulting bound and must keep x + k·q within a uint64.
+func LazyAddXP(z, x *Element, k uint64) {
+	z[0] = x[0] + k*q
+}
+
+// LazyMul returns x·y·R⁻¹ mod q without the final conditional subtract.
 //
 // It is the counterpart of [LazyAdd] for products: accumulating several of them
 // in a uint64 and reducing once is cheaper than making each product canonical
-// first. Callers own the resulting bound — a sum of k such products is
-// < k·9q/8 — and must reduce before any operation that requires a canonical
-// value.
+// first.
 //
-// x and y must be less than q.
+// Unlike [Element.Mul] the inputs need not be canonical. Writing the
+// full product as c = x·y, if c < m·q² then the result is < (m·q/R + 1)·q. Since
+// R = 2^52 ≈ 8q this gives, for the cases that matter:
+//
+//	x, y < q   (m = 1)  →  result < 9q/8
+//	x, y < 2q  (m = 4)  →  result < 3q/2
+//	x, y < R   	       →  result < R + q
+//
+// so a lazy sum feeding straight into a multiply costs at most one extra
+// [ConSubP] afterwards, rather than a reduction beforehand. Callers own the
+// bound and must reduce before any operation that requires a canonical value.
 func LazyMul(x, y *Element) uint64 {
 	return montMul(x[0], y[0])
 }
@@ -522,6 +546,16 @@ func LazyMul(x, y *Element) uint64 {
 func ConSubP(z *Element) {
 	if z[0] >= q {
 		z[0] -= q
+	}
+}
+
+// ConSubXP performs z = min(z, z − k·q), i.e. a conditional subtract of k·q.
+//
+// It tightens a lazy value's range by k·q in one step; [ConSubP] is the k = 1
+// case. k·q must not overflow a uint64.
+func ConSubXP(z *Element, k uint64) {
+	if kq := k * q; z[0] >= kq {
+		z[0] -= kq
 	}
 }
 

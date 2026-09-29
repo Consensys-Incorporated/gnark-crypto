@@ -141,17 +141,16 @@ func (z *E3) MulByNonResidue(x *E3) *E3 {
 // own copy unexported, and the lazy reduction below works on raw limbs.
 const q = uint64({{.Q}})
 
-// reduceSparse reduces x ∈ [0, 6q) to [0, q) using the sparse form of the modulus.
+// reduceSparse reduces x ∈ [0, 2^63) to [0, q) using the sparse form of the modulus.
 //
 // Since q = 2^{{.PHiBit}} − 2^{{.PLoBit}} + 1 we have 2^{{.PHiBit}} ≡ 2^{{.PLoBit}} − 1 (mod q), so writing
 // x = xLo + xHi·2^{{.PHiBit}},
 //
 //	y = xLo + xHi·(2^{{.PLoBit}}−1) ≡ xLo + xHi·2^{{.PHiBit}} − xHi·q ≡ x (mod q).
 //
-// For x < 6q we have xHi ≤ 5, so y < 2^{{.PHiBit}} + 5·2^{{.PLoBit}} < 2q and one
-// conditional subtract suffices. Callers must respect the [0, 6q) bound: the
-// schoolbook routines below accumulate at most five [fr.LazyMul] products, each
-// < 9q/8, for a sum < 5·9q/8 = 5.625q.
+// For x < 2^63 we have xHi < 2^14, so y < 2^{{.PHiBit}} + 2^48 < 2q and one conditional
+// subtract suffices. Every routine below stays far inside that: the widest
+// accumulation is the Karatsuba c1 at < 7q ≈ 2^51.8.
 func reduceSparse(x uint64) uint64 {
 	xHi := x >> {{.PHiBit}}
 	y := (x & ((1 << {{.PHiBit}}) - 1)) + (xHi<<{{.PLoBit}} - xHi)
@@ -224,6 +223,20 @@ func (z *E3) squareSchoolbook(x *E3) *E3 {
 //	c0 = a0·b0 + a1·b2 + a2·b1
 //	c1 = a0·b1 + a1·b0 + a1·b2 + a2·b1 + a2·b2
 //	c2 = a0·b2 + a1·b1 + a2·b0 + a2·b2
+// The six products are formed with [fr.LazyMul]. The three cross terms take
+// [fr.LazyAdd] sums as operands, which are only < 2q rather than canonical; the
+// relaxed LazyMul contract covers that, at the cost of a slightly wider output:
+//
+//	t0, t1, t2  canonical operands  → < 9q/8
+//	t3, t4, t5  operands < 2q       → < 3q/2
+//
+// Each coefficient then adds a multiple of q large enough to cover everything
+// subtracted from it, so the difference never underflows, and one reduceSparse
+// finishes the job:
+//
+//	c0 = t0+t3 +3q −t1−t2    subtrahend < 2.25q  → in [0, 5.625q)
+//	c1 = t4+t3 +4q −t0−2·t1  subtrahend < 3.375q → in [0, 7q)
+//	c2 = t5+t1 +2q −t0       subtrahend < 9q/8   → in [0, 4.625q)
 func (z *E3) mulKaratsuba(x, y *E3) *E3 {
 	// t0 = a0·b0, t1 = a1·b1, t2 = a2·b2
 	// t3 = (a1+a2)·(b1+b2), t4 = (a0+a1)·(b0+b1), t5 = (a0+a2)·(b0+b2)
@@ -231,36 +244,37 @@ func (z *E3) mulKaratsuba(x, y *E3) *E3 {
 	// c0 = t0 + (t3 - t1 - t2)
 	// c1 = t4 + t3 - t0 - 2·t1
 	// c2 = t5 + t1 - t0
-	var t0, t1, t2, t3, t4, t5, tmp fr.Element
+	var sa, sb fr.Element
 
-	t0.Mul(&x.A0, &y.A0)
-	t1.Mul(&x.A1, &y.A1)
-	t2.Mul(&x.A2, &y.A2)
+	t0 := fr.LazyMul(&x.A0, &y.A0)
+	t1 := fr.LazyMul(&x.A1, &y.A1)
+	t2 := fr.LazyMul(&x.A2, &y.A2)
 
-	tmp.Add(&x.A1, &x.A2)
-	t3.Add(&y.A1, &y.A2)
-	t3.Mul(&t3, &tmp)
+	fr.LazyAdd(&sa, &x.A1, &x.A2)
+	fr.LazyAdd(&sb, &y.A1, &y.A2)
+	t3 := fr.LazyMul(&sa, &sb)
 
-	tmp.Add(&x.A0, &x.A1)
-	t4.Add(&y.A0, &y.A1)
-	t4.Mul(&t4, &tmp)
+	fr.LazyAdd(&sa, &x.A0, &x.A1)
+	fr.LazyAdd(&sb, &y.A0, &y.A1)
+	t4 := fr.LazyMul(&sa, &sb)
 
-	tmp.Add(&x.A0, &x.A2)
-	t5.Add(&y.A0, &y.A2)
-	t5.Mul(&t5, &tmp)
+	fr.LazyAdd(&sa, &x.A0, &x.A2)
+	fr.LazyAdd(&sb, &y.A0, &y.A2)
+	t5 := fr.LazyMul(&sa, &sb)
 
-	// c0 = t0 + t3 - t1 - t2
-	z.A0.Add(&t0, &t3).Sub(&z.A0, &t1).Sub(&z.A0, &t2)
-	// c1 = t4 + t3 - t0 - 2·t1
-	tmp.Double(&t1)
-	z.A1.Add(&t4, &t3).Sub(&z.A1, &t0).Sub(&z.A1, &tmp)
-	// c2 = t5 + t1 - t0
-	z.A2.Add(&t5, &t1).Sub(&z.A2, &t0)
+	z.A0[0] = reduceSparse(t0 + t3 + 3*q - t1 - t2)
+	z.A1[0] = reduceSparse(t4 + t3 + 4*q - t0 - t1 - t1)
+	z.A2[0] = reduceSparse(t5 + t1 + 2*q - t0)
 
 	return z
 }
 
 // squareKaratsuba sets z to x * x using Karatsuba squaring (6 base-field squarings).
+//
+// Same lazy structure and the same coefficient bounds as [E3.mulKaratsuba].
+// It is kept for reference and is not what [E3.Square] dispatches to: at degree
+// 3 the six squarings do not pay for themselves against schoolbook's three
+// squarings plus three multiplications.
 func (z *E3) squareKaratsuba(x *E3) *E3 {
 	// t0 = a0², t1 = a1², t2 = a2²
 	// t3 = (a1+a2)², t4 = (a0+a1)², t5 = (a0+a2)²
@@ -268,35 +282,36 @@ func (z *E3) squareKaratsuba(x *E3) *E3 {
 	// c0 = t0 + t3 - t1 - t2
 	// c1 = t4 + t3 - t0 - 2·t1
 	// c2 = t5 + t1 - t0
-	var t0, t1, t2, t3, t4, t5, tmp fr.Element
+	var s fr.Element
 
-	t0.Square(&x.A0)
-	t1.Square(&x.A1)
-	t2.Square(&x.A2)
+	t0 := fr.LazyMul(&x.A0, &x.A0)
+	t1 := fr.LazyMul(&x.A1, &x.A1)
+	t2 := fr.LazyMul(&x.A2, &x.A2)
 
-	tmp.Add(&x.A1, &x.A2)
-	t3.Square(&tmp)
+	fr.LazyAdd(&s, &x.A1, &x.A2)
+	t3 := fr.LazyMul(&s, &s)
 
-	tmp.Add(&x.A0, &x.A1)
-	t4.Square(&tmp)
+	fr.LazyAdd(&s, &x.A0, &x.A1)
+	t4 := fr.LazyMul(&s, &s)
 
-	tmp.Add(&x.A0, &x.A2)
-	t5.Square(&tmp)
+	fr.LazyAdd(&s, &x.A0, &x.A2)
+	t5 := fr.LazyMul(&s, &s)
 
-	z.A0.Add(&t0, &t3).Sub(&z.A0, &t1).Sub(&z.A0, &t2)
-	tmp.Double(&t1)
-	z.A1.Add(&t4, &t3).Sub(&z.A1, &t0).Sub(&z.A1, &tmp)
-	z.A2.Add(&t5, &t1).Sub(&z.A2, &t0)
+	z.A0[0] = reduceSparse(t0 + t3 + 3*q - t1 - t2)
+	z.A1[0] = reduceSparse(t4 + t3 + 4*q - t0 - t1 - t1)
+	z.A2[0] = reduceSparse(t5 + t1 + 2*q - t0)
 
 	return z
 }
 
-// Mul sets z to x * y. Uses schoolbook multiplication: it costs 9 lazy products
-// against Karatsuba's 6, but reduces once per coefficient instead of carrying a
-// conditional subtract through every product and every intermediate add, which
-// measures faster for this field.
+// Mul sets z to x * y. Uses Karatsuba (6 multiplications); schoolbook costs 9.
+//
+// Both paths are lazy and reduce once per coefficient, so the comparison comes
+// down to product count and Karatsuba wins. This depends on the relaxed
+// [fr.LazyMul] contract: Karatsuba's cross terms multiply non-canonical sums,
+// and having to reduce those first is what made it lose to schoolbook before.
 func (z *E3) Mul(x, y *E3) *E3 {
-	return z.mulSchoolbook(x, y)
+	return z.mulKaratsuba(x, y)
 }
 
 // Square sets z to x * x. Uses schoolbook squaring (3 squarings + 3 multiplications),
