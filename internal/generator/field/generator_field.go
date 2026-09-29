@@ -131,6 +131,14 @@ func generateField(F *config.Field, outputDir, asmDirIncludePath, hashArm64, has
 		pureGoBuildTag = ""
 	}
 
+	if F.HandwrittenVectorASMAMD64 {
+		// The vector ops (and only those) have a hand-written amd64
+		// implementation that the generator does not emit; tag the purego file
+		// so the two don't collide. Note this deliberately does not touch
+		// pureGoBuildTag: the scalar montMul is pure Go on every platform.
+		pureGoVectorBuildTag = "purego || (!amd64)"
+	}
+
 	var g errgroup.Group
 
 	g.Go(generate("element.go", sourceFiles))

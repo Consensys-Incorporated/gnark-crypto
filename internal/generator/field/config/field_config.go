@@ -162,6 +162,18 @@ type Field struct {
 	GenerateVectorOpsAMD64 bool
 	GenerateVectorOpsARM64 bool
 
+	// HandwrittenVectorASMAMD64 marks a field whose amd64 vector and FFT
+	// kernels are hand-written rather than emitted by internal/generator/field/asm.
+	// The generator does not produce those files, but it still has to yield to
+	// them: the "purego" variants must carry a build tag so the two do not
+	// define the same symbols on amd64.
+	//
+	// True for mamabear only. Its kernels are AVX-512IFMA over a 52-bit
+	// Montgomery radix, which is neither of the two regimes the asm generator
+	// knows (single-word 31-bit, or multi-word word-aligned), so
+	// GenerateVectorOpsAMD64 is false for it and yet the .s files exist.
+	HandwrittenVectorASMAMD64 bool
+
 	ASMPackagePath string
 
 	// IFMA (AVX-512) specific constants for 4-word fields
@@ -663,6 +675,10 @@ func NewFieldConfig(packageName, elementName, modulus string, useAddChain bool, 
 	F.GenerateVectorOpsAMD64 = f31ASM || (F.GenerateOpsAMD64 && F.NbWords == 4 && F.NbBits > 226)
 	F.GenerateOpsARM64 = f31ASM || (F.GenerateOpsAMD64 && (F.NbWords%2 == 0))
 	F.GenerateVectorOpsARM64 = f31ASM
+
+	// A single-word field with a sub-word Montgomery radix ships hand-written
+	// AVX-512IFMA kernels; see HandwrittenVectorASMAMD64.
+	F.HandwrittenVectorASMAMD64 = F.NbWords == 1 && F.RadixSubWord
 
 	// setting Mu 2^288 / q
 	if F.GenerateVectorOpsAMD64 && F.NbWords == 4 {

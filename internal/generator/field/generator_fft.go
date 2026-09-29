@@ -60,6 +60,12 @@ func generateFFT(F *config.Field, fft *config.FFT, outputDir string) error {
 	if data.HasASMKernel {
 		pureGoBuildTag = "purego || (!amd64)"
 		data.Kernels = []int{8}
+	} else if F.HandwrittenVectorASMAMD64 {
+		// kernel_amd64.{go,s} are hand-written for this field rather than
+		// generated, so kernel_purego.go has to be tagged out on amd64. The
+		// kernel set stays {5, 8}: the hand-written file covers 256 with IFMA
+		// and delegates 32 to the generic path.
+		pureGoBuildTag = "purego || (!amd64)"
 	}
 
 	entries := []bavard.Entry{
