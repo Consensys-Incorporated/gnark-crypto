@@ -229,7 +229,8 @@ func (z *E12) DecompressKarabina(x *E12) *E12 {
 	var one E2
 	one.SetOne()
 
-	if x.C1.B2.IsZero() /* g3 == 0 */ {
+	if x.C1.B0.IsZero() /* g3 == 0 */ {
+		// t0 = 2 * g1 * g5
 		t[0].Mul(&x.C0.B1, &x.C1.B2).
 			Double(&t[0])
 		// t1 = g2
@@ -309,7 +310,8 @@ func BatchDecompressKarabina(x []E12) []E12 {
 	one.SetOne()
 
 	for i := range n {
-		if x[i].C1.B2.IsZero() /* g3 == 0 */ {
+		if x[i].C1.B0.IsZero() /* g3 == 0 */ {
+			// t0 = 2 * g1 * g5
 			t0[i].Mul(&x[i].C0.B1, &x[i].C1.B2).
 				Double(&t0[i])
 			// t1 = g2
