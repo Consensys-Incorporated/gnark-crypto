@@ -168,10 +168,11 @@ type Field struct {
 	// them: the "purego" variants must carry a build tag so the two do not
 	// define the same symbols on amd64.
 	//
-	// True for mamabear only. Its kernels are AVX-512IFMA over a 52-bit
-	// Montgomery radix, which is neither of the two regimes the asm generator
-	// knows (single-word 31-bit, or multi-word word-aligned), so
-	// GenerateVectorOpsAMD64 is false for it and yet the .s files exist.
+	// Set only via WithHandwrittenVectorASMAMD64, never inferred from the shape
+	// of the field. It is an assertion that specific .s files are checked in
+	// next to the generated output, which no property of the modulus implies —
+	// a field with the same shape and no such files would be left with a
+	// Vector type that has no methods on amd64.
 	HandwrittenVectorASMAMD64 bool
 
 	ASMPackagePath string
@@ -204,6 +205,14 @@ type FieldOption func(*Field)
 // error otherwise.
 func WithMontgomeryRadixBits(n uint) FieldOption {
 	return func(f *Field) { f.RBits = n }
+}
+
+// WithHandwrittenVectorASMAMD64 declares that hand-written amd64 vector and FFT
+// kernels are checked in alongside this field's generated output, so the
+// generator must tag the "purego" variants out on amd64 rather than emit them
+// unconditionally. See Field.HandwrittenVectorASMAMD64.
+func WithHandwrittenVectorASMAMD64() FieldOption {
+	return func(f *Field) { f.HandwrittenVectorASMAMD64 = true }
 }
 
 // NewFieldConfig returns a data structure with needed information to generate apis for field element
@@ -675,10 +684,6 @@ func NewFieldConfig(packageName, elementName, modulus string, useAddChain bool, 
 	F.GenerateVectorOpsAMD64 = f31ASM || (F.GenerateOpsAMD64 && F.NbWords == 4 && F.NbBits > 226)
 	F.GenerateOpsARM64 = f31ASM || (F.GenerateOpsAMD64 && (F.NbWords%2 == 0))
 	F.GenerateVectorOpsARM64 = f31ASM
-
-	// A single-word field with a sub-word Montgomery radix ships hand-written
-	// AVX-512IFMA kernels; see HandwrittenVectorASMAMD64.
-	F.HandwrittenVectorASMAMD64 = F.NbWords == 1 && F.RadixSubWord
 
 	// setting Mu 2^288 / q
 	if F.GenerateVectorOpsAMD64 && F.NbWords == 4 {

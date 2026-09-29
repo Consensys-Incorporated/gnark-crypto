@@ -6,6 +6,9 @@ type Field struct {
 	// RBits overrides the Montgomery radix, so that R = 2^RBits. Zero means the
 	// default, R = 2^(NbWords*Word.BitSize).
 	RBits uint
+	// HandwrittenVectorASMAMD64 declares that this field ships hand-written
+	// amd64 vector and FFT kernels next to its generated output.
+	HandwrittenVectorASMAMD64 bool
 }
 
 var Fields []Field
@@ -34,5 +37,9 @@ func init() {
 		Name:    "mamabear",
 		Modulus: "0x1FFFC00000001",
 		RBits:   52,
+		// field/mamabear/element_amd64.s and fft/kernel_amd64.{go,s} are
+		// hand-written; the asm generator has no regime for a single-word
+		// field with a sub-word radix.
+		HandwrittenVectorASMAMD64: true,
 	})
 }

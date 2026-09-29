@@ -73,6 +73,9 @@ func main() {
 			if f.RBits != 0 {
 				fieldOpts = append(fieldOpts, fieldConfig.WithMontgomeryRadixBits(f.RBits))
 			}
+			if f.HandwrittenVectorASMAMD64 {
+				fieldOpts = append(fieldOpts, fieldConfig.WithHandwrittenVectorASMAMD64())
+			}
 			fc, err := fieldConfig.NewFieldConfig(f.Name, "Element", f.Modulus, true, fieldOpts...)
 			assertNoError(err)
 			outputDir := filepath.Join(baseDir, "field", f.Name)
