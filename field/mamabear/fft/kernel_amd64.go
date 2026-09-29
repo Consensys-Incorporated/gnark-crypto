@@ -31,25 +31,51 @@ func innerDIFWithTwiddles_avx512(a, twiddles *mamabear.Element, start, end, m in
 //go:noescape
 func innerDITWithTwiddles_avx512(a, twiddles *mamabear.Element, start, end, m int)
 
-// innerDIFWithTwiddles dispatches to the AVX-512IFMA kernel when supported
-// and m >= 8 (at least one full 8-element ZMM block per half-array).
-// start is always 0 in the SIMD path; the generic fallback handles start != 0.
+// The two _avx512 kernels ignore their start argument: each processes
+// ⌊end/8⌋ blocks of 8 elements from the base pointer it is given, pairing
+// a[j] with a[j+m] and applying twiddles[j].
+//
+// That is not the contract the callers in fft.go have. The parallel butterfly
+// path fans out over parallel.Execute, handing each goroutine a distinct
+// [start, end) sub-range of the same backing array, so passing &a[0] and
+// letting the kernel run [0, end) makes every goroutine reprocess the low part
+// of the range — overlapping writes, non-deterministic results.
+//
+// Rather than teach the assembly about start, shift the window into it: pass
+// &a[start] and &twiddles[start] and a length of end-start. The kernel's
+// a[j]/a[j+m] pairing and twiddles[j] indexing are all relative to the base it
+// receives, and m is unchanged, so the offset window computes exactly
+// [start, end). The ragged tail (end-start not a multiple of 8) goes to the
+// generic path, which is also where a window too short to fill one block goes.
+//
+// Note the kernels multiply every lane by its twiddle, including lane 0, while
+// the generic implementations special-case start == 0 with an untwiddled
+// butterfly. Those agree because twiddles[0] is 1.
+
 func innerDIFWithTwiddles(a []mamabear.Element, twiddles []mamabear.Element, start, end, m int) {
-	if !cpu.SupportAVX512IFMA || m < 8 {
+	n := end - start
+	if !cpu.SupportAVX512IFMA || m < 8 || n < 8 {
 		innerDIFWithTwiddlesGeneric(a, twiddles, start, end, m)
 		return
 	}
-	innerDIFWithTwiddles_avx512(&a[0], &twiddles[0], start, end, m)
+	tail := n % 8
+	innerDIFWithTwiddles_avx512(&a[start], &twiddles[start], 0, n-tail, m)
+	if tail != 0 {
+		innerDIFWithTwiddlesGeneric(a, twiddles, end-tail, end, m)
+	}
 }
 
-// innerDITWithTwiddles dispatches to the AVX-512IFMA kernel when supported
-// and m >= 8.
 func innerDITWithTwiddles(a []mamabear.Element, twiddles []mamabear.Element, start, end, m int) {
-	if !cpu.SupportAVX512IFMA || m < 8 {
+	n := end - start
+	if !cpu.SupportAVX512IFMA || m < 8 || n < 8 {
 		innerDITWithTwiddlesGeneric(a, twiddles, start, end, m)
 		return
 	}
-	innerDITWithTwiddles_avx512(&a[0], &twiddles[0], start, end, m)
+	tail := n % 8
+	innerDITWithTwiddles_avx512(&a[start], &twiddles[start], 0, n-tail, m)
+	if tail != 0 {
+		innerDITWithTwiddlesGeneric(a, twiddles, end-tail, end, m)
+	}
 }
 
 // kerDIFNP_32 and kerDITNP_32 have no IFMA kernel: every stage of a 32-point
