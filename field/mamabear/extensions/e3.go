@@ -148,16 +148,17 @@ func (z *E3) MulByNonResidue(x *E3) *E3 {
 // own copy unexported, and the lazy reduction below works on raw limbs.
 const q = uint64(562932773552129)
 
-// reduceSparse reduces x ∈ [0, 5q) to [0, q) using the sparse form of the modulus.
+// reduceSparse reduces x ∈ [0, 6q) to [0, q) using the sparse form of the modulus.
 //
 // Since q = 2^49 − 2^34 + 1 we have 2^49 ≡ 2^34 − 1 (mod q), so writing
 // x = xLo + xHi·2^49,
 //
 //	y = xLo + xHi·(2^34−1) ≡ xLo + xHi·2^49 − xHi·q ≡ x (mod q).
 //
-// For x < 5q we have xHi ≤ 4, so y < 2^49 + 4·2^34 < 2q and one
-// conditional subtract suffices. Callers must respect the [0, 5q) bound: the
-// schoolbook routines below accumulate at most five products, each < q.
+// For x < 6q we have xHi ≤ 5, so y < 2^49 + 5·2^34 < 2q and one
+// conditional subtract suffices. Callers must respect the [0, 6q) bound: the
+// schoolbook routines below accumulate at most five [fr.LazyMul] products, each
+// < 9q/8, for a sum < 5·9q/8 = 5.625q.
 func reduceSparse(x uint64) uint64 {
 	xHi := x >> 49
 	y := (x & ((1 << 49) - 1)) + (xHi<<34 - xHi)
@@ -175,24 +176,26 @@ func reduceSparse(x uint64) uint64 {
 //	c1 = a0·b1 + a1·b0 + a1·b2 + a2·b1 + a2·b2  (5 terms)
 //	c2 = a0·b2 + a1·b1 + a2·b0 + a2·b2          (4 terms)
 //
-// Each fr.Mul result is in [0,p); accumulating at most 5 of them gives a sum < 5p < 2^52,
-// which fits in uint64 without overflow. A single reduceSparse call per coefficient (Algorithm 3)
-// replaces the per-add conditional subtracts used by the Karatsuba path.
+// The products are formed with [fr.LazyMul], which skips the conditional
+// subtract that would make each one canonical: reduceSparse does not need
+// canonical summands. Each product is < 9q/8, so a 5-term sum is < 5.625q,
+// within the [0, 6q) range reduceSparse accepts, and one reduceSparse call per
+// coefficient (Algorithm 3) replaces both those 9 subtracts and the per-add
+// conditional subtracts of the Karatsuba path.
 func (z *E3) mulSchoolbook(x, y *E3) *E3 {
-	var t00, t01, t02, t10, t11, t12, t20, t21, t22 fr.Element
-	t00.Mul(&x.A0, &y.A0)
-	t01.Mul(&x.A0, &y.A1)
-	t02.Mul(&x.A0, &y.A2)
-	t10.Mul(&x.A1, &y.A0)
-	t11.Mul(&x.A1, &y.A1)
-	t12.Mul(&x.A1, &y.A2)
-	t20.Mul(&x.A2, &y.A0)
-	t21.Mul(&x.A2, &y.A1)
-	t22.Mul(&x.A2, &y.A2)
+	t00 := fr.LazyMul(&x.A0, &y.A0)
+	t01 := fr.LazyMul(&x.A0, &y.A1)
+	t02 := fr.LazyMul(&x.A0, &y.A2)
+	t10 := fr.LazyMul(&x.A1, &y.A0)
+	t11 := fr.LazyMul(&x.A1, &y.A1)
+	t12 := fr.LazyMul(&x.A1, &y.A2)
+	t20 := fr.LazyMul(&x.A2, &y.A0)
+	t21 := fr.LazyMul(&x.A2, &y.A1)
+	t22 := fr.LazyMul(&x.A2, &y.A2)
 
-	z.A0[0] = reduceSparse(t00[0] + t12[0] + t21[0])
-	z.A1[0] = reduceSparse(t01[0] + t10[0] + t12[0] + t21[0] + t22[0])
-	z.A2[0] = reduceSparse(t02[0] + t11[0] + t20[0] + t22[0])
+	z.A0[0] = reduceSparse(t00 + t12 + t21)
+	z.A1[0] = reduceSparse(t01 + t10 + t12 + t21 + t22)
+	z.A2[0] = reduceSparse(t02 + t11 + t20 + t22)
 	return z
 }
 
@@ -205,19 +208,19 @@ func (z *E3) mulSchoolbook(x, y *E3) *E3 {
 //	c1 = 2·a0·a1 + 2·a1·a2 + a2²
 //	c2 = 2·a0·a2 + a1² + a2²
 //
-// The coefficient sums have at most 5 terms in [0,p), so uint64 accumulation is safe.
+// As in [E3.mulSchoolbook] the products come from [fr.LazyMul] and are < 9q/8,
+// so the 5-term sums are < 5.625q and stay inside reduceSparse's range.
 func (z *E3) squareSchoolbook(x *E3) *E3 {
-	var t00, t11, t22, t01, t02, t12 fr.Element
-	t00.Square(&x.A0)
-	t11.Square(&x.A1)
-	t22.Square(&x.A2)
-	t01.Mul(&x.A0, &x.A1)
-	t02.Mul(&x.A0, &x.A2)
-	t12.Mul(&x.A1, &x.A2)
+	t00 := fr.LazyMul(&x.A0, &x.A0)
+	t11 := fr.LazyMul(&x.A1, &x.A1)
+	t22 := fr.LazyMul(&x.A2, &x.A2)
+	t01 := fr.LazyMul(&x.A0, &x.A1)
+	t02 := fr.LazyMul(&x.A0, &x.A2)
+	t12 := fr.LazyMul(&x.A1, &x.A2)
 
-	z.A0[0] = reduceSparse(t00[0] + t12[0] + t12[0])
-	z.A1[0] = reduceSparse(t01[0] + t01[0] + t12[0] + t12[0] + t22[0])
-	z.A2[0] = reduceSparse(t02[0] + t02[0] + t11[0] + t22[0])
+	z.A0[0] = reduceSparse(t00 + t12 + t12)
+	z.A1[0] = reduceSparse(t01 + t01 + t12 + t12 + t22)
+	z.A2[0] = reduceSparse(t02 + t02 + t11 + t22)
 	return z
 }
 
@@ -295,9 +298,12 @@ func (z *E3) squareKaratsuba(x *E3) *E3 {
 	return z
 }
 
-// Mul sets z to x * y. Uses Karatsuba (6 multiplications); schoolbook costs 9.
+// Mul sets z to x * y. Uses schoolbook multiplication: it costs 9 lazy products
+// against Karatsuba's 6, but reduces once per coefficient instead of carrying a
+// conditional subtract through every product and every intermediate add, which
+// measures faster for this field.
 func (z *E3) Mul(x, y *E3) *E3 {
-	return z.mulKaratsuba(x, y)
+	return z.mulSchoolbook(x, y)
 }
 
 // Square sets z to x * x. Uses schoolbook squaring (3 squarings + 3 multiplications),

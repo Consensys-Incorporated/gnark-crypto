@@ -504,6 +504,20 @@ func LazyAdd(z, x, y *Element) {
 	z[0] = x[0] + y[0]
 }
 
+// LazyMul returns x·y·R⁻¹ mod q without the final conditional subtract, so the
+// result is in [0, 9q/8) rather than [0, q).
+//
+// It is the counterpart of [LazyAdd] for products: accumulating several of them
+// in a uint64 and reducing once is cheaper than making each product canonical
+// first. Callers own the resulting bound — a sum of k such products is
+// < k·9q/8 — and must reduce before any operation that requires a canonical
+// value.
+//
+// x and y must be less than q.
+func LazyMul(x, y *Element) uint64 {
+	return montMul(x[0], y[0])
+}
+
 // ConSubP performs z = min(z, z − q), i.e. a conditional subtract of q.
 func ConSubP(z *Element) {
 	if z[0] >= q {
