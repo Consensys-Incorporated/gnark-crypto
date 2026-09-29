@@ -779,6 +779,10 @@ func (p *G1Affine) setBytes(buf []byte, subGroupCheck bool) (int, error) {
 
 	// uncompressed point
 	if mData == mUncompressed {
+		// (0,0) is the in-memory sentinel for the point at infinity and is not on the curve.
+		if isZeroed(buf[0] & ^mMask, buf[1:SizeOfG1AffineUncompressed]) {
+			return 0, ErrInvalidEncoding
+		}
 		// read X and Y coordinates
 		if err := p.X.SetBytesCanonical(buf[:fp.Bytes]); err != nil {
 			return 0, err
