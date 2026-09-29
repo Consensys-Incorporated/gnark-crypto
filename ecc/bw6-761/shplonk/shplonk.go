@@ -185,6 +185,11 @@ func BatchVerify(proof OpeningProof, digests []kzg.Digest, points [][]fr.Element
 	if len(digests) != len(points) {
 		return ErrInvalidNumberOfPoints
 	}
+	for i := range len(points) {
+		if len(proof.ClaimedValues[i]) != len(points[i]) {
+			return ErrInvalidNumberOfPoints
+		}
+	}
 
 	pointsToCheck := make([]bw6761.G1Affine, 0, len(digests)+2)
 	pointsToCheck = append(pointsToCheck, digests...)
