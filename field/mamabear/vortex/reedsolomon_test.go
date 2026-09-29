@@ -112,3 +112,52 @@ func TestReedSolomonProperty(t *testing.T) {
 	assert.Equal(y0, y2)
 
 }
+
+// TestReedSolomonAllRates covers the coset-decomposition encoder across every
+// supported inverse rate. The other tests in this file all use rate 2, which is
+// the one rate served by the in-place specialization.
+func TestReedSolomonAllRates(t *testing.T) {
+	assert := require.New(t)
+
+	// #nosec G404 -- test case generation does not require a cryptographic PRNG
+	rng := rand.New(rand.NewChaCha8([32]byte{}))
+
+	for _, invRate := range []int{2, 4, 8} {
+		for _, size := range []int{1, 2, 4, 16, 64, 256} {
+			params, err := NewParams(size, 4, nil, invRate, 2)
+			assert.NoError(err)
+
+			v := make([]mamabear.Element, size)
+			for i := range v {
+				v[i] = randElement(rng)
+			}
+
+			encoded := make([]mamabear.Element, params.SizeCodeWord())
+			params.EncodeReedSolomon(v, encoded)
+
+			// The rate-th points of the codeword are the input itself: coset 0
+			// of the codeword domain is the interpolation domain.
+			for i := range v {
+				assert.Equal(v[i], encoded[invRate*i],
+					"rate %d size %d: input not embedded at index %d", invRate, size, invRate*i)
+			}
+
+			// The codeword must lie in the Reed-Solomon code.
+			encodedFext := make([]fext.E3, params.SizeCodeWord())
+			for i := range encodedFext {
+				encodedFext[i].A0.Set(&encoded[i])
+			}
+			assert.True(params.IsReedSolomonCodewords(encodedFext),
+				"rate %d size %d: codeword does not pass rs check", invRate, size)
+
+			// Encoding must not depend on the state of the output buffer.
+			dirty := make([]mamabear.Element, params.SizeCodeWord())
+			for i := range dirty {
+				dirty[i] = randElement(rng)
+			}
+			params.EncodeReedSolomon(v, dirty)
+			assert.Equal(encoded, dirty,
+				"rate %d size %d: encoding depends on stale output buffer", invRate, size)
+		}
+	}
+}
