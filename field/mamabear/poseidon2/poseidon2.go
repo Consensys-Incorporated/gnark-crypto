@@ -211,13 +211,17 @@ func (h *Permutation) matMulExternalInPlace(input []fr.Element) {
 // accumulation is < 24·2^49 < 2^54 and cannot overflow a uint64. Reducing once
 // at the end is cheaper than the conditional subtract fr.Add performs per
 // element.
+//
+// A single fr.ReduceFast suffices: it returns less than 2^49 + x/2^15, so an
+// accumulator below 2^54 lands below 2^49 + 2^39, already under 2q, and one
+// fr.ConSubP makes it canonical.
 func sumState(input []fr.Element) fr.Element {
 	var acc uint64
 	for i := range input {
 		acc += input[i][0]
 	}
 	var sum fr.Element
-	sum[0] = fr.ReduceFast(fr.ReduceFast(acc))
+	sum[0] = fr.ReduceFast(acc)
 	fr.ConSubP(&sum)
 	return sum
 }

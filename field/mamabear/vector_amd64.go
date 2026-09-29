@@ -39,14 +39,14 @@ const maxSumBlocks = 1 << 13
 
 // reduceLanes reduces a per-lane accumulator (each lane < 2^63) into res.
 //
-// Two [ReduceFast] steps suffice: the first brings a lane below 2^49 + 2^48, the
-// second below 2^49 + 2^34 − 1 < 2q, and a single [ConSubP] makes it canonical.
-// A lane is a sum of Montgomery-form residues, so reducing it mod q keeps the
-// shared R-scaling.
+// One [ReduceFast] is enough: it returns less than 2^49 + x/2^15, so a lane
+// below 2^63 lands below 2^49 + 2^48, already under 2q, and a single [ConSubP]
+// makes it canonical. A lane is a sum of Montgomery-form residues, so reducing
+// it mod q keeps the shared R-scaling.
 func reduceLanes(res *Element, t *[blockSize]uint64) {
 	var v Element
 	for i := range blockSize {
-		v[0] = ReduceFast(ReduceFast(t[i]))
+		v[0] = ReduceFast(t[i])
 		ConSubP(&v)
 		res.Add(res, &v)
 	}
