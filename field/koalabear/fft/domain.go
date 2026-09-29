@@ -389,7 +389,15 @@ func (d *Domain) WriteTo(w io.Writer) (int64, error) {
 	return written, nil
 }
 
-// ReadFrom attempts to decode a domain from Reader
+// ReadFrom attempts to decode a domain from Reader.
+//
+// It rejects a cardinality that is not a power of two or that exceeds the
+// field's 2-adicity, and checks the decoded elements for consistency with the
+// cardinality and with one another.
+//
+// It does not impose a resource limit: a cardinality may be valid and still
+// large, and the precomputation it triggers allocates memory linear in the
+// cardinality. Callers decoding untrusted input must bound the size themselves.
 func (d *Domain) ReadFrom(r io.Reader) (int64, error) {
 
 	var read int64
@@ -405,7 +413,10 @@ func (d *Domain) ReadFrom(r io.Reader) (int64, error) {
 	if d.Cardinality == 0 || bits.OnesCount64(d.Cardinality) != 1 {
 		return read, errors.New("fft: invalid domain cardinality: must be a non-zero power of 2")
 	}
-	if _, err = Generator(d.Cardinality); err != nil {
+	// Generator is deterministic in the cardinality, so it doubles as the
+	// 2-adicity bound check and as the expected value for d.Generator below.
+	generator, err := Generator(d.Cardinality)
+	if err != nil {
 		return read, err
 	}
 
@@ -413,15 +424,35 @@ func (d *Domain) ReadFrom(r io.Reader) (int64, error) {
 
 	for _, v := range toDecode {
 		var buf [koalabear.Bytes]byte
-		_, err = r.Read(buf[:])
+		// io.Reader may return fewer than len(buf) bytes without an error, so
+		// read the element in full rather than decoding a truncated buffer.
+		n, err := io.ReadFull(r, buf[:])
+		read += int64(n)
 		if err != nil {
 			return read, err
 		}
-		read += koalabear.Bytes
 		*v, err = koalabear.BigEndian.Element(&buf)
 		if err != nil {
 			return read, err
 		}
+	}
+
+	// The decoded elements are individually valid field elements; check that
+	// they also describe this domain.
+	if !d.Generator.Equal(&generator) {
+		return read, errors.New("fft: invalid domain: generator does not match cardinality")
+	}
+	var check koalabear.Element
+	if !check.Mul(&d.Generator, &d.GeneratorInv).IsOne() {
+		return read, errors.New("fft: invalid domain: generator inverse mismatch")
+	}
+	if !check.SetUint64(d.Cardinality).Mul(&check, &d.CardinalityInv).IsOne() {
+		return read, errors.New("fft: invalid domain: cardinality inverse mismatch")
+	}
+	// FrMultiplicativeGen is caller-chosen (see WithShift), so only its inverse
+	// can be checked.
+	if !check.Mul(&d.FrMultiplicativeGen, &d.FrMultiplicativeGenInv).IsOne() {
+		return read, errors.New("fft: invalid domain: multiplicative generator inverse mismatch")
 	}
 
 	err = binary.Read(r, binary.BigEndian, &d.withPrecompute)
