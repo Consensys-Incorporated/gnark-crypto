@@ -135,6 +135,108 @@ func TestNewPermutationWithSeedRejectsSpecWidths(t *testing.T) {
 		_ = NewPermutationWithSeed(16, 8, 57, "seed")
 	})
 }
+
+func TestSpongeHashDeterministic(t *testing.T) {
+	// SpongeHash must produce the same output for the same inputs
+	var a, b fr.Element
+	a.SetUint64(42)
+	b.SetUint64(43)
+	h1 := SpongeHash([]fr.Element{a, b})
+	h2 := SpongeHash([]fr.Element{a, b})
+	require.Equal(t, h1, h2, "SpongeHash should be deterministic")
+}
+
+func TestSpongeHashDistinct(t *testing.T) {
+	// Different inputs must produce different outputs
+	var a, b, c fr.Element
+	a.SetUint64(1)
+	b.SetUint64(2)
+	c.SetUint64(3)
+	h1 := SpongeHash([]fr.Element{a, b})
+	h2 := SpongeHash([]fr.Element{a, c})
+	require.NotEqual(t, h1, h2, "different inputs should produce different hashes")
+}
+
+func TestSpongeHashOrderMatters(t *testing.T) {
+	var a, b fr.Element
+	a.SetUint64(1)
+	b.SetUint64(2)
+	h1 := SpongeHash([]fr.Element{a, b})
+	h2 := SpongeHash([]fr.Element{b, a})
+	require.NotEqual(t, h1, h2, "input order should matter")
+}
+
+func TestSpongeHashVariousWidths(t *testing.T) {
+	// Test that SpongeHash works for input sizes spanning all width selections
+	// n=2 → t=3 (direct), n=3 → t=4, n=5 → t=8, n=10 → t=12, n=14 → t=16
+	testCases := []int{2, 3, 5, 7, 8, 10, 11, 12, 14, 15}
+	for _, n := range testCases {
+		inputs := make([]fr.Element, n)
+		for i := range inputs {
+			inputs[i].SetUint64(uint64(i + 1))
+		}
+		result := SpongeHash(inputs)
+		// Must not be zero (with overwhelming probability)
+		require.False(t, result.IsZero(), "SpongeHash with %d inputs should not be zero", n)
+		// Must be deterministic
+		result2 := SpongeHash(inputs)
+		require.Equal(t, result, result2, "SpongeHash with %d inputs should be deterministic", n)
+	}
+}
+
+func TestSpongeHashMultiBlock(t *testing.T) {
+	// Test multi-block absorption: n > rate for all width selections
+	// n=20 with t=16 (rate=15) → needs 2 absorption rounds
+	inputs := make([]fr.Element, 20)
+	for i := range inputs {
+		inputs[i].SetUint64(uint64(i + 1))
+	}
+	result := SpongeHash(inputs)
+	require.False(t, result.IsZero(), "multi-block SpongeHash should not be zero")
+
+	// Adding one more element should change the result
+	inputs2 := make([]fr.Element, 21)
+	copy(inputs2, inputs)
+	inputs2[20].SetUint64(99)
+	result2 := SpongeHash(inputs2)
+	require.NotEqual(t, result, result2, "different length inputs should produce different hashes")
+}
+
+func TestSpongeHashPanicsOnTooFewInputs(t *testing.T) {
+	require.Panics(t, func() {
+		SpongeHash([]fr.Element{})
+	})
+	var a fr.Element
+	a.SetUint64(1)
+	require.Panics(t, func() {
+		SpongeHash([]fr.Element{a})
+	})
+}
+
+func TestFieldHasherConsistency(t *testing.T) {
+	// FieldHasher wrapper must produce the same result as direct SpongeHash call
+	var a, b, c, d, e fr.Element
+	a.SetUint64(10)
+	b.SetUint64(20)
+	c.SetUint64(30)
+	d.SetUint64(40)
+	e.SetUint64(50)
+	inputs := []fr.Element{a, b, c, d, e}
+
+	direct := SpongeHash(inputs)
+
+	h := NewFieldHasher()
+	h.Write(a, b, c, d, e)
+	wrapped := h.Sum()
+	require.Equal(t, direct, wrapped, "FieldHasher.Sum should match SpongeHash")
+
+	// Test Reset
+	h.Reset()
+	h.Write(a, b)
+	h.Write(c, d, e)
+	split := h.Sum()
+	require.Equal(t, direct, split, "split Write calls should match single Write")
+}
 {{- else }}
 func TestExternalMatrix(t *testing.T) {
 	t.Skip("skipping test - it is initialized for width=4 for which we don't have the diagonal matrix")

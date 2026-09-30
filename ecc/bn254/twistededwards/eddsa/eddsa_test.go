@@ -17,6 +17,7 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/mimc"
+	"github.com/consensys/gnark-crypto/ecc/bn254/fr/poseidon2"
 	"github.com/consensys/gnark-crypto/ecc/bn254/twistededwards"
 	"github.com/consensys/gnark-crypto/hash"
 )
@@ -306,6 +307,49 @@ func TestEddsaMIMC(t *testing.T) {
 		t.Fatal("Verify wrong signature should be false")
 	}
 
+}
+func TestEddsaFieldPoseidon2(t *testing.T) {
+
+	src := rand.NewSource(0)
+	r := rand.New(src) //#nosec G404 weak rng is fine here
+
+	// create eddsa key pair
+	privKey, err := GenerateKey(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pubKey := privKey.PublicKey
+
+	hFunc := poseidon2.NewFieldHasher()
+
+	var msg fr.Element
+	msg.SetString("44717650746155748460101257525078853138837311576962212923649547644148297035978")
+
+	// sign the message using field-element based hash
+	signature, err := privKey.SignField(msg, hFunc)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// verifies correct msg
+	res, err := pubKey.VerifyField(signature, msg, hFunc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !res {
+		t.Fatal("VerifyField correct signature should return true")
+	}
+
+	// verifies wrong msg
+	var wrongMsg fr.Element
+	wrongMsg.SetString("44717650746155748460101257525078853138837311576962212923649547644148297035979")
+	res, err = pubKey.VerifyField(signature, wrongMsg, hFunc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res {
+		t.Fatal("VerifyField wrong message should return false")
+	}
 }
 
 func TestEddsaSHA256(t *testing.T) {
