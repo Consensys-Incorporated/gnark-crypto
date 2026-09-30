@@ -19,7 +19,7 @@ func TestMulMulInternalInPlaceWidth16(t *testing.T) {
 
 	expected = input
 
-	h := NewPermutation(16, 6, 21)
+	h := NewPermutation(16, 8, 32)
 	h.matMulInternalInPlace(expected[:])
 
 	var sum fr.Element
@@ -44,7 +44,7 @@ func TestMulMulInternalInPlaceWidth24(t *testing.T) {
 
 	expected = input
 
-	h := NewPermutation(24, 6, 21)
+	h := NewPermutation(24, 8, 32)
 	h.matMulInternalInPlace(expected[:])
 
 	var sum fr.Element
@@ -81,24 +81,24 @@ func TestPoseidon2Width16(t *testing.T) {
 	input[14].SetUint64(32212254727)
 	input[15].SetUint64(34359738375)
 
-	expected[0].SetUint64(379305722682392)
-	expected[1].SetUint64(434710812510599)
-	expected[2].SetUint64(550056781736517)
-	expected[3].SetUint64(80018479061411)
-	expected[4].SetUint64(197065607198553)
-	expected[5].SetUint64(184550828188449)
-	expected[6].SetUint64(169985134836)
-	expected[7].SetUint64(476980079287507)
-	expected[8].SetUint64(265028309154312)
-	expected[9].SetUint64(443033730245920)
-	expected[10].SetUint64(90181392038270)
-	expected[11].SetUint64(525395989823088)
-	expected[12].SetUint64(172442016884945)
-	expected[13].SetUint64(482775715596317)
-	expected[14].SetUint64(128007781181334)
-	expected[15].SetUint64(454435891437885)
+	expected[0].SetUint64(50602402429679)
+	expected[1].SetUint64(205154033184305)
+	expected[2].SetUint64(171690306064314)
+	expected[3].SetUint64(290743356206654)
+	expected[4].SetUint64(52057371620722)
+	expected[5].SetUint64(357993730760812)
+	expected[6].SetUint64(30792446669472)
+	expected[7].SetUint64(560929088275684)
+	expected[8].SetUint64(351129771614234)
+	expected[9].SetUint64(167825709741404)
+	expected[10].SetUint64(435628772411913)
+	expected[11].SetUint64(263726494550579)
+	expected[12].SetUint64(253184459815810)
+	expected[13].SetUint64(470108995398990)
+	expected[14].SetUint64(245845535172115)
+	expected[15].SetUint64(339090281054048)
 
-	h := NewPermutation(16, 6, 21)
+	h := NewPermutation(16, 8, 32)
 	h.Permutation(input[:])
 	for i := range h.params.Width {
 		if !input[i].Equal(&expected[i]) {
@@ -135,32 +135,32 @@ func TestPoseidon2Width24(t *testing.T) {
 	input[22].SetUint64(49392123911)
 	input[23].SetUint64(51539607559)
 
-	expected[0].SetUint64(368164608783752)
-	expected[1].SetUint64(257867004539105)
-	expected[2].SetUint64(201370080365479)
-	expected[3].SetUint64(356624278773042)
-	expected[4].SetUint64(124735134016360)
-	expected[5].SetUint64(205149928229598)
-	expected[6].SetUint64(226995027181250)
-	expected[7].SetUint64(329421188535075)
-	expected[8].SetUint64(472269735666797)
-	expected[9].SetUint64(336822262946217)
-	expected[10].SetUint64(286203220709665)
-	expected[11].SetUint64(106913007484484)
-	expected[12].SetUint64(159916680148593)
-	expected[13].SetUint64(421687845713200)
-	expected[14].SetUint64(133004491284203)
-	expected[15].SetUint64(184002038378053)
-	expected[16].SetUint64(92327348080370)
-	expected[17].SetUint64(117778158779886)
-	expected[18].SetUint64(492904809075045)
-	expected[19].SetUint64(559938928111919)
-	expected[20].SetUint64(299216349767739)
-	expected[21].SetUint64(249756944698650)
-	expected[22].SetUint64(549327931909224)
-	expected[23].SetUint64(184289500831330)
+	expected[0].SetUint64(221949310464874)
+	expected[1].SetUint64(80986520567350)
+	expected[2].SetUint64(188405925758112)
+	expected[3].SetUint64(265381136928946)
+	expected[4].SetUint64(531029040459252)
+	expected[5].SetUint64(267299294930657)
+	expected[6].SetUint64(232053702598666)
+	expected[7].SetUint64(125866528816944)
+	expected[8].SetUint64(375645824840808)
+	expected[9].SetUint64(493982275312219)
+	expected[10].SetUint64(491313642825887)
+	expected[11].SetUint64(225430104088042)
+	expected[12].SetUint64(12298241502257)
+	expected[13].SetUint64(174077256549267)
+	expected[14].SetUint64(211511214646258)
+	expected[15].SetUint64(461473402745453)
+	expected[16].SetUint64(373037057867494)
+	expected[17].SetUint64(16199147773576)
+	expected[18].SetUint64(527007590318455)
+	expected[19].SetUint64(280256541869745)
+	expected[20].SetUint64(457055166286236)
+	expected[21].SetUint64(438914526671414)
+	expected[22].SetUint64(454144458652198)
+	expected[23].SetUint64(499223682805339)
 
-	h := NewPermutation(24, 6, 21)
+	h := NewPermutation(24, 8, 32)
 	h.Permutation(input[:])
 	for i := range h.params.Width {
 		if !input[i].Equal(&expected[i]) {
@@ -170,7 +170,7 @@ func TestPoseidon2Width24(t *testing.T) {
 }
 
 func BenchmarkPoseidon2Width16(b *testing.B) {
-	h := NewPermutation(16, 6, 21)
+	h := NewPermutation(16, 8, 32)
 
 	var tmp [16]fr.Element
 	for i := range tmp {
@@ -183,7 +183,7 @@ func BenchmarkPoseidon2Width16(b *testing.B) {
 }
 
 func BenchmarkPoseidon2Width24(b *testing.B) {
-	h := NewPermutation(24, 6, 21)
+	h := NewPermutation(24, 8, 32)
 
 	var tmp [24]fr.Element
 	for i := range tmp {
@@ -192,5 +192,39 @@ func BenchmarkPoseidon2Width24(b *testing.B) {
 	b.ResetTimer()
 	for range b.N {
 		h.Permutation(tmp[:])
+	}
+}
+
+// TestDefaultRoundNumbers pins the round numbers to the security analysis they
+// come from, so they cannot be changed silently.
+//
+// Eq. (1) of the Poseidon2 paper (https://eprint.iacr.org/2023/323.pdf), for
+// n = ceil(log2(p)) = 49, d = 3 and kappa = 128:
+//
+//	R_F = 8
+//	R_P = ceil(1.075 * max(R_interp, R_GB))
+//	R_interp = ceil(min{kappa,n}/log2(d)) + ceil(log_d(t)) - 5 = 29   (binding)
+//	R_GB     = 25
+//	       => R_P = ceil(1.075 * 29) = 32
+//
+// The bound scales with min{kappa, log2(p)}, so it is NOT safe to inherit these
+// from a narrower field: koalabear saturates at n = 31 and needs only 20
+// partial rounds, while mamabear needs 32.
+func TestDefaultRoundNumbers(t *testing.T) {
+	p := GetDefaultParameters()
+	if p.Width != 16 {
+		t.Fatalf("width: got %d, want 16", p.Width)
+	}
+	if p.NbFullRounds != 8 {
+		t.Fatalf("full rounds: got %d, want 8", p.NbFullRounds)
+	}
+	if p.NbPartialRounds != 32 {
+		t.Fatalf("partial rounds: got %d, want 32", p.NbPartialRounds)
+	}
+	if DegreeSBox() != 3 {
+		t.Fatalf("sbox degree: got %d, want 3 (smallest d with gcd(d, p-1) = 1)", DegreeSBox())
+	}
+	if len(p.RoundKeys) != p.NbFullRounds+p.NbPartialRounds {
+		t.Fatalf("round keys: got %d, want %d", len(p.RoundKeys), p.NbFullRounds+p.NbPartialRounds)
 	}
 }

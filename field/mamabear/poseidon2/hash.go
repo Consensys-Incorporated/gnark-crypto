@@ -34,15 +34,15 @@ func NewDefaultPermutation() *Permutation {
 //
 //  1. for compression:
 //     - width: 16
-//     - nbFullRounds: 6
-//     - nbPartialRounds: 21
+//     - nbFullRounds: 8
+//     - nbPartialRounds: 32
 //
 //  2. for sponge:
 //     - width: 24
-//     - nbFullRounds: 6
-//     - nbPartialRounds: 21
+//     - nbFullRounds: 8
+//     - nbPartialRounds: 32
 var GetDefaultParameters = sync.OnceValue(func() *Parameters {
-	return NewParameters(16, 6, 21)
+	return NewParameters(16, 8, 32)
 })
 
 var diag16 []fr.Element = make([]fr.Element, 16)
