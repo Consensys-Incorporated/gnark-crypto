@@ -3,7 +3,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/parallel"
 	"math/big"
-	{{- if .F31}}
+	{{- if .SmallField}}
 	"github.com/consensys/gnark-crypto/utils"
 	{{- end}}
 
@@ -38,7 +38,7 @@ func (domain *Domain) FFT(a []{{ .FF }}.Element, decimation Decimation, opts ...
 
 	// if coset != 0, scale by coset table
 	if opt.coset {
-		{{- if .F31}}
+		{{- if .SmallField}}
 		var cosetTable []{{ .FF }}.Element
 		if decimation == DIT {
 			// DIT needs bit-reversed coset table
@@ -177,7 +177,7 @@ func (domain *Domain) FFTInverse(a []{{ .FF }}.Element, decimation Decimation, o
 
 	// scale by CardinalityInv
 	if !opt.coset {
-		{{- if .F31}}
+		{{- if .SmallField}}
 		// Use vectorized scalar multiply instead of element-by-element loop.
 		if opt.nbTasks <= 1 {
 			v := {{ .FF }}.Vector(a)
@@ -198,7 +198,7 @@ func (domain *Domain) FFTInverse(a []{{ .FF }}.Element, decimation Decimation, o
 		return
 	}
 
-	{{- if .F31}}
+	{{- if .SmallField}}
 	var cosetTableInv []{{ .FF }}.Element
 	if decimation == DIT {
 		// DIT inverse needs natural-order inverse coset table

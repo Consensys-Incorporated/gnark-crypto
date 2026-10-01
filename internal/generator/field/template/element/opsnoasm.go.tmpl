@@ -1,4 +1,4 @@
-{{- if not .F31}}
+{{- if or (not .F31) .RadixSubWord}}
 import "math/bits"
 {{- end}}
 
@@ -37,18 +37,26 @@ func MulBy{{$i}}(x *{{$.ElementName}}) {
 
 {{- end}}
 
-{{- if $.F31}}
-// Mul2ExpNegN multiplies x by -1/2^n
+{{- if or $.F31 $.RadixSubWord}}
+// Mul2ExpNegN multiplies x by 1/2^n
 //
-// Since the Montgomery constant is 2^32, the Montgomery form of 1/2^n is
-// 2^{32-n}. Montgomery reduction works provided the input is < 2^32 so this
-// works for 0 <= n <= 32.
+// Since the Montgomery constant is 2^{{.RBits}}, the Montgomery form of 1/2^n is
+// 2^{ {{- .RBits}}-n}. Montgomery reduction works provided the input is
+// < 2^{{.RBits}}, so this works for 0 <= n <= {{.RBits}}.
 //
-// N.B. n must be < 33.
+// N.B. n must be <= {{.RBits}}.
 func (z *{{.ElementName}}) Mul2ExpNegN(x *{{.ElementName}}, n uint32) *{{.ElementName}} {
-       v := uint64(x[0]) << (32 - n)
-       z[0] = montReduce(v)
-       return z
+	{{- if $.F31}}
+	v := uint64(x[0]) << (32 - n)
+	z[0] = montReduce(v)
+	{{- else}}
+	r := montMul(x[0], uint64(1)<<(rBits-n))
+	if r >= q {
+		r -= q
+	}
+	z[0] = r
+	{{- end}}
+	return z
 }
 {{- end}}
 
@@ -81,6 +89,14 @@ func (z *{{.ElementName}}) Mul(x, y *{{.ElementName}}) *{{.ElementName}} {
 		{{- if $.F31}}
 			v := uint64(x[0]) * uint64(y[0])
 			z[0] = montReduce(v)
+		{{- else if $.RadixSubWord}}
+			// montMul is lazy: the result is in [0, 9q/8), one subtract short of
+			// canonical.
+			r := montMul(x[0], y[0])
+			if r >= q {
+				r -= q
+			}
+			z[0] = r
 		{{- else}}
 			{{ template "mul_cios_one_limb" dict "all" . "V1" "x" "V2" "y" }}
 		{{- end}}
@@ -107,6 +123,12 @@ func (z *{{.ElementName}}) Square(x *{{.ElementName}}) *{{.ElementName}} {
 		{{- if $.F31}}
 			v := uint64(x[0]) * uint64(x[0])
 			z[0] = montReduce(v)
+		{{- else if $.RadixSubWord}}
+			r := montMul(x[0], x[0])
+			if r >= q {
+				r -= q
+			}
+			z[0] = r
 		{{- else}}
 			{{ template "mul_cios_one_limb" dict "all" . "V1" "x" "V2" "x" }}
 		{{- end}}

@@ -153,6 +153,9 @@ func (dec *Decoder) Decode(v any) (err error) {
 		for i := range *t {
 			read64, err = (*fr.Vector)(&(*t)[i]).ReadFrom(dec.r)
 			dec.n += read64
+			if err != nil {
+				return
+			}
 		}
 		return
 	case *[][][]fr.Element:
@@ -172,6 +175,9 @@ func (dec *Decoder) Decode(v any) (err error) {
 			for j := range (*t)[i] {
 				read64, err = (*fr.Vector)(&(*t)[i][j]).ReadFrom(dec.r)
 				dec.n += read64
+				if err != nil {
+					return
+				}
 			}
 		}
 		return
@@ -779,6 +785,10 @@ func (p *G1Affine) setBytes(buf []byte, subGroupCheck bool) (int, error) {
 
 	// uncompressed point
 	if mData == mUncompressed {
+		// (0,0) is the in-memory sentinel for the point at infinity and is not on the curve.
+		if isZeroed(buf[0] & ^mMask, buf[1:SizeOfG1AffineUncompressed]) {
+			return 0, ErrInvalidEncoding
+		}
 		// read X and Y coordinates
 		if err := p.X.SetBytesCanonical(buf[:fp.Bytes]); err != nil {
 			return 0, err

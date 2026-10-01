@@ -1,3 +1,7 @@
+{{$tReturn := "uint64"}}
+{{- if not .SisHasLimb8 }}
+	{{$tReturn = "uint32"}}
+{{- end -}}
 import (
 	"encoding/json"
 	"fmt"
@@ -95,7 +99,12 @@ func TestLimbDecomposeBytes(t *testing.T) {
 	var montConstant {{ .FF }}.Element
 	var bMontConstant big.Int
 	bMontConstant.SetUint64(1)
+	{{- if .RadixSubWord}}
+	// the Montgomery radix, narrower here than the storage word
+	bMontConstant.Lsh(&bMontConstant, {{ .RBits }})
+	{{- else}}
 	bMontConstant.Lsh(&bMontConstant, {{ .FF }}.Bytes*8)
+	{{- end}}
 	montConstant.SetBigInt(&bMontConstant)
 
 	nbElmts := 10
@@ -113,7 +122,13 @@ func TestLimbDecomposeBytes(t *testing.T) {
         m := make({{ .FF }}.Vector, nbElmts*{{ .FF }}.Bytes*8/logTwoBound)
 		var ok bool
 		for i := range len(m) {
+			{{- if ne $tReturn $.ElemWordType}}
+			var limb {{$tReturn}}
+			limb, ok = vr.NextLimb()
+			m[i][0] = {{$.ElemWordType}}(limb)
+			{{- else}}
 			m[i][0], ok = vr.NextLimb()
+			{{- end}}
 			assert.True(ok)
 		}
 

@@ -12,7 +12,7 @@ import (
 	"github.com/leanovate/gopter/gen"
 
 	"fmt"
-	{{- if .F31}}
+	{{- if .SmallField}}
 	"github.com/stretchr/testify/require"
 	"encoding/binary"
 	"math/rand/v2"
@@ -239,10 +239,10 @@ func TestFFT(t *testing.T) {
 	}
 
 }
-{{- if .F31}}
+{{- if .SmallField}}
 
 func randElement(rng *rand.Rand) {{ .FF }}.Element {
-	return {{ .FF }}.Element{rng.Uint32N({{.Q}})}
+	return {{ .FF }}.Element{rng.{{.RandN}}({{.Q}})}
 }
 
 func FuzzFFT(f *testing.F) {

@@ -39,6 +39,66 @@ func TestDomainSerialization(t *testing.T) {
 	}
 }
 
+func TestDomainDeserializationInvalid(t *testing.T) {
+	assert := require.New(t)
+
+	valid := NewDomain(1 << 6)
+
+	// serialize returns the encoding of d, with the fields of a valid domain
+	// overwritten by tamper.
+	serialize := func(tamper func(d *Domain)) []byte {
+		d := *valid
+		tamper(&d)
+		var buf bytes.Buffer
+		_, err := d.WriteTo(&buf)
+		assert.NoError(err)
+		return buf.Bytes()
+	}
+
+	one := koalabear.One()
+
+	for _, tc := range []struct {
+		name string
+		data []byte
+	}{
+		{
+			// bits.TrailingZeros64(0) is 64, which used to size the twiddle
+			// allocations at 1<<63 and take the process down.
+			name: "zero cardinality",
+			data: serialize(func(d *Domain) { d.Cardinality = 0 }),
+		}, {
+			name: "cardinality not a power of 2",
+			data: serialize(func(d *Domain) { d.Cardinality = (1 << 6) + 1 }),
+		}, {
+			// beyond the 2-adicity of every supported field
+			name: "cardinality beyond 2-adicity",
+			data: serialize(func(d *Domain) { d.Cardinality = 1 << 63 }),
+		}, {
+			name: "generator does not match cardinality",
+			data: serialize(func(d *Domain) { d.Generator = one }),
+		}, {
+			name: "generator inverse mismatch",
+			data: serialize(func(d *Domain) { d.GeneratorInv = one }),
+		}, {
+			name: "cardinality inverse mismatch",
+			data: serialize(func(d *Domain) { d.CardinalityInv = one }),
+		}, {
+			name: "multiplicative generator inverse mismatch",
+			data: serialize(func(d *Domain) { d.FrMultiplicativeGenInv = one }),
+		}, {
+			// a short read must not decode a zero-padded element
+			name: "truncated element",
+			data: serialize(func(d *Domain) {})[:8+koalabear.Bytes+koalabear.Bytes/2],
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var d Domain
+			_, err := d.ReadFrom(bytes.NewReader(tc.data))
+			assert.Error(err, "invalid domain should be rejected")
+		})
+	}
+}
+
 func TestNewDomainCache(t *testing.T) {
 	t.Run("CacheWithoutShift", func(t *testing.T) {
 		key1 := domainCacheKey{

@@ -50,6 +50,12 @@ jobs:
     steps:
       - name: checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # Which SIMD paths this runner can actually execute. Tests that need a
+      # feature skip when it is missing, so without this the log is the only
+      # way to tell "passed" from "silently skipped".
+      - name: report CPU features
+        run: |
+          grep -o -m1 -E 'avx512(f|dq|bw|vl|vbmi2|ifma)' /proc/cpuinfo | sort -u | tr '\n' ' '; echo
       - name: install Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:

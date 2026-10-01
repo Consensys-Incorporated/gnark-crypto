@@ -214,6 +214,10 @@ func (h *Permutation) disableAVX512() {
 	h.params.hasFast{{- $wc}}_{{- $fc}}_{{- $pc}} = false
 	h.params.hasFast{{- $ws}}_{{- $fs}}_{{- $ps}} = false
 }
+{{- end}}
+{{- /* which known-answer tests apply depends on the state widths the field
+       supports, not on whether it has assembly */}}
+{{- if or (eq .Family "babybear") (eq .Family "koalabear")}}
 
 func TestPoseidon2Width16(t *testing.T) {
 	var input, expected [16]fr.Element
@@ -254,6 +258,42 @@ func TestPoseidon2Width16(t *testing.T) {
 	expected[15].SetUint64(652219983)
 
 	h := NewPermutation(16, 6, 12)
+    {{- else if eq .FF "mamabear"}}
+	input[0].SetUint64(2147483655)
+	input[1].SetUint64(4294967303)
+	input[2].SetUint64(6442450951)
+	input[3].SetUint64(8589934599)
+	input[4].SetUint64(10737418247)
+	input[5].SetUint64(12884901895)
+	input[6].SetUint64(15032385543)
+	input[7].SetUint64(17179869191)
+	input[8].SetUint64(19327352839)
+	input[9].SetUint64(21474836487)
+	input[10].SetUint64(23622320135)
+	input[11].SetUint64(25769803783)
+	input[12].SetUint64(27917287431)
+	input[13].SetUint64(30064771079)
+	input[14].SetUint64(32212254727)
+	input[15].SetUint64(34359738375)
+
+	expected[0].SetUint64(379305722682392)
+	expected[1].SetUint64(434710812510599)
+	expected[2].SetUint64(550056781736517)
+	expected[3].SetUint64(80018479061411)
+	expected[4].SetUint64(197065607198553)
+	expected[5].SetUint64(184550828188449)
+	expected[6].SetUint64(169985134836)
+	expected[7].SetUint64(476980079287507)
+	expected[8].SetUint64(265028309154312)
+	expected[9].SetUint64(443033730245920)
+	expected[10].SetUint64(90181392038270)
+	expected[11].SetUint64(525395989823088)
+	expected[12].SetUint64(172442016884945)
+	expected[13].SetUint64(482775715596317)
+	expected[14].SetUint64(128007781181334)
+	expected[15].SetUint64(454435891437885)
+
+	h := NewPermutation(16, 6, 21)
     {{- else}}
 	input[0].SetUint64(595602690)
 	input[1].SetUint64(847709907)
@@ -355,6 +395,58 @@ func TestPoseidon2Width24(t *testing.T) {
 
 	h := NewPermutation(24, 6, 19)
 
+    {{- else if eq .FF "mamabear"}}
+	input[0].SetUint64(2147483655)
+	input[1].SetUint64(4294967303)
+	input[2].SetUint64(6442450951)
+	input[3].SetUint64(8589934599)
+	input[4].SetUint64(10737418247)
+	input[5].SetUint64(12884901895)
+	input[6].SetUint64(15032385543)
+	input[7].SetUint64(17179869191)
+	input[8].SetUint64(19327352839)
+	input[9].SetUint64(21474836487)
+	input[10].SetUint64(23622320135)
+	input[11].SetUint64(25769803783)
+	input[12].SetUint64(27917287431)
+	input[13].SetUint64(30064771079)
+	input[14].SetUint64(32212254727)
+	input[15].SetUint64(34359738375)
+	input[16].SetUint64(36507222023)
+	input[17].SetUint64(38654705671)
+	input[18].SetUint64(40802189319)
+	input[19].SetUint64(42949672967)
+	input[20].SetUint64(45097156615)
+	input[21].SetUint64(47244640263)
+	input[22].SetUint64(49392123911)
+	input[23].SetUint64(51539607559)
+
+	expected[0].SetUint64(368164608783752)
+	expected[1].SetUint64(257867004539105)
+	expected[2].SetUint64(201370080365479)
+	expected[3].SetUint64(356624278773042)
+	expected[4].SetUint64(124735134016360)
+	expected[5].SetUint64(205149928229598)
+	expected[6].SetUint64(226995027181250)
+	expected[7].SetUint64(329421188535075)
+	expected[8].SetUint64(472269735666797)
+	expected[9].SetUint64(336822262946217)
+	expected[10].SetUint64(286203220709665)
+	expected[11].SetUint64(106913007484484)
+	expected[12].SetUint64(159916680148593)
+	expected[13].SetUint64(421687845713200)
+	expected[14].SetUint64(133004491284203)
+	expected[15].SetUint64(184002038378053)
+	expected[16].SetUint64(92327348080370)
+	expected[17].SetUint64(117778158779886)
+	expected[18].SetUint64(492904809075045)
+	expected[19].SetUint64(559938928111919)
+	expected[20].SetUint64(299216349767739)
+	expected[21].SetUint64(249756944698650)
+	expected[22].SetUint64(549327931909224)
+	expected[23].SetUint64(184289500831330)
+
+	h := NewPermutation(24, 6, 21)
     {{- else}}
 	input[0].SetUint64(568554527)
 	input[1].SetUint64(1037389773)

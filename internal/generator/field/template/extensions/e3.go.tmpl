@@ -1,0 +1,465 @@
+import (
+	"math/big"
+	"sync"
+
+	fr "{{ .FieldPackagePath }}"
+)
+
+// E3 is an element of F_{p³} = F_p[t]/(t³ - t - 1).
+// Elements are represented as a0 + a1·t + a2·t² with a0, a1, a2 ∈ F_p.
+type E3 struct {
+	A0, A1, A2 fr.Element
+}
+
+// Equal returns z == x.
+func (z *E3) Equal(x *E3) bool {
+	return z.A0.Equal(&x.A0) && z.A1.Equal(&x.A1) && z.A2.Equal(&x.A2)
+}
+
+// SetZero sets z to 0.
+func (z *E3) SetZero() *E3 {
+	z.A0.SetZero()
+	z.A1.SetZero()
+	z.A2.SetZero()
+	return z
+}
+
+// SetOne sets z to 1.
+func (z *E3) SetOne() *E3 {
+	z.A0.SetOne()
+	z.A1.SetZero()
+	z.A2.SetZero()
+	return z
+}
+
+// IsZero reports whether z is zero.
+func (z *E3) IsZero() bool {
+	return z.A0.IsZero() && z.A1.IsZero() && z.A2.IsZero()
+}
+
+// IsOne reports whether z is one.
+func (z *E3) IsOne() bool {
+	return z.A0.IsOne() && z.A1.IsZero() && z.A2.IsZero()
+}
+
+// Set sets z to x and returns z.
+func (z *E3) Set(x *E3) *E3 {
+	z.A0.Set(&x.A0)
+	z.A1.Set(&x.A1)
+	z.A2.Set(&x.A2)
+	return z
+}
+
+// Clone returns a copy of z.
+func (z *E3) Clone() *E3 {
+	var r E3
+	r.Set(z)
+	return &r
+}
+
+// SetRandom sets z to a uniformly random element.
+func (z *E3) SetRandom() (*E3, error) {
+	if _, err := z.A0.SetRandom(); err != nil {
+		return nil, err
+	}
+	if _, err := z.A1.SetRandom(); err != nil {
+		return nil, err
+	}
+	if _, err := z.A2.SetRandom(); err != nil {
+		return nil, err
+	}
+	return z, nil
+}
+
+// MustSetRandom sets z to a uniformly random element; panics on error.
+func (z *E3) MustSetRandom() *E3 {
+	if _, err := z.SetRandom(); err != nil {
+		panic(err)
+	}
+	return z
+}
+
+// String returns a human-readable string representation.
+func (z *E3) String() string {
+	return z.A0.String() + " + (" + z.A1.String() + ")*u + (" + z.A2.String() + ")*u²"
+}
+
+// Neg sets z to -x.
+func (z *E3) Neg(x *E3) *E3 {
+	z.A0.Neg(&x.A0)
+	z.A1.Neg(&x.A1)
+	z.A2.Neg(&x.A2)
+	return z
+}
+
+// Add sets z to x + y.
+func (z *E3) Add(x, y *E3) *E3 {
+	z.A0.Add(&x.A0, &y.A0)
+	z.A1.Add(&x.A1, &y.A1)
+	z.A2.Add(&x.A2, &y.A2)
+	return z
+}
+
+// Sub sets z to x - y.
+func (z *E3) Sub(x, y *E3) *E3 {
+	z.A0.Sub(&x.A0, &y.A0)
+	z.A1.Sub(&x.A1, &y.A1)
+	z.A2.Sub(&x.A2, &y.A2)
+	return z
+}
+
+// Double sets z to 2x.
+func (z *E3) Double(x *E3) *E3 {
+	z.A0.Double(&x.A0)
+	z.A1.Double(&x.A1)
+	z.A2.Double(&x.A2)
+	return z
+}
+
+// MulByElement sets z to x * s where s ∈ F_p.
+func (z *E3) MulByElement(x *E3, s *fr.Element) *E3 {
+	z.A0.Mul(&x.A0, s)
+	z.A1.Mul(&x.A1, s)
+	z.A2.Mul(&x.A2, s)
+	return z
+}
+
+// MulByNonResidue multiplies x by the polynomial non-residue α = t.
+//
+// t · (a0 + a1·t + a2·t²) = a2·t³ + a0·t + a1·t²
+//
+// Using t³ = t + 1: = a2 + (a0+a2)·t + a1·t²
+func (z *E3) MulByNonResidue(x *E3) *E3 {
+	a0, a1, a2 := x.A0, x.A1, x.A2
+	z.A0 = a2
+	z.A1.Add(&a0, &a2)
+	z.A2 = a1
+	return z
+}
+
+// q is the field modulus. It is emitted here because the base field keeps its
+// own copy unexported, and the lazy reduction below works on raw limbs.
+const q = uint64({{.Q}})
+
+// reduceSparse reduces x ∈ [0, 2^63) to [0, q) using the sparse form of the modulus.
+//
+// Since q = 2^{{.PHiBit}} − 2^{{.PLoBit}} + 1 we have 2^{{.PHiBit}} ≡ 2^{{.PLoBit}} − 1 (mod q), so writing
+// x = xLo + xHi·2^{{.PHiBit}},
+//
+//	y = xLo + xHi·(2^{{.PLoBit}}−1) ≡ xLo + xHi·2^{{.PHiBit}} − xHi·q ≡ x (mod q).
+//
+// For x < 2^63 we have xHi < 2^14, so y < 2^{{.PHiBit}} + 2^48 < 2q and one conditional
+// subtract suffices. Every routine below stays far inside that: the widest
+// accumulation is the Karatsuba c1 at < 7q ≈ 2^51.8.
+func reduceSparse(x uint64) uint64 {
+	xHi := x >> {{.PHiBit}}
+	y := (x & ((1 << {{.PHiBit}}) - 1)) + (xHi<<{{.PLoBit}} - xHi)
+	if y >= q {
+		y -= q
+	}
+	return y
+}
+
+// mulSchoolbook sets z to x * y using schoolbook multiplication (9 base-field multiplications).
+//
+// With t³ = t + 1 the 9 products reduce to three coefficient sums:
+//
+//	c0 = a0·b0 + a1·b2 + a2·b1          (3 terms)
+//	c1 = a0·b1 + a1·b0 + a1·b2 + a2·b1 + a2·b2  (5 terms)
+//	c2 = a0·b2 + a1·b1 + a2·b0 + a2·b2          (4 terms)
+//
+// The products are formed with [fr.LazyMul], which skips the conditional
+// subtract that would make each one canonical: reduceSparse does not need
+// canonical summands. Each product is < 9q/8, so a 5-term sum is < 5.625q,
+// within the [0, 6q) range reduceSparse accepts, and one reduceSparse call per
+// coefficient (Algorithm 3) replaces both those 9 subtracts and the per-add
+// conditional subtracts of the Karatsuba path.
+func (z *E3) mulSchoolbook(x, y *E3) *E3 {
+	t00 := fr.LazyMul(&x.A0, &y.A0)
+	t01 := fr.LazyMul(&x.A0, &y.A1)
+	t02 := fr.LazyMul(&x.A0, &y.A2)
+	t10 := fr.LazyMul(&x.A1, &y.A0)
+	t11 := fr.LazyMul(&x.A1, &y.A1)
+	t12 := fr.LazyMul(&x.A1, &y.A2)
+	t20 := fr.LazyMul(&x.A2, &y.A0)
+	t21 := fr.LazyMul(&x.A2, &y.A1)
+	t22 := fr.LazyMul(&x.A2, &y.A2)
+
+	z.A0[0] = reduceSparse(t00 + t12 + t21)
+	z.A1[0] = reduceSparse(t01 + t10 + t12 + t21 + t22)
+	z.A2[0] = reduceSparse(t02 + t11 + t20 + t22)
+	return z
+}
+
+// squareSchoolbook sets z to x * x using schoolbook squaring (3 squarings + 3 multiplications).
+//
+// The 9 schoolbook products collapse to 6 (3 diagonal + 3 off-diagonal, each off-diagonal
+// counted twice):
+//
+//	c0 = a0² + 2·a1·a2
+//	c1 = 2·a0·a1 + 2·a1·a2 + a2²
+//	c2 = 2·a0·a2 + a1² + a2²
+//
+// As in [E3.mulSchoolbook] the products come from [fr.LazyMul] and are < 9q/8,
+// so the 5-term sums are < 5.625q and stay inside reduceSparse's range.
+func (z *E3) squareSchoolbook(x *E3) *E3 {
+	t00 := fr.LazyMul(&x.A0, &x.A0)
+	t11 := fr.LazyMul(&x.A1, &x.A1)
+	t22 := fr.LazyMul(&x.A2, &x.A2)
+	t01 := fr.LazyMul(&x.A0, &x.A1)
+	t02 := fr.LazyMul(&x.A0, &x.A2)
+	t12 := fr.LazyMul(&x.A1, &x.A2)
+
+	z.A0[0] = reduceSparse(t00 + t12 + t12)
+	z.A1[0] = reduceSparse(t01 + t01 + t12 + t12 + t22)
+	z.A2[0] = reduceSparse(t02 + t02 + t11 + t22)
+	return z
+}
+
+// mulKaratsuba sets z to x * y using Karatsuba multiplication (6 base-field multiplications).
+//
+// With t³ = t + 1 the product coefficients are:
+//
+//	c0 = a0·b0 + a1·b2 + a2·b1
+//	c1 = a0·b1 + a1·b0 + a1·b2 + a2·b1 + a2·b2
+//	c2 = a0·b2 + a1·b1 + a2·b0 + a2·b2
+// The six products are formed with [fr.LazyMul]. The three cross terms take
+// [fr.LazyAdd] sums as operands, which are only < 2q rather than canonical; the
+// relaxed LazyMul contract covers that, at the cost of a slightly wider output:
+//
+//	t0, t1, t2  canonical operands  → < 9q/8
+//	t3, t4, t5  operands < 2q       → < 3q/2
+//
+// Each coefficient then adds a multiple of q large enough to cover everything
+// subtracted from it, so the difference never underflows, and one reduceSparse
+// finishes the job:
+//
+//	c0 = t0+t3 +3q −t1−t2    subtrahend < 2.25q  → in [0, 5.625q)
+//	c1 = t4+t3 +4q −t0−2·t1  subtrahend < 3.375q → in [0, 7q)
+//	c2 = t5+t1 +2q −t0       subtrahend < 9q/8   → in [0, 4.625q)
+func (z *E3) mulKaratsuba(x, y *E3) *E3 {
+	// t0 = a0·b0, t1 = a1·b1, t2 = a2·b2
+	// t3 = (a1+a2)·(b1+b2), t4 = (a0+a1)·(b0+b1), t5 = (a0+a2)·(b0+b2)
+	//
+	// c0 = t0 + (t3 - t1 - t2)
+	// c1 = t4 + t3 - t0 - 2·t1
+	// c2 = t5 + t1 - t0
+	var sa, sb fr.Element
+
+	t0 := fr.LazyMul(&x.A0, &y.A0)
+	t1 := fr.LazyMul(&x.A1, &y.A1)
+	t2 := fr.LazyMul(&x.A2, &y.A2)
+
+	fr.LazyAdd(&sa, &x.A1, &x.A2)
+	fr.LazyAdd(&sb, &y.A1, &y.A2)
+	t3 := fr.LazyMul(&sa, &sb)
+
+	fr.LazyAdd(&sa, &x.A0, &x.A1)
+	fr.LazyAdd(&sb, &y.A0, &y.A1)
+	t4 := fr.LazyMul(&sa, &sb)
+
+	fr.LazyAdd(&sa, &x.A0, &x.A2)
+	fr.LazyAdd(&sb, &y.A0, &y.A2)
+	t5 := fr.LazyMul(&sa, &sb)
+
+	z.A0[0] = reduceSparse(t0 + t3 + 3*q - t1 - t2)
+	z.A1[0] = reduceSparse(t4 + t3 + 4*q - t0 - t1 - t1)
+	z.A2[0] = reduceSparse(t5 + t1 + 2*q - t0)
+
+	return z
+}
+
+// squareKaratsuba sets z to x * x using Karatsuba squaring (6 base-field squarings).
+//
+// Same lazy structure and the same coefficient bounds as [E3.mulKaratsuba].
+// It is kept for reference and is not what [E3.Square] dispatches to: at degree
+// 3 the six squarings do not pay for themselves against schoolbook's three
+// squarings plus three multiplications.
+func (z *E3) squareKaratsuba(x *E3) *E3 {
+	// t0 = a0², t1 = a1², t2 = a2²
+	// t3 = (a1+a2)², t4 = (a0+a1)², t5 = (a0+a2)²
+	//
+	// c0 = t0 + t3 - t1 - t2
+	// c1 = t4 + t3 - t0 - 2·t1
+	// c2 = t5 + t1 - t0
+	var s fr.Element
+
+	t0 := fr.LazyMul(&x.A0, &x.A0)
+	t1 := fr.LazyMul(&x.A1, &x.A1)
+	t2 := fr.LazyMul(&x.A2, &x.A2)
+
+	fr.LazyAdd(&s, &x.A1, &x.A2)
+	t3 := fr.LazyMul(&s, &s)
+
+	fr.LazyAdd(&s, &x.A0, &x.A1)
+	t4 := fr.LazyMul(&s, &s)
+
+	fr.LazyAdd(&s, &x.A0, &x.A2)
+	t5 := fr.LazyMul(&s, &s)
+
+	z.A0[0] = reduceSparse(t0 + t3 + 3*q - t1 - t2)
+	z.A1[0] = reduceSparse(t4 + t3 + 4*q - t0 - t1 - t1)
+	z.A2[0] = reduceSparse(t5 + t1 + 2*q - t0)
+
+	return z
+}
+
+// Mul sets z to x * y. Uses Karatsuba (6 multiplications); schoolbook costs 9.
+//
+// Both paths are lazy and reduce once per coefficient, so the comparison comes
+// down to product count and Karatsuba wins. This depends on the relaxed
+// [fr.LazyMul] contract: Karatsuba's cross terms multiply non-canonical sums,
+// and having to reduce those first is what made it lose to schoolbook before.
+func (z *E3) Mul(x, y *E3) *E3 {
+	return z.mulKaratsuba(x, y)
+}
+
+// Square sets z to x * x. Uses schoolbook squaring (3 squarings + 3 multiplications),
+// which is faster than Karatsuba squaring (6 squarings) for this field.
+func (z *E3) Square(x *E3) *E3 {
+	return z.squareSchoolbook(x)
+}
+
+// Inverse sets z to 1/x.
+//
+// If x is zero, z is set to zero.
+// Uses cofactor/Cramer's rule for E3 = F_p[t]/(t³-t-1):
+//
+//	b0 = (a0+a2)² - a1·(a1+a2)
+//	b1 = a2² - a0·a1
+//	b2 = a1² - a0·a2 - a2²
+//	det = a0·b0 + a1·b2 + a2·b1
+//	(z0, z1, z2) = (b0/det, b1/det, b2/det)
+func (z *E3) Inverse(x *E3) *E3 {
+	if x.IsZero() {
+		return z.SetZero()
+	}
+
+	var a02, a12 fr.Element
+	a02.Add(&x.A0, &x.A2)
+	a12.Add(&x.A1, &x.A2)
+
+	var sq0, sq1, sq2 fr.Element
+	sq0.Square(&a02)  // (a0+a2)²
+	sq1.Square(&x.A2) // a2²
+	sq2.Square(&x.A1) // a1²
+
+	var m0, m1, m2 fr.Element
+	m0.Mul(&x.A1, &a12)  // a1·(a1+a2)
+	m1.Mul(&x.A0, &x.A1) // a0·a1
+	m2.Mul(&x.A0, &x.A2) // a0·a2
+
+	var b0, b1, b2 fr.Element
+	b0.Sub(&sq0, &m0)                // (a0+a2)² - a1·(a1+a2)
+	b1.Sub(&sq1, &m1)                // a2² - a0·a1
+	b2.Sub(&sq2, &m2).Sub(&b2, &sq1) // a1² - a0·a2 - a2²
+
+	// det = a0·b0 + a1·b2 + a2·b1
+	var d fr.Element
+	var d1, d2 fr.Element
+	d.Mul(&x.A0, &b0)
+	d1.Mul(&x.A1, &b2)
+	d2.Mul(&x.A2, &b1)
+	d.Add(&d, &d1).Add(&d, &d2)
+	d.Inverse(&d)
+
+	z.A0.Mul(&b0, &d)
+	z.A1.Mul(&b1, &d)
+	z.A2.Mul(&b2, &d)
+	return z
+}
+
+// Exp sets z = x^k using square-and-multiply.
+func (z *E3) Exp(x E3, k *big.Int) *E3 {
+	if k.Sign() == 0 {
+		return z.SetOne()
+	}
+	e := k
+	if k.Sign() == -1 {
+		x.Inverse(&x)
+		e = new(big.Int).Neg(k)
+	}
+	var res E3
+	res.SetOne()
+	b := e.Bytes()
+	for _, w := range b {
+		for j := 7; j >= 0; j-- {
+			res.Square(&res)
+			if (w>>uint(j))&1 == 1 {
+				res.Mul(&res, &x)
+			}
+		}
+	}
+	return z.Set(&res)
+}
+
+// ---- Frobenius ---------------------------------------------------------------
+
+var (
+	frobCoeff1   E3 // t^p in F_{p³}
+	frobCoeff2   E3 // t^(2p) in F_{p³}
+	initFrobOnce sync.Once
+)
+
+func initFrob() {
+	// t^p where t = (0,1,0) is the polynomial variable.
+	var t E3
+	t.A1.SetOne()
+	frobCoeff1.Exp(t, fr.Modulus())
+	frobCoeff2.Square(&frobCoeff1)
+}
+
+// Frobenius sets z to the p-power Frobenius of x: φ(a0+a1·t+a2·t²) = a0 + a1·t^p + a2·t^(2p).
+//
+// Since ai ∈ F_p, Fermat gives ai^p = ai, so only the polynomial variable is
+// transformed: t → t^p, t² → (t^p)².
+func (z *E3) Frobenius(x *E3) *E3 {
+	initFrobOnce.Do(initFrob)
+	a0, a1, a2 := x.A0, x.A1, x.A2
+
+	var c1, c2 E3
+	c1.MulByElement(&frobCoeff1, &a1)
+	c2.MulByElement(&frobCoeff2, &a2)
+
+	z.A0.Add(&a0, &c1.A0).Add(&z.A0, &c2.A0)
+	z.A1.Add(&c1.A1, &c2.A1)
+	z.A2.Add(&c1.A2, &c2.A2)
+	return z
+}
+
+// ---- Batch inverse -----------------------------------------------------------
+
+// BatchInvertE3 returns a new slice with every element in a inverted.
+// It uses the Montgomery batch inversion trick.
+// If a[i] == 0, result[i] == 0.
+func BatchInvertE3(a []E3) []E3 {
+	res := make([]E3, len(a))
+	if len(a) == 0 {
+		return res
+	}
+
+	zeroes := make([]bool, len(a))
+	var accumulator E3
+	accumulator.SetOne()
+
+	for i := range a {
+		if a[i].IsZero() {
+			zeroes[i] = true
+			continue
+		}
+		res[i].Set(&accumulator)
+		accumulator.Mul(&accumulator, &a[i])
+	}
+
+	accumulator.Inverse(&accumulator)
+
+	for i := len(a) - 1; i >= 0; i-- {
+		if zeroes[i] {
+			continue
+		}
+		res[i].Mul(&res[i], &accumulator)
+		accumulator.Mul(&accumulator, &a[i])
+	}
+
+	return res
+}

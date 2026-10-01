@@ -524,7 +524,7 @@ func ElementASMBaseDir(nbWords, nbBits int) string {
 	const fWN = "element_%dw"
 
 	if nbWords == 1 {
-		return fmt.Sprintf(fW1, 31)
+		return fmt.Sprintf(fW1, nbBits)
 	}
 	return fmt.Sprintf(fWN, nbWords)
 }
