@@ -12,6 +12,9 @@ import (
 	fr "github.com/consensys/gnark-crypto/field/mamabear"
 )
 
+// BytesE3 is the number of bytes needed to represent a E3
+const BytesE3 = 3 * fr.Bytes
+
 // E3 is an element of F_{p³} = F_p[t]/(t³ - t - 1).
 // Elements are represented as a0 + a1·t + a2·t² with a0, a1, a2 ∈ F_p.
 type E3 struct {

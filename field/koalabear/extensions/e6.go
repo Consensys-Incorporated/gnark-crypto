@@ -14,6 +14,9 @@ import (
 	"github.com/consensys/gnark-crypto/utils/cpu"
 )
 
+// BytesE6 is the number of bytes needed to represent a E6
+const BytesE6 = 6 * fr.Bytes
+
 // E6 is a degree three finite field extension of fp2
 type E6 struct {
 	B0, B1, B2 E2

@@ -238,11 +238,10 @@ func (vector *Vector) WriteTo(w io.Writer) (int64, error) {
 
 	n := int64(4)
 
-	const e4Bytes = 4 * fr.Bytes
-	buf := make([]byte, len(*vector)*e4Bytes)
+	buf := make([]byte, len(*vector)*BytesE4)
 
 	for i := range len(*vector) {
-		offset := i * e4Bytes
+		offset := i * BytesE4
 		fr.BigEndian.PutElement((*[fr.Bytes]byte)(buf[offset+0*fr.Bytes:offset+1*fr.Bytes]), (*vector)[i].B0.A0)
 		fr.BigEndian.PutElement((*[fr.Bytes]byte)(buf[offset+1*fr.Bytes:offset+2*fr.Bytes]), (*vector)[i].B0.A1)
 		fr.BigEndian.PutElement((*[fr.Bytes]byte)(buf[offset+2*fr.Bytes:offset+3*fr.Bytes]), (*vector)[i].B1.A0)
@@ -290,9 +289,8 @@ func (vector *Vector) AsyncReadFrom(r io.Reader) (int64, error, chan error) { //
 		return int64(read), err, chErr
 	}
 	headerSliceLen := uint64(binary.BigEndian.Uint32(bufSizeSlice[:]))
-	const e4Bytes = 4 * fr.Bytes
 	if lr, ok := r.(interface{ Len() int }); ok {
-		if remaining := lr.Len(); remaining < 0 || headerSliceLen > uint64(remaining/e4Bytes) {
+		if remaining := lr.Len(); remaining < 0 || headerSliceLen > uint64(remaining/BytesE4) {
 			close(chErr)
 			return 4, io.ErrUnexpectedEOF, chErr
 		}
@@ -306,7 +304,7 @@ func (vector *Vector) AsyncReadFrom(r io.Reader) (int64, error, chan error) { //
 		// reduce target size to 1GB on 32 bits architectures
 		targetSize = uint64(1 << 30) // 1GB
 	}
-	maxAllocateSliceLength := targetSize / uint64(e4Bytes)
+	maxAllocateSliceLength := targetSize / uint64(BytesE4)
 
 	totalRead := int64(4)
 	*vector = (*vector)[:0]
@@ -322,12 +320,12 @@ func (vector *Vector) AsyncReadFrom(r io.Reader) (int64, error, chan error) { //
 		if len(*vector) <= int(i) {
 			*vector = append(*vector, make(Vector, int(min(headerSliceLen-i, maxAllocateSliceLength)))...)
 		}
-		bSlice := unsafe.Slice((*byte)(unsafe.Pointer(&(*vector)[i])), int(min(headerSliceLen-i, maxAllocateSliceLength))*e4Bytes)
+		bSlice := unsafe.Slice((*byte)(unsafe.Pointer(&(*vector)[i])), int(min(headerSliceLen-i, maxAllocateSliceLength))*BytesE4)
 		read, err := io.ReadFull(r, bSlice)
 		totalRead += int64(read)
 		if errors.Is(err, io.ErrUnexpectedEOF) {
 			close(chErr)
-			return totalRead, fmt.Errorf("less data than expected: read %d elements, expected %d", i+uint64(read)/e4Bytes, headerSliceLen), chErr
+			return totalRead, fmt.Errorf("less data than expected: read %d elements, expected %d", i+uint64(read)/BytesE4, headerSliceLen), chErr
 		}
 		if err != nil {
 			close(chErr)
@@ -335,7 +333,7 @@ func (vector *Vector) AsyncReadFrom(r io.Reader) (int64, error, chan error) { //
 		}
 	}
 
-	bSlice := unsafe.Slice((*byte)(unsafe.Pointer(&(*vector)[0])), int(headerSliceLen)*e4Bytes)
+	bSlice := unsafe.Slice((*byte)(unsafe.Pointer(&(*vector)[0])), int(headerSliceLen)*BytesE4)
 	go func() {
 		setCoord := func(b *[fr.Bytes]byte) (fr.Element, bool) {
 			e, err := fr.BigEndian.Element(b)
@@ -349,8 +347,8 @@ func (vector *Vector) AsyncReadFrom(r io.Reader) (int64, error, chan error) { //
 
 		var ok bool
 		for i := range int(headerSliceLen) {
-			bstart := i * e4Bytes
-			bend := bstart + e4Bytes
+			bstart := i * BytesE4
+			bend := bstart + BytesE4
 			b := bSlice[bstart:bend]
 
 			(*vector)[i].B0.A0, ok = setCoord((*[fr.Bytes]byte)(b[0*fr.Bytes:]))

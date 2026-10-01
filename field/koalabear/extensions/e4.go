@@ -17,6 +17,9 @@ import (
 const qInvNeg = 2130706431
 const q = 2130706433
 
+// BytesE4 is the number of bytes needed to represent a E4
+const BytesE4 = 4 * fr.Bytes
+
 // E4 is a degree two finite field extension of fr2
 type E4 struct {
 	B0, B1 E2

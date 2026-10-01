@@ -11,6 +11,9 @@ import (
 	fr "github.com/consensys/gnark-crypto/field/koalabear"
 )
 
+// BytesE2 is the number of bytes needed to represent a E2
+const BytesE2 = 2 * fr.Bytes
+
 // E2 is a degree two finite field extension of fr.Element
 type E2 struct {
 	A0, A1 fr.Element
