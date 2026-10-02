@@ -1,4 +1,34 @@
 
+<a name="v0.22.0"></a>
+## [v0.22.0] - 2026-10-02
+### Breaking
+- BLS12-381/Jubjub: correct the twisted-Edwards generator; regenerate keys and signatures derived from the previous generator ([#821](https://github.com/Consensys/gnark-crypto/pull/821))
+- BLS12-381/Bandersnatch EdDSA now uses Bandersnatch rather than Jubjub; regenerate keys and signatures ([#882](https://github.com/Consensys/gnark-crypto/pull/882))
+- MamaBear Poseidon2 uses its derived `R_F = 8`, `R_P = 32` round schedule; existing MamaBear Poseidon2 outputs are incompatible ([#900](https://github.com/Consensys/gnark-crypto/pull/900))
+
+### Security
+- ecdsa: reject identity and small-subgroup public keys during key deserialization ([#889](https://github.com/Consensys/gnark-crypto/pull/889))
+- kzg MPC setup: restore the omitted verifying-key G1 generator when reading a setup, preserving opening-proof binding ([#891](https://github.com/Consensys/gnark-crypto/pull/891))
+- Vortex: reject malformed opening proofs that could make an invalid evaluation claim verify (KoalaBear [#896](https://github.com/Consensys/gnark-crypto/pull/896); MamaBear)
+- shplonk and fflonk: reject malformed proof shapes rather than panicking in `BatchVerify` ([#892](https://github.com/Consensys/gnark-crypto/pull/892))
+- fft: reject invalid serialized domain cardinalities before panic or excessive allocation ([#893](https://github.com/Consensys/gnark-crypto/pull/893))
+- field vectors: reject lengths exceeding a knowable remaining input before allocating ([#878](https://github.com/Consensys/gnark-crypto/pull/878))
+
+### Feat
+- add the 49-bit MamaBear field, degree-3 extensions, FFT, Poseidon2, SIS, IOP, and experimental Vortex commitment scheme with AVX-512 IFMA acceleration ([#887](https://github.com/Consensys/gnark-crypto/pull/887))
+- kzg: add the `Committer` interface plus `OpenWithCommitter` and `BatchOpenSinglePointWithCommitter` for externally accelerated quotient commitments ([#879](https://github.com/Consensys/gnark-crypto/pull/879))
+
+### Perf
+- MamaBear AVX-512 IFMA vector arithmetic and FFT acceleration; optimized E3 arithmetic and Poseidon2 ([#887](https://github.com/Consensys/gnark-crypto/pull/887))
+
+### Fix
+- reject uncompressed all-zero point encodings whose infinity bit is clear ([#897](https://github.com/Consensys/gnark-crypto/pull/897))
+- correct MamaBear Poseidon2 parameters for 128-bit security ([#900](https://github.com/Consensys/gnark-crypto/pull/900))
+
+### Build
+- require Go 1.26.8 and update CI to Go 1.26.x
+- **deps:** update direct and tool dependencies
+
 <a name="v0.21.0"></a>
 ## [v0.21.0] - 2026-08-10
 ### Breaking
@@ -2289,6 +2319,7 @@
 - Merge pull request [#2](https://github.com/Consensys/gnark-crypto/issues/2) from ConsenSys/develop
 <a name="v0.0.1"></a>
 ## v0.0.1 - 2020-03-23
+[v0.22.0]: https://github.com/Consensys/gnark-crypto/compare/v0.21.0...v0.22.0
 [v0.21.0]: https://github.com/Consensys/gnark-crypto/compare/v0.20.1...v0.21.0
 [v0.20.1]: https://github.com/Consensys/gnark-crypto/compare/v0.20.0...v0.20.1
 [v0.20.0]: https://github.com/Consensys/gnark-crypto/compare/v0.19.2...v0.20.0
