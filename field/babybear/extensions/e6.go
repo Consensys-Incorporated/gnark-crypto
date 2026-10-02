@@ -89,6 +89,22 @@ func (z *E6) SetUint64(v uint64) *E6 {
 	return z
 }
 
+// SetBigInt sets z to v (embedded via the unique ring homomorphism ℤ→𝔽, reduced modulo the base field order) and returns z
+func (z *E6) SetBigInt(v *big.Int) *E6 {
+	*z = E6{}
+	z.B0.A0.SetBigInt(v)
+	return z
+}
+
+// BigInt sets res to the integer that z embeds, and returns res.
+// It returns nil if z is not in the image of the embedding ℤ→𝔽, i.e. if any coordinate other than the first is non-zero.
+func (z *E6) BigInt(res *big.Int) *big.Int {
+	if !(z.B0.A1.IsZero() && z.B1.A0.IsZero() && z.B1.A1.IsZero() && z.B2.A0.IsZero() && z.B2.A1.IsZero()) {
+		return nil
+	}
+	return z.B0.A0.BigInt(res)
+}
+
 // MulByElement multiplies an element in E6 by an element in fr.
 // y may alias a coordinate of x, so we copy it first.
 func (z *E6) MulByElement(x *E6, y *fr.Element) *E6 {

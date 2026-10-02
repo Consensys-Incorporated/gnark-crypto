@@ -35,6 +35,22 @@ func (z *E3) SetOne() *E3 {
 	return z
 }
 
+// SetBigInt sets z to v (embedded via the unique ring homomorphism ℤ→𝔽, reduced modulo the base field order) and returns z
+func (z *E3) SetBigInt(v *big.Int) *E3 {
+	*z = E3{}
+	z.A0.SetBigInt(v)
+	return z
+}
+
+// BigInt sets res to the integer that z embeds, and returns res.
+// It returns nil if z is not in the image of the embedding ℤ→𝔽, i.e. if any coordinate other than the first is non-zero.
+func (z *E3) BigInt(res *big.Int) *big.Int {
+	if !(z.A1.IsZero() && z.A2.IsZero()) {
+		return nil
+	}
+	return z.A0.BigInt(res)
+}
+
 // IsZero reports whether z is zero.
 func (z *E3) IsZero() bool {
 	return z.A0.IsZero() && z.A1.IsZero() && z.A2.IsZero()

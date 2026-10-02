@@ -85,6 +85,22 @@ func (z *E4) SetOne() *E4 {
 	return z
 }
 
+// SetBigInt sets z to v (embedded via the unique ring homomorphism ℤ→𝔽, reduced modulo the base field order) and returns z
+func (z *E4) SetBigInt(v *big.Int) *E4 {
+	*z = E4{}
+	z.B0.A0.SetBigInt(v)
+	return z
+}
+
+// BigInt sets res to the integer that z embeds, and returns res.
+// It returns nil if z is not in the image of the embedding ℤ→𝔽, i.e. if any coordinate other than the first is non-zero.
+func (z *E4) BigInt(res *big.Int) *big.Int {
+	if !(z.B0.A1.IsZero() && z.B1.A0.IsZero() && z.B1.A1.IsZero()) {
+		return nil
+	}
+	return z.B0.A0.BigInt(res)
+}
+
 // Lift sets the B0.A0 component of z to v
 func (z *E4) Lift(v *fr.Element) *E4 {
 	*z = E4{}

@@ -74,6 +74,22 @@ func (z *E2) SetOne() *E2 {
 	return z
 }
 
+// SetBigInt sets z to v (embedded via the unique ring homomorphism ℤ→𝔽, reduced modulo the base field order) and returns z
+func (z *E2) SetBigInt(v *big.Int) *E2 {
+	*z = E2{}
+	z.A0.SetBigInt(v)
+	return z
+}
+
+// BigInt sets res to the integer that z embeds, and returns res.
+// It returns nil if z is not in the image of the embedding ℤ→𝔽, i.e. if any coordinate other than the first is non-zero.
+func (z *E2) BigInt(res *big.Int) *big.Int {
+	if !(z.A1.IsZero()) {
+		return nil
+	}
+	return z.A0.BigInt(res)
+}
+
 // SetRandom sets a0 and a1 to random values
 func (z *E2) SetRandom() (*E2, error) {
 	if _, err := z.A0.SetRandom(); err != nil {
