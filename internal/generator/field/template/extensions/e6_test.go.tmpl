@@ -350,3 +350,39 @@ func genE6() gopter.Gen {
 		return E6{B0: values[0].(E2), B1: values[1].(E2), B2: values[2].(E2)}
 	})
 }
+
+func TestE6MarshalSetBytesRoundTrip(t *testing.T) {
+	for range 100 {
+		var x E6
+		x.MustSetRandom()
+
+		b := x.Marshal()
+		if len(b) != BytesE6 {
+			t.Fatalf("Marshal returned %d bytes, want %d", len(b), BytesE6)
+		}
+		coords := []*fr.Element{&x.B0.A0, &x.B0.A1, &x.B1.A0, &x.B1.A1, &x.B2.A0, &x.B2.A1}
+		for i, c := range coords {
+			cb := c.Bytes()
+			if !bytes.Equal(b[i*fr.Bytes:(i+1)*fr.Bytes], cb[:]) {
+				t.Fatalf("coefficient %d is not encoded at its expected offset", i)
+			}
+		}
+
+		var y E6
+		if !y.SetBytes(b).Equal(&x) {
+			t.Fatal("SetBytes(Marshal(x)) != x")
+		}
+	}
+
+	for _, n := range []int{0, BytesE6 - 1, BytesE6 + 1} {
+		func() {
+			defer func() {
+				if recover() == nil {
+					t.Fatalf("SetBytes did not panic on %d bytes", n)
+				}
+			}()
+			var z E6
+			z.SetBytes(make([]byte, n))
+		}()
+	}
+}

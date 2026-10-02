@@ -938,4 +938,5 @@ type FieldDependency struct {
 	ElementType      string
 	FieldPackagePath string
 	FieldPackageName string
+	ExtensionDegree  int
 }

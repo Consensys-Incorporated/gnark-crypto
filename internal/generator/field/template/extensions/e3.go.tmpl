@@ -5,6 +5,9 @@ import (
 	fr "{{ .FieldPackagePath }}"
 )
 
+// BytesE3 is the number of bytes needed to represent a E3
+const BytesE3 = 3 * fr.Bytes
+
 // E3 is an element of F_{p³} = F_p[t]/(t³ - t - 1).
 // Elements are represented as a0 + a1·t + a2·t² with a0, a1, a2 ∈ F_p.
 type E3 struct {
@@ -29,6 +32,44 @@ func (z *E3) SetOne() *E3 {
 	z.A0.SetOne()
 	z.A1.SetZero()
 	z.A2.SetZero()
+	return z
+}
+
+// SetBigInt sets z to v (embedded via the unique ring homomorphism ℤ→𝔽, reduced modulo the base field order) and returns z
+func (z *E3) SetBigInt(v *big.Int) *E3 {
+	*z = E3{}
+	z.A0.SetBigInt(v)
+	return z
+}
+
+// BigInt sets res to the integer that z embeds, and returns res.
+// It returns nil if z is not in the image of the embedding ℤ→𝔽, i.e. if any coordinate other than the first is non-zero.
+func (z *E3) BigInt(res *big.Int) *big.Int {
+	if !z.A1.IsZero() || !z.A2.IsZero() {
+		return nil
+	}
+	return z.A0.BigInt(res)
+}
+
+// Marshal returns the big-endian encodings of the coefficients
+// A0, A1, A2 concatenated, BytesE3 bytes in total
+func (z *E3) Marshal() []byte {
+	res := make([]byte, BytesE3)
+	fr.BigEndian.PutElement((*[fr.Bytes]byte)(res[0*fr.Bytes:1*fr.Bytes]), z.A0)
+	fr.BigEndian.PutElement((*[fr.Bytes]byte)(res[1*fr.Bytes:2*fr.Bytes]), z.A1)
+	fr.BigEndian.PutElement((*[fr.Bytes]byte)(res[2*fr.Bytes:3*fr.Bytes]), z.A2)
+	return res
+}
+
+// SetBytes sets z from the layout produced by Marshal, reading each coefficient with fr.Element.SetBytes, and returns z.
+// It panics if len(b) != BytesE3.
+func (z *E3) SetBytes(b []byte) *E3 {
+	if len(b) != BytesE3 {
+		panic("E3.SetBytes: invalid input length")
+	}
+	z.A0.SetBytes(b[0*fr.Bytes : 1*fr.Bytes])
+	z.A1.SetBytes(b[1*fr.Bytes : 2*fr.Bytes])
+	z.A2.SetBytes(b[2*fr.Bytes : 3*fr.Bytes])
 	return z
 }
 

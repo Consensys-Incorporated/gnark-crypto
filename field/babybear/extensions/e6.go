@@ -13,6 +13,9 @@ import (
 	fr "github.com/consensys/gnark-crypto/field/babybear"
 )
 
+// BytesE6 is the number of bytes needed to represent a E6
+const BytesE6 = 6 * fr.Bytes
+
 // E6 is a degree three finite field extension of fp2
 type E6 struct {
 	B0, B1, B2 E2
@@ -69,6 +72,64 @@ func (z *E6) SetZero() *E6 {
 func (z *E6) SetOne() *E6 {
 	*z = E6{}
 	z.B0.A0.SetOne()
+	return z
+}
+
+// SetInt64 sets z to v (embedded via the unique ring homomorphism ℤ→𝔽₆) and returns z
+func (z *E6) SetInt64(v int64) *E6 {
+	*z = E6{}
+	z.B0.A0.SetInt64(v)
+	return z
+}
+
+// SetUint64 sets z to v (embedded via the unique ring homomorphism ℤ→𝔽₆) and returns z
+func (z *E6) SetUint64(v uint64) *E6 {
+	*z = E6{}
+	z.B0.A0.SetUint64(v)
+	return z
+}
+
+// SetBigInt sets z to v (embedded via the unique ring homomorphism ℤ→𝔽, reduced modulo the base field order) and returns z
+func (z *E6) SetBigInt(v *big.Int) *E6 {
+	*z = E6{}
+	z.B0.A0.SetBigInt(v)
+	return z
+}
+
+// BigInt sets res to the integer that z embeds, and returns res.
+// It returns nil if z is not in the image of the embedding ℤ→𝔽, i.e. if any coordinate other than the first is non-zero.
+func (z *E6) BigInt(res *big.Int) *big.Int {
+	if !z.B0.A1.IsZero() || !z.B1.A0.IsZero() || !z.B1.A1.IsZero() || !z.B2.A0.IsZero() || !z.B2.A1.IsZero() {
+		return nil
+	}
+	return z.B0.A0.BigInt(res)
+}
+
+// Marshal returns the big-endian encodings of the coefficients
+// B0.A0, B0.A1, B1.A0, B1.A1, B2.A0, B2.A1 concatenated, BytesE6 bytes in total
+func (z *E6) Marshal() []byte {
+	res := make([]byte, BytesE6)
+	fr.BigEndian.PutElement((*[fr.Bytes]byte)(res[0*fr.Bytes:1*fr.Bytes]), z.B0.A0)
+	fr.BigEndian.PutElement((*[fr.Bytes]byte)(res[1*fr.Bytes:2*fr.Bytes]), z.B0.A1)
+	fr.BigEndian.PutElement((*[fr.Bytes]byte)(res[2*fr.Bytes:3*fr.Bytes]), z.B1.A0)
+	fr.BigEndian.PutElement((*[fr.Bytes]byte)(res[3*fr.Bytes:4*fr.Bytes]), z.B1.A1)
+	fr.BigEndian.PutElement((*[fr.Bytes]byte)(res[4*fr.Bytes:5*fr.Bytes]), z.B2.A0)
+	fr.BigEndian.PutElement((*[fr.Bytes]byte)(res[5*fr.Bytes:6*fr.Bytes]), z.B2.A1)
+	return res
+}
+
+// SetBytes sets z from the layout produced by Marshal, reading each coefficient with fr.Element.SetBytes, and returns z.
+// It panics if len(b) != BytesE6.
+func (z *E6) SetBytes(b []byte) *E6 {
+	if len(b) != BytesE6 {
+		panic("E6.SetBytes: invalid input length")
+	}
+	z.B0.A0.SetBytes(b[0*fr.Bytes : 1*fr.Bytes])
+	z.B0.A1.SetBytes(b[1*fr.Bytes : 2*fr.Bytes])
+	z.B1.A0.SetBytes(b[2*fr.Bytes : 3*fr.Bytes])
+	z.B1.A1.SetBytes(b[3*fr.Bytes : 4*fr.Bytes])
+	z.B2.A0.SetBytes(b[4*fr.Bytes : 5*fr.Bytes])
+	z.B2.A1.SetBytes(b[5*fr.Bytes : 6*fr.Bytes])
 	return z
 }
 
@@ -469,6 +530,25 @@ func ButterflyE6(a, b *E6) {
 
 // VectorE6 represents a vector of E6 elements
 type VectorE6 []E6
+
+// SetRandom sets all elements of vector to random values, returning the first error encountered, if any.
+func (vector VectorE6) SetRandom() error {
+	for i := range vector {
+		if _, err := vector[i].SetRandom(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// MustSetRandom sets all elements of vector to random values, panicking if an error is encountered.
+func (vector VectorE6) MustSetRandom() {
+	for i := range vector {
+		if _, err := vector[i].SetRandom(); err != nil {
+			panic(err)
+		}
+	}
+}
 
 // Butterfly computes the in-place butterfly operation on two vectors of E6 elements.
 // If other overlaps with vector, the result is undefined; the caller should use a temp vector.

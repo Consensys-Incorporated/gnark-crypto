@@ -6,6 +6,7 @@
 package extensions
 
 import (
+	"bytes"
 	"math/big"
 	"testing"
 
@@ -440,5 +441,41 @@ func BenchmarkE3VectorMulAccByElement(b *testing.B) {
 	b.ResetTimer()
 	for range b.N {
 		dst.MulAccByElement(scale, &alpha)
+	}
+}
+
+func TestE3MarshalSetBytesRoundTrip(t *testing.T) {
+	for range 100 {
+		var x E3
+		x.MustSetRandom()
+
+		b := x.Marshal()
+		if len(b) != BytesE3 {
+			t.Fatalf("Marshal returned %d bytes, want %d", len(b), BytesE3)
+		}
+		coords := []*fr.Element{&x.A0, &x.A1, &x.A2}
+		for i, c := range coords {
+			cb := c.Bytes()
+			if !bytes.Equal(b[i*fr.Bytes:(i+1)*fr.Bytes], cb[:]) {
+				t.Fatalf("coefficient %d is not encoded at its expected offset", i)
+			}
+		}
+
+		var y E3
+		if !y.SetBytes(b).Equal(&x) {
+			t.Fatal("SetBytes(Marshal(x)) != x")
+		}
+	}
+
+	for _, n := range []int{0, BytesE3 - 1, BytesE3 + 1} {
+		func() {
+			defer func() {
+				if recover() == nil {
+					t.Fatalf("SetBytes did not panic on %d bytes", n)
+				}
+			}()
+			var z E3
+			z.SetBytes(make([]byte, n))
+		}()
 	}
 }

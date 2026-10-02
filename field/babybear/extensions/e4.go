@@ -17,6 +17,9 @@ import (
 const qInvNeg = 2013265919
 const q = 2013265921
 
+// BytesE4 is the number of bytes needed to represent a E4
+const BytesE4 = 4 * fr.Bytes
+
 // E4 is a degree two finite field extension of fr2
 type E4 struct {
 	B0, B1 E2
@@ -79,6 +82,46 @@ func (z *E4) SetZero() *E4 {
 func (z *E4) SetOne() *E4 {
 	*z = E4{}
 	z.B0.A0.SetOne()
+	return z
+}
+
+// SetBigInt sets z to v (embedded via the unique ring homomorphism ℤ→𝔽, reduced modulo the base field order) and returns z
+func (z *E4) SetBigInt(v *big.Int) *E4 {
+	*z = E4{}
+	z.B0.A0.SetBigInt(v)
+	return z
+}
+
+// BigInt sets res to the integer that z embeds, and returns res.
+// It returns nil if z is not in the image of the embedding ℤ→𝔽, i.e. if any coordinate other than the first is non-zero.
+func (z *E4) BigInt(res *big.Int) *big.Int {
+	if !z.B0.A1.IsZero() || !z.B1.A0.IsZero() || !z.B1.A1.IsZero() {
+		return nil
+	}
+	return z.B0.A0.BigInt(res)
+}
+
+// Marshal returns the big-endian encodings of the coefficients
+// B0.A0, B0.A1, B1.A0, B1.A1 concatenated, BytesE4 bytes in total
+func (z *E4) Marshal() []byte {
+	res := make([]byte, BytesE4)
+	fr.BigEndian.PutElement((*[fr.Bytes]byte)(res[0*fr.Bytes:1*fr.Bytes]), z.B0.A0)
+	fr.BigEndian.PutElement((*[fr.Bytes]byte)(res[1*fr.Bytes:2*fr.Bytes]), z.B0.A1)
+	fr.BigEndian.PutElement((*[fr.Bytes]byte)(res[2*fr.Bytes:3*fr.Bytes]), z.B1.A0)
+	fr.BigEndian.PutElement((*[fr.Bytes]byte)(res[3*fr.Bytes:4*fr.Bytes]), z.B1.A1)
+	return res
+}
+
+// SetBytes sets z from the layout produced by Marshal, reading each coefficient with fr.Element.SetBytes, and returns z.
+// It panics if len(b) != BytesE4.
+func (z *E4) SetBytes(b []byte) *E4 {
+	if len(b) != BytesE4 {
+		panic("E4.SetBytes: invalid input length")
+	}
+	z.B0.A0.SetBytes(b[0*fr.Bytes : 1*fr.Bytes])
+	z.B0.A1.SetBytes(b[1*fr.Bytes : 2*fr.Bytes])
+	z.B1.A0.SetBytes(b[2*fr.Bytes : 3*fr.Bytes])
+	z.B1.A1.SetBytes(b[3*fr.Bytes : 4*fr.Bytes])
 	return z
 }
 
