@@ -81,7 +81,9 @@ func (p *Params) encodeReedSolomonCosets(input, res []mamabear.Element) {
 
 // IsReedSolomonCodewords returns true iff the argument is a correct codeword.
 func (p *Params) IsReedSolomonCodewords(codeword []fext.E3) bool {
-
+	if len(codeword) != p.SizeCodeWord() {
+		return false
+	}
 	coeffs := make([]mamabear.Element, p.SizeCodeWord())
 
 	for i := range coeffs {

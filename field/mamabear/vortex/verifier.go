@@ -31,8 +31,29 @@ type VerifierInput struct {
 
 // Verify implements the verification algorithm for a Vortex opening proof.
 func (p *Params) Verify(input VerifierInput) error {
-
 	proof := input.Proof
+	if proof == nil {
+		return errors.New("invalid proof: missing opening proof")
+	}
+	n := p.SizeCodeWord()
+	if len(proof.UAlpha) != n {
+		return fmt.Errorf("invalid proof: uAlpha must have %d elements", n)
+	}
+	if len(input.SelectedColumns) == 0 || len(input.SelectedColumns) != p.NumSelectedColumns ||
+		len(proof.OpenedColumns) != len(input.SelectedColumns) ||
+		len(proof.MerkleProofOpenedColumns) != len(input.SelectedColumns) {
+		return errors.New("invalid proof: incorrect number of opened columns")
+	}
+	if len(input.ClaimedValues) == 0 || len(input.ClaimedValues) > p.MaxNbRows {
+		return errors.New("invalid proof: incorrect number of claimed rows")
+	}
+	merkleDepth := log2Ceil(n)
+	for i, c := range input.SelectedColumns {
+		if c < 0 || c >= n || len(proof.OpenedColumns[i]) != len(input.ClaimedValues) ||
+			len(proof.MerkleProofOpenedColumns[i]) != merkleDepth {
+			return fmt.Errorf("invalid proof: malformed opening at column %d", i)
+		}
+	}
 	root := input.MerkleRoot
 
 	// Check consistency between uAlpha and the claimed value.
