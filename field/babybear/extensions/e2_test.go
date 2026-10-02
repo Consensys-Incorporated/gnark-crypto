@@ -6,6 +6,7 @@
 package extensions
 
 import (
+	"bytes"
 	"crypto/rand"
 	"math/big"
 	"testing"
@@ -552,4 +553,40 @@ func genE2() gopter.Gen {
 	).Map(func(values []any) E2 {
 		return E2{A0: values[0].(fr.Element), A1: values[1].(fr.Element)}
 	})
+}
+
+func TestE2MarshalSetBytesRoundTrip(t *testing.T) {
+	for range 100 {
+		var x E2
+		x.MustSetRandom()
+
+		b := x.Marshal()
+		if len(b) != BytesE2 {
+			t.Fatalf("Marshal returned %d bytes, want %d", len(b), BytesE2)
+		}
+		coords := []*fr.Element{&x.A0, &x.A1}
+		for i, c := range coords {
+			cb := c.Bytes()
+			if !bytes.Equal(b[i*fr.Bytes:(i+1)*fr.Bytes], cb[:]) {
+				t.Fatalf("coefficient %d is not encoded at its expected offset", i)
+			}
+		}
+
+		var y E2
+		if !y.SetBytes(b).Equal(&x) {
+			t.Fatal("SetBytes(Marshal(x)) != x")
+		}
+	}
+
+	for _, n := range []int{0, BytesE2 - 1, BytesE2 + 1} {
+		func() {
+			defer func() {
+				if recover() == nil {
+					t.Fatalf("SetBytes did not panic on %d bytes", n)
+				}
+			}()
+			var z E2
+			z.SetBytes(make([]byte, n))
+		}()
+	}
 }

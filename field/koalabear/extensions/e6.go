@@ -100,7 +100,7 @@ func (z *E6) SetBigInt(v *big.Int) *E6 {
 // BigInt sets res to the integer that z embeds, and returns res.
 // It returns nil if z is not in the image of the embedding ℤ→𝔽, i.e. if any coordinate other than the first is non-zero.
 func (z *E6) BigInt(res *big.Int) *big.Int {
-	if !(z.B0.A1.IsZero() && z.B1.A0.IsZero() && z.B1.A1.IsZero() && z.B2.A0.IsZero() && z.B2.A1.IsZero()) {
+	if !z.B0.A1.IsZero() || !z.B1.A0.IsZero() || !z.B1.A1.IsZero() || !z.B2.A0.IsZero() || !z.B2.A1.IsZero() {
 		return nil
 	}
 	return z.B0.A0.BigInt(res)
@@ -109,19 +109,13 @@ func (z *E6) BigInt(res *big.Int) *big.Int {
 // Marshal returns the big-endian encodings of the coefficients
 // B0.A0, B0.A1, B1.A0, B1.A1, B2.A0, B2.A1 concatenated, BytesE6 bytes in total
 func (z *E6) Marshal() []byte {
-	res := make([]byte, 0, BytesE6)
-	b0 := z.B0.A0.Bytes()
-	res = append(res, b0[:]...)
-	b1 := z.B0.A1.Bytes()
-	res = append(res, b1[:]...)
-	b2 := z.B1.A0.Bytes()
-	res = append(res, b2[:]...)
-	b3 := z.B1.A1.Bytes()
-	res = append(res, b3[:]...)
-	b4 := z.B2.A0.Bytes()
-	res = append(res, b4[:]...)
-	b5 := z.B2.A1.Bytes()
-	res = append(res, b5[:]...)
+	res := make([]byte, BytesE6)
+	fr.BigEndian.PutElement((*[fr.Bytes]byte)(res[0*fr.Bytes:1*fr.Bytes]), z.B0.A0)
+	fr.BigEndian.PutElement((*[fr.Bytes]byte)(res[1*fr.Bytes:2*fr.Bytes]), z.B0.A1)
+	fr.BigEndian.PutElement((*[fr.Bytes]byte)(res[2*fr.Bytes:3*fr.Bytes]), z.B1.A0)
+	fr.BigEndian.PutElement((*[fr.Bytes]byte)(res[3*fr.Bytes:4*fr.Bytes]), z.B1.A1)
+	fr.BigEndian.PutElement((*[fr.Bytes]byte)(res[4*fr.Bytes:5*fr.Bytes]), z.B2.A0)
+	fr.BigEndian.PutElement((*[fr.Bytes]byte)(res[5*fr.Bytes:6*fr.Bytes]), z.B2.A1)
 	return res
 }
 

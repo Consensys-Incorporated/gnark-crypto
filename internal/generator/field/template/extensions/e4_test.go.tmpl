@@ -1124,3 +1124,39 @@ func genFrVector(size int) gopter.Gen {
 		return gopter.NewGenResult(v, gopter.NoShrinker)
 	}
 }
+
+func TestE4MarshalSetBytesRoundTrip(t *testing.T) {
+	for range 100 {
+		var x E4
+		x.MustSetRandom()
+
+		b := x.Marshal()
+		if len(b) != BytesE4 {
+			t.Fatalf("Marshal returned %d bytes, want %d", len(b), BytesE4)
+		}
+		coords := []*fr.Element{&x.B0.A0, &x.B0.A1, &x.B1.A0, &x.B1.A1}
+		for i, c := range coords {
+			cb := c.Bytes()
+			if !bytes.Equal(b[i*fr.Bytes:(i+1)*fr.Bytes], cb[:]) {
+				t.Fatalf("coefficient %d is not encoded at its expected offset", i)
+			}
+		}
+
+		var y E4
+		if !y.SetBytes(b).Equal(&x) {
+			t.Fatal("SetBytes(Marshal(x)) != x")
+		}
+	}
+
+	for _, n := range []int{0, BytesE4 - 1, BytesE4 + 1} {
+		func() {
+			defer func() {
+				if recover() == nil {
+					t.Fatalf("SetBytes did not panic on %d bytes", n)
+				}
+			}()
+			var z E4
+			z.SetBytes(make([]byte, n))
+		}()
+	}
+}

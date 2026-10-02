@@ -84,10 +84,30 @@ func (z *E2) SetBigInt(v *big.Int) *E2 {
 // BigInt sets res to the integer that z embeds, and returns res.
 // It returns nil if z is not in the image of the embedding ℤ→𝔽, i.e. if any coordinate other than the first is non-zero.
 func (z *E2) BigInt(res *big.Int) *big.Int {
-	if !(z.A1.IsZero()) {
+	if !z.A1.IsZero() {
 		return nil
 	}
 	return z.A0.BigInt(res)
+}
+
+// Marshal returns the big-endian encodings of the coefficients
+// A0, A1 concatenated, BytesE2 bytes in total
+func (z *E2) Marshal() []byte {
+	res := make([]byte, BytesE2)
+	fr.BigEndian.PutElement((*[fr.Bytes]byte)(res[0*fr.Bytes:1*fr.Bytes]), z.A0)
+	fr.BigEndian.PutElement((*[fr.Bytes]byte)(res[1*fr.Bytes:2*fr.Bytes]), z.A1)
+	return res
+}
+
+// SetBytes sets z from the layout produced by Marshal, reading each coefficient with fr.Element.SetBytes, and returns z.
+// It panics if len(b) != BytesE2.
+func (z *E2) SetBytes(b []byte) *E2 {
+	if len(b) != BytesE2 {
+		panic("E2.SetBytes: invalid input length")
+	}
+	z.A0.SetBytes(b[0*fr.Bytes : 1*fr.Bytes])
+	z.A1.SetBytes(b[1*fr.Bytes : 2*fr.Bytes])
+	return z
 }
 
 // SetRandom sets a0 and a1 to random values
