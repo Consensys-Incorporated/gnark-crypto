@@ -106,6 +106,40 @@ func (z *E6) BigInt(res *big.Int) *big.Int {
 	return z.B0.A0.BigInt(res)
 }
 
+// Marshal returns the big-endian encodings of the coefficients
+// B0.A0, B0.A1, B1.A0, B1.A1, B2.A0, B2.A1 concatenated, BytesE6 bytes in total
+func (z *E6) Marshal() []byte {
+	res := make([]byte, 0, BytesE6)
+	b0 := z.B0.A0.Bytes()
+	res = append(res, b0[:]...)
+	b1 := z.B0.A1.Bytes()
+	res = append(res, b1[:]...)
+	b2 := z.B1.A0.Bytes()
+	res = append(res, b2[:]...)
+	b3 := z.B1.A1.Bytes()
+	res = append(res, b3[:]...)
+	b4 := z.B2.A0.Bytes()
+	res = append(res, b4[:]...)
+	b5 := z.B2.A1.Bytes()
+	res = append(res, b5[:]...)
+	return res
+}
+
+// SetBytes sets z from the layout produced by Marshal, reading each coefficient with fr.Element.SetBytes, and returns z.
+// It panics if len(b) != BytesE6.
+func (z *E6) SetBytes(b []byte) *E6 {
+	if len(b) != BytesE6 {
+		panic("E6.SetBytes: invalid input length")
+	}
+	z.B0.A0.SetBytes(b[0*fr.Bytes : 1*fr.Bytes])
+	z.B0.A1.SetBytes(b[1*fr.Bytes : 2*fr.Bytes])
+	z.B1.A0.SetBytes(b[2*fr.Bytes : 3*fr.Bytes])
+	z.B1.A1.SetBytes(b[3*fr.Bytes : 4*fr.Bytes])
+	z.B2.A0.SetBytes(b[4*fr.Bytes : 5*fr.Bytes])
+	z.B2.A1.SetBytes(b[5*fr.Bytes : 6*fr.Bytes])
+	return z
+}
+
 // MulByElement multiplies an element in E6 by an element in fr.
 // y may alias a coordinate of x, so we copy it first.
 func (z *E6) MulByElement(x *E6, y *fr.Element) *E6 {
