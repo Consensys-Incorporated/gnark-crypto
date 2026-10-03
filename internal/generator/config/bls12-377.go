@@ -62,6 +62,7 @@ var BLS12_377 = Curve{
 		B: []string{"0x19e38372e0d4bf401d2fa5f2261e1e3fc95d51a3857fc23b1385d51ea9c973a89c22148a93dff96447700bf1c3aebac", "0x1579ddb5c1c595b7c08c3a3cef5626143c25757c6b67d0a2677b22fc0c890d8b2b1a17895d047a98c49047069f725"},
 		Z: []int{12, 1},
 		Isogeny: &Isogeny{
+			Chains: &bls12377G2IsogenyChains,
 			XMap: RationalPolynomial{
 				Num: [][]string{
 					{"0x113b0abb7ba48832ffb7aaaa7ce085078312d4bf0bf8882e8f4a0a6e24d91b535b6c81277ad9369cacc733de5cf86d9",
