@@ -26,7 +26,13 @@ import (
 	"errors"
 	"fmt"
 	"hash"
+	"math"
 )
+
+// maxSubTreeHeight is the largest height a subtree handed to PushSubTree may
+// have. A subtree of height h covers 2^h leaves and the tree keeps the number
+// of leaves in a uint64, so h must lie in [0, 63].
+const maxSubTreeHeight = 63
 
 // A Tree takes data as leaves and returns the Merkle root. Each call to 'Push'
 // adds one leaf to the Merkle tree. Calling 'Root' returns the Merkle root.
@@ -252,9 +258,26 @@ func (t *Tree) Push(data []byte) {
 // trees. Therefore an unbalanced tree will cause silent errors, pain and
 // misery for the person who wants to debug the resulting error.
 func (t *Tree) PushSubTree(height int, sum []byte) error {
+	// Validate the height before any tree state is touched. Shifting a uint64
+	// by an amount >= its width yields zero, and uint64(height) is huge for a
+	// negative height, so both a negative and an oversized height would make
+	// the subtree size collapse to 0: a bogus subtree would be pushed and
+	// currentIndex would silently not advance.
+	if height < 0 {
+		return fmt.Errorf("can't add a subtree with a negative height %d", height)
+	}
+	if height > maxSubTreeHeight {
+		return fmt.Errorf("can't add a subtree with height %d: it covers more leaves than the tree can index (max %d)", height, maxSubTreeHeight)
+	}
+
+	subtreeSize := uint64(1) << uint(height)
+	if subtreeSize > math.MaxUint64-t.currentIndex {
+		return errors.New("can't add a subtree: the number of leaves would overflow the tree index")
+	}
+	newIndex := t.currentIndex + subtreeSize
+
 	// Check if the cached tree that is pushed contains the element at
 	// proofIndex. This is not allowed.
-	newIndex := t.currentIndex + 1<<uint64(height)
 	if t.proofTree && (t.currentIndex == t.proofIndex ||
 		(t.currentIndex < t.proofIndex && t.proofIndex < newIndex)) {
 		return errors.New("the cached tree shouldn't contain the element to prove")
