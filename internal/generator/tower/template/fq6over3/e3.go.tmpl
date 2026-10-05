@@ -13,11 +13,17 @@ func (z *E3) Equal(x *E3) bool {
 }
 
 // SetString sets a E3 elmt from string
-func (z *E3) SetString(s1, s2, s3 string) *E3 {
-	z.A0.SetString(s1)
-	z.A1.SetString(s2)
-	z.A2.SetString(s3)
-	return z
+func (z *E3) SetString(s1, s2, s3 string) (*E3, error) {
+	if _, err := z.A0.SetString(s1); err != nil {
+		return nil, err
+	}
+	if _, err := z.A1.SetString(s2); err != nil {
+		return nil, err
+	}
+	if _, err := z.A2.SetString(s3); err != nil {
+		return nil, err
+	}
+	return z, nil
 }
 
 // SetZero sets an E3 elmt to zero
