@@ -97,6 +97,14 @@ func (z *E2) SubElement(x *E2, y *fr.Element) *E2 {
 	return z
 }
 
+// SubFromElement sets z to x - y, where x is an element of the base field embedded in E2, and returns z
+func (z *E2) SubFromElement(x *fr.Element, y *E2) *E2 {
+	xc := *x
+	z.A0.Sub(&xc, &y.A0)
+	z.A1.Neg(&y.A1)
+	return z
+}
+
 // SetElement sets z to x, an element of the base field embedded in E2, and returns z
 func (z *E2) SetElement(x *fr.Element) *E2 {
 	v := *x

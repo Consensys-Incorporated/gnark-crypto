@@ -1228,6 +1228,15 @@ func TestE4ElementOps(t *testing.T) {
 		want.Sub(&x, &lifted)
 		require.True(t, got.Equal(&want), "SubElement")
 
+		got.SubFromElement(&e, &x)
+		want.Sub(&lifted, &x)
+		require.True(t, got.Equal(&want), "SubFromElement")
+
+		// aliasing of the receiver with the second operand
+		got.Set(&x)
+		got.SubFromElement(&e, &got)
+		require.True(t, got.Equal(&want), "SubFromElement alias")
+
 		// aliasing of the receiver with the first operand
 		got.Set(&x)
 		got.AddElement(&got, &e)
