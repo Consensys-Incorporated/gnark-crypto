@@ -8,6 +8,7 @@ package fptower
 import (
 	"testing"
 
+	"github.com/consensys/gnark-crypto/ecc/bls12-377/fp"
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/prop"
 )
@@ -326,6 +327,51 @@ func BenchmarkE6Inverse(b *testing.B) {
 	b.ResetTimer()
 	for range b.N {
 		a.Inverse(&a)
+	}
+}
+
+func TestE6SetString(t *testing.T) {
+	t.Parallel()
+
+	coeffs := [6]string{"1", "2", "3", "4", "5", "0x6"}
+	var want E6
+	leaves := []*fp.Element{
+		&want.B0.A0, &want.B0.A1,
+		&want.B1.A0, &want.B1.A1,
+		&want.B2.A0, &want.B2.A1,
+	}
+	for i, s := range coeffs {
+		if _, err := leaves[i].SetString(s); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	var z E6
+	got, err := z.SetString(coeffs[0], coeffs[1], coeffs[2], coeffs[3], coeffs[4], coeffs[5])
+	if err != nil {
+		t.Fatalf("valid coefficients: %v", err)
+	}
+	if got != &z {
+		t.Fatal("SetString did not return the receiver")
+	}
+	if !z.Equal(&want) {
+		t.Fatalf("got %s, want %s", z.String(), want.String())
+	}
+
+	_, wantErr := leaves[0].SetString("nope")
+	if wantErr == nil {
+		t.Fatal("subfield accepted an invalid coefficient")
+	}
+	for _, badAt := range []int{0, 3, 5} {
+		bad := coeffs
+		bad[badAt] = "nope"
+		got, err = z.SetString(bad[0], bad[1], bad[2], bad[3], bad[4], bad[5])
+		if got != nil {
+			t.Fatalf("SetString returned a receiver with invalid coefficient %d", badAt)
+		}
+		if err == nil || err.Error() != wantErr.Error() {
+			t.Fatalf("coefficient %d error = %v, want %v", badAt, err, wantErr)
+		}
 	}
 }
 

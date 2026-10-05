@@ -27,15 +27,28 @@ func (z *E6D) String() string {
 	return (z.A0.String() + "+(" + z.A1.String() + ")*u+(" + z.A2.String() + ")*u**2+(" + z.A3.String() + ")*u**3+(" + z.A4.String() + ")*u**4+(" + z.A5.String() + ")*u**5")
 }
 
-// SetString sets a E6D elmt from string
-func (z *E6D) SetString(s1, s2, s3, s4, s5, s6 string) *E6D {
-	z.A0.SetString(s1)
-	z.A1.SetString(s2)
-	z.A2.SetString(s3)
-	z.A3.SetString(s4)
-	z.A4.SetString(s5)
-	z.A5.SetString(s6)
-	return z
+// SetString sets z from coefficient strings and returns z.
+// It returns nil and the subfield SetString error when a coefficient cannot be parsed.
+func (z *E6D) SetString(s1, s2, s3, s4, s5, s6 string) (*E6D, error) {
+	if _, err := z.A0.SetString(s1); err != nil {
+		return nil, err
+	}
+	if _, err := z.A1.SetString(s2); err != nil {
+		return nil, err
+	}
+	if _, err := z.A2.SetString(s3); err != nil {
+		return nil, err
+	}
+	if _, err := z.A3.SetString(s4); err != nil {
+		return nil, err
+	}
+	if _, err := z.A4.SetString(s5); err != nil {
+		return nil, err
+	}
+	if _, err := z.A5.SetString(s6); err != nil {
+		return nil, err
+	}
+	return z, nil
 }
 
 // Set copies x into z and returns z

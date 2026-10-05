@@ -55,11 +55,16 @@ func (z *E2) String() string {
 	return fmt.Sprintf("%s+(%s)*u", z.A0.String(), z.A1.String())
 }
 
-// SetString sets z from two decimal strings and returns z.
-func (z *E2) SetString(s1, s2 string) *E2 {
-	z.A0.SetString(s1)
-	z.A1.SetString(s2)
-	return z
+// SetString sets z from coefficient strings and returns z.
+// It returns nil and the subfield SetString error when a coefficient cannot be parsed.
+func (z *E2) SetString(s1, s2 string) (*E2, error) {
+	if _, err := z.A0.SetString(s1); err != nil {
+		return nil, err
+	}
+	if _, err := z.A1.SetString(s2); err != nil {
+		return nil, err
+	}
+	return z, nil
 }
 
 // Legendre returns the Legendre symbol of z in Fp2.

@@ -1126,3 +1126,44 @@ func genFrVector(size int) gopter.Gen {
 		return gopter.NewGenResult(v, gopter.NoShrinker)
 	}
 }
+
+func TestE4SetString(t *testing.T) {
+	t.Parallel()
+
+	coeffs := [4]string{"1", "2", "3", "0x4"}
+	var want E4
+	leaves := []*fr.Element{&want.B0.A0, &want.B0.A1, &want.B1.A0, &want.B1.A1}
+	for i, s := range coeffs {
+		if _, err := leaves[i].SetString(s); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	var z E4
+	got, err := z.SetString(coeffs[0], coeffs[1], coeffs[2], coeffs[3])
+	if err != nil {
+		t.Fatalf("valid coefficients: %v", err)
+	}
+	if got != &z {
+		t.Fatal("SetString did not return the receiver")
+	}
+	if !z.Equal(&want) {
+		t.Fatalf("got %s, want %s", z.String(), want.String())
+	}
+
+	_, wantErr := leaves[0].SetString("nope")
+	if wantErr == nil {
+		t.Fatal("subfield accepted an invalid coefficient")
+	}
+	for _, badAt := range []int{0, 3} {
+		bad := coeffs
+		bad[badAt] = "nope"
+		got, err = z.SetString(bad[0], bad[1], bad[2], bad[3])
+		if got != nil {
+			t.Fatalf("SetString returned a receiver with invalid coefficient %d", badAt)
+		}
+		if err == nil || err.Error() != wantErr.Error() {
+			t.Fatalf("coefficient %d error = %v, want %v", badAt, err, wantErr)
+		}
+	}
+}

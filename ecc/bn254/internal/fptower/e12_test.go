@@ -560,6 +560,56 @@ func TestE12ExptGroundTruth(t *testing.T) {
 	}
 }
 
+func TestE12SetString(t *testing.T) {
+	t.Parallel()
+
+	coeffs := [12]string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "0x12"}
+	var want E12
+	leaves := []*fp.Element{
+		&want.C0.B0.A0, &want.C0.B0.A1, &want.C0.B1.A0, &want.C0.B1.A1, &want.C0.B2.A0, &want.C0.B2.A1,
+		&want.C1.B0.A0, &want.C1.B0.A1, &want.C1.B1.A0, &want.C1.B1.A1, &want.C1.B2.A0, &want.C1.B2.A1,
+	}
+	for i, s := range coeffs {
+		if _, err := leaves[i].SetString(s); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	var z E12
+	got, err := z.SetString(
+		coeffs[0], coeffs[1], coeffs[2], coeffs[3], coeffs[4], coeffs[5],
+		coeffs[6], coeffs[7], coeffs[8], coeffs[9], coeffs[10], coeffs[11],
+	)
+	if err != nil {
+		t.Fatalf("valid coefficients: %v", err)
+	}
+	if got != &z {
+		t.Fatal("SetString did not return the receiver")
+	}
+	if !z.Equal(&want) {
+		t.Fatalf("got %s, want %s", z.String(), want.String())
+	}
+
+	_, wantErr := leaves[0].SetString("nope")
+	if wantErr == nil {
+		t.Fatal("subfield accepted an invalid coefficient")
+	}
+	for _, badAt := range []int{0, 7, 11} {
+		bad := coeffs
+		bad[badAt] = "nope"
+		got, err = z.SetString(
+			bad[0], bad[1], bad[2], bad[3], bad[4], bad[5],
+			bad[6], bad[7], bad[8], bad[9], bad[10], bad[11],
+		)
+		if got != nil {
+			t.Fatalf("SetString returned a receiver with invalid coefficient %d", badAt)
+		}
+		if err == nil || err.Error() != wantErr.Error() {
+			t.Fatalf("coefficient %d error = %v, want %v", badAt, err, wantErr)
+		}
+	}
+}
+
 func TestE12Div(t *testing.T) {
 
 	parameters := gopter.DefaultTestParameters()

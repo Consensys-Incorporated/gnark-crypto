@@ -46,11 +46,16 @@ func (z *E4) String() string {
 	return (z.B0.String() + "+(" + z.B1.String() + ")*v")
 }
 
-// SetString sets a E4 from string
-func (z *E4) SetString(s0, s1, s2, s3 string) *E4 {
-	z.B0.SetString(s0, s1)
-	z.B1.SetString(s2, s3)
-	return z
+// SetString sets z from coefficient strings and returns z.
+// It returns nil and the subfield SetString error when a coefficient cannot be parsed.
+func (z *E4) SetString(s0, s1, s2, s3 string) (*E4, error) {
+	if _, err := z.B0.SetString(s0, s1); err != nil {
+		return nil, err
+	}
+	if _, err := z.B1.SetString(s2, s3); err != nil {
+		return nil, err
+	}
+	return z, nil
 }
 
 // Set copies x into z and returns z
