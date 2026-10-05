@@ -64,6 +64,32 @@ func (z *E3) Div(x, y *E3) *E3 {
 	return z.Set(&r)
 }
 
+// AddElement sets z to x + y, where y is an element of the base field embedded in E3, and returns z
+func (z *E3) AddElement(x *E3, y *fr.Element) *E3 {
+	yc := *y
+	z.A0.Add(&x.A0, &yc)
+	z.A1 = x.A1
+	z.A2 = x.A2
+	return z
+}
+
+// SubElement sets z to x - y, where y is an element of the base field embedded in E3, and returns z
+func (z *E3) SubElement(x *E3, y *fr.Element) *E3 {
+	yc := *y
+	z.A0.Sub(&x.A0, &yc)
+	z.A1 = x.A1
+	z.A2 = x.A2
+	return z
+}
+
+// SetElement sets z to x, an element of the base field embedded in E3, and returns z
+func (z *E3) SetElement(x *fr.Element) *E3 {
+	v := *x
+	*z = E3{}
+	z.A0 = v
+	return z
+}
+
 // SetBigInt sets z to v (embedded via the unique ring homomorphism ℤ→𝔽, reduced modulo the base field order) and returns z
 func (z *E3) SetBigInt(v *big.Int) *E3 {
 	*z = E3{}

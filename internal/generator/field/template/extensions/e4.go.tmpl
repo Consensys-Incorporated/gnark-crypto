@@ -92,6 +92,34 @@ func (z *E4) SetUint64(v uint64) *E4 {
 	return z
 }
 
+// AddElement sets z to x + y, where y is an element of the base field embedded in E4, and returns z
+func (z *E4) AddElement(x *E4, y *fr.Element) *E4 {
+	yc := *y
+	z.B0.A0.Add(&x.B0.A0, &yc)
+	z.B0.A1 = x.B0.A1
+	z.B1.A0 = x.B1.A0
+	z.B1.A1 = x.B1.A1
+	return z
+}
+
+// SubElement sets z to x - y, where y is an element of the base field embedded in E4, and returns z
+func (z *E4) SubElement(x *E4, y *fr.Element) *E4 {
+	yc := *y
+	z.B0.A0.Sub(&x.B0.A0, &yc)
+	z.B0.A1 = x.B0.A1
+	z.B1.A0 = x.B1.A0
+	z.B1.A1 = x.B1.A1
+	return z
+}
+
+// SetElement sets z to x, an element of the base field embedded in E4, and returns z
+func (z *E4) SetElement(x *fr.Element) *E4 {
+	v := *x
+	*z = E4{}
+	z.B0.A0 = v
+	return z
+}
+
 // SetBigInt sets z to v (embedded via the unique ring homomorphism ℤ→𝔽, reduced modulo the base field order) and returns z
 func (z *E4) SetBigInt(v *big.Int) *E4 {
 	*z = E4{}

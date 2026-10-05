@@ -409,3 +409,38 @@ func TestE6SetBytesCanonicalRejectsNonCanonical(t *testing.T) {
 		require.True(t, y.Equal(&x), "E6 must be unchanged on error")
 	}
 }
+
+func TestE6ElementOps(t *testing.T) {
+	for range 100 {
+		var x, lifted, got, want E6
+		var e fr.Element
+		x.MustSetRandom()
+		e.MustSetRandom()
+
+		var z E6
+		z.SetElement(&e)
+		require.True(t, z.B0.A0.Equal(&e))
+		require.True(t, z.B0.A1.IsZero())
+		require.True(t, z.B1.A0.IsZero())
+		require.True(t, z.B1.A1.IsZero())
+		require.True(t, z.B2.A0.IsZero())
+		require.True(t, z.B2.A1.IsZero())
+		lifted = z
+
+		got.AddElement(&x, &e)
+		want.Add(&x, &lifted)
+		require.True(t, got.Equal(&want), "AddElement")
+
+		got.SubElement(&x, &e)
+		want.Sub(&x, &lifted)
+		require.True(t, got.Equal(&want), "SubElement")
+
+		// aliasing of the receiver with the first operand
+		got.Set(&x)
+		got.AddElement(&got, &e)
+		want.Add(&x, &lifted)
+		require.True(t, got.Equal(&want), "AddElement alias")
+		got.SubElement(&got, &e)
+		require.True(t, got.Equal(&x), "SubElement alias")
+	}
+}

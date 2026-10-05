@@ -8,25 +8,23 @@ package polynomial
 import (
 	"math/bits"
 
-	fr "github.com/consensys/gnark-crypto/field/koalabear"
-	"github.com/consensys/gnark-crypto/field/koalabear/extensions"
-	basepoly "github.com/consensys/gnark-crypto/field/koalabear/polynomial"
+	"github.com/consensys/gnark-crypto/field/goldilocks"
 	"github.com/consensys/gnark-crypto/utils"
 )
 
-// MultiLinE6 tracks the values of a (dense i.e. not sparse) multilinear polynomial
+// MultiLin tracks the values of a (dense i.e. not sparse) multilinear polynomial
 // The variables are X₁ through Xₙ where n = log(len(.))
 // .[∑ᵢ 2ⁱ⁻¹ bₙ₋ᵢ] = the polynomial evaluated at (b₁, b₂, ..., bₙ)
 // It is understood that any hypercube evaluation can be extrapolated to a multilinear polynomial
-type MultiLinE6 []extensions.E6
+type MultiLin []goldilocks.Element
 
 // Fold is partial evaluation function k[X₁, X₂, ..., Xₙ] → k[X₂, ..., Xₙ] by setting X₁=r
-func (m *MultiLinE6) Fold(r extensions.E6) {
+func (m *MultiLin) Fold(r goldilocks.Element) {
 	mid := len(*m) / 2
 
 	bottom, top := (*m)[:mid], (*m)[mid:]
 
-	var t extensions.E6 // no need to update the top part
+	var t goldilocks.Element // no need to update the top part
 
 	// updating bookkeeping table
 	// knowing that the polynomial f ∈ (k[X₂, ..., Xₙ])[X₁] is linear, we would get f(r) = f(0) + r(f(1) - f(0))
@@ -42,14 +40,14 @@ func (m *MultiLinE6) Fold(r extensions.E6) {
 	*m = (*m)[:mid]
 }
 
-func (m *MultiLinE6) FoldParallel(r extensions.E6) utils.Task {
+func (m *MultiLin) FoldParallel(r goldilocks.Element) utils.Task {
 	mid := len(*m) / 2
 	bottom, top := (*m)[:mid], (*m)[mid:]
 
 	*m = bottom
 
 	return func(start, end int) {
-		var t extensions.E6 // no need to update the top part
+		var t goldilocks.Element // no need to update the top part
 		for i := start; i < end; i++ {
 			// table[i] ← table[i]  + r (table[i + mid] - table[i])
 			t.Sub(&top[i], &bottom[i])
@@ -59,68 +57,7 @@ func (m *MultiLinE6) FoldParallel(r extensions.E6) utils.Task {
 	}
 }
 
-// FoldFromBase sets m to the partial evaluation X₁=r of the multilinear polynomial whose
-// hypercube evaluations are the base field elements b:
-//
-//	m[i] = b[i] + r (b[i + len(b)/2] - b[i])
-//
-// m's backing array is reused if it is large enough.
-func (m *MultiLinE6) FoldFromBase(b basepoly.MultiLin, r *extensions.E6) {
-	mid := len(b) / 2
-	m.resize(mid)
-	m.foldFromBase(b, r, 0, mid)
-}
-
-// FoldFromBaseParallel is the parallel version of FoldFromBase. It sizes m, and returns
-// a task that computes the entries m[start:end]. The task reads *r when it runs, so *r must
-// not be modified until all tasks have completed.
-func (m *MultiLinE6) FoldFromBaseParallel(b basepoly.MultiLin, r *extensions.E6) utils.Task {
-	mid := len(b) / 2
-	m.resize(mid)
-	dst := *m
-
-	return func(start, end int) {
-		dst.foldFromBase(b, r, start, end)
-	}
-}
-
-// EvaluateBase evaluates, on the given coordinates, the multilinear polynomial whose hypercube
-// evaluations are the base field elements b. It first folds b into m by the first coordinate
-// (see FoldFromBase), and then folds m by the remaining coordinates. m serves as scratch space,
-// is overwritten, and its backing array is reused if it is large enough.
-// Unlike Evaluate, no copy of the table is made, and b is left untouched.
-func (m *MultiLinE6) EvaluateBase(b basepoly.MultiLin, coordinates []extensions.E6) extensions.E6 {
-	if len(coordinates) == 0 {
-		m.resize(1)
-		return *(*m)[0].SetElement(&b[0])
-	}
-
-	m.FoldFromBase(b, &coordinates[0])
-	for _, r := range coordinates[1:] {
-		m.Fold(r)
-	}
-	return (*m)[0]
-}
-
-func (m *MultiLinE6) resize(n int) {
-	if cap(*m) >= n {
-		*m = (*m)[:n]
-	} else {
-		*m = make(MultiLinE6, n)
-	}
-}
-
-func (m MultiLinE6) foldFromBase(b basepoly.MultiLin, r *extensions.E6, start, end int) {
-	mid := len(b) / 2
-	var diff fr.Element
-	for i := start; i < end; i++ {
-		diff.Sub(&b[mid+i], &b[i])
-		m[i].MulByElement(r, &diff)
-		m[i].AddElement(&m[i], &b[i])
-	}
-}
-
-func (m MultiLinE6) Sum() extensions.E6 {
+func (m MultiLin) Sum() goldilocks.Element {
 	s := m[0]
 	for i := 1; i < len(m); i++ {
 		s.Add(&s, &m[i])
@@ -128,7 +65,7 @@ func (m MultiLinE6) Sum() extensions.E6 {
 	return s
 }
 
-func _cloneE6(m MultiLinE6, p *PoolE6) MultiLinE6 {
+func _clone(m MultiLin, p *Pool) MultiLin {
 	if p == nil {
 		return m.Clone()
 	} else {
@@ -136,7 +73,7 @@ func _cloneE6(m MultiLinE6, p *PoolE6) MultiLinE6 {
 	}
 }
 
-func _dumpE6(m MultiLinE6, p *PoolE6) {
+func _dump(m MultiLin, p *Pool) {
 	if p != nil {
 		p.Dump(m)
 	}
@@ -144,9 +81,9 @@ func _dumpE6(m MultiLinE6, p *PoolE6) {
 
 // Evaluate extrapolate the value of the multilinear polynomial corresponding to m
 // on the given coordinates
-func (m MultiLinE6) Evaluate(coordinates []extensions.E6, p *PoolE6) extensions.E6 {
+func (m MultiLin) Evaluate(coordinates []goldilocks.Element, p *Pool) goldilocks.Element {
 	// Folding is a mutating operation
-	bkCopy := _cloneE6(m, p)
+	bkCopy := _clone(m, p)
 
 	// Evaluate step by step through repeated folding (i.e. evaluation at the first remaining variable)
 	for _, r := range coordinates {
@@ -155,7 +92,7 @@ func (m MultiLinE6) Evaluate(coordinates []extensions.E6, p *PoolE6) extensions.
 
 	result := bkCopy[0]
 
-	_dumpE6(bkCopy, p)
+	_dump(bkCopy, p)
 	return result
 }
 
@@ -163,14 +100,14 @@ func (m MultiLinE6) Evaluate(coordinates []extensions.E6, p *PoolE6) extensions.
 // Both multilinear interpolation and sumcheck require folding an underlying
 // array, but folding changes the array. To do both one requires a deep copy
 // of the bookkeeping table.
-func (m MultiLinE6) Clone() MultiLinE6 {
-	res := make(MultiLinE6, len(m))
+func (m MultiLin) Clone() MultiLin {
+	res := make(MultiLin, len(m))
 	copy(res, m)
 	return res
 }
 
 // Add two bookKeepingTables
-func (m *MultiLinE6) Add(left, right MultiLinE6) {
+func (m *MultiLin) Add(left, right MultiLin) {
 	size := len(left)
 	// Check that left and right have the same size
 	if len(right) != size || len(*m) != size {
@@ -183,7 +120,7 @@ func (m *MultiLinE6) Add(left, right MultiLinE6) {
 	}
 }
 
-// EvalEqE6 computes Eq(q₁, ... , qₙ, h₁, ... , hₙ) = Π₁ⁿ Eq(qᵢ, hᵢ)
+// EvalEq computes Eq(q₁, ... , qₙ, h₁, ... , hₙ) = Π₁ⁿ Eq(qᵢ, hᵢ)
 // where Eq(x,y) = xy + (1-x)(1-y) = 1 - x - y + xy + xy interpolates
 //
 //	    _________________
@@ -198,8 +135,8 @@ func (m *MultiLinE6) Add(left, right MultiLinE6) {
 //
 // In other words the polynomial evaluated here is the multilinear extrapolation of
 // one that evaluates to q' == h' for vectors q', h' of binary values
-func EvalEqE6(q, h []extensions.E6) extensions.E6 {
-	var res, nxt, one, sum extensions.E6
+func EvalEq(q, h []goldilocks.Element) goldilocks.Element {
+	var res, nxt, one, sum goldilocks.Element
 	one.SetOne()
 	for i := range len(q) {
 		nxt.Mul(&q[i], &h[i]) // nxt <- qᵢ * hᵢ
@@ -218,7 +155,7 @@ func EvalEqE6(q, h []extensions.E6) extensions.E6 {
 }
 
 // Eq sets m to the representation of the polynomial Eq(q₁, ..., qₙ, *, ..., *) × m[0]
-func (m *MultiLinE6) Eq(q []extensions.E6) {
+func (m *MultiLin) Eq(q []goldilocks.Element) {
 	n := len(q)
 
 	if len(*m) != 1<<n {
@@ -237,6 +174,6 @@ func (m *MultiLinE6) Eq(q []extensions.E6) {
 	}
 }
 
-func (m MultiLinE6) NumVars() int {
+func (m MultiLin) NumVars() int {
 	return bits.TrailingZeros(uint(len(m)))
 }

@@ -90,6 +90,38 @@ func (z *E6) SetUint64(v uint64) *E6 {
 	return z
 }
 
+// AddElement sets z to x + y, where y is an element of the base field embedded in E6, and returns z
+func (z *E6) AddElement(x *E6, y *fr.Element) *E6 {
+	yc := *y
+	z.B0.A0.Add(&x.B0.A0, &yc)
+	z.B0.A1 = x.B0.A1
+	z.B1.A0 = x.B1.A0
+	z.B1.A1 = x.B1.A1
+	z.B2.A0 = x.B2.A0
+	z.B2.A1 = x.B2.A1
+	return z
+}
+
+// SubElement sets z to x - y, where y is an element of the base field embedded in E6, and returns z
+func (z *E6) SubElement(x *E6, y *fr.Element) *E6 {
+	yc := *y
+	z.B0.A0.Sub(&x.B0.A0, &yc)
+	z.B0.A1 = x.B0.A1
+	z.B1.A0 = x.B1.A0
+	z.B1.A1 = x.B1.A1
+	z.B2.A0 = x.B2.A0
+	z.B2.A1 = x.B2.A1
+	return z
+}
+
+// SetElement sets z to x, an element of the base field embedded in E6, and returns z
+func (z *E6) SetElement(x *fr.Element) *E6 {
+	v := *x
+	*z = E6{}
+	z.B0.A0 = v
+	return z
+}
+
 // SetBigInt sets z to v (embedded via the unique ring homomorphism ℤ→𝔽, reduced modulo the base field order) and returns z
 func (z *E6) SetBigInt(v *big.Int) *E6 {
 	*z = E6{}

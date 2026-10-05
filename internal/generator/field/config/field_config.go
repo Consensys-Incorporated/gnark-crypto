@@ -939,6 +939,8 @@ type FieldDependency struct {
 	FieldPackagePath string
 	FieldPackageName string
 	ExtensionDegree  int
+	// BaseFieldPackagePath is the import path of the base field of an extension
+	BaseFieldPackagePath string
 }
 
 // ExtensionName returns the name of the extension (e.g. "E6"), or the empty
