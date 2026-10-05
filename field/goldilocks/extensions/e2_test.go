@@ -540,7 +540,7 @@ func genE2() gopter.Gen {
 	})
 }
 
-func TestE2MarshalSetBytesRoundTrip(t *testing.T) {
+func TestE2MarshalSetBytesCanonicalRoundTrip(t *testing.T) {
 	for range 100 {
 		var x E2
 		x.MustSetRandom()
@@ -558,17 +558,16 @@ func TestE2MarshalSetBytesRoundTrip(t *testing.T) {
 		}
 
 		var y E2
-		_, err := y.SetBytes(b)
-		require.NoError(t, err)
+		require.NoError(t, y.SetBytesCanonical(b))
 		if !y.Equal(&x) {
-			t.Fatal("SetBytes(Marshal(x)) != x")
+			t.Fatal("SetBytesCanonical(Marshal(x)) != x")
 		}
 	}
 
 	for _, n := range []int{0, BytesE2 - 1, BytesE2 + 1} {
 		var z E2
-		if _, err := z.SetBytes(make([]byte, n)); err == nil {
-			t.Fatalf("SetBytes did not fail on %d bytes", n)
+		if err := z.SetBytesCanonical(make([]byte, n)); err == nil {
+			t.Fatalf("SetBytesCanonical did not fail on %d bytes", n)
 		}
 	}
 }
@@ -598,5 +597,21 @@ func TestE2SetInt64SetUint64(t *testing.T) {
 		var zb E2
 		zb.SetBigInt(new(big.Int).SetUint64(v))
 		require.Truef(t, z.Equal(&zb), "SetUint64(%d) != SetBigInt(%d)", v, v)
+	}
+}
+
+func TestE2SetBytesCanonicalRejectsNonCanonical(t *testing.T) {
+	var x E2
+	x.MustSetRandom()
+	good := x.Marshal()
+
+	q := fr.Modulus()
+	for i := range 2 {
+		b := append([]byte(nil), good...)
+		q.FillBytes(b[i*fr.Bytes : (i+1)*fr.Bytes])
+
+		y := x
+		require.Error(t, y.SetBytesCanonical(b), "coefficient %d equal to the modulus must be rejected", i)
+		require.True(t, y.Equal(&x), "E2 must be unchanged on error")
 	}
 }

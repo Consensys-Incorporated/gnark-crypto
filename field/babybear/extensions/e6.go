@@ -119,19 +119,34 @@ func (z *E6) Marshal() []byte {
 	return res
 }
 
-// SetBytes sets z from the layout produced by Marshal, reading each coefficient with fr.Element.SetBytes, and returns z.
-// It returns an error if len(b) != BytesE6.
-func (z *E6) SetBytes(b []byte) (*E6, error) {
+// SetBytesCanonical sets z from the layout produced by Marshal, reading each coefficient with fr.Element.SetBytesCanonical.
+// It returns an error if len(b) != BytesE6 or if any coefficient is not the canonical encoding of a field element;
+// in that case z is left unchanged.
+func (z *E6) SetBytesCanonical(b []byte) error {
 	if len(b) != BytesE6 {
-		return nil, fmt.Errorf("E6.SetBytes: got %d bytes, expected %d", len(b), BytesE6)
+		return fmt.Errorf("E6.SetBytesCanonical: got %d bytes, expected %d", len(b), BytesE6)
 	}
-	z.B0.A0.SetBytes(b[0*fr.Bytes : 1*fr.Bytes])
-	z.B0.A1.SetBytes(b[1*fr.Bytes : 2*fr.Bytes])
-	z.B1.A0.SetBytes(b[2*fr.Bytes : 3*fr.Bytes])
-	z.B1.A1.SetBytes(b[3*fr.Bytes : 4*fr.Bytes])
-	z.B2.A0.SetBytes(b[4*fr.Bytes : 5*fr.Bytes])
-	z.B2.A1.SetBytes(b[5*fr.Bytes : 6*fr.Bytes])
-	return z, nil
+	var r E6
+	if err := r.B0.A0.SetBytesCanonical(b[0*fr.Bytes : 1*fr.Bytes]); err != nil {
+		return err
+	}
+	if err := r.B0.A1.SetBytesCanonical(b[1*fr.Bytes : 2*fr.Bytes]); err != nil {
+		return err
+	}
+	if err := r.B1.A0.SetBytesCanonical(b[2*fr.Bytes : 3*fr.Bytes]); err != nil {
+		return err
+	}
+	if err := r.B1.A1.SetBytesCanonical(b[3*fr.Bytes : 4*fr.Bytes]); err != nil {
+		return err
+	}
+	if err := r.B2.A0.SetBytesCanonical(b[4*fr.Bytes : 5*fr.Bytes]); err != nil {
+		return err
+	}
+	if err := r.B2.A1.SetBytesCanonical(b[5*fr.Bytes : 6*fr.Bytes]); err != nil {
+		return err
+	}
+	*z = r
+	return nil
 }
 
 // MulByElement multiplies an element in E6 by an element in fr.

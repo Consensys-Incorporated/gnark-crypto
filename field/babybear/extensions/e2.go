@@ -114,15 +114,22 @@ func (z *E2) Marshal() []byte {
 	return res
 }
 
-// SetBytes sets z from the layout produced by Marshal, reading each coefficient with fr.Element.SetBytes, and returns z.
-// It returns an error if len(b) != BytesE2.
-func (z *E2) SetBytes(b []byte) (*E2, error) {
+// SetBytesCanonical sets z from the layout produced by Marshal, reading each coefficient with fr.Element.SetBytesCanonical.
+// It returns an error if len(b) != BytesE2 or if any coefficient is not the canonical encoding of a field element;
+// in that case z is left unchanged.
+func (z *E2) SetBytesCanonical(b []byte) error {
 	if len(b) != BytesE2 {
-		return nil, fmt.Errorf("E2.SetBytes: got %d bytes, expected %d", len(b), BytesE2)
+		return fmt.Errorf("E2.SetBytesCanonical: got %d bytes, expected %d", len(b), BytesE2)
 	}
-	z.A0.SetBytes(b[0*fr.Bytes : 1*fr.Bytes])
-	z.A1.SetBytes(b[1*fr.Bytes : 2*fr.Bytes])
-	return z, nil
+	var r E2
+	if err := r.A0.SetBytesCanonical(b[0*fr.Bytes : 1*fr.Bytes]); err != nil {
+		return err
+	}
+	if err := r.A1.SetBytesCanonical(b[1*fr.Bytes : 2*fr.Bytes]); err != nil {
+		return err
+	}
+	*z = r
+	return nil
 }
 
 // SetRandom sets a0 and a1 to random values

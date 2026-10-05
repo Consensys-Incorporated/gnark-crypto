@@ -362,7 +362,7 @@ func genE6() gopter.Gen {
 	})
 }
 
-func TestE6MarshalSetBytesRoundTrip(t *testing.T) {
+func TestE6MarshalSetBytesCanonicalRoundTrip(t *testing.T) {
 	for range 100 {
 		var x E6
 		x.MustSetRandom()
@@ -380,17 +380,32 @@ func TestE6MarshalSetBytesRoundTrip(t *testing.T) {
 		}
 
 		var y E6
-		_, err := y.SetBytes(b)
-		require.NoError(t, err)
+		require.NoError(t, y.SetBytesCanonical(b))
 		if !y.Equal(&x) {
-			t.Fatal("SetBytes(Marshal(x)) != x")
+			t.Fatal("SetBytesCanonical(Marshal(x)) != x")
 		}
 	}
 
 	for _, n := range []int{0, BytesE6 - 1, BytesE6 + 1} {
 		var z E6
-		if _, err := z.SetBytes(make([]byte, n)); err == nil {
-			t.Fatalf("SetBytes did not fail on %d bytes", n)
+		if err := z.SetBytesCanonical(make([]byte, n)); err == nil {
+			t.Fatalf("SetBytesCanonical did not fail on %d bytes", n)
 		}
+	}
+}
+
+func TestE6SetBytesCanonicalRejectsNonCanonical(t *testing.T) {
+	var x E6
+	x.MustSetRandom()
+	good := x.Marshal()
+
+	q := fr.Modulus()
+	for i := range 6 {
+		b := append([]byte(nil), good...)
+		q.FillBytes(b[i*fr.Bytes : (i+1)*fr.Bytes])
+
+		y := x
+		require.Error(t, y.SetBytesCanonical(b), "coefficient %d equal to the modulus must be rejected", i)
+		require.True(t, y.Equal(&x), "E6 must be unchanged on error")
 	}
 }
