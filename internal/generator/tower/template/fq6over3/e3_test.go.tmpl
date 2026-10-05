@@ -306,3 +306,44 @@ func BenchmarkE3MulNonRes(b *testing.B) {
 		a.MulByNonResidue(&a)
 	}
 }
+
+func TestE3SetString(t *testing.T) {
+	t.Parallel()
+
+	coeffs := [3]string{"1", "0x2", "3"}
+	var want E3
+	leaves := []*fp.Element{&want.A0, &want.A1, &want.A2}
+	for i, s := range coeffs {
+		if _, err := leaves[i].SetString(s); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	var z E3
+	got, err := z.SetString(coeffs[0], coeffs[1], coeffs[2])
+	if err != nil {
+		t.Fatalf("valid coefficients: %v", err)
+	}
+	if got != &z {
+		t.Fatal("SetString did not return the receiver")
+	}
+	if !z.Equal(&want) {
+		t.Fatalf("got %s, want %s", z.String(), want.String())
+	}
+
+	_, wantErr := leaves[0].SetString("nope")
+	if wantErr == nil {
+		t.Fatal("subfield accepted an invalid coefficient")
+	}
+	for _, badAt := range []int{0, 1, 2} {
+		bad := coeffs
+		bad[badAt] = "nope"
+		got, err = z.SetString(bad[0], bad[1], bad[2])
+		if got != nil {
+			t.Fatalf("SetString returned a receiver with invalid coefficient %d", badAt)
+		}
+		if err == nil || err.Error() != wantErr.Error() {
+			t.Fatalf("coefficient %d error = %v, want %v", badAt, err, wantErr)
+		}
+	}
+}

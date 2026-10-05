@@ -22,12 +22,19 @@ func (z *E12) String() string {
 	return (z.C0.String() + "+(" + z.C1.String() + ")*w+(" + z.C2.String() + ")*w**2")
 }
 
-// SetString sets a E12 elmt from stringf
-func (z *E12) SetString(s0, s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11 string) *E12 {
-	z.C0.SetString(s0, s1, s2, s3)
-	z.C1.SetString(s4, s5, s6, s7)
-	z.C2.SetString(s8, s9, s10, s11)
-	return z
+// SetString sets z from coefficient strings and returns z.
+// It returns nil and the subfield SetString error when a coefficient cannot be parsed.
+func (z *E12) SetString(s0, s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11 string) (*E12, error) {
+	if _, err := z.C0.SetString(s0, s1, s2, s3); err != nil {
+		return nil, err
+	}
+	if _, err := z.C1.SetString(s4, s5, s6, s7); err != nil {
+		return nil, err
+	}
+	if _, err := z.C2.SetString(s8, s9, s10, s11); err != nil {
+		return nil, err
+	}
+	return z, nil
 }
 
 // Set Sets a E12 elmt form another E12 elmt

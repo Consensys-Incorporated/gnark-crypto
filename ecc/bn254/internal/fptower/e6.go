@@ -15,12 +15,19 @@ func (z *E6) Equal(x *E6) bool {
 	return z.B0.Equal(&x.B0) && z.B1.Equal(&x.B1) && z.B2.Equal(&x.B2)
 }
 
-// SetString sets a E6 elmt from stringf
-func (z *E6) SetString(s1, s2, s3, s4, s5, s6 string) *E6 {
-	z.B0.SetString(s1, s2)
-	z.B1.SetString(s3, s4)
-	z.B2.SetString(s5, s6)
-	return z
+// SetString sets z from coefficient strings and returns z.
+// It returns nil and the subfield SetString error when a coefficient cannot be parsed.
+func (z *E6) SetString(s1, s2, s3, s4, s5, s6 string) (*E6, error) {
+	if _, err := z.B0.SetString(s1, s2); err != nil {
+		return nil, err
+	}
+	if _, err := z.B1.SetString(s3, s4); err != nil {
+		return nil, err
+	}
+	if _, err := z.B2.SetString(s5, s6); err != nil {
+		return nil, err
+	}
+	return z, nil
 }
 
 // Set Sets a E6 elmt form another E6 elmt

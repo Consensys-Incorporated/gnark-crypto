@@ -643,6 +643,47 @@ func BenchmarkE2Conjugate(b *testing.B) {
 	}
 }
 
+func TestE2SetString(t *testing.T) {
+	t.Parallel()
+
+	var want E2
+	if _, err := want.A0.SetString("0x10"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := want.A1.SetString("2"); err != nil {
+		t.Fatal(err)
+	}
+
+	var z E2
+	got, err := z.SetString("0x10", "2")
+	if err != nil {
+		t.Fatalf("valid coefficients: %v", err)
+	}
+	if got != &z {
+		t.Fatal("SetString did not return the receiver")
+	}
+	if !z.Equal(&want) {
+		t.Fatalf("got %s, want %s", z.String(), want.String())
+	}
+
+	_, wantErr := want.A0.SetString("nope")
+	if wantErr == nil {
+		t.Fatal("subfield accepted an invalid coefficient")
+	}
+	var cases [2][2]string
+	cases[0] = [2]string{"nope", "1"}
+	cases[1] = [2]string{"1", "nope"}
+	for _, coeffs := range cases {
+		got, err = z.SetString(coeffs[0], coeffs[1])
+		if got != nil {
+			t.Fatalf("SetString(%q, %q) returned a receiver", coeffs[0], coeffs[1])
+		}
+		if err == nil || err.Error() != wantErr.Error() {
+			t.Fatalf("SetString(%q, %q) error = %v, want %v", coeffs[0], coeffs[1], err, wantErr)
+		}
+	}
+}
+
 func TestE2Div(t *testing.T) {
 
 	parameters := gopter.DefaultTestParameters()
