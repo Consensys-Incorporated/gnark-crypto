@@ -12,14 +12,19 @@ func Butterfly(a, b *E3) {
 	b.Sub(&t, b)
 }
 
+// VectorE3 is a slice of E3 elements.
+type VectorE3 []E3
+
 // Vector is a slice of E3 elements.
-type Vector []E3
+//
+// Deprecated: use VectorE3.
+type Vector = VectorE3
 
 // Butterfly computes the in-place butterfly between two same-length vectors:
 //
 //	vector[i] = vector[i] + other[i]
 //	other[i]  = old vector[i] - other[i]
-func (vector Vector) Butterfly(other Vector) {
+func (vector VectorE3) Butterfly(other VectorE3) {
 	if len(vector) != len(other) {
 		panic("vector.Butterfly: length mismatch")
 	}
@@ -31,7 +36,7 @@ func (vector Vector) Butterfly(other Vector) {
 // ButterflyPair applies Butterfly to each adjacent pair in the vector:
 // (vector[0], vector[1]), (vector[2], vector[3]), ...
 // Length must be even.
-func (vector Vector) ButterflyPair() {
+func (vector VectorE3) ButterflyPair() {
 	if len(vector)%2 != 0 {
 		panic("vector.ButterflyPair: length must be even")
 	}
@@ -41,7 +46,7 @@ func (vector Vector) ButterflyPair() {
 }
 
 // MulByElement sets vector[i] = a[i] * b[i] where b[i] ∈ F_p.
-func (vector Vector) MulByElement(a Vector, b fr.Vector) {
+func (vector VectorE3) MulByElement(a VectorE3, b fr.Vector) {
 	if len(vector) != len(a) || len(vector) != len(b) {
 		panic("vector.MulByElement: length mismatch")
 	}
@@ -54,7 +59,7 @@ func (vector Vector) MulByElement(a Vector, b fr.Vector) {
 //
 // Reinterprets the E3 slice as a flat fr.Vector (3 contiguous fr.Elements per E3)
 // to leverage the optimized fr.Vector.ScalarMul path.
-func (vector Vector) ScalarMulByElement(a Vector, b *fr.Element) {
+func (vector VectorE3) ScalarMulByElement(a VectorE3, b *fr.Element) {
 	if len(vector) != len(a) {
 		panic("vector.ScalarMulByElement: length mismatch")
 	}
@@ -69,7 +74,7 @@ func (vector Vector) ScalarMulByElement(a Vector, b *fr.Element) {
 }
 
 // ScalarMul sets vector[i] = a[i] * b for all i, where b ∈ E3.
-func (vector Vector) ScalarMul(a Vector, b *E3) {
+func (vector VectorE3) ScalarMul(a VectorE3, b *E3) {
 	if len(vector) != len(a) {
 		panic("vector.ScalarMul: length mismatch")
 	}
@@ -79,7 +84,7 @@ func (vector Vector) ScalarMul(a Vector, b *E3) {
 }
 
 // InnerProduct returns ∑ vector[i] * a[i] over E3.
-func (vector Vector) InnerProduct(a Vector) E3 {
+func (vector VectorE3) InnerProduct(a VectorE3) E3 {
 	if len(vector) != len(a) {
 		panic("vector.InnerProduct: vectors don't have the same length")
 	}
@@ -92,7 +97,7 @@ func (vector Vector) InnerProduct(a Vector) E3 {
 }
 
 // InnerProductByElement returns ∑ vector[i] * a[i] where a[i] ∈ F_p.
-func (vector Vector) InnerProductByElement(a fr.Vector) E3 {
+func (vector VectorE3) InnerProductByElement(a fr.Vector) E3 {
 	if len(vector) != len(a) {
 		panic("vector.InnerProductByElement: vectors don't have the same length")
 	}
@@ -117,7 +122,7 @@ const mulAccByElementThreshold = 64
 // kernels. Without AVX-512IFMA, fr.Vector.Mul/Add fall back to the same
 // per-element scalar loop this batching wraps around, so the extra tiling
 // work is pure overhead — in that case we use the plain scalar loop instead.
-func (vector Vector) MulAccByElement(scale []fr.Element, alpha *E3) {
+func (vector VectorE3) MulAccByElement(scale []fr.Element, alpha *E3) {
 	n := len(vector)
 	if n != len(scale) {
 		panic("vector.MulAccByElement: length mismatch")
@@ -137,7 +142,7 @@ func (vector Vector) MulAccByElement(scale []fr.Element, alpha *E3) {
 // processing it with fr.Vector's Mul/Add, which dispatch to the AVX-512IFMA
 // kernels on amd64. Split out from MulAccByElement so its correctness can be
 // tested independently of cpu.SupportAVX512IFMA.
-func mulAccByElementBatched(vector Vector, scale []fr.Element, alpha *E3) {
+func mulAccByElementBatched(vector VectorE3, scale []fr.Element, alpha *E3) {
 	n := len(vector)
 
 	// E3 = {A0, A1, A2} with no padding — safe to reinterpret as 3×fr.Element.
@@ -160,7 +165,7 @@ func mulAccByElementBatched(vector Vector, scale []fr.Element, alpha *E3) {
 	flatVector.Add(flatVector, tmp)
 }
 
-func mulAccByElementGeneric(vector Vector, scale []fr.Element, alpha *E3) {
+func mulAccByElementGeneric(vector VectorE3, scale []fr.Element, alpha *E3) {
 	var tmp E3
 	for i := range vector {
 		tmp.MulByElement(alpha, &scale[i])

@@ -572,3 +572,31 @@ func TestE2MarshalSetBytesRoundTrip(t *testing.T) {
 		}
 	}
 }
+
+func TestE2SetInt64SetUint64(t *testing.T) {
+	for _, v := range []int64{0, 1, -1, 7, -12345, 1 << 40, -(1 << 40)} {
+		var z E2
+		z.SetInt64(v)
+		require.Truef(t, z.A1.IsZero(), "coordinate A1 is non-zero for %d", v)
+		var want fr.Element
+		want.SetInt64(v)
+		require.Truef(t, z.A0.Equal(&want), "SetInt64(%d)", v)
+
+		// SetInt64 and SetBigInt agree
+		var zb E2
+		zb.SetBigInt(big.NewInt(v))
+		require.Truef(t, z.Equal(&zb), "SetInt64(%d) != SetBigInt(%d)", v, v)
+	}
+	for _, v := range []uint64{0, 1, 7, 12345, 1 << 40, 1<<64 - 1} {
+		var z E2
+		z.SetUint64(v)
+		require.Truef(t, z.A1.IsZero(), "coordinate A1 is non-zero for %d", v)
+		var want fr.Element
+		want.SetUint64(v)
+		require.Truef(t, z.A0.Equal(&want), "SetUint64(%d)", v)
+
+		var zb E2
+		zb.SetBigInt(new(big.Int).SetUint64(v))
+		require.Truef(t, z.Equal(&zb), "SetUint64(%d) != SetBigInt(%d)", v, v)
+	}
+}

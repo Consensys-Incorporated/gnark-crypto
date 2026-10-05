@@ -35,6 +35,27 @@ func (z *E3) SetOne() *E3 {
 	return z
 }
 
+// SetInt64 sets z to v (embedded via the unique ring homomorphism ℤ→𝔽) and returns z
+func (z *E3) SetInt64(v int64) *E3 {
+	*z = E3{}
+	z.A0.SetInt64(v)
+	return z
+}
+
+// SetUint64 sets z to v (embedded via the unique ring homomorphism ℤ→𝔽) and returns z
+func (z *E3) SetUint64(v uint64) *E3 {
+	*z = E3{}
+	z.A0.SetUint64(v)
+	return z
+}
+
+// Div sets z to x / y and returns z
+func (z *E3) Div(x, y *E3) *E3 {
+	var r E3
+	r.Inverse(y).Mul(x, &r)
+	return z.Set(&r)
+}
+
 // SetBigInt sets z to v (embedded via the unique ring homomorphism ℤ→𝔽, reduced modulo the base field order) and returns z
 func (z *E3) SetBigInt(v *big.Int) *E3 {
 	*z = E3{}

@@ -78,6 +78,20 @@ func (z *E4) SetOne() *E4 {
 	return z
 }
 
+// SetInt64 sets z to v (embedded via the unique ring homomorphism ℤ→𝔽) and returns z
+func (z *E4) SetInt64(v int64) *E4 {
+	*z = E4{}
+	z.B0.A0.SetInt64(v)
+	return z
+}
+
+// SetUint64 sets z to v (embedded via the unique ring homomorphism ℤ→𝔽) and returns z
+func (z *E4) SetUint64(v uint64) *E4 {
+	*z = E4{}
+	z.B0.A0.SetUint64(v)
+	return z
+}
+
 // SetBigInt sets z to v (embedded via the unique ring homomorphism ℤ→𝔽, reduced modulo the base field order) and returns z
 func (z *E4) SetBigInt(v *big.Int) *E4 {
 	*z = E4{}
