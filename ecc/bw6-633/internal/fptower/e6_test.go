@@ -561,3 +561,25 @@ func BenchmarkE6ExptSquarePlus1(b *testing.B) {
 		a.ExptSquarePlus1(&a)
 	}
 }
+
+func TestE6SetString(t *testing.T) {
+	var a E6
+	if _, err := a.SetString("1", "2", "3", "4", "5", "6"); err != nil {
+		t.Fatal(err)
+	}
+	if a.B1.A2.String() != "6" {
+		t.Fatalf("last component: expected 6, got %s", a.B1.A2.String())
+	}
+
+	before := a
+	res, err := a.SetString("1", "2", "3", "4", "5", "not-a-number")
+	if err == nil {
+		t.Fatal("expected an error for an invalid component")
+	}
+	if res != nil {
+		t.Fatal("expected a nil result on error")
+	}
+	if a != before {
+		t.Fatal("receiver must be left unchanged on error")
+	}
+}

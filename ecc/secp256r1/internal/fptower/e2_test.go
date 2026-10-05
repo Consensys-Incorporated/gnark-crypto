@@ -384,3 +384,25 @@ func BenchmarkE2Exp(b *testing.B) {
 		x.Exp(x, fp.Modulus())
 	}
 }
+
+func TestE2SetString(t *testing.T) {
+	var a E2
+	if _, err := a.SetString("1", "2"); err != nil {
+		t.Fatal(err)
+	}
+	if a.A1.String() != "2" {
+		t.Fatalf("last component: expected 2, got %s", a.A1.String())
+	}
+
+	before := a
+	res, err := a.SetString("1", "not-a-number")
+	if err == nil {
+		t.Fatal("expected an error for an invalid component")
+	}
+	if res != nil {
+		t.Fatal("expected a nil result on error")
+	}
+	if a != before {
+		t.Fatal("receiver must be left unchanged on error")
+	}
+}

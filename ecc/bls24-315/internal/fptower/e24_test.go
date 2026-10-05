@@ -610,3 +610,25 @@ func TestE24ExptGroundTruth(t *testing.T) {
 		}
 	}
 }
+
+func TestE24SetString(t *testing.T) {
+	var a E24
+	if _, err := a.SetString("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24"); err != nil {
+		t.Fatal(err)
+	}
+	if a.D1.C2.B1.A1.String() != "24" {
+		t.Fatalf("last component: expected 24, got %s", a.D1.C2.B1.A1.String())
+	}
+
+	before := a
+	res, err := a.SetString("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "not-a-number")
+	if err == nil {
+		t.Fatal("expected an error for an invalid component")
+	}
+	if res != nil {
+		t.Fatal("expected a nil result on error")
+	}
+	if a != before {
+		t.Fatal("receiver must be left unchanged on error")
+	}
+}

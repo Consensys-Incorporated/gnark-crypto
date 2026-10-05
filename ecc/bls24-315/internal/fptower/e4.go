@@ -46,11 +46,18 @@ func (z *E4) String() string {
 	return (z.B0.String() + "+(" + z.B1.String() + ")*v")
 }
 
-// SetString sets a E4 from string
-func (z *E4) SetString(s0, s1, s2, s3 string) *E4 {
-	z.B0.SetString(s0, s1)
-	z.B1.SetString(s2, s3)
-	return z
+// SetString sets z from strings and returns z.
+// If any component fails to parse, z is left unchanged and SetString returns nil, error.
+func (z *E4) SetString(s0, s1, s2, s3 string) (*E4, error) {
+	var t E4
+	if _, err := t.B0.SetString(s0, s1); err != nil {
+		return nil, err
+	}
+	if _, err := t.B1.SetString(s2, s3); err != nil {
+		return nil, err
+	}
+	*z = t
+	return z, nil
 }
 
 // Set copies x into z and returns z

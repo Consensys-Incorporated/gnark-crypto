@@ -41,11 +41,18 @@ func (z *E2) LexicographicallyLargest() bool {
 	return z.A1.LexicographicallyLargest()
 }
 
-// SetString sets a E2 element from strings
-func (z *E2) SetString(s1, s2 string) *E2 {
-	z.A0.SetString(s1)
-	z.A1.SetString(s2)
-	return z
+// SetString sets z from strings and returns z.
+// If any component fails to parse, z is left unchanged and SetString returns nil, error.
+func (z *E2) SetString(s1, s2 string) (*E2, error) {
+	var t E2
+	if _, err := t.A0.SetString(s1); err != nil {
+		return nil, err
+	}
+	if _, err := t.A1.SetString(s2); err != nil {
+		return nil, err
+	}
+	*z = t
+	return z, nil
 }
 
 // SetZero sets an E2 elmt to zero
