@@ -16,10 +16,10 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestPolynomialEval(t *testing.T) {
+func TestPolynomialEvalE6(t *testing.T) {
 
 	// build polynomial
-	f := make(Polynomial, 20)
+	f := make(PolynomialE6, 20)
 	for i := range 20 {
 		f[i].SetOne()
 	}
@@ -47,10 +47,10 @@ func TestPolynomialEval(t *testing.T) {
 	}
 }
 
-func TestPolynomialAddConstantInPlace(t *testing.T) {
+func TestPolynomialAddConstantInPlaceE6(t *testing.T) {
 
 	// build polynomial
-	f := make(Polynomial, 20)
+	f := make(PolynomialE6, 20)
 	for i := range 20 {
 		f[i].SetOne()
 	}
@@ -73,10 +73,10 @@ func TestPolynomialAddConstantInPlace(t *testing.T) {
 	}
 }
 
-func TestPolynomialSubConstantInPlace(t *testing.T) {
+func TestPolynomialSubConstantInPlaceE6(t *testing.T) {
 
 	// build polynomial
-	f := make(Polynomial, 20)
+	f := make(PolynomialE6, 20)
 	for i := range 20 {
 		f[i].SetOne()
 	}
@@ -99,10 +99,10 @@ func TestPolynomialSubConstantInPlace(t *testing.T) {
 	}
 }
 
-func TestPolynomialScaleInPlace(t *testing.T) {
+func TestPolynomialScaleInPlaceE6(t *testing.T) {
 
 	// build polynomial
-	f := make(Polynomial, 20)
+	f := make(PolynomialE6, 20)
 	for i := range 20 {
 		f[i].SetOne()
 	}
@@ -123,17 +123,17 @@ func TestPolynomialScaleInPlace(t *testing.T) {
 
 }
 
-func TestPolynomialAdd(t *testing.T) {
+func TestPolynomialAddE6(t *testing.T) {
 
 	// build unbalanced polynomials
-	f1 := make(Polynomial, 20)
-	f1Backup := make(Polynomial, 20)
+	f1 := make(PolynomialE6, 20)
+	f1Backup := make(PolynomialE6, 20)
 	for i := range 20 {
 		f1[i].SetOne()
 		f1Backup[i].SetOne()
 	}
-	f2 := make(Polynomial, 10)
-	f2Backup := make(Polynomial, 10)
+	f2 := make(PolynomialE6, 10)
+	f2Backup := make(PolynomialE6, 10)
 	for i := range 10 {
 		f2[i].SetOne()
 		f2Backup[i].SetOne()
@@ -143,7 +143,7 @@ func TestPolynomialAdd(t *testing.T) {
 	var one, two extensions.E6
 	one.SetOne()
 	two.Double(&one)
-	expectedSum := make(Polynomial, 20)
+	expectedSum := make(PolynomialE6, 20)
 	for i := range 10 {
 		expectedSum[i].Set(&two)
 	}
@@ -152,7 +152,7 @@ func TestPolynomialAdd(t *testing.T) {
 	}
 
 	// caller is empty
-	var g Polynomial
+	var g PolynomialE6
 	g.Add(f1, f2)
 	if !g.Equal(expectedSum) {
 		t.Fatal("add polynomials fails")
@@ -200,10 +200,10 @@ func TestPolynomialAdd(t *testing.T) {
 	}
 }
 
-func TestPrecomputeLagrange(t *testing.T) {
+func TestPrecomputeLagrangeE6(t *testing.T) {
 
 	testForDomainSize := func(domainSize uint8) bool {
-		polys := computeLagrangeBasis(domainSize)
+		polys := computeLagrangeBasisE6(domainSize)
 
 		for l := range domainSize {
 			for i := range domainSize {
@@ -237,9 +237,9 @@ func TestPrecomputeLagrange(t *testing.T) {
 	properties.TestingRun(t, gopter.ConsoleReporter(false))
 }
 
-func TestLagrangeCache(t *testing.T) {
+func TestLagrangeCacheE6(t *testing.T) {
 	for _, i := range []int{5, 2, 8, 4, 6, 3, 0} {
-		b := getLagrangeBasis(uint8(i))
-		assert.Equal(t, b, getLagrangeBasis(uint8(i))) // second call must yield the same result
+		b := getLagrangeBasisE6(uint8(i))
+		assert.Equal(t, b, getLagrangeBasisE6(uint8(i))) // second call must yield the same result
 	}
 }

@@ -20,38 +20,38 @@ import (
 // WARNING: This is not thread safe TODO: Make sure that is not a problem
 // TODO: There is a lot of "unsafe" memory management here and needs to be vetted thoroughly
 
-type sizedPool struct {
+type sizedPoolE6 struct {
 	maxN  int
 	pool  sync.Pool
-	stats poolStats
+	stats poolStatsE6
 }
 
-type inUseData struct {
+type inUseDataE6 struct {
 	allocatedFor []uintptr
-	pool         *sizedPool
+	pool         *sizedPoolE6
 }
 
-type Pool struct {
+type PoolE6 struct {
 	//lock     sync.Mutex
 	inUse    sync.Map
-	subPools []sizedPool
+	subPools []sizedPoolE6
 }
 
-func (p *sizedPool) get(n int) *extensions.E6 {
+func (p *sizedPoolE6) get(n int) *extensions.E6 {
 	p.stats.make(n)
 	return p.pool.Get().(*extensions.E6)
 }
 
-func (p *sizedPool) put(ptr *extensions.E6) {
+func (p *sizedPoolE6) put(ptr *extensions.E6) {
 	p.stats.dump()
 	p.pool.Put(ptr)
 }
 
-func NewPool(maxN ...int) (pool Pool) {
+func NewPoolE6(maxN ...int) (pool PoolE6) {
 
 	sort.Ints(maxN)
-	pool = Pool{
-		subPools: make([]sizedPool, len(maxN)),
+	pool = PoolE6{
+		subPools: make([]sizedPoolE6, len(maxN)),
 	}
 
 	for i := range pool.subPools {
@@ -60,14 +60,14 @@ func NewPool(maxN ...int) (pool Pool) {
 		subPool.pool = sync.Pool{
 			New: func() any {
 				subPool.stats.Allocated++
-				return getDataPointer(make([]extensions.E6, 0, subPool.maxN))
+				return getDataPointerE6(make([]extensions.E6, 0, subPool.maxN))
 			},
 		}
 	}
 	return
 }
 
-func (p *Pool) findCorrespondingPool(n int) *sizedPool {
+func (p *PoolE6) findCorrespondingPool(n int) *sizedPoolE6 {
 	poolI := 0
 	for poolI < len(p.subPools) && n > p.subPools[poolI].maxN {
 		poolI++
@@ -75,7 +75,7 @@ func (p *Pool) findCorrespondingPool(n int) *sizedPool {
 	return &p.subPools[poolI] // out of bounds error here would mean that n is too large
 }
 
-func (p *Pool) Make(n int) []extensions.E6 {
+func (p *PoolE6) Make(n int) []extensions.E6 {
 	pool := p.findCorrespondingPool(n)
 	ptr := pool.get(n)
 	p.addInUse(ptr, pool)
@@ -83,52 +83,52 @@ func (p *Pool) Make(n int) []extensions.E6 {
 }
 
 // Dump dumps a set of polynomials into the pool
-func (p *Pool) Dump(slices ...[]extensions.E6) {
+func (p *PoolE6) Dump(slices ...[]extensions.E6) {
 	for _, slice := range slices {
-		ptr := getDataPointer(slice)
+		ptr := getDataPointerE6(slice)
 		if metadata, ok := p.inUse.Load(ptr); ok {
 			p.inUse.Delete(ptr)
-			metadata.(inUseData).pool.put(ptr)
+			metadata.(inUseDataE6).pool.put(ptr)
 		} else {
 			panic("attempting to dump a slice not created by the pool")
 		}
 	}
 }
 
-func (p *Pool) addInUse(ptr *extensions.E6, pool *sizedPool) {
+func (p *PoolE6) addInUse(ptr *extensions.E6, pool *sizedPoolE6) {
 	pcs := make([]uintptr, 2)
 	n := runtime.Callers(3, pcs)
 
 	if prevPcs, ok := p.inUse.Load(ptr); ok { // TODO: remove if unnecessary for security
-		panic(fmt.Errorf("re-allocated non-dumped slice, previously allocated at %v", runtime.CallersFrames(prevPcs.(inUseData).allocatedFor)))
+		panic(fmt.Errorf("re-allocated non-dumped slice, previously allocated at %v", runtime.CallersFrames(prevPcs.(inUseDataE6).allocatedFor)))
 	}
-	p.inUse.Store(ptr, inUseData{
+	p.inUse.Store(ptr, inUseDataE6{
 		allocatedFor: pcs[:n],
 		pool:         pool,
 	})
 }
 
-func printFrame(frame runtime.Frame) {
+func printFrameE6(frame runtime.Frame) {
 	fmt.Printf("\t%s line %d, function %s\n", frame.File, frame.Line, frame.Function)
 }
 
-func (p *Pool) printInUse() {
+func (p *PoolE6) printInUse() {
 	fmt.Println("slices never dumped allocated at:")
 	p.inUse.Range(func(_, pcs any) bool {
 		fmt.Println("-------------------------")
 
 		var frame runtime.Frame
-		frames := runtime.CallersFrames(pcs.(inUseData).allocatedFor)
+		frames := runtime.CallersFrames(pcs.(inUseDataE6).allocatedFor)
 		more := true
 		for more {
 			frame, more = frames.Next()
-			printFrame(frame)
+			printFrameE6(frame)
 		}
 		return true
 	})
 }
 
-type poolStats struct {
+type poolStatsE6 struct {
 	Used          int
 	Allocated     int
 	ReuseRate     float64
@@ -137,12 +137,12 @@ type poolStats struct {
 	SmallestNUsed int
 }
 
-type poolsStats struct {
-	SubPools []poolStats
+type poolsStatsE6 struct {
+	SubPools []poolStatsE6
 	InUse    int
 }
 
-func (s *poolStats) make(n int) {
+func (s *poolStatsE6) make(n int) {
 	s.Used++
 	s.InUse++
 	if n > s.GreatestNUsed {
@@ -153,21 +153,21 @@ func (s *poolStats) make(n int) {
 	}
 }
 
-func (s *poolStats) dump() {
+func (s *poolStatsE6) dump() {
 	s.InUse--
 }
 
-func (s *poolStats) finalize() {
+func (s *poolStatsE6) finalize() {
 	s.ReuseRate = float64(s.Used) / float64(s.Allocated)
 }
 
-func getDataPointer(slice []extensions.E6) *extensions.E6 {
+func getDataPointerE6(slice []extensions.E6) *extensions.E6 {
 	return (*extensions.E6)(unsafe.SliceData(slice))
 }
 
-func (p *Pool) PrintPoolStats() {
+func (p *PoolE6) PrintPoolStats() {
 	InUse := 0
-	subStats := make([]poolStats, len(p.subPools))
+	subStats := make([]poolStatsE6, len(p.subPools))
 	for i := range p.subPools {
 		subPool := &p.subPools[i]
 		subPool.stats.finalize()
@@ -175,7 +175,7 @@ func (p *Pool) PrintPoolStats() {
 		InUse += subPool.stats.InUse
 	}
 
-	stats := poolsStats{
+	stats := poolsStatsE6{
 		SubPools: subStats,
 		InUse:    InUse,
 	}
@@ -184,7 +184,7 @@ func (p *Pool) PrintPoolStats() {
 	p.printInUse()
 }
 
-func (p *Pool) Clone(slice []extensions.E6) []extensions.E6 {
+func (p *PoolE6) Clone(slice []extensions.E6) []extensions.E6 {
 	res := p.Make(len(slice))
 	copy(res, slice)
 	return res

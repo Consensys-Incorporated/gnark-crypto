@@ -12,14 +12,14 @@ import (
 	"github.com/consensys/gnark-crypto/utils"
 )
 
-// MultiLin tracks the values of a (dense i.e. not sparse) multilinear polynomial
+// MultiLinE6 tracks the values of a (dense i.e. not sparse) multilinear polynomial
 // The variables are X₁ through Xₙ where n = log(len(.))
 // .[∑ᵢ 2ⁱ⁻¹ bₙ₋ᵢ] = the polynomial evaluated at (b₁, b₂, ..., bₙ)
 // It is understood that any hypercube evaluation can be extrapolated to a multilinear polynomial
-type MultiLin []extensions.E6
+type MultiLinE6 []extensions.E6
 
 // Fold is partial evaluation function k[X₁, X₂, ..., Xₙ] → k[X₂, ..., Xₙ] by setting X₁=r
-func (m *MultiLin) Fold(r extensions.E6) {
+func (m *MultiLinE6) Fold(r extensions.E6) {
 	mid := len(*m) / 2
 
 	bottom, top := (*m)[:mid], (*m)[mid:]
@@ -40,7 +40,7 @@ func (m *MultiLin) Fold(r extensions.E6) {
 	*m = (*m)[:mid]
 }
 
-func (m *MultiLin) FoldParallel(r extensions.E6) utils.Task {
+func (m *MultiLinE6) FoldParallel(r extensions.E6) utils.Task {
 	mid := len(*m) / 2
 	bottom, top := (*m)[:mid], (*m)[mid:]
 
@@ -57,7 +57,7 @@ func (m *MultiLin) FoldParallel(r extensions.E6) utils.Task {
 	}
 }
 
-func (m MultiLin) Sum() extensions.E6 {
+func (m MultiLinE6) Sum() extensions.E6 {
 	s := m[0]
 	for i := 1; i < len(m); i++ {
 		s.Add(&s, &m[i])
@@ -65,7 +65,7 @@ func (m MultiLin) Sum() extensions.E6 {
 	return s
 }
 
-func _clone(m MultiLin, p *Pool) MultiLin {
+func _cloneE6(m MultiLinE6, p *PoolE6) MultiLinE6 {
 	if p == nil {
 		return m.Clone()
 	} else {
@@ -73,7 +73,7 @@ func _clone(m MultiLin, p *Pool) MultiLin {
 	}
 }
 
-func _dump(m MultiLin, p *Pool) {
+func _dumpE6(m MultiLinE6, p *PoolE6) {
 	if p != nil {
 		p.Dump(m)
 	}
@@ -81,9 +81,9 @@ func _dump(m MultiLin, p *Pool) {
 
 // Evaluate extrapolate the value of the multilinear polynomial corresponding to m
 // on the given coordinates
-func (m MultiLin) Evaluate(coordinates []extensions.E6, p *Pool) extensions.E6 {
+func (m MultiLinE6) Evaluate(coordinates []extensions.E6, p *PoolE6) extensions.E6 {
 	// Folding is a mutating operation
-	bkCopy := _clone(m, p)
+	bkCopy := _cloneE6(m, p)
 
 	// Evaluate step by step through repeated folding (i.e. evaluation at the first remaining variable)
 	for _, r := range coordinates {
@@ -92,7 +92,7 @@ func (m MultiLin) Evaluate(coordinates []extensions.E6, p *Pool) extensions.E6 {
 
 	result := bkCopy[0]
 
-	_dump(bkCopy, p)
+	_dumpE6(bkCopy, p)
 	return result
 }
 
@@ -100,14 +100,14 @@ func (m MultiLin) Evaluate(coordinates []extensions.E6, p *Pool) extensions.E6 {
 // Both multilinear interpolation and sumcheck require folding an underlying
 // array, but folding changes the array. To do both one requires a deep copy
 // of the bookkeeping table.
-func (m MultiLin) Clone() MultiLin {
-	res := make(MultiLin, len(m))
+func (m MultiLinE6) Clone() MultiLinE6 {
+	res := make(MultiLinE6, len(m))
 	copy(res, m)
 	return res
 }
 
 // Add two bookKeepingTables
-func (m *MultiLin) Add(left, right MultiLin) {
+func (m *MultiLinE6) Add(left, right MultiLinE6) {
 	size := len(left)
 	// Check that left and right have the same size
 	if len(right) != size || len(*m) != size {
@@ -120,7 +120,7 @@ func (m *MultiLin) Add(left, right MultiLin) {
 	}
 }
 
-// EvalEq computes Eq(q₁, ... , qₙ, h₁, ... , hₙ) = Π₁ⁿ Eq(qᵢ, hᵢ)
+// EvalEqE6 computes Eq(q₁, ... , qₙ, h₁, ... , hₙ) = Π₁ⁿ Eq(qᵢ, hᵢ)
 // where Eq(x,y) = xy + (1-x)(1-y) = 1 - x - y + xy + xy interpolates
 //
 //	    _________________
@@ -135,7 +135,7 @@ func (m *MultiLin) Add(left, right MultiLin) {
 //
 // In other words the polynomial evaluated here is the multilinear extrapolation of
 // one that evaluates to q' == h' for vectors q', h' of binary values
-func EvalEq(q, h []extensions.E6) extensions.E6 {
+func EvalEqE6(q, h []extensions.E6) extensions.E6 {
 	var res, nxt, one, sum extensions.E6
 	one.SetOne()
 	for i := range len(q) {
@@ -155,7 +155,7 @@ func EvalEq(q, h []extensions.E6) extensions.E6 {
 }
 
 // Eq sets m to the representation of the polynomial Eq(q₁, ..., qₙ, *, ..., *) × m[0]
-func (m *MultiLin) Eq(q []extensions.E6) {
+func (m *MultiLinE6) Eq(q []extensions.E6) {
 	n := len(q)
 
 	if len(*m) != 1<<n {
@@ -174,6 +174,6 @@ func (m *MultiLin) Eq(q []extensions.E6) {
 	}
 }
 
-func (m MultiLin) NumVars() int {
+func (m MultiLinE6) NumVars() int {
 	return bits.TrailingZeros(uint(len(m)))
 }

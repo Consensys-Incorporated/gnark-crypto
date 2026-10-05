@@ -1143,20 +1143,17 @@ func TestE4MarshalSetBytesRoundTrip(t *testing.T) {
 		}
 
 		var y E4
-		if !y.SetBytes(b).Equal(&x) {
+		_, err := y.SetBytes(b)
+		require.NoError(t, err)
+		if !y.Equal(&x) {
 			t.Fatal("SetBytes(Marshal(x)) != x")
 		}
 	}
 
 	for _, n := range []int{0, BytesE4 - 1, BytesE4 + 1} {
-		func() {
-			defer func() {
-				if recover() == nil {
-					t.Fatalf("SetBytes did not panic on %d bytes", n)
-				}
-			}()
-			var z E4
-			z.SetBytes(make([]byte, n))
-		}()
+		var z E4
+		if _, err := z.SetBytes(make([]byte, n)); err == nil {
+			t.Fatalf("SetBytes did not fail on %d bytes", n)
+		}
 	}
 }

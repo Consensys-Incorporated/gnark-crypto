@@ -940,3 +940,13 @@ type FieldDependency struct {
 	FieldPackageName string
 	ExtensionDegree  int
 }
+
+// ExtensionName returns the name of the extension (e.g. "E6"), or the empty
+// string for a base field. It is appended to the names of generated free
+// functions and types so that several extensions can share a package.
+func (d FieldDependency) ExtensionName() string {
+	if d.ExtensionDegree == 0 {
+		return ""
+	}
+	return fmt.Sprintf("E%d", d.ExtensionDegree)
+}

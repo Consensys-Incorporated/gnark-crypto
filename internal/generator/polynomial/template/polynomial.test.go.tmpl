@@ -8,10 +8,10 @@ import (
 	"testing"
 )
 
-func TestPolynomialEval(t *testing.T) {
+func TestPolynomialEval{{.ExtensionName}}(t *testing.T) {
 
 	// build polynomial
-	f := make(Polynomial, 20)
+	f := make(Polynomial{{.ExtensionName}}, 20)
 	for i := range 20 {
 		f[i].SetOne()
 	}
@@ -39,10 +39,10 @@ func TestPolynomialEval(t *testing.T) {
 	}
 }
 
-func TestPolynomialAddConstantInPlace(t *testing.T) {
+func TestPolynomialAddConstantInPlace{{.ExtensionName}}(t *testing.T) {
 
 	// build polynomial
-	f := make(Polynomial, 20)
+	f := make(Polynomial{{.ExtensionName}}, 20)
 	for i := range 20 {
 		f[i].SetOne()
 	}
@@ -65,10 +65,10 @@ func TestPolynomialAddConstantInPlace(t *testing.T) {
 	}
 }
 
-func TestPolynomialSubConstantInPlace(t *testing.T) {
+func TestPolynomialSubConstantInPlace{{.ExtensionName}}(t *testing.T) {
 
 	// build polynomial
-	f := make(Polynomial, 20)
+	f := make(Polynomial{{.ExtensionName}}, 20)
 	for i := range 20 {
 		f[i].SetOne()
 	}
@@ -91,10 +91,10 @@ func TestPolynomialSubConstantInPlace(t *testing.T) {
 	}
 }
 
-func TestPolynomialScaleInPlace(t *testing.T) {
+func TestPolynomialScaleInPlace{{.ExtensionName}}(t *testing.T) {
 
 	// build polynomial
-	f := make(Polynomial, 20)
+	f := make(Polynomial{{.ExtensionName}}, 20)
 	for i := range 20 {
 		f[i].SetOne()
 	}
@@ -115,17 +115,17 @@ func TestPolynomialScaleInPlace(t *testing.T) {
 
 }
 
-func TestPolynomialAdd(t *testing.T) {
+func TestPolynomialAdd{{.ExtensionName}}(t *testing.T) {
 
 	// build unbalanced polynomials
-	f1 := make(Polynomial, 20)
-	f1Backup := make(Polynomial, 20)
+	f1 := make(Polynomial{{.ExtensionName}}, 20)
+	f1Backup := make(Polynomial{{.ExtensionName}}, 20)
 	for i := range 20 {
 		f1[i].SetOne()
 		f1Backup[i].SetOne()
 	}
-	f2 := make(Polynomial, 10)
-	f2Backup := make(Polynomial, 10)
+	f2 := make(Polynomial{{.ExtensionName}}, 10)
+	f2Backup := make(Polynomial{{.ExtensionName}}, 10)
 	for i := range 10 {
 		f2[i].SetOne()
 		f2Backup[i].SetOne()
@@ -135,7 +135,7 @@ func TestPolynomialAdd(t *testing.T) {
 	var one, two {{.ElementType}}
 	one.SetOne()
 	two.Double(&one)
-	expectedSum := make(Polynomial, 20)
+	expectedSum := make(Polynomial{{.ExtensionName}}, 20)
 	for i := range 10 {
 		expectedSum[i].Set(&two)
 	}
@@ -144,7 +144,7 @@ func TestPolynomialAdd(t *testing.T) {
 	}
 
 	// caller is empty
-	var g Polynomial
+	var g Polynomial{{.ExtensionName}}
 	g.Add(f1, f2)
 	if !g.Equal(expectedSum) {
 		t.Fatal("add polynomials fails")
@@ -193,21 +193,21 @@ func TestPolynomialAdd(t *testing.T) {
 }
 
 {{if not .ExtensionDegree}}
-func TestPolynomialText(t *testing.T) {
+func TestPolynomialText{{.ExtensionName}}(t *testing.T) {
 	var one, negTwo {{.ElementType}}
 	one.SetOne()
 	negTwo.SetInt64(-2)
 
-	p := Polynomial{one, negTwo, one}
+	p := Polynomial{{.ExtensionName}}{one, negTwo, one}
 
 	assert.Equal(t, "X² - 2X + 1", p.Text(10))
 }
 {{end}}
 
-func TestPrecomputeLagrange(t *testing.T) {
+func TestPrecomputeLagrange{{.ExtensionName}}(t *testing.T) {
 
 	testForDomainSize := func(domainSize uint8) bool {
-		polys := computeLagrangeBasis(domainSize)
+		polys := computeLagrangeBasis{{.ExtensionName}}(domainSize)
 
 		for l := range domainSize {
 			for i := range domainSize {
@@ -245,9 +245,9 @@ func TestPrecomputeLagrange(t *testing.T) {
 	properties.TestingRun(t, gopter.ConsoleReporter(false))
 }
 
-func TestLagrangeCache(t *testing.T) {
+func TestLagrangeCache{{.ExtensionName}}(t *testing.T) {
 	for _, i := range []int{5, 2, 8, 4, 6, 3, 0} {
-		b := getLagrangeBasis(uint8(i))
-		assert.Equal(t, b, getLagrangeBasis(uint8(i))) // second call must yield the same result
+		b := getLagrangeBasis{{.ExtensionName}}(uint8(i))
+		assert.Equal(t, b, getLagrangeBasis{{.ExtensionName}}(uint8(i))) // second call must yield the same result
 	}
 }

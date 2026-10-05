@@ -92,15 +92,15 @@ func main() {
 			))
 
 			// polynomial package (Polynomial, MultiLin, Pool, ...) over the
-			// degree-6 extension E6
-			if f.Name == "koalabear" {
+			// requested extensions
+			for i, degree := range f.PolynomialExtensions {
 				extInfo := fieldConfig.FieldDependency{
 					FieldPackagePath: "github.com/consensys/gnark-crypto/field/" + f.Name + "/extensions",
 					FieldPackageName: "extensions",
-					ElementType:      "extensions.E6",
-					ExtensionDegree:  6,
+					ElementType:      fmt.Sprintf("extensions.E%d", degree),
+					ExtensionDegree:  degree,
 				}
-				assertNoError(polynomial.Generate(extInfo, filepath.Join(outputDir, "extensions", "polynomial"), true, gen))
+				assertNoError(polynomial.Generate(extInfo, filepath.Join(outputDir, "extensions", "polynomial"), i == 0, true, gen))
 			}
 		}(conf)
 	}
@@ -203,7 +203,7 @@ func main() {
 				}
 
 				assertNoError(mimc.Generate(conf, filepath.Join(curveDir, "fr", "mimc"), gen))
-				assertNoError(polynomial.Generate(frInfo, filepath.Join(curveDir, "fr", "polynomial"), true, gen))
+				assertNoError(polynomial.Generate(frInfo, filepath.Join(curveDir, "fr", "polynomial"), true, true, gen))
 				assertNoError(poseidon2.Generate(conf, filepath.Join(curveDir, "fr", "poseidon2"), gen))
 				assertNoError(hash_to_field.Generate(frInfo, filepath.Join(curveDir, "fr", "hash_to_field"), gen))
 				assertNoError(hash_to_field.Generate(fpInfo, filepath.Join(curveDir, "fp", "hash_to_field"), gen))

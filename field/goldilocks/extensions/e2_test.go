@@ -11,6 +11,8 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	fr "github.com/consensys/gnark-crypto/field/goldilocks"
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/prop"
@@ -556,20 +558,17 @@ func TestE2MarshalSetBytesRoundTrip(t *testing.T) {
 		}
 
 		var y E2
-		if !y.SetBytes(b).Equal(&x) {
+		_, err := y.SetBytes(b)
+		require.NoError(t, err)
+		if !y.Equal(&x) {
 			t.Fatal("SetBytes(Marshal(x)) != x")
 		}
 	}
 
 	for _, n := range []int{0, BytesE2 - 1, BytesE2 + 1} {
-		func() {
-			defer func() {
-				if recover() == nil {
-					t.Fatalf("SetBytes did not panic on %d bytes", n)
-				}
-			}()
-			var z E2
-			z.SetBytes(make([]byte, n))
-		}()
+		var z E2
+		if _, err := z.SetBytes(make([]byte, n)); err == nil {
+			t.Fatalf("SetBytes did not fail on %d bytes", n)
+		}
 	}
 }

@@ -9,6 +9,10 @@ type Field struct {
 	// HandwrittenVectorASMAMD64 declares that this field ships hand-written
 	// amd64 vector and FFT kernels next to its generated output.
 	HandwrittenVectorASMAMD64 bool
+	// PolynomialExtensions lists the degrees of the extensions of this field
+	// over which the polynomial package (Polynomial, MultiLin, Pool, ...) is
+	// generated. Empty means no polynomial package.
+	PolynomialExtensions []int
 }
 
 var Fields []Field
@@ -23,8 +27,9 @@ func init() {
 		Modulus: "0xFFFFFFFF00000001",
 	})
 	addField(Field{
-		Name:    "koalabear",
-		Modulus: "0x7f000001",
+		Name:                 "koalabear",
+		Modulus:              "0x7f000001",
+		PolynomialExtensions: []int{6},
 	})
 	addField(Field{
 		Name:    "babybear",

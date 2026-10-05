@@ -13,7 +13,7 @@ import (
 )
 
 // TODO: Property based tests?
-func TestFoldBilinear(t *testing.T) {
+func TestFoldBilinearE6(t *testing.T) {
 
 	for range 100 {
 
@@ -25,7 +25,7 @@ func TestFoldBilinear(t *testing.T) {
 		r.MustSetRandom()
 
 		// interpolate at {0,1}²:
-		m := make(MultiLin, 4)
+		m := make(MultiLinE6, 4)
 		m[0] = coefficients[0]
 		m[1].Add(&coefficients[0], &coefficients[2])
 		m[2].Add(&coefficients[0], &coefficients[1])
@@ -54,12 +54,12 @@ func TestFoldBilinear(t *testing.T) {
 
 // TODO: Benchmark folding? Algorithms is pretty straightforward; unless we want to measure how well memory management is working
 
-func TestFoldedEqTable(t *testing.T) {
+func TestFoldedEqTableE6(t *testing.T) {
 	q := make([]extensions.E6, 2)
 	q[0].SetInt64(2)
 	q[1].SetInt64(3)
 
-	m := make(MultiLin, 4)
+	m := make(MultiLinE6, 4)
 	m[0].SetOne()
 	m.Eq(q)
 
@@ -72,7 +72,7 @@ func TestFoldedEqTable(t *testing.T) {
 	for p0 := range 2 {
 		p[1].SetZero()
 		for p1 := range 2 {
-			eq[p0*2+p1] = EvalEq(q, p)
+			eq[p0*2+p1] = EvalEqE6(q, p)
 			p[1].Add(&p[1], &one)
 		}
 		p[0].Add(&p[0], &one)

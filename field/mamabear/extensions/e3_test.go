@@ -10,6 +10,8 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	fr "github.com/consensys/gnark-crypto/field/mamabear"
 )
 
@@ -462,20 +464,17 @@ func TestE3MarshalSetBytesRoundTrip(t *testing.T) {
 		}
 
 		var y E3
-		if !y.SetBytes(b).Equal(&x) {
+		_, err := y.SetBytes(b)
+		require.NoError(t, err)
+		if !y.Equal(&x) {
 			t.Fatal("SetBytes(Marshal(x)) != x")
 		}
 	}
 
 	for _, n := range []int{0, BytesE3 - 1, BytesE3 + 1} {
-		func() {
-			defer func() {
-				if recover() == nil {
-					t.Fatalf("SetBytes did not panic on %d bytes", n)
-				}
-			}()
-			var z E3
-			z.SetBytes(make([]byte, n))
-		}()
+		var z E3
+		if _, err := z.SetBytes(make([]byte, n)); err == nil {
+			t.Fatalf("SetBytes did not fail on %d bytes", n)
+		}
 	}
 }

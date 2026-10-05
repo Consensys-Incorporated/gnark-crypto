@@ -6,6 +6,7 @@
 package extensions
 
 import (
+	"fmt"
 	"math/big"
 	"math/bits"
 
@@ -113,16 +114,16 @@ func (z *E4) Marshal() []byte {
 }
 
 // SetBytes sets z from the layout produced by Marshal, reading each coefficient with fr.Element.SetBytes, and returns z.
-// It panics if len(b) != BytesE4.
-func (z *E4) SetBytes(b []byte) *E4 {
+// It returns an error if len(b) != BytesE4.
+func (z *E4) SetBytes(b []byte) (*E4, error) {
 	if len(b) != BytesE4 {
-		panic("E4.SetBytes: invalid input length")
+		return nil, fmt.Errorf("E4.SetBytes: got %d bytes, expected %d", len(b), BytesE4)
 	}
 	z.B0.A0.SetBytes(b[0*fr.Bytes : 1*fr.Bytes])
 	z.B0.A1.SetBytes(b[1*fr.Bytes : 2*fr.Bytes])
 	z.B1.A0.SetBytes(b[2*fr.Bytes : 3*fr.Bytes])
 	z.B1.A1.SetBytes(b[3*fr.Bytes : 4*fr.Bytes])
-	return z
+	return z, nil
 }
 
 // Lift sets the B0.A0 component of z to v

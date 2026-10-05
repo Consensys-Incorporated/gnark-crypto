@@ -6,6 +6,7 @@
 package extensions
 
 import (
+	"fmt"
 	"math/big"
 	"math/bits"
 	"unsafe"
@@ -120,10 +121,10 @@ func (z *E6) Marshal() []byte {
 }
 
 // SetBytes sets z from the layout produced by Marshal, reading each coefficient with fr.Element.SetBytes, and returns z.
-// It panics if len(b) != BytesE6.
-func (z *E6) SetBytes(b []byte) *E6 {
+// It returns an error if len(b) != BytesE6.
+func (z *E6) SetBytes(b []byte) (*E6, error) {
 	if len(b) != BytesE6 {
-		panic("E6.SetBytes: invalid input length")
+		return nil, fmt.Errorf("E6.SetBytes: got %d bytes, expected %d", len(b), BytesE6)
 	}
 	z.B0.A0.SetBytes(b[0*fr.Bytes : 1*fr.Bytes])
 	z.B0.A1.SetBytes(b[1*fr.Bytes : 2*fr.Bytes])
@@ -131,7 +132,7 @@ func (z *E6) SetBytes(b []byte) *E6 {
 	z.B1.A1.SetBytes(b[3*fr.Bytes : 4*fr.Bytes])
 	z.B2.A0.SetBytes(b[4*fr.Bytes : 5*fr.Bytes])
 	z.B2.A1.SetBytes(b[5*fr.Bytes : 6*fr.Bytes])
-	return z
+	return z, nil
 }
 
 // MulByElement multiplies an element in E6 by an element in fr.

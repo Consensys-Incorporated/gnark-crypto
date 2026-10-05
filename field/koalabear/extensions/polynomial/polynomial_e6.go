@@ -11,17 +11,17 @@ import (
 	"github.com/consensys/gnark-crypto/field/koalabear/extensions"
 )
 
-// Polynomial represented by coefficients in the field.
-type Polynomial []extensions.E6
+// PolynomialE6 represented by coefficients in the field.
+type PolynomialE6 []extensions.E6
 
 // Degree returns the degree of the polynomial, which is the length of Data.
-func (p *Polynomial) Degree() uint64 {
+func (p *PolynomialE6) Degree() uint64 {
 	return uint64(len(*p) - 1)
 }
 
 // Eval evaluates p at v
 // returns a extensions.E6
-func (p *Polynomial) Eval(v *extensions.E6) extensions.E6 {
+func (p *PolynomialE6) Eval(v *extensions.E6) extensions.E6 {
 
 	res := (*p)[len(*p)-1]
 	for i := len(*p) - 2; i >= 0; i-- {
@@ -33,14 +33,14 @@ func (p *Polynomial) Eval(v *extensions.E6) extensions.E6 {
 }
 
 // Clone returns a copy of the polynomial
-func (p *Polynomial) Clone() Polynomial {
-	_p := make(Polynomial, len(*p))
+func (p *PolynomialE6) Clone() PolynomialE6 {
+	_p := make(PolynomialE6, len(*p))
 	copy(_p, *p)
 	return _p
 }
 
 // Set to another polynomial
-func (p *Polynomial) Set(p1 Polynomial) {
+func (p *PolynomialE6) Set(p1 PolynomialE6) {
 	if len(*p) != len(p1) {
 		*p = p1.Clone()
 		return
@@ -52,30 +52,30 @@ func (p *Polynomial) Set(p1 Polynomial) {
 }
 
 // AddConstantInPlace adds a constant to the polynomial, modifying p
-func (p *Polynomial) AddConstantInPlace(c *extensions.E6) {
+func (p *PolynomialE6) AddConstantInPlace(c *extensions.E6) {
 	for i := range len(*p) {
 		(*p)[i].Add(&(*p)[i], c)
 	}
 }
 
 // SubConstantInPlace subs a constant to the polynomial, modifying p
-func (p *Polynomial) SubConstantInPlace(c *extensions.E6) {
+func (p *PolynomialE6) SubConstantInPlace(c *extensions.E6) {
 	for i := range len(*p) {
 		(*p)[i].Sub(&(*p)[i], c)
 	}
 }
 
 // ScaleInPlace multiplies p by v, modifying p
-func (p *Polynomial) ScaleInPlace(c *extensions.E6) {
+func (p *PolynomialE6) ScaleInPlace(c *extensions.E6) {
 	for i := range len(*p) {
 		(*p)[i].Mul(&(*p)[i], c)
 	}
 }
 
 // Scale multiplies p0 by v, storing the result in p
-func (p *Polynomial) Scale(c *extensions.E6, p0 Polynomial) {
+func (p *PolynomialE6) Scale(c *extensions.E6, p0 PolynomialE6) {
 	if len(*p) != len(p0) {
-		*p = make(Polynomial, len(p0))
+		*p = make(PolynomialE6, len(p0))
 	}
 	for i := range len(p0) {
 		(*p)[i].Mul(c, &p0[i])
@@ -84,7 +84,7 @@ func (p *Polynomial) Scale(c *extensions.E6, p0 Polynomial) {
 
 // Add adds p1 to p2
 // This function allocates a new slice unless p == p1 or p == p2
-func (p *Polynomial) Add(p1, p2 Polynomial) *Polynomial {
+func (p *PolynomialE6) Add(p1, p2 PolynomialE6) *PolynomialE6 {
 
 	bigger := p1
 	smaller := p2
@@ -107,7 +107,7 @@ func (p *Polynomial) Add(p1, p2 Polynomial) *Polynomial {
 		return p
 	}
 
-	res := make(Polynomial, len(bigger))
+	res := make(PolynomialE6, len(bigger))
 	copy(res, bigger)
 	for i := range len(smaller) {
 		res[i].Add(&res[i], &smaller[i])
@@ -118,7 +118,7 @@ func (p *Polynomial) Add(p1, p2 Polynomial) *Polynomial {
 
 // Sub subtracts p2 from p1
 // TODO make interface more consistent with Add
-func (p *Polynomial) Sub(p1, p2 Polynomial) *Polynomial {
+func (p *PolynomialE6) Sub(p1, p2 PolynomialE6) *PolynomialE6 {
 	if len(p1) != len(p2) || len(p2) != len(*p) {
 		return nil
 	}
@@ -129,7 +129,7 @@ func (p *Polynomial) Sub(p1, p2 Polynomial) *Polynomial {
 }
 
 // Equal checks equality between two polynomials
-func (p *Polynomial) Equal(p1 Polynomial) bool {
+func (p *PolynomialE6) Equal(p1 PolynomialE6) bool {
 	if (*p == nil) != (p1 == nil) {
 		return false
 	}
@@ -147,26 +147,26 @@ func (p *Polynomial) Equal(p1 Polynomial) bool {
 	return true
 }
 
-func (p Polynomial) SetZero() {
+func (p PolynomialE6) SetZero() {
 	for i := range len(p) {
 		p[i].SetZero()
 	}
 }
 
-// InterpolateOnRange maps vector v to polynomial f
+// InterpolateOnRangeE6 maps vector v to polynomial f
 // such that f(i) = v[i] for 0 ≤ i < len(v).
 // len(f) = len(v) and deg(f) ≤ len(v) - 1
-func InterpolateOnRange(v []extensions.E6) Polynomial {
+func InterpolateOnRangeE6(v []extensions.E6) PolynomialE6 {
 	nEvals := uint8(len(v))
 	if int(nEvals) != len(v) {
 		panic("interpolation method too inefficient for nEvals > 255")
 	}
-	lagrange := getLagrangeBasis(nEvals)
+	lagrange := getLagrangeBasisE6(nEvals)
 
-	var res Polynomial
+	var res PolynomialE6
 	res.Scale(&v[0], lagrange[0])
 
-	temp := make(Polynomial, nEvals)
+	temp := make(PolynomialE6, nEvals)
 
 	for i := uint8(1); i < nEvals; i++ {
 		temp.Scale(&v[i], lagrange[i])
@@ -176,39 +176,39 @@ func InterpolateOnRange(v []extensions.E6) Polynomial {
 	return res
 }
 
-// lagrange bases used by InterpolateOnRange
-var lagrangeBasis sync.Map
+// lagrange bases used by InterpolateOnRangeE6
+var lagrangeBasisE6 sync.Map
 
-func getLagrangeBasis(domainSize uint8) []Polynomial {
-	if res, ok := lagrangeBasis.Load(domainSize); ok {
-		return res.([]Polynomial)
+func getLagrangeBasisE6(domainSize uint8) []PolynomialE6 {
+	if res, ok := lagrangeBasisE6.Load(domainSize); ok {
+		return res.([]PolynomialE6)
 	}
 
 	// not found. compute
-	var res []Polynomial
+	var res []PolynomialE6
 	if domainSize >= 2 {
-		res = computeLagrangeBasis(domainSize)
+		res = computeLagrangeBasisE6(domainSize)
 	} else if domainSize == 1 {
-		res = []Polynomial{make(Polynomial, 1)}
+		res = []PolynomialE6{make(PolynomialE6, 1)}
 		res[0][0].SetOne()
 	}
-	lagrangeBasis.Store(domainSize, res)
+	lagrangeBasisE6.Store(domainSize, res)
 
 	return res
 }
 
-// computeLagrangeBasis precomputes in explicit coefficient form for each 0 ≤ l < domainSize the polynomial
+// computeLagrangeBasisE6 precomputes in explicit coefficient form for each 0 ≤ l < domainSize the polynomial
 // pₗ := X (X-1) ... (X-l-1) (X-l+1) ... (X - domainSize + 1) / ( l (l-1) ... 2 (-1) ... (l - domainSize +1) )
 // Note that pₗ(l) = 1 and pₗ(n) = 0 if 0 ≤ l < domainSize, n ≠ l
-func computeLagrangeBasis(domainSize uint8) []Polynomial {
+func computeLagrangeBasisE6(domainSize uint8) []PolynomialE6 {
 
 	constTerms := make([]extensions.E6, domainSize)
 	for i := range domainSize {
 		constTerms[i].SetInt64(-int64(i))
 	}
 
-	res := make([]Polynomial, domainSize)
-	multScratch := make(Polynomial, domainSize-1)
+	res := make([]PolynomialE6, domainSize)
+	multScratch := make(PolynomialE6, domainSize-1)
 
 	// compute pₗ
 	for l := range domainSize {
@@ -220,7 +220,7 @@ func computeLagrangeBasis(domainSize uint8) []Polynomial {
 				continue
 			}
 			if d == 0 {
-				res[l] = make(Polynomial, domainSize)
+				res[l] = make(PolynomialE6, domainSize)
 				res[l][domainSize-2] = constTerms[i]
 				res[l][domainSize-1].SetOne()
 			} else {

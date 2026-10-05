@@ -93,14 +93,14 @@ func (z *E2) Marshal() []byte {
 }
 
 // SetBytes sets z from the layout produced by Marshal, reading each coefficient with fr.Element.SetBytes, and returns z.
-// It panics if len(b) != BytesE2.
-func (z *E2) SetBytes(b []byte) *E2 {
+// It returns an error if len(b) != BytesE2.
+func (z *E2) SetBytes(b []byte) (*E2, error) {
 	if len(b) != BytesE2 {
-		panic("E2.SetBytes: invalid input length")
+		return nil, fmt.Errorf("E2.SetBytes: got %d bytes, expected %d", len(b), BytesE2)
 	}
 	z.A0.SetBytes(b[0*fr.Bytes : 1*fr.Bytes])
 	z.A1.SetBytes(b[1*fr.Bytes : 2*fr.Bytes])
-	return z
+	return z, nil
 }
 
 // SetRandom sets a0 and a1 to random values

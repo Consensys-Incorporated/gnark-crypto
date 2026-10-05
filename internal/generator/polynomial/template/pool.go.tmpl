@@ -12,38 +12,38 @@ import (
 // WARNING: This is not thread safe TODO: Make sure that is not a problem
 // TODO: There is a lot of "unsafe" memory management here and needs to be vetted thoroughly
 
-type sizedPool struct {
+type sizedPool{{.ExtensionName}} struct {
 	maxN  int
 	pool  sync.Pool
-	stats poolStats
+	stats poolStats{{.ExtensionName}}
 }
 
-type inUseData struct {
+type inUseData{{.ExtensionName}} struct {
 	allocatedFor []uintptr
-	pool         *sizedPool
+	pool         *sizedPool{{.ExtensionName}}
 }
 
-type Pool struct {
+type Pool{{.ExtensionName}} struct {
 	//lock     sync.Mutex
 	inUse    sync.Map
-	subPools []sizedPool
+	subPools []sizedPool{{.ExtensionName}}
 }
 
-func (p *sizedPool) get(n int) *{{.ElementType}} {
+func (p *sizedPool{{.ExtensionName}}) get(n int) *{{.ElementType}} {
 	p.stats.make(n)
 	return p.pool.Get().(*{{.ElementType}})
 }
 
-func (p *sizedPool) put(ptr *{{.ElementType}}) {
+func (p *sizedPool{{.ExtensionName}}) put(ptr *{{.ElementType}}) {
 	p.stats.dump()
 	p.pool.Put(ptr)
 }
 
-func NewPool(maxN ...int) (pool Pool) {
+func NewPool{{.ExtensionName}}(maxN ...int) (pool Pool{{.ExtensionName}}) {
 
 	sort.Ints(maxN)
-	pool = Pool{
-		subPools: make([]sizedPool, len(maxN)),
+	pool = Pool{{.ExtensionName}}{
+		subPools: make([]sizedPool{{.ExtensionName}}, len(maxN)),
 	}
 
 	for i := range pool.subPools {
@@ -52,14 +52,14 @@ func NewPool(maxN ...int) (pool Pool) {
 		subPool.pool = sync.Pool{
 			New: func() any {
 				subPool.stats.Allocated++
-				return getDataPointer(make([]{{.ElementType}}, 0, subPool.maxN))
+				return getDataPointer{{.ExtensionName}}(make([]{{.ElementType}}, 0, subPool.maxN))
 			},
 		}
 	}
 	return
 }
 
-func (p *Pool) findCorrespondingPool(n int) *sizedPool {
+func (p *Pool{{.ExtensionName}}) findCorrespondingPool(n int) *sizedPool{{.ExtensionName}} {
 	poolI := 0
 	for poolI < len(p.subPools) && n > p.subPools[poolI].maxN {
 		poolI++
@@ -67,7 +67,7 @@ func (p *Pool) findCorrespondingPool(n int) *sizedPool {
 	return &p.subPools[poolI] // out of bounds error here would mean that n is too large
 }
 
-func (p *Pool) Make(n int) []{{.ElementType}} {
+func (p *Pool{{.ExtensionName}}) Make(n int) []{{.ElementType}} {
 	pool := p.findCorrespondingPool(n)
 	ptr := pool.get(n)
 	p.addInUse(ptr, pool)
@@ -75,52 +75,52 @@ func (p *Pool) Make(n int) []{{.ElementType}} {
 }
 
 // Dump dumps a set of polynomials into the pool
-func (p *Pool) Dump(slices ...[]{{.ElementType}}) {
+func (p *Pool{{.ExtensionName}}) Dump(slices ...[]{{.ElementType}}) {
 	for _, slice := range slices {
-		ptr := getDataPointer(slice)
+		ptr := getDataPointer{{.ExtensionName}}(slice)
 		if metadata, ok := p.inUse.Load(ptr); ok {
 			p.inUse.Delete(ptr)
-			metadata.(inUseData).pool.put(ptr)
+			metadata.(inUseData{{.ExtensionName}}).pool.put(ptr)
 		} else {
 			panic("attempting to dump a slice not created by the pool")
 		}
 	}
 }
 
-func (p *Pool) addInUse(ptr *{{.ElementType}}, pool *sizedPool) {
+func (p *Pool{{.ExtensionName}}) addInUse(ptr *{{.ElementType}}, pool *sizedPool{{.ExtensionName}}) {
 	pcs := make([]uintptr, 2)
 	n := runtime.Callers(3, pcs)
 
 	if prevPcs, ok := p.inUse.Load(ptr); ok { // TODO: remove if unnecessary for security
-		panic(fmt.Errorf("re-allocated non-dumped slice, previously allocated at %v", runtime.CallersFrames(prevPcs.(inUseData).allocatedFor)))
+		panic(fmt.Errorf("re-allocated non-dumped slice, previously allocated at %v", runtime.CallersFrames(prevPcs.(inUseData{{.ExtensionName}}).allocatedFor)))
 	}
-	p.inUse.Store(ptr, inUseData{
+	p.inUse.Store(ptr, inUseData{{.ExtensionName}}{
 		allocatedFor: pcs[:n],
 		pool:         pool,
 	})
 }
 
-func printFrame(frame runtime.Frame) {
+func printFrame{{.ExtensionName}}(frame runtime.Frame) {
 	fmt.Printf("\t%s line %d, function %s\n", frame.File, frame.Line, frame.Function)
 }
 
-func (p *Pool) printInUse() {
+func (p *Pool{{.ExtensionName}}) printInUse() {
 	fmt.Println("slices never dumped allocated at:")
 	p.inUse.Range(func(_, pcs any) bool {
 		fmt.Println("-------------------------")
 
 		var frame runtime.Frame
-		frames := runtime.CallersFrames(pcs.(inUseData).allocatedFor)
+		frames := runtime.CallersFrames(pcs.(inUseData{{.ExtensionName}}).allocatedFor)
 		more := true
 		for more {
 			frame, more = frames.Next()
-			printFrame(frame)
+			printFrame{{.ExtensionName}}(frame)
 		}
 		return true
 	})
 }
 
-type poolStats struct {
+type poolStats{{.ExtensionName}} struct {
 	Used          int
 	Allocated     int
 	ReuseRate     float64
@@ -129,12 +129,12 @@ type poolStats struct {
 	SmallestNUsed int
 }
 
-type poolsStats struct {
-	SubPools []poolStats
+type poolsStats{{.ExtensionName}} struct {
+	SubPools []poolStats{{.ExtensionName}}
 	InUse    int
 }
 
-func (s *poolStats) make(n int) {
+func (s *poolStats{{.ExtensionName}}) make(n int) {
 	s.Used++
 	s.InUse++
 	if n > s.GreatestNUsed {
@@ -145,21 +145,21 @@ func (s *poolStats) make(n int) {
 	}
 }
 
-func (s *poolStats) dump() {
+func (s *poolStats{{.ExtensionName}}) dump() {
 	s.InUse--
 }
 
-func (s *poolStats) finalize() {
+func (s *poolStats{{.ExtensionName}}) finalize() {
 	s.ReuseRate = float64(s.Used) / float64(s.Allocated)
 }
 
-func getDataPointer(slice []{{.ElementType}}) *{{.ElementType}} {
+func getDataPointer{{.ExtensionName}}(slice []{{.ElementType}}) *{{.ElementType}} {
 	return (*{{.ElementType}})(unsafe.SliceData(slice))
 }
 
-func (p *Pool) PrintPoolStats() {
+func (p *Pool{{.ExtensionName}}) PrintPoolStats() {
 	InUse := 0
-	subStats := make([]poolStats, len(p.subPools))
+	subStats := make([]poolStats{{.ExtensionName}}, len(p.subPools))
 	for i := range p.subPools {
 		subPool := &p.subPools[i]
 		subPool.stats.finalize()
@@ -167,7 +167,7 @@ func (p *Pool) PrintPoolStats() {
 		InUse += subPool.stats.InUse
 	}
 
-	stats := poolsStats{
+	stats := poolsStats{{.ExtensionName}}{
 		SubPools: subStats,
 		InUse:    InUse,
 	}
@@ -176,7 +176,7 @@ func (p *Pool) PrintPoolStats() {
 	p.printInUse()
 }
 
-func (p *Pool) Clone(slice []{{.ElementType}}) []{{.ElementType}} {
+func (p *Pool{{.ExtensionName}}) Clone(slice []{{.ElementType}}) []{{.ElementType}} {
 	res := p.Make(len(slice))
 	copy(res, slice)
 	return res
