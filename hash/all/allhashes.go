@@ -25,6 +25,7 @@ import (
 	_ "github.com/consensys/gnark-crypto/field/babybear/poseidon2"
 	_ "github.com/consensys/gnark-crypto/field/goldilocks/poseidon2"
 	_ "github.com/consensys/gnark-crypto/field/koalabear/poseidon2"
+	_ "github.com/consensys/gnark-crypto/field/mamabear/poseidon2"
 
 	_ "github.com/consensys/gnark-crypto/ecc/grumpkin/fr/mimc"
 	_ "github.com/consensys/gnark-crypto/ecc/grumpkin/fr/poseidon2"
