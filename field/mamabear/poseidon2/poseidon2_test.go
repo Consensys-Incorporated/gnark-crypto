@@ -80,8 +80,8 @@ func TestDenseMatricesMatchInPlace(t *testing.T) {
 	for _, tc := range []struct {
 		width, nbFullRounds, nbPartialRounds int
 	}{
-		{16, 6, 21},
-		{24, 6, 21},
+		{16, 8, 32},
+		{24, 8, 32},
 	} {
 		h := NewPermutation(tc.width, tc.nbFullRounds, tc.nbPartialRounds)
 
