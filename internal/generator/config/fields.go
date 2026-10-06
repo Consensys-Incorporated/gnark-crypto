@@ -46,5 +46,6 @@ func init() {
 		// hand-written; the asm generator has no regime for a single-word
 		// field with a sub-word radix.
 		HandwrittenVectorASMAMD64: true,
+		PolynomialExtensions:      []int{3},
 	})
 }

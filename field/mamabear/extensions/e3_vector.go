@@ -179,3 +179,22 @@ func mulAccByElementGeneric(vector VectorE3, scale []fr.Element, alpha *E3) {
 		vector[i].Add(&vector[i], &tmp)
 	}
 }
+
+// SetRandom sets all elements of vector to random values, returning the first error encountered, if any.
+func (vector VectorE3) SetRandom() error {
+	for i := range vector {
+		if _, err := vector[i].SetRandom(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// MustSetRandom sets all elements of vector to random values, panicking if an error is encountered.
+func (vector VectorE3) MustSetRandom() {
+	for i := range vector {
+		if _, err := vector[i].SetRandom(); err != nil {
+			panic(err)
+		}
+	}
+}
