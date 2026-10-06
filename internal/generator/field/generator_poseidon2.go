@@ -119,14 +119,30 @@ func generatePoseidon2(F *config.Field, outputDir string) error {
 			data.ParamsCompression,
 		}
 	case "mamabear":
-		// Same round structure and the same semantic diagonal as koalabear; the
-		// entries below are those values reduced mod the mamabear prime. They
-		// are canonical residues, not Montgomery-encoded, so they do not depend
-		// on the radix.
+		// The diagonal is koalabear's, reduced mod the mamabear prime; the
+		// entries are canonical residues, not Montgomery-encoded, so they do not
+		// depend on the radix.
+		//
+		// The round numbers are NOT koalabear's. They follow Eq. (1) of the
+		// Poseidon2 paper (https://eprint.iacr.org/2023/323.pdf) for n = 49,
+		// t = 16/24, d = 3 at kappa = 128:
+		//
+		//	R_F = 8
+		//	R_P = ceil(1.075 * max(R_interp, R_GB)) = ceil(1.075 * 29) = 32
+		//
+		// where R_interp = ceil(min{kappa,n}/log2(d)) + ceil(log_d(t)) - 5 = 29
+		// is the binding constraint. The bound grows with min{kappa, log2(p)},
+		// so a wider field needs MORE rounds, not fewer: koalabear saturates at
+		// n = 31 and needs R_P = 20, while mamabear at n = 49 needs 32. Reusing
+		// koalabear's 21 here would target roughly 33 bits of security.
+		//
+		// The same formula reproduces Plonky3's shipped constants for babybear
+		// (13/21/30 at t = 16/24/32) and koalabear (20/23/31), and Table 1 of
+		// the paper.
 		data.ParamsCompression = amd64.Poseidon2Parameters{
 			Width:         16,
-			FullRounds:    6,
-			PartialRounds: 21,
+			FullRounds:    8,
+			PartialRounds: 32,
 			SBoxDegree:    3,
 			// [-2, 1, 2, 1/2, 3, 4, -1/2, -3, -4, 1/2^8, 1/8, 1/2^24, -1/2^8, -1/8, -1/16, -1/2^24]
 			DiagInternal: []uint64{562932773552127, 1, 2, 281466386776065, 3, 4, 281466386776064, 562932773552126, 562932773552125, 560733817405441, 492566176858113, 562932739998721, 2198956146688, 70366596694016, 35183298347008, 33553408},
@@ -134,8 +150,8 @@ func generatePoseidon2(F *config.Field, outputDir string) error {
 
 		data.ParamsSponge = amd64.Poseidon2Parameters{
 			Width:         24,
-			FullRounds:    6,
-			PartialRounds: 21,
+			FullRounds:    8,
+			PartialRounds: 32,
 			SBoxDegree:    3,
 			// [-2, 1, 2, 1/2, 3, 4, -1/2, -3, -4, 1/2^8, 1/4, 1/8, 1/16, 1/32, 1/64, 1/2^24, -1/2^8, -1/8, -1/16, -1/32, -1/64, -1/2^7, -1/2^9, -1/2^24]
 			DiagInternal: []uint64{562932773552127, 1, 2, 281466386776065, 3, 4, 281466386776064, 562932773552126, 562932773552125, 560733817405441, 422199580164097, 492566176858113, 527749475205121, 545341124378625, 554136948965377, 562932739998721, 2198956146688, 70366596694016, 35183298347008, 17591649173504, 8795824586752, 4397912293376, 1099478073344, 33553408},
