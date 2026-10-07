@@ -91,12 +91,16 @@ func main() {
 				field.WithIOP(),
 			))
 
-			// polynomial package (Polynomial, MultiLin, Pool, ...) over the base field
-			assertNoError(polynomial.Generate(fieldConfig.FieldDependency{
-				FieldPackagePath: "github.com/consensys/gnark-crypto/field/" + f.Name,
-				FieldPackageName: f.Name,
-				ElementType:      f.Name + ".Element",
-			}, filepath.Join(outputDir, "polynomial"), true, true, gen))
+			// polynomial package (Polynomial, MultiLin, Pool, ...) over the base
+			// field. It is only needed by the polynomial packages over the
+			// extensions, whose FoldFromBase takes a base field MultiLin.
+			if len(f.PolynomialExtensions) > 0 {
+				assertNoError(polynomial.Generate(fieldConfig.FieldDependency{
+					FieldPackagePath: "github.com/consensys/gnark-crypto/field/" + f.Name,
+					FieldPackageName: f.Name,
+					ElementType:      f.Name + ".Element",
+				}, filepath.Join(outputDir, "polynomial"), true, true, gen))
+			}
 
 			// polynomial package (Polynomial, MultiLin, Pool, ...) over the
 			// requested extensions
