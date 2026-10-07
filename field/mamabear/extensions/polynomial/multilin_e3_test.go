@@ -8,6 +8,7 @@ package polynomial
 import (
 	"testing"
 
+	fr "github.com/consensys/gnark-crypto/field/mamabear"
 	"github.com/consensys/gnark-crypto/field/mamabear/extensions"
 	basepoly "github.com/consensys/gnark-crypto/field/mamabear/polynomial"
 	"github.com/stretchr/testify/assert"
@@ -88,9 +89,7 @@ func TestFoldedEqTableE3(t *testing.T) {
 func TestFoldFromBaseE3(t *testing.T) {
 	for _, n := range []int{2, 4, 8, 64} {
 		b := make(basepoly.MultiLin, n)
-		for i := range b {
-			b[i].MustSetRandom()
-		}
+		fr.Vector(b).MustSetRandom()
 		var r extensions.E3
 		r.MustSetRandom()
 
@@ -118,13 +117,9 @@ func TestFoldFromBaseE3(t *testing.T) {
 func TestEvaluateBaseE3(t *testing.T) {
 	for _, nbVars := range []int{0, 1, 2, 3, 6} {
 		b := make(basepoly.MultiLin, 1<<nbVars)
-		for i := range b {
-			b[i].MustSetRandom()
-		}
+		fr.Vector(b).MustSetRandom()
 		coordinates := make([]extensions.E3, nbVars)
-		for i := range coordinates {
-			coordinates[i].MustSetRandom()
-		}
+		extensions.VectorE3(coordinates).MustSetRandom()
 
 		// reference: lift b to the extension and use Evaluate
 		lifted := make(MultiLinE3, len(b))
@@ -139,9 +134,7 @@ func TestEvaluateBaseE3(t *testing.T) {
 
 		// a dirty, larger scratch buffer gives the same result
 		dirty := make(MultiLinE3, 2*len(b)+3)
-		for i := range dirty {
-			dirty[i].MustSetRandom()
-		}
+		extensions.VectorE3(dirty).MustSetRandom()
 		got = dirty.EvaluateBase(b, coordinates)
 		assert.True(t, want.Equal(&got))
 	}

@@ -193,8 +193,6 @@ func (vector VectorE3) SetRandom() error {
 // MustSetRandom sets all elements of vector to random values, panicking if an error is encountered.
 func (vector VectorE3) MustSetRandom() {
 	for i := range vector {
-		if _, err := vector[i].SetRandom(); err != nil {
-			panic(err)
-		}
+		vector[i].MustSetRandom()
 	}
 }

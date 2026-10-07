@@ -8,6 +8,7 @@ package polynomial
 import (
 	"testing"
 
+	fr "github.com/consensys/gnark-crypto/field/koalabear"
 	"github.com/consensys/gnark-crypto/field/koalabear/extensions"
 	basepoly "github.com/consensys/gnark-crypto/field/koalabear/polynomial"
 	"github.com/stretchr/testify/assert"
@@ -88,9 +89,7 @@ func TestFoldedEqTableE6(t *testing.T) {
 func TestFoldFromBaseE6(t *testing.T) {
 	for _, n := range []int{2, 4, 8, 64} {
 		b := make(basepoly.MultiLin, n)
-		for i := range b {
-			b[i].MustSetRandom()
-		}
+		fr.Vector(b).MustSetRandom()
 		var r extensions.E6
 		r.MustSetRandom()
 
@@ -118,13 +117,9 @@ func TestFoldFromBaseE6(t *testing.T) {
 func TestEvaluateBaseE6(t *testing.T) {
 	for _, nbVars := range []int{0, 1, 2, 3, 6} {
 		b := make(basepoly.MultiLin, 1<<nbVars)
-		for i := range b {
-			b[i].MustSetRandom()
-		}
+		fr.Vector(b).MustSetRandom()
 		coordinates := make([]extensions.E6, nbVars)
-		for i := range coordinates {
-			coordinates[i].MustSetRandom()
-		}
+		extensions.VectorE6(coordinates).MustSetRandom()
 
 		// reference: lift b to the extension and use Evaluate
 		lifted := make(MultiLinE6, len(b))
@@ -139,9 +134,7 @@ func TestEvaluateBaseE6(t *testing.T) {
 
 		// a dirty, larger scratch buffer gives the same result
 		dirty := make(MultiLinE6, 2*len(b)+3)
-		for i := range dirty {
-			dirty[i].MustSetRandom()
-		}
+		extensions.VectorE6(dirty).MustSetRandom()
 		got = dirty.EvaluateBase(b, coordinates)
 		assert.True(t, want.Equal(&got))
 	}
