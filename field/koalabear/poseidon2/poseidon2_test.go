@@ -64,52 +64,6 @@ func TestMulMulInternalInPlaceWidth24(t *testing.T) {
 	}
 }
 
-// denseMatrixMul returns m·x.
-func denseMatrixMul(m [][]fr.Element, x []fr.Element) []fr.Element {
-	res := make([]fr.Element, len(m))
-	for i := range m {
-		var tmp fr.Element
-		for j := range m[i] {
-			tmp.Mul(&m[i][j], &x[j])
-			res[i].Add(&res[i], &tmp)
-		}
-	}
-	return res
-}
-
-// TestDenseMatricesMatchInPlace checks that the dense matrices act on a random
-// state as the in-place multiplications of the permutation.
-func TestDenseMatricesMatchInPlace(t *testing.T) {
-	for _, tc := range []struct {
-		width, nbFullRounds, nbPartialRounds int
-	}{
-		{16, 6, 21},
-		{24, 6, 21},
-	} {
-		h := NewPermutation(tc.width, tc.nbFullRounds, tc.nbPartialRounds)
-
-		for name, step := range map[string]struct {
-			dense   [][]fr.Element
-			inPlace func([]fr.Element)
-		}{
-			"external": {h.params.ExternalMatrix(), h.matMulExternalInPlace},
-			"internal": {h.params.InternalMatrix(), h.matMulInternalInPlace},
-		} {
-			x := make([]fr.Element, tc.width)
-			for i := range x {
-				x[i].MustSetRandom()
-			}
-			want := denseMatrixMul(step.dense, x)
-			step.inPlace(x)
-			for i := range x {
-				if !x[i].Equal(&want[i]) {
-					t.Fatalf("width %d, %s matrix: dense and in-place multiplications differ at index %d", tc.width, name, i)
-				}
-			}
-		}
-	}
-}
-
 func TestAVX512Width16(t *testing.T) {
 	if !cpu.SupportAVX512 {
 		t.Skip("AVX512 not supported")

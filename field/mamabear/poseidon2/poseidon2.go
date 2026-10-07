@@ -15,7 +15,6 @@ import (
 	"golang.org/x/crypto/sha3"
 
 	fr "github.com/consensys/gnark-crypto/field/mamabear"
-	internalposeidon2 "github.com/consensys/gnark-crypto/internal/poseidon2"
 )
 
 var (
@@ -120,36 +119,6 @@ func (p *Parameters) initRC(seed string) {
 type Permutation struct {
 	// parameters describing the instance
 	params *Parameters
-}
-
-// ExternalMatrix returns the dense external matrix M_E of the permutation, which
-// is applied to the state before the first round and after each full round.
-// With I and J the identity and the all-ones matrices, and M4 the 4×4 block of
-// Plonky3 (rows 2 3 1 1 / 1 2 3 1 / 1 1 2 3 / 3 1 1 2), M_E is
-//
-//   - I + J for width 2 and 3;
-//   - M4 for width 4;
-//   - circ(2·M4, M4, ..., M4) = (I + J) ⊗ M4 for width 4k with k > 1.
-func (p *Parameters) ExternalMatrix() [][]fr.Element {
-	return internalposeidon2.ExternalMatrix[fr.Element](p.Width, internalposeidon2.Plonky3)
-}
-
-// InternalMatrix returns the dense internal matrix M_I of the permutation, which
-// is applied to the state after each partial round. With J the all-ones matrix,
-//
-//	M_I = J + diag(d),
-//
-// that is, for a state x, (M_I·x)_i = Σ_j x_j + d_i·x_i, where d is the diagonal
-// of the permutation (diag16 for width 16, diag24 for width 24).
-func (p *Parameters) InternalMatrix() [][]fr.Element {
-	switch p.Width {
-	case 16:
-		return internalposeidon2.InternalMatrix(diag16)
-	case 24:
-		return internalposeidon2.InternalMatrix(diag24)
-	default:
-		panic("only Width=16,24 are supported")
-	}
 }
 
 // NewPermutation returns a new Poseidon2 permutation instance.
