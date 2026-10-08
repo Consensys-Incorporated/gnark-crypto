@@ -1,6 +1,7 @@
 package polynomial
 
 import (
+	"fmt"
 	"path/filepath"
 	"strings"
 
@@ -30,7 +31,6 @@ func Generate(conf config.FieldDependency, baseDir string, withDoc, generateTest
 	entries = append(entries,
 		bavard.Entry{File: filepath.Join(baseDir, "polynomial"+ext+".go"), Templates: []string{"polynomial.go.tmpl"}},
 		bavard.Entry{File: filepath.Join(baseDir, "multilin"+ext+".go"), Templates: []string{"multilin.go.tmpl"}},
-		bavard.Entry{File: filepath.Join(baseDir, "pool"+ext+".go"), Templates: []string{"pool.go.tmpl"}},
 	)
 
 	if generateTests {
@@ -41,5 +41,33 @@ func Generate(conf config.FieldDependency, baseDir string, withDoc, generateTest
 	}
 
 	polyGen := common.NewDefaultGenerator(template.FS)
-	return polyGen.Generate(conf, "polynomial", "", "", entries...)
+	if err := polyGen.Generate(conf, "polynomial", "", "", entries...); err != nil {
+		return err
+	}
+	if conf.ExtensionDegree == 0 {
+		return GeneratePool(baseDir, conf)
+	}
+	return nil
+}
+
+// GeneratePool generates, in baseDir, the file pool.go holding for each of confs
+// the alias of the generic pool of its element type. The confs must share the
+// package that defines the element types.
+func GeneratePool(baseDir string, confs ...config.FieldDependency) error {
+	if len(confs) == 0 {
+		return fmt.Errorf("polynomial: no pool to generate")
+	}
+	for _, conf := range confs {
+		if conf.FieldPackagePath != confs[0].FieldPackagePath {
+			return fmt.Errorf("polynomial: pools of %q and %q cannot share a file", confs[0].FieldPackagePath, conf.FieldPackagePath)
+		}
+	}
+	data := struct {
+		FieldPackagePath string
+		Pools            []config.FieldDependency
+	}{confs[0].FieldPackagePath, confs}
+
+	polyGen := common.NewDefaultGenerator(template.FS)
+	return polyGen.Generate(data, "polynomial", "", "",
+		bavard.Entry{File: filepath.Join(baseDir, "pool.go"), Templates: []string{"pool.go.tmpl"}})
 }

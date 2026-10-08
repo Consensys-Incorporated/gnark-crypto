@@ -2,7 +2,7 @@ import (
 	"{{.FieldPackagePath}}"
 	"github.com/consensys/gnark-crypto/utils"
 )
-
+{{range .Pools}}
 // Pool{{.ExtensionName}} is a pool of slices of {{.ElementType}}
 type Pool{{.ExtensionName}} = utils.Pool[{{.ElementType}}]
 
@@ -10,3 +10,4 @@ type Pool{{.ExtensionName}} = utils.Pool[{{.ElementType}}]
 func NewPool{{.ExtensionName}}(maxN ...int) Pool{{.ExtensionName}} {
 	return utils.NewPool[{{.ElementType}}](maxN...)
 }
+{{end}}
