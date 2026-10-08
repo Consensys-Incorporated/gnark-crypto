@@ -16,7 +16,7 @@ import (
 	"golang.org/x/crypto/sha3"
 
 	fr "github.com/consensys/gnark-crypto/field/babybear"
-	internalposeidon2 "github.com/consensys/gnark-crypto/internal/poseidon2"
+	"github.com/consensys/gnark-crypto/internal/matrix"
 	"github.com/consensys/gnark-crypto/utils/cpu"
 )
 
@@ -140,7 +140,7 @@ type Permutation struct {
 //   - M4 for width 4;
 //   - circ(2·M4, M4, ..., M4) = (I + J) ⊗ M4 for width 4k with k > 1.
 func (p *Parameters) ExternalMatrix() [][]fr.Element {
-	return internalposeidon2.ExternalMatrix[fr.Element](p.Width, internalposeidon2.Plonky3)
+	return matrix.FromLinearMap(p.Width, (&Permutation{params: p}).matMulExternalInPlace)
 }
 
 // InternalMatrix returns the dense internal matrix M_I of the permutation, which
@@ -151,14 +151,7 @@ func (p *Parameters) ExternalMatrix() [][]fr.Element {
 // that is, for a state x, (M_I·x)_i = Σ_j x_j + d_i·x_i, where d is the diagonal
 // of the permutation (diag16 for width 16, diag24 for width 24).
 func (p *Parameters) InternalMatrix() [][]fr.Element {
-	switch p.Width {
-	case 16:
-		return internalposeidon2.InternalMatrix(diag16)
-	case 24:
-		return internalposeidon2.InternalMatrix(diag24)
-	default:
-		panic("only Width=16,24 are supported")
-	}
+	return matrix.FromLinearMap(p.Width, (&Permutation{params: p}).matMulInternalInPlace)
 }
 
 // NewPermutation returns a new Poseidon2 permutation instance.

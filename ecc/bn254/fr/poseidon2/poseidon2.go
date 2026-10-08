@@ -12,7 +12,7 @@ import (
 	"golang.org/x/crypto/sha3"
 
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
-	internalposeidon2 "github.com/consensys/gnark-crypto/internal/poseidon2"
+	"github.com/consensys/gnark-crypto/internal/matrix"
 )
 
 var (
@@ -150,7 +150,7 @@ type Permutation struct {
 //   - M4 for width 4;
 //   - circ(2·M4, M4, ..., M4) = (I + J) ⊗ M4 for width 4k with k > 1.
 func (p *Parameters) ExternalMatrix() [][]fr.Element {
-	return internalposeidon2.ExternalMatrix[fr.Element](p.Width, internalposeidon2.Paper)
+	return matrix.FromLinearMap(p.Width, (&Permutation{params: p}).matMulExternalInPlace)
 }
 
 // InternalMatrix returns the dense internal matrix M_I of the permutation, which
@@ -161,24 +161,7 @@ func (p *Parameters) ExternalMatrix() [][]fr.Element {
 // that is, for a state x, (M_I·x)_i = Σ_j x_j + d_i·x_i, where d is the diagonal
 // of the permutation (DiagM1 for the widths of 4 and more).
 func (p *Parameters) InternalMatrix() [][]fr.Element {
-	var d []fr.Element
-	switch p.Width {
-	case 2:
-		d = make([]fr.Element, 2)
-		d[0].SetOne()
-		d[1].SetUint64(2)
-	case 3:
-		d = make([]fr.Element, 3)
-		d[0].SetOne()
-		d[1].SetOne()
-		d[2].SetUint64(2)
-	default:
-		if len(p.DiagM1) != p.Width {
-			panic("missing internal matrix diagonal")
-		}
-		d = p.DiagM1
-	}
-	return internalposeidon2.InternalMatrix(d)
+	return matrix.FromLinearMap(p.Width, (&Permutation{params: p}).matMulInternalInPlace)
 }
 
 // NewPermutation returns a new Poseidon2 permutation instance.

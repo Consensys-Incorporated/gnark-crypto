@@ -207,9 +207,9 @@ func denseMatrixMul(m [][]fr.Element, x []fr.Element) []fr.Element {
 	return res
 }
 
-// TestDenseMatricesMatchInPlace checks that the dense matrices act on a random
+// TestMatricesMatchInPlace checks that the dense matrices act on a random
 // state as the in-place multiplications of the permutation.
-func TestDenseMatricesMatchInPlace(t *testing.T) {
+func TestMatricesMatchInPlace(t *testing.T) {
 	for _, tc := range []struct {
 		width, nbFullRounds, nbPartialRounds int
 	}{
