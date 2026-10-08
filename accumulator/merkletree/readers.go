@@ -30,6 +30,9 @@ import (
 // padding is added to the data, so the last element may be smaller than
 // 'segmentSize'.
 func (t *Tree) ReadAll(r io.Reader, segmentSize int) error {
+	if segmentSize <= 0 {
+		return errors.New("merkletree: segment size must be positive")
+	}
 	for {
 		segment := make([]byte, segmentSize)
 		n, readErr := io.ReadFull(r, segment)
