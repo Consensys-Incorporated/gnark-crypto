@@ -8,7 +8,9 @@ package polynomial
 import (
 	"testing"
 
+	fr "github.com/consensys/gnark-crypto/field/koalabear"
 	"github.com/consensys/gnark-crypto/field/koalabear/extensions"
+	basepoly "github.com/consensys/gnark-crypto/field/koalabear/polynomial"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -82,4 +84,58 @@ func TestFoldedEqTableE6(t *testing.T) {
 		assert.Equal(t, eq[i], m[i], "folded table disagrees with EqEval", i)
 	}
 
+}
+
+func TestFoldFromBaseE6(t *testing.T) {
+	for _, n := range []int{2, 4, 8, 64} {
+		b := make(basepoly.MultiLin, n)
+		fr.Vector(b).MustSetRandom()
+		var r extensions.E6
+		r.MustSetRandom()
+
+		// reference: lift b to the extension and fold in place
+		lifted := make(MultiLinE6, n)
+		for i := range b {
+			lifted[i].SetElement(&b[i])
+		}
+		lifted.Fold(r)
+
+		var got MultiLinE6
+		got.FoldFromBase(b, &r)
+		assert.Equal(t, lifted, got)
+
+		// parallel version, split in two tasks, reusing a dirty destination
+		par := make(MultiLinE6, n)
+		task := par.FoldFromBaseParallel(b, &r)
+		mid := n / 2
+		task(0, mid/2)
+		task(mid/2, mid)
+		assert.Equal(t, lifted, par)
+	}
+}
+
+func TestEvaluateBaseE6(t *testing.T) {
+	for _, nbVars := range []int{0, 1, 2, 3, 6} {
+		b := make(basepoly.MultiLin, 1<<nbVars)
+		fr.Vector(b).MustSetRandom()
+		coordinates := make([]extensions.E6, nbVars)
+		extensions.VectorE6(coordinates).MustSetRandom()
+
+		// reference: lift b to the extension and use Evaluate
+		lifted := make(MultiLinE6, len(b))
+		for i := range b {
+			lifted[i].SetElement(&b[i])
+		}
+		want := lifted.Evaluate(coordinates, nil)
+
+		var scratch MultiLinE6
+		got := scratch.EvaluateBase(b, coordinates)
+		assert.True(t, want.Equal(&got))
+
+		// a dirty, larger scratch buffer gives the same result
+		dirty := make(MultiLinE6, 2*len(b)+3)
+		extensions.VectorE6(dirty).MustSetRandom()
+		got = dirty.EvaluateBase(b, coordinates)
+		assert.True(t, want.Equal(&got))
+	}
 }

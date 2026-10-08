@@ -540,7 +540,7 @@ func genE2() gopter.Gen {
 	})
 }
 
-func TestE2MarshalSetBytesRoundTrip(t *testing.T) {
+func TestE2MarshalSetBytesCanonicalRoundTrip(t *testing.T) {
 	for range 100 {
 		var x E2
 		x.MustSetRandom()
@@ -558,17 +558,100 @@ func TestE2MarshalSetBytesRoundTrip(t *testing.T) {
 		}
 
 		var y E2
-		_, err := y.SetBytes(b)
-		require.NoError(t, err)
+		require.NoError(t, y.SetBytesCanonical(b))
 		if !y.Equal(&x) {
-			t.Fatal("SetBytes(Marshal(x)) != x")
+			t.Fatal("SetBytesCanonical(Marshal(x)) != x")
 		}
 	}
 
 	for _, n := range []int{0, BytesE2 - 1, BytesE2 + 1} {
 		var z E2
-		if _, err := z.SetBytes(make([]byte, n)); err == nil {
-			t.Fatalf("SetBytes did not fail on %d bytes", n)
+		if err := z.SetBytesCanonical(make([]byte, n)); err == nil {
+			t.Fatalf("SetBytesCanonical did not fail on %d bytes", n)
 		}
+	}
+}
+
+func TestE2SetInt64SetUint64(t *testing.T) {
+	for _, v := range []int64{0, 1, -1, 7, -12345, 1 << 40, -(1 << 40)} {
+		var z E2
+		z.SetInt64(v)
+		require.Truef(t, z.A1.IsZero(), "coordinate A1 is non-zero for %d", v)
+		var want fr.Element
+		want.SetInt64(v)
+		require.Truef(t, z.A0.Equal(&want), "SetInt64(%d)", v)
+
+		// SetInt64 and SetBigInt agree
+		var zb E2
+		zb.SetBigInt(big.NewInt(v))
+		require.Truef(t, z.Equal(&zb), "SetInt64(%d) != SetBigInt(%d)", v, v)
+	}
+	for _, v := range []uint64{0, 1, 7, 12345, 1 << 40, 1<<64 - 1} {
+		var z E2
+		z.SetUint64(v)
+		require.Truef(t, z.A1.IsZero(), "coordinate A1 is non-zero for %d", v)
+		var want fr.Element
+		want.SetUint64(v)
+		require.Truef(t, z.A0.Equal(&want), "SetUint64(%d)", v)
+
+		var zb E2
+		zb.SetBigInt(new(big.Int).SetUint64(v))
+		require.Truef(t, z.Equal(&zb), "SetUint64(%d) != SetBigInt(%d)", v, v)
+	}
+}
+
+func TestE2SetBytesCanonicalRejectsNonCanonical(t *testing.T) {
+	var x E2
+	x.MustSetRandom()
+	good := x.Marshal()
+
+	q := fr.Modulus()
+	for i := range 2 {
+		b := append([]byte(nil), good...)
+		q.FillBytes(b[i*fr.Bytes : (i+1)*fr.Bytes])
+
+		y := x
+		require.Error(t, y.SetBytesCanonical(b), "coefficient %d equal to the modulus must be rejected", i)
+		require.True(t, y.Equal(&x), "E2 must be unchanged on error")
+	}
+}
+
+func TestE2ElementOps(t *testing.T) {
+	for range 100 {
+		var x, lifted, got, want E2
+		var e fr.Element
+		x.MustSetRandom()
+		e.MustSetRandom()
+
+		var z E2
+		z.SetElement(&e)
+		require.True(t, z.A0.Equal(&e))
+		require.True(t, z.A1.IsZero())
+		lifted = z
+
+		got.AddElement(&x, &e)
+		want.Add(&x, &lifted)
+		require.True(t, got.Equal(&want), "AddElement")
+
+		got.SubElement(&x, &e)
+		want.Sub(&x, &lifted)
+		require.True(t, got.Equal(&want), "SubElement")
+
+		got.SubFromElement(&e, &x)
+		want.Sub(&lifted, &x)
+		require.True(t, got.Equal(&want), "SubFromElement")
+
+		// aliasing of the receiver with the second operand
+		got.Set(&x)
+		got.SubFromElement(&e, &got)
+		require.True(t, got.Equal(&want), "SubFromElement alias")
+
+		// aliasing of the receiver with the first operand
+		got.Set(&x)
+		got.AddElement(&got, &e)
+		want.Add(&x, &lifted)
+		require.True(t, got.Equal(&want), "AddElement alias")
+		got.SubElement(&got, &e)
+		require.True(t, got.Equal(&x), "SubElement alias")
 	}
 }

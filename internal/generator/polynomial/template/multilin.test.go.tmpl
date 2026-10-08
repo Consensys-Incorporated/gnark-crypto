@@ -1,4 +1,8 @@
 import (
+{{- if .ExtensionDegree}}
+	fr "{{.BaseFieldPackagePath}}"
+	basepoly "{{.BaseFieldPackagePath}}/polynomial"
+{{- end}}
 	"{{.FieldPackagePath}}"
 	"github.com/stretchr/testify/assert"
 	"testing"
@@ -79,3 +83,60 @@ func TestFoldedEqTable{{.ExtensionName}}(t *testing.T) {
 	}
 
 }
+
+{{- if .ExtensionDegree}}
+
+func TestFoldFromBase{{.ExtensionName}}(t *testing.T) {
+	for _, n := range []int{2, 4, 8, 64} {
+		b := make(basepoly.MultiLin, n)
+		fr.Vector(b).MustSetRandom()
+		var r {{.ElementType}}
+		r.MustSetRandom()
+
+		// reference: lift b to the extension and fold in place
+		lifted := make(MultiLin{{.ExtensionName}}, n)
+		for i := range b {
+			lifted[i].SetElement(&b[i])
+		}
+		lifted.Fold(r)
+
+		var got MultiLin{{.ExtensionName}}
+		got.FoldFromBase(b, &r)
+		assert.Equal(t, lifted, got)
+
+		// parallel version, split in two tasks, reusing a dirty destination
+		par := make(MultiLin{{.ExtensionName}}, n)
+		task := par.FoldFromBaseParallel(b, &r)
+		mid := n / 2
+		task(0, mid/2)
+		task(mid/2, mid)
+		assert.Equal(t, lifted, par)
+	}
+}
+
+func TestEvaluateBase{{.ExtensionName}}(t *testing.T) {
+	for _, nbVars := range []int{0, 1, 2, 3, 6} {
+		b := make(basepoly.MultiLin, 1<<nbVars)
+		fr.Vector(b).MustSetRandom()
+		coordinates := make([]{{.ElementType}}, nbVars)
+		{{.FieldPackageName}}.Vector{{.ExtensionName}}(coordinates).MustSetRandom()
+
+		// reference: lift b to the extension and use Evaluate
+		lifted := make(MultiLin{{.ExtensionName}}, len(b))
+		for i := range b {
+			lifted[i].SetElement(&b[i])
+		}
+		want := lifted.Evaluate(coordinates, nil)
+
+		var scratch MultiLin{{.ExtensionName}}
+		got := scratch.EvaluateBase(b, coordinates)
+		assert.True(t, want.Equal(&got))
+
+		// a dirty, larger scratch buffer gives the same result
+		dirty := make(MultiLin{{.ExtensionName}}, 2*len(b)+3)
+		{{.FieldPackageName}}.Vector{{.ExtensionName}}(dirty).MustSetRandom()
+		got = dirty.EvaluateBase(b, coordinates)
+		assert.True(t, want.Equal(&got))
+	}
+}
+{{- end}}

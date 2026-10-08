@@ -8,7 +8,9 @@ package polynomial
 import (
 	"math/bits"
 
+	fr "github.com/consensys/gnark-crypto/field/koalabear"
 	"github.com/consensys/gnark-crypto/field/koalabear/extensions"
+	basepoly "github.com/consensys/gnark-crypto/field/koalabear/polynomial"
 	"github.com/consensys/gnark-crypto/utils"
 )
 
@@ -54,6 +56,67 @@ func (m *MultiLinE6) FoldParallel(r extensions.E6) utils.Task {
 			t.Mul(&t, &r)
 			bottom[i].Add(&bottom[i], &t)
 		}
+	}
+}
+
+// FoldFromBase sets m to the partial evaluation X₁=r of the multilinear polynomial whose
+// hypercube evaluations are the base field elements b:
+//
+//	m[i] = b[i] + r (b[i + len(b)/2] - b[i])
+//
+// m's backing array is reused if it is large enough.
+func (m *MultiLinE6) FoldFromBase(b basepoly.MultiLin, r *extensions.E6) {
+	mid := len(b) / 2
+	m.resize(mid)
+	m.foldFromBase(b, r, 0, mid)
+}
+
+// FoldFromBaseParallel is the parallel version of FoldFromBase. It sizes m, and returns
+// a task that computes the entries m[start:end]. The task reads *r when it runs, so *r must
+// not be modified until all tasks have completed.
+func (m *MultiLinE6) FoldFromBaseParallel(b basepoly.MultiLin, r *extensions.E6) utils.Task {
+	mid := len(b) / 2
+	m.resize(mid)
+	dst := *m
+
+	return func(start, end int) {
+		dst.foldFromBase(b, r, start, end)
+	}
+}
+
+// EvaluateBase evaluates, on the given coordinates, the multilinear polynomial whose hypercube
+// evaluations are the base field elements b. It first folds b into m by the first coordinate
+// (see FoldFromBase), and then folds m by the remaining coordinates. m serves as scratch space,
+// is overwritten, and its backing array is reused if it is large enough.
+// Unlike Evaluate, no copy of the table is made, and b is left untouched.
+func (m *MultiLinE6) EvaluateBase(b basepoly.MultiLin, coordinates []extensions.E6) extensions.E6 {
+	if len(coordinates) == 0 {
+		m.resize(1)
+		return *(*m)[0].SetElement(&b[0])
+	}
+
+	m.FoldFromBase(b, &coordinates[0])
+	for _, r := range coordinates[1:] {
+		m.Fold(r)
+	}
+	return (*m)[0]
+}
+
+func (m *MultiLinE6) resize(n int) {
+	if cap(*m) >= n {
+		*m = (*m)[:n]
+	} else {
+		*m = make(MultiLinE6, n)
+	}
+}
+
+func (m MultiLinE6) foldFromBase(b basepoly.MultiLin, r *extensions.E6, start, end int) {
+	mid := len(b) / 2
+	var diff fr.Element
+	for i := start; i < end; i++ {
+		diff.Sub(&b[mid+i], &b[i])
+		m[i].MulByElement(r, &diff)
+		m[i].AddElement(&m[i], &b[i])
 	}
 }
 

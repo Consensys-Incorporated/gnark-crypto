@@ -247,18 +247,18 @@ func TestBatchInvertE3(t *testing.T) {
 	}
 }
 
-// ---- Vector tests ------------------------------------------------------------
+// ---- VectorE3 tests ------------------------------------------------------------
 
 func TestE3VectorButterfly(t *testing.T) {
 	const n = 64
-	a := make(Vector, n)
-	b := make(Vector, n)
+	a := make(VectorE3, n)
+	b := make(VectorE3, n)
 	for i := range n {
 		a[i].MustSetRandom()
 		b[i].MustSetRandom()
 	}
-	aOrig := make(Vector, n)
-	bOrig := make(Vector, n)
+	aOrig := make(VectorE3, n)
+	bOrig := make(VectorE3, n)
 	copy(aOrig, a)
 	copy(bOrig, b)
 
@@ -279,11 +279,11 @@ func TestE3VectorButterfly(t *testing.T) {
 
 func TestE3VectorButterflyPair(t *testing.T) {
 	const n = 64
-	v := make(Vector, n)
+	v := make(VectorE3, n)
 	for i := range n {
 		v[i].MustSetRandom()
 	}
-	orig := make(Vector, n)
+	orig := make(VectorE3, n)
 	copy(orig, v)
 
 	v.ButterflyPair()
@@ -303,14 +303,14 @@ func TestE3VectorButterflyPair(t *testing.T) {
 
 func TestE3VectorMulByElement(t *testing.T) {
 	const n = 32
-	a := make(Vector, n)
+	a := make(VectorE3, n)
 	var scalars [n]fr.Element
 	for i := range n {
 		a[i].MustSetRandom()
 		scalars[i].MustSetRandom()
 	}
 
-	res := make(Vector, n)
+	res := make(VectorE3, n)
 	res.MulByElement(a, scalars[:])
 
 	for i := range n {
@@ -324,14 +324,14 @@ func TestE3VectorMulByElement(t *testing.T) {
 
 func TestE3VectorScalarMulByElement(t *testing.T) {
 	const n = 32
-	a := make(Vector, n)
+	a := make(VectorE3, n)
 	for i := range n {
 		a[i].MustSetRandom()
 	}
 	var s fr.Element
 	s.MustSetRandom()
 
-	res := make(Vector, n)
+	res := make(VectorE3, n)
 	res.ScalarMulByElement(a, &s)
 
 	for i := range n {
@@ -345,7 +345,7 @@ func TestE3VectorScalarMulByElement(t *testing.T) {
 
 func TestE3VectorMulAccByElement(t *testing.T) {
 	for _, n := range []int{0, 1, 7, 8, 16, 63, 64, 65, 100, 1000} {
-		dst := make(Vector, n)
+		dst := make(VectorE3, n)
 		scale := make([]fr.Element, n)
 		for i := range n {
 			dst[i].MustSetRandom()
@@ -353,7 +353,7 @@ func TestE3VectorMulAccByElement(t *testing.T) {
 		}
 		alpha := randE3(t)
 
-		expected := make(Vector, n)
+		expected := make(VectorE3, n)
 		copy(expected, dst)
 		var tmp E3
 		for i := range n {
@@ -423,7 +423,7 @@ func BenchmarkE3Exp(b *testing.B) {
 
 func BenchmarkE3VectorMulAccByElement(b *testing.B) {
 	const n = 1 << 16
-	dst := make(Vector, n)
+	dst := make(VectorE3, n)
 	scale := make([]fr.Element, n)
 	for i := range n {
 		dst[i].MustSetRandom()
@@ -437,7 +437,7 @@ func BenchmarkE3VectorMulAccByElement(b *testing.B) {
 	}
 }
 
-func TestE3MarshalSetBytesRoundTrip(t *testing.T) {
+func TestE3MarshalSetBytesCanonicalRoundTrip(t *testing.T) {
 	for range 100 {
 		var x E3
 		x.MustSetRandom()
@@ -455,17 +455,123 @@ func TestE3MarshalSetBytesRoundTrip(t *testing.T) {
 		}
 
 		var y E3
-		_, err := y.SetBytes(b)
-		require.NoError(t, err)
+		require.NoError(t, y.SetBytesCanonical(b))
 		if !y.Equal(&x) {
-			t.Fatal("SetBytes(Marshal(x)) != x")
+			t.Fatal("SetBytesCanonical(Marshal(x)) != x")
 		}
 	}
 
 	for _, n := range []int{0, BytesE3 - 1, BytesE3 + 1} {
 		var z E3
-		if _, err := z.SetBytes(make([]byte, n)); err == nil {
-			t.Fatalf("SetBytes did not fail on %d bytes", n)
+		if err := z.SetBytesCanonical(make([]byte, n)); err == nil {
+			t.Fatalf("SetBytesCanonical did not fail on %d bytes", n)
 		}
+	}
+}
+
+func TestE3SetInt64SetUint64(t *testing.T) {
+	for _, v := range []int64{0, 1, -1, 7, -12345, 1 << 40, -(1 << 40)} {
+		var z E3
+		z.SetInt64(v)
+		require.Truef(t, z.A1.IsZero(), "coordinate A1 is non-zero for %d", v)
+		require.Truef(t, z.A2.IsZero(), "coordinate A2 is non-zero for %d", v)
+		var want fr.Element
+		want.SetInt64(v)
+		require.Truef(t, z.A0.Equal(&want), "SetInt64(%d)", v)
+
+		// SetInt64 and SetBigInt agree
+		var zb E3
+		zb.SetBigInt(big.NewInt(v))
+		require.Truef(t, z.Equal(&zb), "SetInt64(%d) != SetBigInt(%d)", v, v)
+	}
+	for _, v := range []uint64{0, 1, 7, 12345, 1 << 40, 1<<64 - 1} {
+		var z E3
+		z.SetUint64(v)
+		require.Truef(t, z.A1.IsZero(), "coordinate A1 is non-zero for %d", v)
+		require.Truef(t, z.A2.IsZero(), "coordinate A2 is non-zero for %d", v)
+		var want fr.Element
+		want.SetUint64(v)
+		require.Truef(t, z.A0.Equal(&want), "SetUint64(%d)", v)
+
+		var zb E3
+		zb.SetBigInt(new(big.Int).SetUint64(v))
+		require.Truef(t, z.Equal(&zb), "SetUint64(%d) != SetBigInt(%d)", v, v)
+	}
+}
+
+func TestE3Div(t *testing.T) {
+	for range 100 {
+		var x, y, q, back E3
+		x.MustSetRandom()
+		y.MustSetRandom()
+		if y.IsZero() {
+			continue
+		}
+		q.Div(&x, &y)
+		back.Mul(&q, &y)
+		require.True(t, back.Equal(&x), "(x/y)*y != x")
+
+		// aliasing the receiver with the numerator
+		var xc E3
+		xc.Set(&x)
+		xc.Div(&xc, &y)
+		require.True(t, xc.Equal(&q), "Div must be alias-safe")
+	}
+}
+
+func TestE3SetBytesCanonicalRejectsNonCanonical(t *testing.T) {
+	var x E3
+	x.MustSetRandom()
+	good := x.Marshal()
+
+	q := fr.Modulus()
+	for i := range 3 {
+		b := append([]byte(nil), good...)
+		q.FillBytes(b[i*fr.Bytes : (i+1)*fr.Bytes])
+
+		y := x
+		require.Error(t, y.SetBytesCanonical(b), "coefficient %d equal to the modulus must be rejected", i)
+		require.True(t, y.Equal(&x), "E3 must be unchanged on error")
+	}
+}
+
+func TestE3ElementOps(t *testing.T) {
+	for range 100 {
+		var x, lifted, got, want E3
+		var e fr.Element
+		x.MustSetRandom()
+		e.MustSetRandom()
+
+		var z E3
+		z.SetElement(&e)
+		require.True(t, z.A0.Equal(&e))
+		require.True(t, z.A1.IsZero())
+		require.True(t, z.A2.IsZero())
+		lifted = z
+
+		got.AddElement(&x, &e)
+		want.Add(&x, &lifted)
+		require.True(t, got.Equal(&want), "AddElement")
+
+		got.SubElement(&x, &e)
+		want.Sub(&x, &lifted)
+		require.True(t, got.Equal(&want), "SubElement")
+
+		got.SubFromElement(&e, &x)
+		want.Sub(&lifted, &x)
+		require.True(t, got.Equal(&want), "SubFromElement")
+
+		// aliasing of the receiver with the second operand
+		got.Set(&x)
+		got.SubFromElement(&e, &got)
+		require.True(t, got.Equal(&want), "SubFromElement alias")
+
+		// aliasing of the receiver with the first operand
+		got.Set(&x)
+		got.AddElement(&got, &e)
+		want.Add(&x, &lifted)
+		require.True(t, got.Equal(&want), "AddElement alias")
+		got.SubElement(&got, &e)
+		require.True(t, got.Equal(&x), "SubElement alias")
 	}
 }

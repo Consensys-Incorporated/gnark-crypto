@@ -10,7 +10,7 @@ import (
 // exercises mulAccByElementBatched.
 func TestMulAccByElementBatchedMatchesGeneric(t *testing.T) {
 	for _, n := range []int{1, 7, 8, 64, 65, 100, 1000} {
-		dst := make(Vector, n)
+		dst := make(VectorE3, n)
 		scale := make([]fr.Element, n)
 		for i := range n {
 			dst[i].MustSetRandom()
@@ -19,11 +19,11 @@ func TestMulAccByElementBatchedMatchesGeneric(t *testing.T) {
 		var alpha E3
 		alpha.MustSetRandom()
 
-		expected := make(Vector, n)
+		expected := make(VectorE3, n)
 		copy(expected, dst)
 		mulAccByElementGeneric(expected, scale, &alpha)
 
-		got := make(Vector, n)
+		got := make(VectorE3, n)
 		copy(got, dst)
 		mulAccByElementBatched(got, scale, &alpha)
 

@@ -54,7 +54,7 @@ func (domain *Domain) FFTExt(a []fext.{{.ExtType}}, decimation Decimation, opts 
 			}
 		}
 		parallel.ExecuteAligned(len(a), {{.ExtAlign}}, func(start, end int) {
-			va := fext.Vector(a[start:end])
+			va := fext.Vector{{.ExtType}}(a[start:end])
 			va.MulByElement(va, cosetTable[start:end])
 		}, opt.nbTasks)
 	}
@@ -124,7 +124,7 @@ func (domain *Domain) FFTInverseExt(a []fext.{{.ExtType}}, decimation Decimation
 	// scale by CardinalityInv
 	if !opt.coset {
 		parallel.ExecuteAligned(len(a), {{.ExtAlign}}, func(start, end int) {
-			va := fext.Vector(a[start:end])
+			va := fext.Vector{{.ExtType}}(a[start:end])
 			va.ScalarMulByElement(va, &domain.CardinalityInv)
 		}, opt.nbTasks)
 		return
@@ -154,7 +154,7 @@ func (domain *Domain) FFTInverseExt(a []fext.{{.ExtType}}, decimation Decimation
 		}
 	}
 	parallel.ExecuteAligned(len(a), {{.ExtAlign}}, func(start, end int) {
-		va := fext.Vector(a[start:end])
+		va := fext.Vector{{.ExtType}}(a[start:end])
 		va.MulByElement(va, cosetTableInv[start:end])
 		va.ScalarMulByElement(va, &domain.CardinalityInv)
 	}, opt.nbTasks)
@@ -225,8 +225,8 @@ func difFFTExt(a []fext.{{.ExtType}}, w {{ .FF }}.Element, twiddles [][]{{ .FF }
 }
 
 func innerDIFWithTwiddlesExt(a []fext.{{.ExtType}}, twiddles []{{ .FF }}.Element, start, end, m int) {
-	va0 := fext.Vector(a[start:end])
-	va1 := fext.Vector(a[start+m : end+m])
+	va0 := fext.Vector{{.ExtType}}(a[start:end])
+	va1 := fext.Vector{{.ExtType}}(a[start+m : end+m])
 	va0.Butterfly(va1)
 	va1.MulByElement(va1, twiddles[start:end])
 }
@@ -308,8 +308,8 @@ func ditFFTExt(a []fext.{{.ExtType}}, w {{ .FF }}.Element, twiddles [][]{{ .FF }
 
 
 func innerDITWithTwiddlesExt(a []fext.{{.ExtType}}, twiddles []{{ .FF }}.Element, start, end, m int) {
-	va0 := fext.Vector(a[start:end])
-	va1 := fext.Vector(a[start+m : end+m])
+	va0 := fext.Vector{{.ExtType}}(a[start:end])
+	va1 := fext.Vector{{.ExtType}}(a[start+m : end+m])
 	va1.MulByElement(va1, twiddles[start:end])
 	va0.Butterfly(va1)
 }
@@ -352,7 +352,7 @@ func kerDIFNP_{{.sizeKernel}}Ext(a []fext.{{.ExtType}}, twiddles [][]{{ .FF }}.E
 			innerDIFWithTwiddlesExt(a[:{{$n}}], twiddles[stage + {{$step}}], 0, {{$m}}, {{$m}})
 		{{- else}}
 			{{- if eq $m 1}}
-				va := fext.Vector(a[:{{$bound}}])
+				va := fext.Vector{{$.ExtType}}(a[:{{$bound}}])
 				va.ButterflyPair()
 			{{- else}}
 				for offset := 0; offset < {{$bound}}; offset += {{$n}} {
@@ -380,7 +380,7 @@ func kerDITNP_{{.sizeKernel}}Ext(a []fext.{{.ExtType}}, twiddles [][]{{ .FF }}.E
 			innerDITWithTwiddlesExt(a[:{{$n}}], twiddles[stage + {{$step}}], 0, {{$m}}, {{$m}})
 		{{- else}}
 			{{- if eq $m 1}}
-				va := fext.Vector(a[:{{$bound}}])
+				va := fext.Vector{{$.ExtType}}(a[:{{$bound}}])
 				va.ButterflyPair()
 			{{- else if eq $m 2}}
 				for offset := 0; offset < {{$bound}}; offset += {{$n}} {

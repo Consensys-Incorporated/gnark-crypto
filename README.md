@@ -16,16 +16,18 @@ It is actively developed and maintained by the team (<gnark@consensys.com> | [Ha
 * [`bls12-377`] / [`bw6-761`]
 * [`bls24-315`] / [`bw6-633`]
 
-Each of these curves has a [`twistededwards`] sub-package with its companion curve, which allows efficient elliptic curve cryptography inside zkSNARK circuits.
+Each pairing-friendly curve has a [`twistededwards`] companion sub-package for efficient elliptic-curve cryptography in zkSNARK circuits. BLS12-381 also has the [`bandersnatch`] companion curve.
 
-Additional (non pairing-friendly) curves: [`secp256r1`] (P-256), [`secp256k1`], [`grumpkin`], [`stark-curve`].
+Additional non-pairing-friendly curves: [`secp256r1`] (P-256), [`secp256k1`], [`grumpkin`], [`stark-curve`].
 
 ### Small fields
 
 Small prime fields for STARK-style provers:
 
-* [`koalabear`], [`babybear`] (31-bit, with AVX-512 and NEON vector kernels), [`goldilocks`] (64-bit)
-* Each with `extensions` (degree 2/4/6), `fft`, `poseidon2`, `sis` (Ring-SIS) and `iop` sub-packages
+* [`koalabear`] and [`babybear`] — 31-bit fields with AVX-512 and NEON vector kernels; degree-2/4/6 extensions
+* [`mamabear`] — 49-bit field with AVX-512 IFMA kernels; a degree-3 extension
+* [`goldilocks`] — 64-bit field; a degree-2 extension
+* Each field includes `fft`, `poseidon2`, `sis` (Ring-SIS) and `iop`; KoalaBear and MamaBear additionally provide the experimental [`vortex`] commitment scheme
 
 ### Signatures & hashing
 
@@ -68,7 +70,7 @@ See [list of audits for `gnark` and `gnark-crypto`](https://github.com/Consensys
 
 ### Go version
 
-`gnark-crypto` requires Go 1.25 or newer (see `go.mod`); CI tests against Go 1.25.x.
+`gnark-crypto` requires Go 1.26 or newer (see `go.mod`); CI tests against Go 1.26.x.
 
 ### Install `gnark-crypto`
 
@@ -105,7 +107,7 @@ If you use `gnark-crypto` in your research a citation would be appreciated.
 Please use the following BibTeX to cite the most recent release.
 
 ```bib
-@software{gnark-crypto-v0.21,
+@software{gnark-crypto-v0.22,
   author       = {Gautam Botrel and
                   Thomas Piellard and
                   Youssef El Housni and
@@ -113,11 +115,11 @@ Please use the following BibTeX to cite the most recent release.
                   Gus Gutoski and
                   Ivo Kubjas and
                   Yao J. Galteland},
-  title        = {Consensys/gnark-crypto: v0.21.0},
-  month        = aug,
+  title        = {Consensys/gnark-crypto: v0.22.0},
+  month        = oct,
   year         = 2026,
   publisher    = {Zenodo},
-  version      = {v0.21.0},
+  version      = {v0.22.0},
   doi          = {10.5281/zenodo.5815453},
   url          = {https://doi.org/10.5281/zenodo.5815453}
 }
@@ -144,6 +146,7 @@ This project is licensed under the Apache 2 License - see the [LICENSE](LICENSE)
 [`grumpkin`]: https://pkg.go.dev/github.com/consensys/gnark-crypto/ecc/grumpkin
 [`stark-curve`]: https://pkg.go.dev/github.com/consensys/gnark-crypto/ecc/stark-curve
 [`twistededwards`]: https://pkg.go.dev/github.com/consensys/gnark-crypto/ecc/bn254/twistededwards
+[`bandersnatch`]: https://pkg.go.dev/github.com/consensys/gnark-crypto/ecc/bls12-381/bandersnatch
 [`eddsa`]: https://pkg.go.dev/github.com/consensys/gnark-crypto/signature/eddsa
 [`ecdsa`]: https://pkg.go.dev/github.com/consensys/gnark-crypto/signature/ecdsa
 [`fft`]: https://pkg.go.dev/github.com/consensys/gnark-crypto/ecc/bn254/fr/fft
@@ -161,6 +164,8 @@ This project is licensed under the Apache 2 License - see the [LICENSE](LICENSE)
 [`koalabear`]: https://pkg.go.dev/github.com/consensys/gnark-crypto/field/koalabear
 [`babybear`]: https://pkg.go.dev/github.com/consensys/gnark-crypto/field/babybear
 [`goldilocks`]: https://pkg.go.dev/github.com/consensys/gnark-crypto/field/goldilocks
+[`mamabear`]: https://pkg.go.dev/github.com/consensys/gnark-crypto/field/mamabear
+[`vortex`]: https://pkg.go.dev/github.com/consensys/gnark-crypto/field/koalabear/vortex
 [`merkletree`]: https://pkg.go.dev/github.com/consensys/gnark-crypto/accumulator/merkletree
 [`eisenstein`]: https://pkg.go.dev/github.com/consensys/gnark-crypto/algebra/eisenstein
 [`lattice`]: https://pkg.go.dev/github.com/consensys/gnark-crypto/algebra/lattice

@@ -35,6 +35,62 @@ func (z *E3) SetOne() *E3 {
 	return z
 }
 
+// SetInt64 sets z to v (embedded via the unique ring homomorphism ℤ→𝔽) and returns z
+func (z *E3) SetInt64(v int64) *E3 {
+	*z = E3{}
+	z.A0.SetInt64(v)
+	return z
+}
+
+// SetUint64 sets z to v (embedded via the unique ring homomorphism ℤ→𝔽) and returns z
+func (z *E3) SetUint64(v uint64) *E3 {
+	*z = E3{}
+	z.A0.SetUint64(v)
+	return z
+}
+
+// Div sets z to x / y and returns z
+func (z *E3) Div(x, y *E3) *E3 {
+	var r E3
+	r.Inverse(y).Mul(x, &r)
+	return z.Set(&r)
+}
+
+// AddElement sets z to x + y, where y is an element of the base field embedded in E3, and returns z
+func (z *E3) AddElement(x *E3, y *fr.Element) *E3 {
+	yc := *y
+	z.A0.Add(&x.A0, &yc)
+	z.A1 = x.A1
+	z.A2 = x.A2
+	return z
+}
+
+// SubElement sets z to x - y, where y is an element of the base field embedded in E3, and returns z
+func (z *E3) SubElement(x *E3, y *fr.Element) *E3 {
+	yc := *y
+	z.A0.Sub(&x.A0, &yc)
+	z.A1 = x.A1
+	z.A2 = x.A2
+	return z
+}
+
+// SubFromElement sets z to x - y, where x is an element of the base field embedded in E3, and returns z
+func (z *E3) SubFromElement(x *fr.Element, y *E3) *E3 {
+	xc := *x
+	z.A0.Sub(&xc, &y.A0)
+	z.A1.Neg(&y.A1)
+	z.A2.Neg(&y.A2)
+	return z
+}
+
+// SetElement sets z to x, an element of the base field embedded in E3, and returns z
+func (z *E3) SetElement(x *fr.Element) *E3 {
+	v := *x
+	*z = E3{}
+	z.A0 = v
+	return z
+}
+
 // SetBigInt sets z to v (embedded via the unique ring homomorphism ℤ→𝔽, reduced modulo the base field order) and returns z
 func (z *E3) SetBigInt(v *big.Int) *E3 {
 	*z = E3{}
@@ -61,16 +117,25 @@ func (z *E3) Marshal() []byte {
 	return res
 }
 
-// SetBytes sets z from the layout produced by Marshal, reading each coefficient with fr.Element.SetBytes, and returns z.
-// It returns an error if len(b) != BytesE3.
-func (z *E3) SetBytes(b []byte) (*E3, error) {
+// SetBytesCanonical sets z from the layout produced by Marshal, reading each coefficient with fr.Element.SetBytesCanonical.
+// It returns an error if len(b) != BytesE3 or if any coefficient is not the canonical encoding of a field element;
+// in that case z is left unchanged.
+func (z *E3) SetBytesCanonical(b []byte) error {
 	if len(b) != BytesE3 {
-		return nil, fmt.Errorf("E3.SetBytes: got %d bytes, expected %d", len(b), BytesE3)
+		return fmt.Errorf("E3.SetBytesCanonical: got %d bytes, expected %d", len(b), BytesE3)
 	}
-	z.A0.SetBytes(b[0*fr.Bytes : 1*fr.Bytes])
-	z.A1.SetBytes(b[1*fr.Bytes : 2*fr.Bytes])
-	z.A2.SetBytes(b[2*fr.Bytes : 3*fr.Bytes])
-	return z, nil
+	var r E3
+	if err := r.A0.SetBytesCanonical(b[0*fr.Bytes : 1*fr.Bytes]); err != nil {
+		return err
+	}
+	if err := r.A1.SetBytesCanonical(b[1*fr.Bytes : 2*fr.Bytes]); err != nil {
+		return err
+	}
+	if err := r.A2.SetBytesCanonical(b[2*fr.Bytes : 3*fr.Bytes]); err != nil {
+		return err
+	}
+	*z = r
+	return nil
 }
 
 // IsZero reports whether z is zero.

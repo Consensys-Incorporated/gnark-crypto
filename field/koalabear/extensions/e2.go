@@ -75,6 +75,52 @@ func (z *E2) SetOne() *E2 {
 	return z
 }
 
+// SetInt64 sets z to v (embedded via the unique ring homomorphism ℤ→𝔽) and returns z
+func (z *E2) SetInt64(v int64) *E2 {
+	*z = E2{}
+	z.A0.SetInt64(v)
+	return z
+}
+
+// SetUint64 sets z to v (embedded via the unique ring homomorphism ℤ→𝔽) and returns z
+func (z *E2) SetUint64(v uint64) *E2 {
+	*z = E2{}
+	z.A0.SetUint64(v)
+	return z
+}
+
+// AddElement sets z to x + y, where y is an element of the base field embedded in E2, and returns z
+func (z *E2) AddElement(x *E2, y *fr.Element) *E2 {
+	yc := *y
+	z.A0.Add(&x.A0, &yc)
+	z.A1 = x.A1
+	return z
+}
+
+// SubElement sets z to x - y, where y is an element of the base field embedded in E2, and returns z
+func (z *E2) SubElement(x *E2, y *fr.Element) *E2 {
+	yc := *y
+	z.A0.Sub(&x.A0, &yc)
+	z.A1 = x.A1
+	return z
+}
+
+// SubFromElement sets z to x - y, where x is an element of the base field embedded in E2, and returns z
+func (z *E2) SubFromElement(x *fr.Element, y *E2) *E2 {
+	xc := *x
+	z.A0.Sub(&xc, &y.A0)
+	z.A1.Neg(&y.A1)
+	return z
+}
+
+// SetElement sets z to x, an element of the base field embedded in E2, and returns z
+func (z *E2) SetElement(x *fr.Element) *E2 {
+	v := *x
+	*z = E2{}
+	z.A0 = v
+	return z
+}
+
 // SetBigInt sets z to v (embedded via the unique ring homomorphism ℤ→𝔽, reduced modulo the base field order) and returns z
 func (z *E2) SetBigInt(v *big.Int) *E2 {
 	*z = E2{}
@@ -100,15 +146,22 @@ func (z *E2) Marshal() []byte {
 	return res
 }
 
-// SetBytes sets z from the layout produced by Marshal, reading each coefficient with fr.Element.SetBytes, and returns z.
-// It returns an error if len(b) != BytesE2.
-func (z *E2) SetBytes(b []byte) (*E2, error) {
+// SetBytesCanonical sets z from the layout produced by Marshal, reading each coefficient with fr.Element.SetBytesCanonical.
+// It returns an error if len(b) != BytesE2 or if any coefficient is not the canonical encoding of a field element;
+// in that case z is left unchanged.
+func (z *E2) SetBytesCanonical(b []byte) error {
 	if len(b) != BytesE2 {
-		return nil, fmt.Errorf("E2.SetBytes: got %d bytes, expected %d", len(b), BytesE2)
+		return fmt.Errorf("E2.SetBytesCanonical: got %d bytes, expected %d", len(b), BytesE2)
 	}
-	z.A0.SetBytes(b[0*fr.Bytes : 1*fr.Bytes])
-	z.A1.SetBytes(b[1*fr.Bytes : 2*fr.Bytes])
-	return z, nil
+	var r E2
+	if err := r.A0.SetBytesCanonical(b[0*fr.Bytes : 1*fr.Bytes]); err != nil {
+		return err
+	}
+	if err := r.A1.SetBytesCanonical(b[1*fr.Bytes : 2*fr.Bytes]); err != nil {
+		return err
+	}
+	*z = r
+	return nil
 }
 
 // SetRandom sets a0 and a1 to random values

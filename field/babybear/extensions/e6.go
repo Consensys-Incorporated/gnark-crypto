@@ -90,6 +90,50 @@ func (z *E6) SetUint64(v uint64) *E6 {
 	return z
 }
 
+// AddElement sets z to x + y, where y is an element of the base field embedded in E6, and returns z
+func (z *E6) AddElement(x *E6, y *fr.Element) *E6 {
+	yc := *y
+	z.B0.A0.Add(&x.B0.A0, &yc)
+	z.B0.A1 = x.B0.A1
+	z.B1.A0 = x.B1.A0
+	z.B1.A1 = x.B1.A1
+	z.B2.A0 = x.B2.A0
+	z.B2.A1 = x.B2.A1
+	return z
+}
+
+// SubElement sets z to x - y, where y is an element of the base field embedded in E6, and returns z
+func (z *E6) SubElement(x *E6, y *fr.Element) *E6 {
+	yc := *y
+	z.B0.A0.Sub(&x.B0.A0, &yc)
+	z.B0.A1 = x.B0.A1
+	z.B1.A0 = x.B1.A0
+	z.B1.A1 = x.B1.A1
+	z.B2.A0 = x.B2.A0
+	z.B2.A1 = x.B2.A1
+	return z
+}
+
+// SubFromElement sets z to x - y, where x is an element of the base field embedded in E6, and returns z
+func (z *E6) SubFromElement(x *fr.Element, y *E6) *E6 {
+	xc := *x
+	z.B0.A0.Sub(&xc, &y.B0.A0)
+	z.B0.A1.Neg(&y.B0.A1)
+	z.B1.A0.Neg(&y.B1.A0)
+	z.B1.A1.Neg(&y.B1.A1)
+	z.B2.A0.Neg(&y.B2.A0)
+	z.B2.A1.Neg(&y.B2.A1)
+	return z
+}
+
+// SetElement sets z to x, an element of the base field embedded in E6, and returns z
+func (z *E6) SetElement(x *fr.Element) *E6 {
+	v := *x
+	*z = E6{}
+	z.B0.A0 = v
+	return z
+}
+
 // SetBigInt sets z to v (embedded via the unique ring homomorphism ℤ→𝔽, reduced modulo the base field order) and returns z
 func (z *E6) SetBigInt(v *big.Int) *E6 {
 	*z = E6{}
@@ -119,19 +163,34 @@ func (z *E6) Marshal() []byte {
 	return res
 }
 
-// SetBytes sets z from the layout produced by Marshal, reading each coefficient with fr.Element.SetBytes, and returns z.
-// It returns an error if len(b) != BytesE6.
-func (z *E6) SetBytes(b []byte) (*E6, error) {
+// SetBytesCanonical sets z from the layout produced by Marshal, reading each coefficient with fr.Element.SetBytesCanonical.
+// It returns an error if len(b) != BytesE6 or if any coefficient is not the canonical encoding of a field element;
+// in that case z is left unchanged.
+func (z *E6) SetBytesCanonical(b []byte) error {
 	if len(b) != BytesE6 {
-		return nil, fmt.Errorf("E6.SetBytes: got %d bytes, expected %d", len(b), BytesE6)
+		return fmt.Errorf("E6.SetBytesCanonical: got %d bytes, expected %d", len(b), BytesE6)
 	}
-	z.B0.A0.SetBytes(b[0*fr.Bytes : 1*fr.Bytes])
-	z.B0.A1.SetBytes(b[1*fr.Bytes : 2*fr.Bytes])
-	z.B1.A0.SetBytes(b[2*fr.Bytes : 3*fr.Bytes])
-	z.B1.A1.SetBytes(b[3*fr.Bytes : 4*fr.Bytes])
-	z.B2.A0.SetBytes(b[4*fr.Bytes : 5*fr.Bytes])
-	z.B2.A1.SetBytes(b[5*fr.Bytes : 6*fr.Bytes])
-	return z, nil
+	var r E6
+	if err := r.B0.A0.SetBytesCanonical(b[0*fr.Bytes : 1*fr.Bytes]); err != nil {
+		return err
+	}
+	if err := r.B0.A1.SetBytesCanonical(b[1*fr.Bytes : 2*fr.Bytes]); err != nil {
+		return err
+	}
+	if err := r.B1.A0.SetBytesCanonical(b[2*fr.Bytes : 3*fr.Bytes]); err != nil {
+		return err
+	}
+	if err := r.B1.A1.SetBytesCanonical(b[3*fr.Bytes : 4*fr.Bytes]); err != nil {
+		return err
+	}
+	if err := r.B2.A0.SetBytesCanonical(b[4*fr.Bytes : 5*fr.Bytes]); err != nil {
+		return err
+	}
+	if err := r.B2.A1.SetBytesCanonical(b[5*fr.Bytes : 6*fr.Bytes]); err != nil {
+		return err
+	}
+	*z = r
+	return nil
 }
 
 // MulByElement multiplies an element in E6 by an element in fr.
@@ -545,9 +604,7 @@ func (vector VectorE6) SetRandom() error {
 // MustSetRandom sets all elements of vector to random values, panicking if an error is encountered.
 func (vector VectorE6) MustSetRandom() {
 	for i := range vector {
-		if _, err := vector[i].SetRandom(); err != nil {
-			panic(err)
-		}
+		vector[i].MustSetRandom()
 	}
 }
 
