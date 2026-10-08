@@ -6,10 +6,14 @@
 package extensions
 
 import (
+	"fmt"
 	"math/big"
 
 	fr "github.com/consensys/gnark-crypto/field/koalabear"
 )
+
+// BytesE2 is the number of bytes needed to represent a E2
+const BytesE2 = 2 * fr.Bytes
 
 // E2 is a degree two finite field extension of fr.Element
 type E2 struct {
@@ -69,6 +73,95 @@ func (z *E2) SetOne() *E2 {
 	z.A0.SetOne()
 	z.A1.SetZero()
 	return z
+}
+
+// SetInt64 sets z to v (embedded via the unique ring homomorphism ℤ→𝔽) and returns z
+func (z *E2) SetInt64(v int64) *E2 {
+	*z = E2{}
+	z.A0.SetInt64(v)
+	return z
+}
+
+// SetUint64 sets z to v (embedded via the unique ring homomorphism ℤ→𝔽) and returns z
+func (z *E2) SetUint64(v uint64) *E2 {
+	*z = E2{}
+	z.A0.SetUint64(v)
+	return z
+}
+
+// AddElement sets z to x + y, where y is an element of the base field embedded in E2, and returns z
+func (z *E2) AddElement(x *E2, y *fr.Element) *E2 {
+	yc := *y
+	z.A0.Add(&x.A0, &yc)
+	z.A1 = x.A1
+	return z
+}
+
+// SubElement sets z to x - y, where y is an element of the base field embedded in E2, and returns z
+func (z *E2) SubElement(x *E2, y *fr.Element) *E2 {
+	yc := *y
+	z.A0.Sub(&x.A0, &yc)
+	z.A1 = x.A1
+	return z
+}
+
+// SubFromElement sets z to x - y, where x is an element of the base field embedded in E2, and returns z
+func (z *E2) SubFromElement(x *fr.Element, y *E2) *E2 {
+	xc := *x
+	z.A0.Sub(&xc, &y.A0)
+	z.A1.Neg(&y.A1)
+	return z
+}
+
+// SetElement sets z to x, an element of the base field embedded in E2, and returns z
+func (z *E2) SetElement(x *fr.Element) *E2 {
+	v := *x
+	*z = E2{}
+	z.A0 = v
+	return z
+}
+
+// SetBigInt sets z to v (embedded via the unique ring homomorphism ℤ→𝔽, reduced modulo the base field order) and returns z
+func (z *E2) SetBigInt(v *big.Int) *E2 {
+	*z = E2{}
+	z.A0.SetBigInt(v)
+	return z
+}
+
+// BigInt sets res to the integer that z embeds, and returns res.
+// It returns nil if z is not in the image of the embedding ℤ→𝔽, i.e. if any coordinate other than the first is non-zero.
+func (z *E2) BigInt(res *big.Int) *big.Int {
+	if !z.A1.IsZero() {
+		return nil
+	}
+	return z.A0.BigInt(res)
+}
+
+// Marshal returns the big-endian encodings of the coefficients
+// A0, A1 concatenated, BytesE2 bytes in total
+func (z *E2) Marshal() []byte {
+	res := make([]byte, BytesE2)
+	fr.BigEndian.PutElement((*[fr.Bytes]byte)(res[0*fr.Bytes:1*fr.Bytes]), z.A0)
+	fr.BigEndian.PutElement((*[fr.Bytes]byte)(res[1*fr.Bytes:2*fr.Bytes]), z.A1)
+	return res
+}
+
+// SetBytesCanonical sets z from the layout produced by Marshal, reading each coefficient with fr.Element.SetBytesCanonical.
+// It returns an error if len(b) != BytesE2 or if any coefficient is not the canonical encoding of a field element;
+// in that case z is left unchanged.
+func (z *E2) SetBytesCanonical(b []byte) error {
+	if len(b) != BytesE2 {
+		return fmt.Errorf("E2.SetBytesCanonical: got %d bytes, expected %d", len(b), BytesE2)
+	}
+	var r E2
+	if err := r.A0.SetBytesCanonical(b[0*fr.Bytes : 1*fr.Bytes]); err != nil {
+		return err
+	}
+	if err := r.A1.SetBytesCanonical(b[1*fr.Bytes : 2*fr.Bytes]); err != nil {
+		return err
+	}
+	*z = r
+	return nil
 }
 
 // SetRandom sets a0 and a1 to random values

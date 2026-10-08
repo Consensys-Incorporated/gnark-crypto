@@ -31,7 +31,7 @@ func BatchEvalFextPolyLagrange(polys [][]fext.E3, x fext.E3, oncoset ...bool) ([
 	results := make([]fext.E3, len(polys))
 	parallel.Execute(len(polys), func(start, stop int) {
 		for k := start; k < stop; k++ {
-			res := fext.Vector(polys[k]).InnerProduct(fext.Vector(lagrangeBasis))
+			res := fext.VectorE3(polys[k]).InnerProduct(fext.VectorE3(lagrangeBasis))
 			results[k] = res
 		}
 	})
@@ -60,7 +60,7 @@ func BatchEvalBasePolyLagrange(polys [][]mamabear.Element, x fext.E3, oncoset ..
 	results := make([]fext.E3, len(polys))
 	parallel.Execute(len(polys), func(start, stop int) {
 		for k := start; k < stop; k++ {
-			res := fext.Vector(lagrangeBasis).InnerProductByElement(polys[k])
+			res := fext.VectorE3(lagrangeBasis).InnerProductByElement(polys[k])
 			results[k] = res
 		}
 	})
@@ -91,7 +91,7 @@ func ComputeLagrangeBasisAtX(n int, x fext.E3, oncoset ...bool) ([]fext.E3, erro
 	numerator.MulByElement(&numerator, &cardInv)
 	numerator.Inverse(&numerator)
 
-	res := make(fext.Vector, n)
+	res := make(fext.VectorE3, n)
 	res[0] = x
 	for i := 1; i < n; i++ {
 		res[i].MulByElement(&res[i-1], generatorInv)
@@ -105,7 +105,7 @@ func ComputeLagrangeBasisAtX(n int, x fext.E3, oncoset ...bool) ([]fext.E3, erro
 		}
 	}
 	if isRootOfUnity != -1 {
-		res = make(fext.Vector, n)
+		res = make(fext.VectorE3, n)
 		res[isRootOfUnity].SetOne()
 		return res, nil
 	}

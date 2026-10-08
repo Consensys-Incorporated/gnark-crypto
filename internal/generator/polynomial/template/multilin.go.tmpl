@@ -1,17 +1,21 @@
 import (
     "{{.FieldPackagePath}}"
+{{- if .ExtensionDegree}}
+	fr "{{.BaseFieldPackagePath}}"
+	basepoly "{{.BaseFieldPackagePath}}/polynomial"
+{{- end}}
 	"math/bits"
 	"github.com/consensys/gnark-crypto/utils"
 )
 
-// MultiLin tracks the values of a (dense i.e. not sparse) multilinear polynomial
+// MultiLin{{.ExtensionName}} tracks the values of a (dense i.e. not sparse) multilinear polynomial
 // The variables are X₁ through Xₙ where n = log(len(.))
 // .[∑ᵢ 2ⁱ⁻¹ bₙ₋ᵢ] = the polynomial evaluated at (b₁, b₂, ..., bₙ)
 // It is understood that any hypercube evaluation can be extrapolated to a multilinear polynomial
-type MultiLin []{{.ElementType}}
+type MultiLin{{.ExtensionName}} []{{.ElementType}}
 
 // Fold is partial evaluation function k[X₁, X₂, ..., Xₙ] → k[X₂, ..., Xₙ] by setting X₁=r
-func (m *MultiLin) Fold(r {{.ElementType}}) {
+func (m *MultiLin{{.ExtensionName}}) Fold(r {{.ElementType}}) {
 	mid := len(*m) / 2
 
 	bottom, top := (*m)[:mid], (*m)[mid:]
@@ -32,7 +36,7 @@ func (m *MultiLin) Fold(r {{.ElementType}}) {
 	*m = (*m)[:mid]
 }
 
-func (m *MultiLin) FoldParallel(r {{.ElementType}}) utils.Task {
+func (m *MultiLin{{.ExtensionName}}) FoldParallel(r {{.ElementType}}) utils.Task {
 	mid := len(*m) / 2
 	bottom, top := (*m)[:mid], (*m)[mid:]
 
@@ -49,7 +53,70 @@ func (m *MultiLin) FoldParallel(r {{.ElementType}}) utils.Task {
 	}
 }
 
-func (m MultiLin) Sum() {{.ElementType}} {
+{{if .ExtensionDegree}}
+// FoldFromBase sets m to the partial evaluation X₁=r of the multilinear polynomial whose
+// hypercube evaluations are the base field elements b:
+//
+//	m[i] = b[i] + r (b[i + len(b)/2] - b[i])
+//
+// m's backing array is reused if it is large enough.
+func (m *MultiLin{{.ExtensionName}}) FoldFromBase(b basepoly.MultiLin, r *{{.ElementType}}) {
+	mid := len(b) / 2
+	m.resize(mid)
+	m.foldFromBase(b, r, 0, mid)
+}
+
+// FoldFromBaseParallel is the parallel version of FoldFromBase. It sizes m, and returns
+// a task that computes the entries m[start:end]. The task reads *r when it runs, so *r must
+// not be modified until all tasks have completed.
+func (m *MultiLin{{.ExtensionName}}) FoldFromBaseParallel(b basepoly.MultiLin, r *{{.ElementType}}) utils.Task {
+	mid := len(b) / 2
+	m.resize(mid)
+	dst := *m
+
+	return func(start, end int) {
+		dst.foldFromBase(b, r, start, end)
+	}
+}
+
+// EvaluateBase evaluates, on the given coordinates, the multilinear polynomial whose hypercube
+// evaluations are the base field elements b. It first folds b into m by the first coordinate
+// (see FoldFromBase), and then folds m by the remaining coordinates. m serves as scratch space,
+// is overwritten, and its backing array is reused if it is large enough.
+// Unlike Evaluate, no copy of the table is made, and b is left untouched.
+func (m *MultiLin{{.ExtensionName}}) EvaluateBase(b basepoly.MultiLin, coordinates []{{.ElementType}}) {{.ElementType}} {
+	if len(coordinates) == 0 {
+		m.resize(1)
+		return *(*m)[0].SetElement(&b[0])
+	}
+
+	m.FoldFromBase(b, &coordinates[0])
+	for _, r := range coordinates[1:] {
+		m.Fold(r)
+	}
+	return (*m)[0]
+}
+
+func (m *MultiLin{{.ExtensionName}}) resize(n int) {
+	if cap(*m) >= n {
+		*m = (*m)[:n]
+	} else {
+		*m = make(MultiLin{{.ExtensionName}}, n)
+	}
+}
+
+func (m MultiLin{{.ExtensionName}}) foldFromBase(b basepoly.MultiLin, r *{{.ElementType}}, start, end int) {
+	mid := len(b) / 2
+	var diff fr.Element
+	for i := start; i < end; i++ {
+		diff.Sub(&b[mid+i], &b[i])
+		m[i].MulByElement(r, &diff)
+		m[i].AddElement(&m[i], &b[i])
+	}
+}
+
+{{end}}
+func (m MultiLin{{.ExtensionName}}) Sum() {{.ElementType}} {
 	s := m[0]
 	for i := 1; i < len(m); i++ {
 		s.Add(&s, &m[i])
@@ -57,7 +124,7 @@ func (m MultiLin) Sum() {{.ElementType}} {
 	return s
 }
 
-func _clone(m MultiLin, p *Pool) MultiLin {
+func _clone{{.ExtensionName}}(m MultiLin{{.ExtensionName}}, p *Pool{{.ExtensionName}}) MultiLin{{.ExtensionName}} {
 	if p == nil {
 		return m.Clone()
 	} else {
@@ -65,7 +132,7 @@ func _clone(m MultiLin, p *Pool) MultiLin {
 	}
 }
 
-func _dump(m MultiLin, p *Pool) {
+func _dump{{.ExtensionName}}(m MultiLin{{.ExtensionName}}, p *Pool{{.ExtensionName}}) {
 	if p != nil {
 		p.Dump(m)
 	}
@@ -73,9 +140,9 @@ func _dump(m MultiLin, p *Pool) {
 
 // Evaluate extrapolate the value of the multilinear polynomial corresponding to m
 // on the given coordinates
-func (m MultiLin) Evaluate(coordinates []{{.ElementType}}, p *Pool) {{.ElementType}} {
+func (m MultiLin{{.ExtensionName}}) Evaluate(coordinates []{{.ElementType}}, p *Pool{{.ExtensionName}}) {{.ElementType}} {
 	// Folding is a mutating operation
-	bkCopy := _clone(m, p)
+	bkCopy := _clone{{.ExtensionName}}(m, p)
 
 	// Evaluate step by step through repeated folding (i.e. evaluation at the first remaining variable)
 	for _, r := range coordinates {
@@ -84,7 +151,7 @@ func (m MultiLin) Evaluate(coordinates []{{.ElementType}}, p *Pool) {{.ElementTy
 
 	result := bkCopy[0]
 
-	_dump(bkCopy, p)
+	_dump{{.ExtensionName}}(bkCopy, p)
 	return result
 }
 
@@ -92,14 +159,14 @@ func (m MultiLin) Evaluate(coordinates []{{.ElementType}}, p *Pool) {{.ElementTy
 // Both multilinear interpolation and sumcheck require folding an underlying
 // array, but folding changes the array. To do both one requires a deep copy
 // of the bookkeeping table.
-func (m MultiLin) Clone() MultiLin {
-	res := make(MultiLin, len(m))
+func (m MultiLin{{.ExtensionName}}) Clone() MultiLin{{.ExtensionName}} {
+	res := make(MultiLin{{.ExtensionName}}, len(m))
 	copy(res, m)
 	return res
 }
 
 // Add two bookKeepingTables
-func (m *MultiLin) Add(left, right MultiLin) {
+func (m *MultiLin{{.ExtensionName}}) Add(left, right MultiLin{{.ExtensionName}}) {
 	size := len(left)
 	// Check that left and right have the same size
 	if len(right) != size || len(*m) != size{
@@ -113,7 +180,7 @@ func (m *MultiLin) Add(left, right MultiLin) {
 }
 
 
-// EvalEq computes Eq(q₁, ... , qₙ, h₁, ... , hₙ) = Π₁ⁿ Eq(qᵢ, hᵢ)
+// EvalEq{{.ExtensionName}} computes Eq(q₁, ... , qₙ, h₁, ... , hₙ) = Π₁ⁿ Eq(qᵢ, hᵢ)
 // where Eq(x,y) = xy + (1-x)(1-y) = 1 - x - y + xy + xy interpolates
 //      _________________
 //      |       |       |
@@ -126,7 +193,7 @@ func (m *MultiLin) Add(left, right MultiLin) {
 //              x
 // In other words the polynomial evaluated here is the multilinear extrapolation of
 // one that evaluates to q' == h' for vectors q', h' of binary values
-func EvalEq(q, h []{{.ElementType}}) {{.ElementType}} {
+func EvalEq{{.ExtensionName}}(q, h []{{.ElementType}}) {{.ElementType}} {
 	var res, nxt, one, sum {{.ElementType}}
 	one.SetOne()
 	for i := range len(q) {
@@ -146,7 +213,7 @@ func EvalEq(q, h []{{.ElementType}}) {{.ElementType}} {
 }
 
 // Eq sets m to the representation of the polynomial Eq(q₁, ..., qₙ, *, ..., *) × m[0]
-func (m *MultiLin) Eq(q []{{.ElementType}}) {
+func (m *MultiLin{{.ExtensionName}}) Eq(q []{{.ElementType}}) {
 	n := len(q)
 
 	if len(*m) != 1 << n {
@@ -165,6 +232,6 @@ func (m *MultiLin) Eq(q []{{.ElementType}}) {
 	}
 }
 
-func (m MultiLin) NumVars() int {
+func (m MultiLin{{.ExtensionName}}) NumVars() int {
 	return bits.TrailingZeros(uint(len(m)))
 }

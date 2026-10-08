@@ -6,6 +6,7 @@
 package extensions
 
 import (
+	"fmt"
 	"math/big"
 	"math/bits"
 
@@ -16,6 +17,9 @@ import (
 // used for Montgomery reduction
 const qInvNeg = 2013265919
 const q = 2013265921
+
+// BytesE4 is the number of bytes needed to represent a E4
+const BytesE4 = 4 * fr.Bytes
 
 // E4 is a degree two finite field extension of fr2
 type E4 struct {
@@ -80,6 +84,109 @@ func (z *E4) SetOne() *E4 {
 	*z = E4{}
 	z.B0.A0.SetOne()
 	return z
+}
+
+// SetInt64 sets z to v (embedded via the unique ring homomorphism ℤ→𝔽) and returns z
+func (z *E4) SetInt64(v int64) *E4 {
+	*z = E4{}
+	z.B0.A0.SetInt64(v)
+	return z
+}
+
+// SetUint64 sets z to v (embedded via the unique ring homomorphism ℤ→𝔽) and returns z
+func (z *E4) SetUint64(v uint64) *E4 {
+	*z = E4{}
+	z.B0.A0.SetUint64(v)
+	return z
+}
+
+// AddElement sets z to x + y, where y is an element of the base field embedded in E4, and returns z
+func (z *E4) AddElement(x *E4, y *fr.Element) *E4 {
+	yc := *y
+	z.B0.A0.Add(&x.B0.A0, &yc)
+	z.B0.A1 = x.B0.A1
+	z.B1.A0 = x.B1.A0
+	z.B1.A1 = x.B1.A1
+	return z
+}
+
+// SubElement sets z to x - y, where y is an element of the base field embedded in E4, and returns z
+func (z *E4) SubElement(x *E4, y *fr.Element) *E4 {
+	yc := *y
+	z.B0.A0.Sub(&x.B0.A0, &yc)
+	z.B0.A1 = x.B0.A1
+	z.B1.A0 = x.B1.A0
+	z.B1.A1 = x.B1.A1
+	return z
+}
+
+// SubFromElement sets z to x - y, where x is an element of the base field embedded in E4, and returns z
+func (z *E4) SubFromElement(x *fr.Element, y *E4) *E4 {
+	xc := *x
+	z.B0.A0.Sub(&xc, &y.B0.A0)
+	z.B0.A1.Neg(&y.B0.A1)
+	z.B1.A0.Neg(&y.B1.A0)
+	z.B1.A1.Neg(&y.B1.A1)
+	return z
+}
+
+// SetElement sets z to x, an element of the base field embedded in E4, and returns z
+func (z *E4) SetElement(x *fr.Element) *E4 {
+	v := *x
+	*z = E4{}
+	z.B0.A0 = v
+	return z
+}
+
+// SetBigInt sets z to v (embedded via the unique ring homomorphism ℤ→𝔽, reduced modulo the base field order) and returns z
+func (z *E4) SetBigInt(v *big.Int) *E4 {
+	*z = E4{}
+	z.B0.A0.SetBigInt(v)
+	return z
+}
+
+// BigInt sets res to the integer that z embeds, and returns res.
+// It returns nil if z is not in the image of the embedding ℤ→𝔽, i.e. if any coordinate other than the first is non-zero.
+func (z *E4) BigInt(res *big.Int) *big.Int {
+	if !z.B0.A1.IsZero() || !z.B1.A0.IsZero() || !z.B1.A1.IsZero() {
+		return nil
+	}
+	return z.B0.A0.BigInt(res)
+}
+
+// Marshal returns the big-endian encodings of the coefficients
+// B0.A0, B0.A1, B1.A0, B1.A1 concatenated, BytesE4 bytes in total
+func (z *E4) Marshal() []byte {
+	res := make([]byte, BytesE4)
+	fr.BigEndian.PutElement((*[fr.Bytes]byte)(res[0*fr.Bytes:1*fr.Bytes]), z.B0.A0)
+	fr.BigEndian.PutElement((*[fr.Bytes]byte)(res[1*fr.Bytes:2*fr.Bytes]), z.B0.A1)
+	fr.BigEndian.PutElement((*[fr.Bytes]byte)(res[2*fr.Bytes:3*fr.Bytes]), z.B1.A0)
+	fr.BigEndian.PutElement((*[fr.Bytes]byte)(res[3*fr.Bytes:4*fr.Bytes]), z.B1.A1)
+	return res
+}
+
+// SetBytesCanonical sets z from the layout produced by Marshal, reading each coefficient with fr.Element.SetBytesCanonical.
+// It returns an error if len(b) != BytesE4 or if any coefficient is not the canonical encoding of a field element;
+// in that case z is left unchanged.
+func (z *E4) SetBytesCanonical(b []byte) error {
+	if len(b) != BytesE4 {
+		return fmt.Errorf("E4.SetBytesCanonical: got %d bytes, expected %d", len(b), BytesE4)
+	}
+	var r E4
+	if err := r.B0.A0.SetBytesCanonical(b[0*fr.Bytes : 1*fr.Bytes]); err != nil {
+		return err
+	}
+	if err := r.B0.A1.SetBytesCanonical(b[1*fr.Bytes : 2*fr.Bytes]); err != nil {
+		return err
+	}
+	if err := r.B1.A0.SetBytesCanonical(b[2*fr.Bytes : 3*fr.Bytes]); err != nil {
+		return err
+	}
+	if err := r.B1.A1.SetBytesCanonical(b[3*fr.Bytes : 4*fr.Bytes]); err != nil {
+		return err
+	}
+	*z = r
+	return nil
 }
 
 // Lift sets the B0.A0 component of z to v

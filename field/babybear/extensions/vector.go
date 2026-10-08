@@ -23,10 +23,15 @@ import (
 	fr "github.com/consensys/gnark-crypto/field/babybear"
 )
 
-// Vector represents a vector of E4 elements
-type Vector []E4
+// VectorE4 represents a vector of E4 elements
+type VectorE4 []E4
 
-func (vector Vector) Add(a, b Vector) {
+// Vector is a slice of E4 elements.
+//
+// Deprecated: use VectorE4.
+type Vector = VectorE4
+
+func (vector VectorE4) Add(a, b VectorE4) {
 	N := len(a)
 	if N != len(b) || N != len(vector) {
 		panic("vector.Add: vectors don't have the same length")
@@ -34,7 +39,7 @@ func (vector Vector) Add(a, b Vector) {
 	vectorAddGeneric(vector, a, b)
 }
 
-func (vector Vector) Sub(a, b Vector) {
+func (vector VectorE4) Sub(a, b VectorE4) {
 	N := len(a)
 	if N != len(b) || N != len(vector) {
 		panic("vector.Sub: vectors don't have the same length")
@@ -42,7 +47,7 @@ func (vector Vector) Sub(a, b Vector) {
 	vectorSubGeneric(vector, a, b)
 }
 
-func (vector Vector) Mul(a, b Vector) {
+func (vector VectorE4) Mul(a, b VectorE4) {
 	N := len(a)
 	if N != len(b) || N != len(vector) {
 		panic("vector.Mul: vectors don't have the same length")
@@ -50,7 +55,7 @@ func (vector Vector) Mul(a, b Vector) {
 	vectorMulGeneric(vector, a, b)
 }
 
-func (vector Vector) ScalarMul(a Vector, b *E4) {
+func (vector VectorE4) ScalarMul(a VectorE4, b *E4) {
 	N := len(a)
 	if N != len(vector) {
 		panic("vector.ScalarMul: vectors don't have the same length")
@@ -59,11 +64,11 @@ func (vector Vector) ScalarMul(a Vector, b *E4) {
 }
 
 // Sum computes the sum of all elements in the vector.
-func (vector Vector) Sum() E4 {
+func (vector VectorE4) Sum() E4 {
 	return vectorSumGeneric(vector)
 }
 
-func (vector Vector) InnerProductByElement(a fr.Vector) E4 {
+func (vector VectorE4) InnerProductByElement(a fr.Vector) E4 {
 	N := len(vector)
 	if len(a) != N {
 		panic("vector.InnerProduct: vectors don't have the same length")
@@ -71,7 +76,7 @@ func (vector Vector) InnerProductByElement(a fr.Vector) E4 {
 	return vectorInnerProductByElementGeneric(vector, a)
 }
 
-func (vector Vector) InnerProduct(a Vector) E4 {
+func (vector VectorE4) InnerProduct(a VectorE4) E4 {
 	N := len(vector)
 	if len(a) != N {
 		panic("vector.InnerProduct: vectors don't have the same length")
@@ -79,7 +84,7 @@ func (vector Vector) InnerProduct(a Vector) E4 {
 	return vectorInnerProductGeneric(vector, a)
 }
 
-func (vector Vector) MulByElement(a Vector, b fr.Vector) {
+func (vector VectorE4) MulByElement(a VectorE4, b fr.Vector) {
 	N := len(vector)
 	if len(a) != N || len(b) != N {
 		panic("vector.MulByElement: vectors don't have the same length")
@@ -89,7 +94,7 @@ func (vector Vector) MulByElement(a Vector, b fr.Vector) {
 
 // Butterfly computes the in-place butterfly operation on two vectors of E4 elements
 // If other overlaps with vector, result is undefined, caller should use a temp vector.
-func (vector Vector) Butterfly(other Vector) {
+func (vector VectorE4) Butterfly(other VectorE4) {
 	N := len(other)
 	if N != len(vector) {
 		panic("vector.Butterfly: vectors don't have the same length")
@@ -99,7 +104,7 @@ func (vector Vector) Butterfly(other Vector) {
 
 // ButterflyPair computes the in-place butterfly operation of each pair in the vector
 // vector[0], vector[1]; vector[2], vector[3]; ...
-func (vector Vector) ButterflyPair() {
+func (vector VectorE4) ButterflyPair() {
 	N := len(vector)
 	if N%2 != 0 {
 		panic("vector.ButterflyPair: vector length must be even")
@@ -109,7 +114,7 @@ func (vector Vector) ButterflyPair() {
 	}
 }
 
-func (vector Vector) ScalarMulByElement(a Vector, b *fr.Element) {
+func (vector VectorE4) ScalarMulByElement(a VectorE4, b *fr.Element) {
 	if len(a) != len(vector) {
 		panic("vector.ScalarMulByElement: vectors don't have the same length")
 	}
@@ -126,7 +131,7 @@ func (vector Vector) ScalarMulByElement(a Vector, b *fr.Element) {
 }
 
 // Exp sets vector[i] = a[i]ᵏ for all i
-func (vector Vector) Exp(a Vector, k int64) {
+func (vector VectorE4) Exp(a VectorE4, k int64) {
 	N := len(a)
 	if N != len(vector) {
 		panic("vector.Exp: vectors don't have the same length")
@@ -148,7 +153,7 @@ func (vector Vector) Exp(a Vector, k int64) {
 		v0 := &vector[0] // #nosec G602 we check that N > 0 above
 		a0 := &a[0]      // #nosec G602 we check that N > 0 above
 		if v0 == a0 {
-			base = make(Vector, N)
+			base = make(VectorE4, N)
 			copy(base, a)
 		}
 	}
@@ -166,7 +171,7 @@ func (vector Vector) Exp(a Vector, k int64) {
 
 // MulAccByElement multiplies each element of the vector v by the E4 element alpha,
 // accumulating the result in the same vector.
-func (vector Vector) MulAccByElement(scale []fr.Element, alpha *E4) {
+func (vector VectorE4) MulAccByElement(scale []fr.Element, alpha *E4) {
 	N := len(vector)
 	if N != len(scale) {
 		panic("MulAccByElement: len(vector) != len(scale)")
@@ -175,28 +180,28 @@ func (vector Vector) MulAccByElement(scale []fr.Element, alpha *E4) {
 }
 
 // Equal checks whether two vectors are equal
-func (vector Vector) Equal(other Vector) bool {
+func (vector VectorE4) Equal(other VectorE4) bool {
 	return slices.Equal(vector, other)
 }
 
 // Len is the number of elements in the collection.
-func (vector Vector) Len() int {
+func (vector VectorE4) Len() int {
 	return len(vector)
 }
 
 // Less reports whether the element with
 // index i should sort before the element with index j.
-func (vector Vector) Less(i, j int) bool {
+func (vector VectorE4) Less(i, j int) bool {
 	return vector[i].Cmp(&vector[j]) == -1
 }
 
 // Swap swaps the elements with indexes i and j.
-func (vector Vector) Swap(i, j int) {
+func (vector VectorE4) Swap(i, j int) {
 	vector[i], vector[j] = vector[j], vector[i]
 }
 
 // String implements fmt.Stringer interface
-func (vector Vector) String() string {
+func (vector VectorE4) String() string {
 	var sbb strings.Builder
 	sbb.Grow(len(vector) * 16)
 	sbb.WriteByte('[')
@@ -211,7 +216,7 @@ func (vector Vector) String() string {
 }
 
 // MarshalBinary implements encoding.BinaryMarshaler
-func (vector *Vector) MarshalBinary() (data []byte, err error) {
+func (vector *VectorE4) MarshalBinary() (data []byte, err error) {
 	var buf bytes.Buffer
 
 	if _, err = vector.WriteTo(&buf); err != nil {
@@ -221,7 +226,7 @@ func (vector *Vector) MarshalBinary() (data []byte, err error) {
 }
 
 // UnmarshalBinary implements encoding.BinaryUnmarshaler
-func (vector *Vector) UnmarshalBinary(data []byte) error {
+func (vector *VectorE4) UnmarshalBinary(data []byte) error {
 	r := bytes.NewReader(data)
 	_, err := vector.ReadFrom(r)
 	return err
@@ -229,7 +234,7 @@ func (vector *Vector) UnmarshalBinary(data []byte) error {
 
 // WriteTo implements io.WriterTo and writes a vector of big endian encoded Element.
 // Length of the vector is encoded as a uint32 on the first 4 bytes.
-func (vector *Vector) WriteTo(w io.Writer) (int64, error) {
+func (vector *VectorE4) WriteTo(w io.Writer) (int64, error) {
 
 	// encode slice length
 	if err := binary.Write(w, binary.BigEndian, uint32(len(*vector))); err != nil {
@@ -238,11 +243,10 @@ func (vector *Vector) WriteTo(w io.Writer) (int64, error) {
 
 	n := int64(4)
 
-	const e4Bytes = 4 * fr.Bytes
-	buf := make([]byte, len(*vector)*e4Bytes)
+	buf := make([]byte, len(*vector)*BytesE4)
 
 	for i := range len(*vector) {
-		offset := i * e4Bytes
+		offset := i * BytesE4
 		fr.BigEndian.PutElement((*[fr.Bytes]byte)(buf[offset+0*fr.Bytes:offset+1*fr.Bytes]), (*vector)[i].B0.A0)
 		fr.BigEndian.PutElement((*[fr.Bytes]byte)(buf[offset+1*fr.Bytes:offset+2*fr.Bytes]), (*vector)[i].B0.A1)
 		fr.BigEndian.PutElement((*[fr.Bytes]byte)(buf[offset+2*fr.Bytes:offset+3*fr.Bytes]), (*vector)[i].B1.A0)
@@ -258,7 +262,7 @@ func (vector *Vector) WriteTo(w io.Writer) (int64, error) {
 	return n, nil
 }
 
-// AsyncReadFrom implements an asynchronous version of [Vector.ReadFrom]. It
+// AsyncReadFrom implements an asynchronous version of [VectorE4.ReadFrom]. It
 // reads the reader r in full and then performs the validation and conversion to
 // Montgomery form separately in a goroutine. Any error encountered during
 // reading is returned directly, while errors encountered during
@@ -282,7 +286,7 @@ func (vector *Vector) WriteTo(w io.Writer) (int64, error) {
 //   - first 4 bytes: length of the vector as a big-endian uint32
 //   - for each element of the vector, `4 * fr.Bytes` bytes representing the
 //     element in big-endian encoding.
-func (vector *Vector) AsyncReadFrom(r io.Reader) (int64, error, chan error) { // nolint ST1008
+func (vector *VectorE4) AsyncReadFrom(r io.Reader) (int64, error, chan error) { // nolint ST1008
 	chErr := make(chan error, 1)
 	var bufSizeSlice [4]byte
 	if read, err := io.ReadFull(r, bufSizeSlice[:]); err != nil {
@@ -290,9 +294,8 @@ func (vector *Vector) AsyncReadFrom(r io.Reader) (int64, error, chan error) { //
 		return int64(read), err, chErr
 	}
 	headerSliceLen := uint64(binary.BigEndian.Uint32(bufSizeSlice[:]))
-	const e4Bytes = 4 * fr.Bytes
 	if lr, ok := r.(interface{ Len() int }); ok {
-		if remaining := lr.Len(); remaining < 0 || headerSliceLen > uint64(remaining/e4Bytes) {
+		if remaining := lr.Len(); remaining < 0 || headerSliceLen > uint64(remaining/BytesE4) {
 			close(chErr)
 			return 4, io.ErrUnexpectedEOF, chErr
 		}
@@ -306,13 +309,13 @@ func (vector *Vector) AsyncReadFrom(r io.Reader) (int64, error, chan error) { //
 		// reduce target size to 1GB on 32 bits architectures
 		targetSize = uint64(1 << 30) // 1GB
 	}
-	maxAllocateSliceLength := targetSize / uint64(e4Bytes)
+	maxAllocateSliceLength := targetSize / uint64(BytesE4)
 
 	totalRead := int64(4)
 	*vector = (*vector)[:0]
 	if headerSliceLen == 0 {
 		if *vector == nil {
-			*vector = Vector{}
+			*vector = VectorE4{}
 		}
 		close(chErr)
 		return totalRead, nil, chErr
@@ -320,14 +323,14 @@ func (vector *Vector) AsyncReadFrom(r io.Reader) (int64, error, chan error) { //
 
 	for i := uint64(0); i < headerSliceLen; i += maxAllocateSliceLength {
 		if len(*vector) <= int(i) {
-			*vector = append(*vector, make(Vector, int(min(headerSliceLen-i, maxAllocateSliceLength)))...)
+			*vector = append(*vector, make(VectorE4, int(min(headerSliceLen-i, maxAllocateSliceLength)))...)
 		}
-		bSlice := unsafe.Slice((*byte)(unsafe.Pointer(&(*vector)[i])), int(min(headerSliceLen-i, maxAllocateSliceLength))*e4Bytes)
+		bSlice := unsafe.Slice((*byte)(unsafe.Pointer(&(*vector)[i])), int(min(headerSliceLen-i, maxAllocateSliceLength))*BytesE4)
 		read, err := io.ReadFull(r, bSlice)
 		totalRead += int64(read)
 		if errors.Is(err, io.ErrUnexpectedEOF) {
 			close(chErr)
-			return totalRead, fmt.Errorf("less data than expected: read %d elements, expected %d", i+uint64(read)/e4Bytes, headerSliceLen), chErr
+			return totalRead, fmt.Errorf("less data than expected: read %d elements, expected %d", i+uint64(read)/BytesE4, headerSliceLen), chErr
 		}
 		if err != nil {
 			close(chErr)
@@ -335,7 +338,7 @@ func (vector *Vector) AsyncReadFrom(r io.Reader) (int64, error, chan error) { //
 		}
 	}
 
-	bSlice := unsafe.Slice((*byte)(unsafe.Pointer(&(*vector)[0])), int(headerSliceLen)*e4Bytes)
+	bSlice := unsafe.Slice((*byte)(unsafe.Pointer(&(*vector)[0])), int(headerSliceLen)*BytesE4)
 	go func() {
 		setCoord := func(b *[fr.Bytes]byte) (fr.Element, bool) {
 			e, err := fr.BigEndian.Element(b)
@@ -349,8 +352,8 @@ func (vector *Vector) AsyncReadFrom(r io.Reader) (int64, error, chan error) { //
 
 		var ok bool
 		for i := range int(headerSliceLen) {
-			bstart := i * e4Bytes
-			bend := bstart + e4Bytes
+			bstart := i * BytesE4
+			bend := bstart + BytesE4
 			b := bSlice[bstart:bend]
 
 			(*vector)[i].B0.A0, ok = setCoord((*[fr.Bytes]byte)(b[0*fr.Bytes:]))
@@ -393,7 +396,7 @@ func (vector *Vector) AsyncReadFrom(r io.Reader) (int64, error, chan error) { //
 //   - for each element of the vector, `4 * fr.Bytes` bytes representing the element in big-endian encoding.
 //
 // The method implements [io.ReaderFrom] interface.
-func (vector *Vector) ReadFrom(r io.Reader) (int64, error) {
+func (vector *VectorE4) ReadFrom(r io.Reader) (int64, error) {
 
 	// call the async version and wait for the channel to be closed
 	n, err, chErr := vector.AsyncReadFrom(r)
@@ -407,7 +410,7 @@ func (vector *Vector) ReadFrom(r io.Reader) (int64, error) {
 // i.e. vector[i] = vector[0] * vector[1] * ... * vector[i]
 // If nbTasks > 1, it uses nbTasks goroutines to compute the prefix product in parallel.
 // If nbTasks is not provided, it uses the number of CPU cores.
-func (vector Vector) PrefixProduct(nbTasks ...int) {
+func (vector VectorE4) PrefixProduct(nbTasks ...int) {
 	N := len(vector)
 	if N < 2 {
 		return
@@ -467,34 +470,34 @@ func (vector Vector) PrefixProduct(nbTasks ...int) {
 
 }
 
-func (vector Vector) prefixProductGeneric() {
+func (vector VectorE4) prefixProductGeneric() {
 	for i := 1; i < len(vector); i++ {
 		vector[i].Mul(&vector[i], &vector[i-1])
 	}
 }
 
-func vectorAddGeneric(res, a, b Vector) {
+func vectorAddGeneric(res, a, b VectorE4) {
 	for i := range len(res) {
 		res[i].Add(&a[i], &b[i])
 	}
 }
-func vectorSubGeneric(res, a, b Vector) {
+func vectorSubGeneric(res, a, b VectorE4) {
 	for i := range len(res) {
 		res[i].Sub(&a[i], &b[i])
 	}
 }
-func vectorMulGeneric(res, a, b Vector) {
+func vectorMulGeneric(res, a, b VectorE4) {
 	for i := range len(res) {
 		res[i].Mul(&a[i], &b[i])
 	}
 }
-func vectorScalarMulGeneric(res, a Vector, b *E4) {
+func vectorScalarMulGeneric(res, a VectorE4, b *E4) {
 	for i := range len(res) {
 		res[i].Mul(&a[i], b)
 	}
 }
 
-func vectorInnerProductGeneric(a, b Vector) E4 {
+func vectorInnerProductGeneric(a, b VectorE4) E4 {
 	var res, tmp E4
 	for i := range len(a) {
 		tmp.Mul(&a[i], &b[i])
@@ -503,7 +506,7 @@ func vectorInnerProductGeneric(a, b Vector) E4 {
 	return res
 }
 
-func vectorInnerProductByElementGeneric(a Vector, b fr.Vector) E4 {
+func vectorInnerProductByElementGeneric(a VectorE4, b fr.Vector) E4 {
 	var res, tmp E4
 	for i := range len(a) {
 		tmp.MulByElement(&a[i], &b[i])
@@ -512,7 +515,7 @@ func vectorInnerProductByElementGeneric(a Vector, b fr.Vector) E4 {
 	return res
 }
 
-func vectorSumGeneric(v Vector) E4 {
+func vectorSumGeneric(v VectorE4) E4 {
 	var sum E4
 	for i := range len(v) {
 		sum.Add(&sum, &v[i])
@@ -520,7 +523,7 @@ func vectorSumGeneric(v Vector) E4 {
 	return sum
 }
 
-func vectorMulAccByElementGeneric(v Vector, scale []fr.Element, alpha *E4) {
+func vectorMulAccByElementGeneric(v VectorE4, scale []fr.Element, alpha *E4) {
 	var tmp E4
 	for i := range len(v) {
 		tmp.MulByElement(alpha, &scale[i])
@@ -528,13 +531,13 @@ func vectorMulAccByElementGeneric(v Vector, scale []fr.Element, alpha *E4) {
 	}
 }
 
-func vectorMulByElementGeneric(res, a Vector, b fr.Vector) {
+func vectorMulByElementGeneric(res, a VectorE4, b fr.Vector) {
 	for i := range len(res) {
 		res[i].MulByElement(&a[i], &b[i])
 	}
 }
 
-func vectorButterflyGeneric(a, b Vector) {
+func vectorButterflyGeneric(a, b VectorE4) {
 	for i := range len(a) {
 		Butterfly(&a[i], &b[i])
 	}

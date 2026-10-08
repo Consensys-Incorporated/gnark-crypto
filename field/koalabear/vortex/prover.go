@@ -134,7 +134,7 @@ func (ps *ProverState) OpenLinComb(alpha fext.E4) {
 	_ualpha := make([]fext.E4, ps.Params.SizeCodeWord())
 	var lock sync.Mutex
 	parallel.Execute(nbCodewords, func(start, end int) {
-		ualpha := make(fext.Vector, ps.Params.SizeCodeWord())
+		ualpha := make(fext.VectorE4, ps.Params.SizeCodeWord())
 		alphaPow := new(fext.E4).SetOne()
 		alphaPow.Exp(alpha, big.NewInt(int64(start)))
 		for i := start; i < end; i++ {

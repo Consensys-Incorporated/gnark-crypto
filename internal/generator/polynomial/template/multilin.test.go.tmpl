@@ -1,23 +1,31 @@
 import (
+{{- if .ExtensionDegree}}
+	fr "{{.BaseFieldPackagePath}}"
+	basepoly "{{.BaseFieldPackagePath}}/polynomial"
+{{- end}}
 	"{{.FieldPackagePath}}"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )
 
 //TODO: Property based tests?
-func TestFoldBilinear(t *testing.T) {
+func TestFoldBilinear{{.ExtensionName}}(t *testing.T) {
 
 	for range 100 {
 
 		// f = c₀ + c₁ X₁ + c₂ X₂ + c₃ X₁ X₂
 		var coefficients [4]{{.ElementType}}
-		fr.Vector(coefficients[:]).MustSetRandom()
+{{- if .ExtensionDegree}}
+		{{.FieldPackageName}}.Vector{{.ExtensionName}}(coefficients[:]).MustSetRandom()
+{{- else}}
+		{{.FieldPackageName}}.Vector(coefficients[:]).MustSetRandom()
+{{- end}}
 
 		var r {{.ElementType}}
 		r.MustSetRandom()
 
 		// interpolate at {0,1}²:
-		m := make(MultiLin, 4)
+		m := make(MultiLin{{.ExtensionName}}, 4)
 		m[0] = coefficients[0]
 		m[1].Add(&coefficients[0], &coefficients[2])
 		m[2].Add(&coefficients[0], &coefficients[1])
@@ -46,12 +54,12 @@ func TestFoldBilinear(t *testing.T) {
 
 // TODO: Benchmark folding? Algorithms is pretty straightforward; unless we want to measure how well memory management is working
 
-func TestFoldedEqTable(t *testing.T) {
+func TestFoldedEqTable{{.ExtensionName}}(t *testing.T) {
 	q := make([]{{.ElementType}}, 2)
 	q[0].SetInt64(2)
 	q[1].SetInt64(3)
 
-	m := make(MultiLin, 4)
+	m := make(MultiLin{{.ExtensionName}}, 4)
 	m[0].SetOne()
 	m.Eq(q)
 
@@ -64,7 +72,7 @@ func TestFoldedEqTable(t *testing.T) {
 	for p0 := range 2 {
 		p[1].SetZero()
 		for p1 := range 2 {
-			eq[p0*2+p1] = EvalEq(q, p)
+			eq[p0*2+p1] = EvalEq{{.ExtensionName}}(q, p)
 			p[1].Add(&p[1], &one)
 		}
 		p[0].Add(&p[0], &one)
@@ -75,3 +83,60 @@ func TestFoldedEqTable(t *testing.T) {
 	}
 
 }
+
+{{- if .ExtensionDegree}}
+
+func TestFoldFromBase{{.ExtensionName}}(t *testing.T) {
+	for _, n := range []int{2, 4, 8, 64} {
+		b := make(basepoly.MultiLin, n)
+		fr.Vector(b).MustSetRandom()
+		var r {{.ElementType}}
+		r.MustSetRandom()
+
+		// reference: lift b to the extension and fold in place
+		lifted := make(MultiLin{{.ExtensionName}}, n)
+		for i := range b {
+			lifted[i].SetElement(&b[i])
+		}
+		lifted.Fold(r)
+
+		var got MultiLin{{.ExtensionName}}
+		got.FoldFromBase(b, &r)
+		assert.Equal(t, lifted, got)
+
+		// parallel version, split in two tasks, reusing a dirty destination
+		par := make(MultiLin{{.ExtensionName}}, n)
+		task := par.FoldFromBaseParallel(b, &r)
+		mid := n / 2
+		task(0, mid/2)
+		task(mid/2, mid)
+		assert.Equal(t, lifted, par)
+	}
+}
+
+func TestEvaluateBase{{.ExtensionName}}(t *testing.T) {
+	for _, nbVars := range []int{0, 1, 2, 3, 6} {
+		b := make(basepoly.MultiLin, 1<<nbVars)
+		fr.Vector(b).MustSetRandom()
+		coordinates := make([]{{.ElementType}}, nbVars)
+		{{.FieldPackageName}}.Vector{{.ExtensionName}}(coordinates).MustSetRandom()
+
+		// reference: lift b to the extension and use Evaluate
+		lifted := make(MultiLin{{.ExtensionName}}, len(b))
+		for i := range b {
+			lifted[i].SetElement(&b[i])
+		}
+		want := lifted.Evaluate(coordinates, nil)
+
+		var scratch MultiLin{{.ExtensionName}}
+		got := scratch.EvaluateBase(b, coordinates)
+		assert.True(t, want.Equal(&got))
+
+		// a dirty, larger scratch buffer gives the same result
+		dirty := make(MultiLin{{.ExtensionName}}, 2*len(b)+3)
+		{{.FieldPackageName}}.Vector{{.ExtensionName}}(dirty).MustSetRandom()
+		got = dirty.EvaluateBase(b, coordinates)
+		assert.True(t, want.Equal(&got))
+	}
+}
+{{- end}}
