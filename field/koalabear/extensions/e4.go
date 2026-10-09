@@ -154,6 +154,24 @@ func (z *E4) BigInt(res *big.Int) *big.Int {
 	return z.B0.A0.BigInt(res)
 }
 
+// AppendBase appends the coordinates B0.A0, B0.A1, B1.A0, B1.A1 of z to s, and returns the extended slice
+func (z *E4) AppendBase(s []fr.Element) []fr.Element {
+	return append(s, z.B0.A0, z.B0.A1, z.B1.A0, z.B1.A1)
+}
+
+// SetBase sets the coordinates B0.A0, B0.A1, B1.A0, B1.A1 of z to s, and returns z.
+// It panics unless len(s) == 4.
+func (z *E4) SetBase(s []fr.Element) *E4 {
+	if len(s) != 4 {
+		panic("E4.SetBase: expected 4 elements")
+	}
+	z.B0.A0 = s[0]
+	z.B0.A1 = s[1]
+	z.B1.A0 = s[2]
+	z.B1.A1 = s[3]
+	return z
+}
+
 // Marshal returns the big-endian encodings of the coefficients
 // B0.A0, B0.A1, B1.A0, B1.A1 concatenated, BytesE4 bytes in total
 func (z *E4) Marshal() []byte {
