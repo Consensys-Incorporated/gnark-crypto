@@ -1,0 +1,444 @@
+// Copyright 2026 Consensys Software Inc.
+// Licensed under the Apache License, Version 2.0. See the LICENSE file for details.
+
+package bls12381
+
+import (
+	"crypto/sha512"
+	"encoding/binary"
+	"fmt"
+	"math/big"
+	"os"
+	"runtime"
+	"strconv"
+	"strings"
+	"testing"
+
+	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
+)
+
+var msmBenchWindows = []int{4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
+
+func msmBenchInts(tb testing.TB, key string, fallback []int) []int {
+	tb.Helper()
+	text := os.Getenv(key)
+	if text == "" {
+		return fallback
+	}
+	values := make([]int, 0)
+	for _, item := range strings.Split(text, ",") {
+		value, err := strconv.Atoi(item)
+		if err != nil || value < 0 {
+			tb.Fatalf("invalid %s: %q", key, item)
+		}
+		values = append(values, value)
+	}
+	return values
+}
+
+func msmBenchDistributions() []string {
+	if text := os.Getenv("MSM_BENCH_DISTRIBUTIONS"); text != "" {
+		return strings.Split(text, ",")
+	}
+	return []string{"uniform"}
+}
+
+// Rejection sampling gives uniform full-width scalars for every scalar field,
+// including BW6-761's larger field. The stream is identical in both checkouts.
+func msmBenchScalar(index int) fr.Element {
+	var message [24]byte
+	binary.LittleEndian.PutUint64(message[:8], 875)
+	binary.LittleEndian.PutUint64(message[8:16], uint64(index))
+	byteLen := (fr.Bits + 7) / 8
+	for counter := uint64(0); ; counter++ {
+		binary.LittleEndian.PutUint64(message[16:], counter)
+		hash := sha512.Sum512(message[:])
+		bytes := hash[:byteLen]
+		if excess := byteLen*8 - fr.Bits; excess != 0 {
+			bytes[0] &= byte(255 >> excess)
+		}
+		var scalar fr.Element
+		if err := scalar.SetBytesCanonical(bytes); err == nil {
+			return scalar
+		}
+	}
+}
+
+func msmBenchScalars(tb testing.TB, n int, distribution string) []fr.Element {
+	tb.Helper()
+	values := make([]fr.Element, n)
+	for i := range values {
+		switch distribution {
+		case "uniform":
+			values[i] = msmBenchScalar(i)
+		case "small":
+			values[i].SetUint64(uint64(i%65535 + 1))
+		case "zeros":
+			if i%2 != 0 {
+				values[i] = msmBenchScalar(i)
+			}
+		case "repeated":
+			values[i] = msmBenchScalar(i / 100)
+		default:
+			tb.Fatalf("unknown distribution %q", distribution)
+		}
+	}
+	return values
+}
+
+func msmBenchCoefficient(scalars []fr.Element) *big.Int {
+	var coefficient, multiplier, product fr.Element
+	for i := range scalars {
+		multiplier.SetUint64(uint64(i + 1))
+		product.Mul(&scalars[i], &multiplier)
+		coefficient.Add(&coefficient, &product)
+	}
+	return coefficient.BigInt(new(big.Int))
+}
+
+var msmBenchSinkG1 G1Jac
+
+// All bases are distinct valid subgroup points: points[i] = (i+1) * generator.
+// Blockwise normalization bounds temporary memory and keeps generation untimed.
+func msmBenchPointsG1(n int) []G1Affine {
+	_, _, g1, g2 := Generators()
+	_ = g1
+	_ = g2
+	generator := g1
+	points := make([]G1Affine, n)
+	var current G1Jac
+	current.FromAffine(&generator)
+	const blockSize = 4096
+	block := make([]G1Jac, min(n, blockSize))
+	for start := 0; start < n; start += blockSize {
+		count := min(blockSize, n-start)
+		for j := 0; j < count; j++ {
+			block[j] = current
+			current.AddMixed(&generator)
+		}
+		accumulator := block[0].Z
+		accumulator.SetOne()
+		for j := 0; j < count; j++ {
+			points[start+j].X = accumulator
+			accumulator.Mul(&accumulator, &block[j].Z)
+		}
+		inverse := accumulator
+		inverse.Inverse(&accumulator)
+		for j := count - 1; j >= 0; j-- {
+			point := &points[start+j]
+			point.X.Mul(&point.X, &inverse)
+			inverse.Mul(&inverse, &block[j].Z)
+			zi := point.X
+			zi2 := zi
+			zi2.Square(&zi)
+			point.X.Mul(&block[j].X, &zi2)
+			point.Y.Mul(&block[j].Y, &zi2).Mul(&point.Y, &zi)
+		}
+	}
+	return points
+}
+
+func msmBenchExpectedG1(scalars []fr.Element) G1Jac {
+	g1, g2, _, _ := Generators()
+	_ = g1
+	_ = g2
+	var result G1Jac
+	result.ScalarMultiplication(&g1, msmBenchCoefficient(scalars))
+	return result
+}
+
+func TestMSMBenchmarkFixtureG1(t *testing.T) {
+	points := msmBenchPointsG1(129)
+	_, _, g1, g2 := Generators()
+	_ = g1
+	_ = g2
+	for _, i := range []int{0, 1, 2, 63, 128} {
+		var expected G1Affine
+		expected.ScalarMultiplication(&g1, big.NewInt(int64(i+1)))
+		if !points[i].Equal(&expected) || !points[i].IsInSubGroup() {
+			t.Fatalf("invalid benchmark base %d", i)
+		}
+	}
+	// Validate a simple sum of individual scalar multiplications as well as
+	// the known-coefficient oracle before timing any window or public API.
+	for _, distribution := range []string{"uniform", "small", "zeros", "repeated"} {
+		scalars := msmBenchScalars(t, len(points), distribution)
+		expected := msmBenchExpectedG1(scalars)
+		var naive, term, base G1Jac
+		for i := range points {
+			base.FromAffine(&points[i])
+			term.ScalarMultiplication(&base, scalars[i].BigInt(new(big.Int)))
+			naive.AddAssign(&term)
+		}
+		if !naive.Equal(&expected) {
+			t.Fatal("coefficient oracle mismatch")
+		}
+		for _, c := range msmBenchWindows {
+			var actual G1Jac
+			_innerMsmG1(&actual, uint64(c), points, scalars, ecc.MultiExpConfig{NbTasks: 1})
+			if !actual.Equal(&expected) {
+				t.Fatalf("%s c=%d mismatch", distribution, c)
+			}
+		}
+		for _, tasks := range []int{1, runtime.NumCPU(), 0} {
+			var actual G1Jac
+			if _, err := actual.MultiExp(points, scalars, ecc.MultiExpConfig{NbTasks: tasks}); err != nil {
+				t.Fatal(err)
+			}
+			if !actual.Equal(&expected) {
+				t.Fatalf("%s tasks=%d mismatch", distribution, tasks)
+			}
+		}
+	}
+}
+
+func msmRunBenchmarkG1(b *testing.B, fixed bool) {
+	sizes := msmBenchInts(b, "MSM_BENCH_SIZES", []int{512, 1024, 1536, 2048, 4096, 8192, 16384, 32768, 65536, 262144, 1048576})
+	tasks := msmBenchInts(b, "MSM_BENCH_TASKS", []int{1, runtime.NumCPU(), 0})
+	windows := []int{0}
+	if fixed {
+		windows = msmBenchInts(b, "MSM_BENCH_WINDOWS", msmBenchWindows)
+	}
+	maxSize := 0
+	for _, n := range sizes {
+		if n < 1 {
+			b.Fatal("sizes must be positive")
+		}
+		maxSize = max(maxSize, n)
+	}
+	points := msmBenchPointsG1(maxSize)
+	for _, distribution := range msmBenchDistributions() {
+		scalars := msmBenchScalars(b, maxSize, distribution)
+		for _, n := range sizes {
+			expected := msmBenchExpectedG1(scalars[:n])
+			for _, taskCount := range tasks {
+				actualTasks := taskCount
+				if actualTasks == 0 {
+					actualTasks = runtime.NumCPU() * 2
+				}
+				for _, c := range windows {
+					if fixed {
+						valid := false
+						for _, supported := range msmBenchWindows {
+							valid = valid || c == supported
+						}
+						if !valid {
+							b.Fatalf("unsupported window %d", c)
+						}
+					}
+					name := fmt.Sprintf("n=%d/dist=%s/tasks=%d", n, distribution, taskCount)
+					if fixed {
+						name += fmt.Sprintf("/c=%d", c)
+					}
+					b.Run(name, func(b *testing.B) {
+						var result G1Jac
+						config := ecc.MultiExpConfig{NbTasks: taskCount}
+						if fixed {
+							config.NbTasks = actualTasks
+						}
+						run := func() {
+							if fixed {
+								_innerMsmG1(&result, uint64(c), points[:n], scalars[:n], config)
+							} else {
+								if _, err := result.MultiExp(points[:n], scalars[:n], config); err != nil {
+									b.Fatal(err)
+								}
+							}
+						}
+						run()
+						if !result.Equal(&expected) {
+							b.Fatal("untimed MSM verification failed")
+						}
+						b.ReportAllocs()
+						b.ResetTimer()
+						for i := 0; i < b.N; i++ {
+							run()
+						}
+						b.StopTimer()
+						if !result.Equal(&expected) {
+							b.Fatal("timed MSM verification failed")
+						}
+						msmBenchSinkG1 = result
+					})
+				}
+			}
+		}
+	}
+}
+
+func BenchmarkMSMPublicG1(b *testing.B) { msmRunBenchmarkG1(b, false) }
+func BenchmarkMSMFixedG1(b *testing.B)  { msmRunBenchmarkG1(b, true) }
+
+var msmBenchSinkG2 G2Jac
+
+// All bases are distinct valid subgroup points: points[i] = (i+1) * generator.
+// Blockwise normalization bounds temporary memory and keeps generation untimed.
+func msmBenchPointsG2(n int) []G2Affine {
+	_, _, g1, g2 := Generators()
+	_ = g1
+	_ = g2
+	generator := g2
+	points := make([]G2Affine, n)
+	var current G2Jac
+	current.FromAffine(&generator)
+	const blockSize = 4096
+	block := make([]G2Jac, min(n, blockSize))
+	for start := 0; start < n; start += blockSize {
+		count := min(blockSize, n-start)
+		for j := 0; j < count; j++ {
+			block[j] = current
+			current.AddMixed(&generator)
+		}
+		accumulator := block[0].Z
+		accumulator.SetOne()
+		for j := 0; j < count; j++ {
+			points[start+j].X = accumulator
+			accumulator.Mul(&accumulator, &block[j].Z)
+		}
+		inverse := accumulator
+		inverse.Inverse(&accumulator)
+		for j := count - 1; j >= 0; j-- {
+			point := &points[start+j]
+			point.X.Mul(&point.X, &inverse)
+			inverse.Mul(&inverse, &block[j].Z)
+			zi := point.X
+			zi2 := zi
+			zi2.Square(&zi)
+			point.X.Mul(&block[j].X, &zi2)
+			point.Y.Mul(&block[j].Y, &zi2).Mul(&point.Y, &zi)
+		}
+	}
+	return points
+}
+
+func msmBenchExpectedG2(scalars []fr.Element) G2Jac {
+	g1, g2, _, _ := Generators()
+	_ = g1
+	_ = g2
+	var result G2Jac
+	result.ScalarMultiplication(&g2, msmBenchCoefficient(scalars))
+	return result
+}
+
+func TestMSMBenchmarkFixtureG2(t *testing.T) {
+	points := msmBenchPointsG2(129)
+	_, _, g1, g2 := Generators()
+	_ = g1
+	_ = g2
+	for _, i := range []int{0, 1, 2, 63, 128} {
+		var expected G2Affine
+		expected.ScalarMultiplication(&g2, big.NewInt(int64(i+1)))
+		if !points[i].Equal(&expected) || !points[i].IsInSubGroup() {
+			t.Fatalf("invalid benchmark base %d", i)
+		}
+	}
+	// Validate a simple sum of individual scalar multiplications as well as
+	// the known-coefficient oracle before timing any window or public API.
+	for _, distribution := range []string{"uniform", "small", "zeros", "repeated"} {
+		scalars := msmBenchScalars(t, len(points), distribution)
+		expected := msmBenchExpectedG2(scalars)
+		var naive, term, base G2Jac
+		for i := range points {
+			base.FromAffine(&points[i])
+			term.ScalarMultiplication(&base, scalars[i].BigInt(new(big.Int)))
+			naive.AddAssign(&term)
+		}
+		if !naive.Equal(&expected) {
+			t.Fatal("coefficient oracle mismatch")
+		}
+		for _, c := range msmBenchWindows {
+			var actual G2Jac
+			_innerMsmG2(&actual, uint64(c), points, scalars, ecc.MultiExpConfig{NbTasks: 1})
+			if !actual.Equal(&expected) {
+				t.Fatalf("%s c=%d mismatch", distribution, c)
+			}
+		}
+		for _, tasks := range []int{1, runtime.NumCPU(), 0} {
+			var actual G2Jac
+			if _, err := actual.MultiExp(points, scalars, ecc.MultiExpConfig{NbTasks: tasks}); err != nil {
+				t.Fatal(err)
+			}
+			if !actual.Equal(&expected) {
+				t.Fatalf("%s tasks=%d mismatch", distribution, tasks)
+			}
+		}
+	}
+}
+
+func msmRunBenchmarkG2(b *testing.B, fixed bool) {
+	sizes := msmBenchInts(b, "MSM_BENCH_SIZES", []int{512, 1024, 1536, 2048, 4096, 8192, 16384, 32768, 65536, 262144, 1048576})
+	tasks := msmBenchInts(b, "MSM_BENCH_TASKS", []int{1, runtime.NumCPU(), 0})
+	windows := []int{0}
+	if fixed {
+		windows = msmBenchInts(b, "MSM_BENCH_WINDOWS", msmBenchWindows)
+	}
+	maxSize := 0
+	for _, n := range sizes {
+		if n < 1 {
+			b.Fatal("sizes must be positive")
+		}
+		maxSize = max(maxSize, n)
+	}
+	points := msmBenchPointsG2(maxSize)
+	for _, distribution := range msmBenchDistributions() {
+		scalars := msmBenchScalars(b, maxSize, distribution)
+		for _, n := range sizes {
+			expected := msmBenchExpectedG2(scalars[:n])
+			for _, taskCount := range tasks {
+				actualTasks := taskCount
+				if actualTasks == 0 {
+					actualTasks = runtime.NumCPU() * 2
+				}
+				for _, c := range windows {
+					if fixed {
+						valid := false
+						for _, supported := range msmBenchWindows {
+							valid = valid || c == supported
+						}
+						if !valid {
+							b.Fatalf("unsupported window %d", c)
+						}
+					}
+					name := fmt.Sprintf("n=%d/dist=%s/tasks=%d", n, distribution, taskCount)
+					if fixed {
+						name += fmt.Sprintf("/c=%d", c)
+					}
+					b.Run(name, func(b *testing.B) {
+						var result G2Jac
+						config := ecc.MultiExpConfig{NbTasks: taskCount}
+						if fixed {
+							config.NbTasks = actualTasks
+						}
+						run := func() {
+							if fixed {
+								_innerMsmG2(&result, uint64(c), points[:n], scalars[:n], config)
+							} else {
+								if _, err := result.MultiExp(points[:n], scalars[:n], config); err != nil {
+									b.Fatal(err)
+								}
+							}
+						}
+						run()
+						if !result.Equal(&expected) {
+							b.Fatal("untimed MSM verification failed")
+						}
+						b.ReportAllocs()
+						b.ResetTimer()
+						for i := 0; i < b.N; i++ {
+							run()
+						}
+						b.StopTimer()
+						if !result.Equal(&expected) {
+							b.Fatal("timed MSM verification failed")
+						}
+						msmBenchSinkG2 = result
+					})
+				}
+			}
+		}
+	}
+}
+
+func BenchmarkMSMPublicG2(b *testing.B) { msmRunBenchmarkG2(b, false) }
+func BenchmarkMSMFixedG2(b *testing.B)  { msmRunBenchmarkG2(b, true) }
