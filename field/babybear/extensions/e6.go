@@ -150,6 +150,26 @@ func (z *E6) BigInt(res *big.Int) *big.Int {
 	return z.B0.A0.BigInt(res)
 }
 
+// AppendBase appends the coordinates B0.A0, B0.A1, B1.A0, B1.A1, B2.A0, B2.A1 of z to s, and returns the extended slice
+func (z *E6) AppendBase(s []fr.Element) []fr.Element {
+	return append(s, z.B0.A0, z.B0.A1, z.B1.A0, z.B1.A1, z.B2.A0, z.B2.A1)
+}
+
+// SetBase sets the coordinates B0.A0, B0.A1, B1.A0, B1.A1, B2.A0, B2.A1 of z to s, and returns z.
+// It panics unless len(s) == 6.
+func (z *E6) SetBase(s []fr.Element) *E6 {
+	if len(s) != 6 {
+		panic("E6.SetBase: expected 6 elements")
+	}
+	z.B0.A0 = s[0]
+	z.B0.A1 = s[1]
+	z.B1.A0 = s[2]
+	z.B1.A1 = s[3]
+	z.B2.A0 = s[4]
+	z.B2.A1 = s[5]
+	return z
+}
+
 // Marshal returns the big-endian encodings of the coefficients
 // B0.A0, B0.A1, B1.A0, B1.A1, B2.A0, B2.A1 concatenated, BytesE6 bytes in total
 func (z *E6) Marshal() []byte {

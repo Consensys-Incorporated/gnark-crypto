@@ -655,3 +655,32 @@ func TestE2ElementOps(t *testing.T) {
 		require.True(t, got.Equal(&x), "SubElement alias")
 	}
 }
+
+func TestE2Base(t *testing.T) {
+	for range 100 {
+		var x, y E2
+		x.MustSetRandom()
+
+		prefix := make([]fr.Element, 2)
+		prefix[0].MustSetRandom()
+		prefix[1].MustSetRandom()
+		base := x.AppendBase(append([]fr.Element(nil), prefix...))
+		require.Len(t, base, 2+2)
+		require.Equal(t, prefix, base[:2], "AppendBase must keep the prefix")
+
+		require.True(t, y.SetBase(base[2:]).Equal(&x), "SetBase(AppendBase(x)) != x")
+
+		// the coordinate order is the one of Marshal
+		var want []byte
+		for i := range base[2:] {
+			b := base[2+i].Bytes()
+			want = append(want, b[:]...)
+		}
+		require.Equal(t, want, x.Marshal())
+	}
+
+	var z E2
+	for _, n := range []int{0, 2 - 1, 2 + 1} {
+		require.Panics(t, func() { z.SetBase(make([]fr.Element, n)) }, "SetBase on %d elements", n)
+	}
+}

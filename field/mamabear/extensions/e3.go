@@ -115,6 +115,23 @@ func (z *E3) BigInt(res *big.Int) *big.Int {
 	return z.A0.BigInt(res)
 }
 
+// AppendBase appends the coordinates A0, A1, A2 of z to s, and returns the extended slice
+func (z *E3) AppendBase(s []fr.Element) []fr.Element {
+	return append(s, z.A0, z.A1, z.A2)
+}
+
+// SetBase sets the coordinates A0, A1, A2 of z to s, and returns z.
+// It panics unless len(s) == 3.
+func (z *E3) SetBase(s []fr.Element) *E3 {
+	if len(s) != 3 {
+		panic("E3.SetBase: expected 3 elements")
+	}
+	z.A0 = s[0]
+	z.A1 = s[1]
+	z.A2 = s[2]
+	return z
+}
+
 // Marshal returns the big-endian encodings of the coefficients
 // A0, A1, A2 concatenated, BytesE3 bytes in total
 func (z *E3) Marshal() []byte {
