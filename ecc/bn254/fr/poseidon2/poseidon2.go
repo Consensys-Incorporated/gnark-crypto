@@ -12,6 +12,7 @@ import (
 	"golang.org/x/crypto/sha3"
 
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
+	"github.com/consensys/gnark-crypto/internal/matrix"
 )
 
 var (
@@ -138,6 +139,29 @@ func (p *Parameters) applyPoseidon2Constants() bool {
 type Permutation struct {
 	// params parameters describing the instance
 	params *Parameters
+}
+
+// ExternalMatrix returns the dense external matrix M_E of the permutation, which
+// is applied to the state before the first round and after each full round.
+// With I and J the identity and the all-ones matrices, and M4 the 4×4 block of
+// the Poseidon2 paper (rows 5 7 1 3 / 4 6 1 1 / 1 3 5 7 / 1 1 4 6), M_E is
+//
+//   - I + J for width 2 and 3;
+//   - M4 for width 4;
+//   - circ(2·M4, M4, ..., M4) = (I + J) ⊗ M4 for width 4k with k > 1.
+func (p *Parameters) ExternalMatrix() [][]fr.Element {
+	return matrix.FromLinearMap(p.Width, (&Permutation{params: p}).matMulExternalInPlace)
+}
+
+// InternalMatrix returns the dense internal matrix M_I of the permutation, which
+// is applied to the state after each partial round. With J the all-ones matrix,
+//
+//	M_I = J + diag(d),
+//
+// that is, for a state x, (M_I·x)_i = Σ_j x_j + d_i·x_i, where d is the diagonal
+// of the permutation (DiagM1 for the widths of 4 and more).
+func (p *Parameters) InternalMatrix() [][]fr.Element {
+	return matrix.FromLinearMap(p.Width, (&Permutation{params: p}).matMulInternalInPlace)
 }
 
 // NewPermutation returns a new Poseidon2 permutation instance.
