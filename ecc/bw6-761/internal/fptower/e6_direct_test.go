@@ -246,3 +246,25 @@ func BenchmarkE6DSquareMontgomery6(b *testing.B) {
 		a.squareMontgomery6(&a)
 	}
 }
+
+func TestE6DSetString(t *testing.T) {
+	var a E6D
+	if _, err := a.SetString("1", "2", "3", "4", "5", "6"); err != nil {
+		t.Fatal(err)
+	}
+	if a.A5.String() != "6" {
+		t.Fatalf("last component: expected 6, got %s", a.A5.String())
+	}
+
+	before := a
+	res, err := a.SetString("1", "2", "3", "4", "5", "not-a-number")
+	if err == nil {
+		t.Fatal("expected an error for an invalid component")
+	}
+	if res != nil {
+		t.Fatal("expected a nil result on error")
+	}
+	if a != before {
+		t.Fatal("receiver must be left unchanged on error")
+	}
+}

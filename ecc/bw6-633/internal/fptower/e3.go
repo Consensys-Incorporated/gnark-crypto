@@ -20,12 +20,21 @@ func (z *E3) Equal(x *E3) bool {
 	return z.A0.Equal(&x.A0) && z.A1.Equal(&x.A1) && z.A2.Equal(&x.A2)
 }
 
-// SetString sets a E3 elmt from string
-func (z *E3) SetString(s1, s2, s3 string) *E3 {
-	z.A0.SetString(s1)
-	z.A1.SetString(s2)
-	z.A2.SetString(s3)
-	return z
+// SetString sets z from strings and returns z.
+// If any component fails to parse, z is left unchanged and SetString returns nil, error.
+func (z *E3) SetString(s1, s2, s3 string) (*E3, error) {
+	var t E3
+	if _, err := t.A0.SetString(s1); err != nil {
+		return nil, err
+	}
+	if _, err := t.A1.SetString(s2); err != nil {
+		return nil, err
+	}
+	if _, err := t.A2.SetString(s3); err != nil {
+		return nil, err
+	}
+	*z = t
+	return z, nil
 }
 
 // SetZero sets an E3 elmt to zero

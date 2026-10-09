@@ -1248,3 +1248,25 @@ func TestE4ElementOps(t *testing.T) {
 		require.True(t, got.Equal(&x), "SubElement alias")
 	}
 }
+
+func TestE4SetString(t *testing.T) {
+	var a E4
+	if _, err := a.SetString("1", "2", "3", "4"); err != nil {
+		t.Fatal(err)
+	}
+	if a.B1.A1.String() != "4" {
+		t.Fatalf("last component: expected 4, got %s", a.B1.A1.String())
+	}
+
+	before := a
+	res, err := a.SetString("1", "2", "3", "not-a-number")
+	if err == nil {
+		t.Fatal("expected an error for an invalid component")
+	}
+	if res != nil {
+		t.Fatal("expected a nil result on error")
+	}
+	if a != before {
+		t.Fatal("receiver must be left unchanged on error")
+	}
+}
