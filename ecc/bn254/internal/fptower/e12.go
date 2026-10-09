@@ -37,10 +37,14 @@ func (z *E12) String() string {
 }
 
 // SetString sets a E12 from string
-func (z *E12) SetString(s0, s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11 string) *E12 {
-	z.C0.SetString(s0, s1, s2, s3, s4, s5)
-	z.C1.SetString(s6, s7, s8, s9, s10, s11)
-	return z
+func (z *E12) SetString(s0, s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11 string) (*E12, error) {
+	if _, err := z.C0.SetString(s0, s1, s2, s3, s4, s5); err != nil {
+		return nil, err
+	}
+	if _, err := z.C1.SetString(s6, s7, s8, s9, s10, s11); err != nil {
+		return nil, err
+	}
+	return z, nil
 }
 
 // Set copies x into z and returns z

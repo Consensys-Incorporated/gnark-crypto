@@ -49,11 +49,17 @@ func (z *E6) String() string {
 }
 
 // SetString sets a E6 from string
-func (z *E6) SetString(s1, s2, s3, s4, s5, s6 string) *E6 {
-	z.B0.SetString(s1, s2)
-	z.B1.SetString(s3, s4)
-	z.B2.SetString(s5, s6)
-	return z
+func (z *E6) SetString(s1, s2, s3, s4, s5, s6 string) (*E6, error) {
+	if _, err := z.B0.SetString(s1, s2); err != nil {
+		return nil, err
+	}
+	if _, err := z.B1.SetString(s3, s4); err != nil {
+		return nil, err
+	}
+	if _, err := z.B2.SetString(s5, s6); err != nil {
+		return nil, err
+	}
+	return z, nil
 }
 
 // Set copies x into z and returns z
