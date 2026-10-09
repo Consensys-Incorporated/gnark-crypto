@@ -104,6 +104,8 @@ func main() {
 
 			// polynomial package (Polynomial, MultiLin, Pool, ...) over the
 			// requested extensions
+			extPolyDir := filepath.Join(outputDir, "extensions", "polynomial")
+			var extInfos []fieldConfig.FieldDependency
 			for i, degree := range f.PolynomialExtensions {
 				extInfo := fieldConfig.FieldDependency{
 					FieldPackagePath:     "github.com/consensys/gnark-crypto/field/" + f.Name + "/extensions",
@@ -112,7 +114,11 @@ func main() {
 					ExtensionDegree:      degree,
 					BaseFieldPackagePath: "github.com/consensys/gnark-crypto/field/" + f.Name,
 				}
-				assertNoError(polynomial.Generate(extInfo, filepath.Join(outputDir, "extensions", "polynomial"), i == 0, true, gen))
+				assertNoError(polynomial.Generate(extInfo, extPolyDir, i == 0, true, gen))
+				extInfos = append(extInfos, extInfo)
+			}
+			if len(extInfos) > 0 {
+				assertNoError(polynomial.GeneratePool(extPolyDir, extInfos...))
 			}
 		}(conf)
 	}
