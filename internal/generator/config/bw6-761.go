@@ -61,6 +61,7 @@ var BW6_761 = Curve{
 		B: []string{"0xe1c43bfe2767901cf467cf40adfb7afe484d0d477552a8570a117661033c8dce4d56ccf35850bb0a5c646e4433a9b0e43b8701384b604cf95ffbd668698f8bd2f2739baa20c154eb7c88974a36fb5487c4cd8a1eb00205769d93924cfb0ba0"},
 		Z: []int{11},
 		Isogeny: &Isogeny{
+			Chains: &bw6761G2IsogenyChains,
 
 			XMap: RationalPolynomial{
 				Num: [][]string{

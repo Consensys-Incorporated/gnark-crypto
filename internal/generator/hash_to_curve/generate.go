@@ -48,6 +48,7 @@ func Generate(conf config.Curve, baseDir string, gen *common.Generator) error {
 
 		funcs := make(txttmpl.FuncMap)
 		funcs["asElement"] = hashConf.Field.Base.WriteElement
+		funcs["chainCode"] = chainCode
 		bavardOpts := []func(*bavard.Bavard) error{bavard.Funcs(funcs)}
 
 		return errors.Join(
