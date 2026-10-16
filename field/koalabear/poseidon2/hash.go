@@ -13,13 +13,17 @@ import (
 	gnarkHash "github.com/consensys/gnark-crypto/hash"
 )
 
+// MerkleDamgardHasher is a Merkle-Damgard hasher over blocks of elements of the
+// field. It hashes both bytes and field elements.
+type MerkleDamgardHasher = gnarkHash.FieldMerkleDamgardHasher[fr.Element, *fr.Element]
+
 // NewMerkleDamgardHasher returns a Poseidon2 hasher using the Merkle-Damgard
 // construction with the default parameters.
-func NewMerkleDamgardHasher() gnarkHash.StateStorer {
+func NewMerkleDamgardHasher() *MerkleDamgardHasher {
 	p := NewDefaultPermutation()
-	return gnarkHash.NewMerkleDamgardHasher(
-		p,
-		make([]byte, p.params.Width/2*fr.Bytes),
+	return gnarkHash.NewFieldMerkleDamgardHasher[fr.Element, *fr.Element](
+		NewCompressor(p),
+		make([]fr.Element, p.params.Width/2),
 	)
 }
 

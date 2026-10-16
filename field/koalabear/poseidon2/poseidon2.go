@@ -6,12 +6,9 @@
 package poseidon2
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
-	"io"
 	"runtime"
-	"slices"
 
 	"golang.org/x/crypto/sha3"
 
@@ -315,6 +312,9 @@ func (h *Permutation) addRoundKeyInPlace(round int, input []fr.Element) {
 	}
 }
 
+// BlockSize returns the size in bytes of the blocks of [Permutation.Compress].
+//
+// Deprecated: use [Compressor.CompressField].
 func (h *Permutation) BlockSize() int {
 	return h.params.Width / 2 * fr.Bytes
 }
@@ -369,6 +369,8 @@ func (h *Permutation) Permutation(input []fr.Element) error {
 // Compress uses the permutation to compress the left and right input in a collision resistant manner.
 // left and right must each be concatenations of t/2 fr.Elements, where t is the width of the permutation.
 // The result is the concatenation of t/2 fr.Elements.
+//
+// Deprecated: use [Compressor.CompressField].
 func (h *Permutation) Compress(left []byte, right []byte) ([]byte, error) {
 	n := h.params.Width / 2
 	if h.params.Width != 2*n {
@@ -380,30 +382,58 @@ func (h *Permutation) Compress(left []byte, right []byte) ([]byte, error) {
 		return nil, fmt.Errorf("left input should be %d bytes", desiredLen)
 	}
 
-	reader := io.MultiReader(bytes.NewReader(left), bytes.NewReader(right))
 	x := make([]fr.Element, h.params.Width)
-	var buf [fr.Bytes]byte
-
-	for i := range x {
-		if _, err := io.ReadFull(reader, buf[:]); err != nil {
-			return nil, err
-		}
-		if err := x[i].SetBytesCanonical(buf[:]); err != nil {
+	l, r := x[:n], x[n:]
+	for i := range n {
+		if err := l[i].SetBytesCanonical(left[i*fr.Bytes : (i+1)*fr.Bytes]); err != nil {
 			return nil, err
 		}
 	}
-
-	res := slices.Clone(x[n:]) // saved to feed forward later
-	if err := h.Permutation(x[:]); err != nil {
-		return nil, err
+	for i := range n {
+		if err := r[i].SetBytesCanonical(right[i*fr.Bytes : (i+1)*fr.Bytes]); err != nil {
+			return nil, err
+		}
 	}
 
-	outBytes := make([]byte, 0, n*fr.Bytes)
-	for i := range res {
-		outBytes = append(outBytes, res[i].Add(&res[i], &x[n+i]).Marshal()...)
-	}
+	NewCompressor(h).CompressField(l, l, r)
 
+	outBytes := make([]byte, 0, desiredLen)
+	for i := range n {
+		b := l[i].Bytes()
+		outBytes = append(outBytes, b[:]...)
+	}
 	return outBytes, nil
+}
+
+// Compressor compresses blocks of t/2 elements with a Poseidon2 permutation of
+// width t, in the same way as [Permutation.Compress] does on bytes. It holds a
+// buffer, so it is not safe for concurrent use; goroutines sharing a
+// [Permutation] should each create their own Compressor.
+type Compressor struct {
+	perm *Permutation
+	x    []fr.Element // buffer of the width of the permutation
+}
+
+// NewCompressor returns a Compressor over p. The width of p must be even.
+func NewCompressor(p *Permutation) *Compressor {
+	if p.params.Width%2 != 0 {
+		panic("poseidon2: the width of the permutation must be even")
+	}
+	return &Compressor{perm: p, x: make([]fr.Element, p.params.Width)}
+}
+
+// CompressField implements hash.FieldCompressor. dst, left and right have t/2
+// elements, and dst may alias left or right.
+func (c *Compressor) CompressField(dst, left, right []fr.Element) {
+	n := len(c.x) / 2
+	copy(c.x, left)
+	copy(c.x[n:], right)
+	if err := c.perm.Permutation(c.x); err != nil {
+		panic(err)
+	}
+	for i := range n {
+		dst[i].Add(&right[i], &c.x[n+i])
+	}
 }
 
 // Permutation16x24 applies the permutation on input.

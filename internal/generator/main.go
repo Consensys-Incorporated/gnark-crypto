@@ -27,6 +27,7 @@ import (
 	fieldConfig "github.com/consensys/gnark-crypto/internal/generator/field/config"
 	"github.com/consensys/gnark-crypto/internal/generator/hash_to_curve"
 	"github.com/consensys/gnark-crypto/internal/generator/hash_to_field"
+	"github.com/consensys/gnark-crypto/internal/generator/hashadapter"
 	"github.com/consensys/gnark-crypto/internal/generator/kzg"
 	"github.com/consensys/gnark-crypto/internal/generator/mpcsetup"
 	"github.com/consensys/gnark-crypto/internal/generator/pairing"
@@ -95,7 +96,7 @@ func main() {
 			// polynomial package (Polynomial, MultiLin, Pool, ...) over the base
 			// field. It is only needed by the polynomial packages over the
 			// extensions, whose FoldFromBase takes a base field MultiLin.
-			if len(f.PolynomialExtensions) > 0 {
+			if len(f.UtilitiesExtensions) > 0 {
 				assertNoError(polynomial.Generate(fieldConfig.FieldDependency{
 					FieldPackagePath: "github.com/consensys/gnark-crypto/field/" + f.Name,
 					FieldPackageName: f.Name,
@@ -103,11 +104,11 @@ func main() {
 				}, filepath.Join(outputDir, "polynomial"), true, true, gen))
 			}
 
-			// polynomial package (Polynomial, MultiLin, Pool, ...) over the
-			// requested extensions
+			// utility packages (polynomial, hash adapters) over the requested
+			// extensions
 			extPolyDir := filepath.Join(outputDir, "extensions", "polynomial")
 			var extInfos []fieldConfig.FieldDependency
-			for i, degree := range f.PolynomialExtensions {
+			for i, degree := range f.UtilitiesExtensions {
 				extInfo := fieldConfig.FieldDependency{
 					FieldPackagePath:     "github.com/consensys/gnark-crypto/field/" + f.Name + "/extensions",
 					FieldPackageName:     "extensions",
@@ -120,6 +121,7 @@ func main() {
 			}
 			if len(extInfos) > 0 {
 				assertNoError(polynomial.GeneratePool(extPolyDir, extInfos...))
+				assertNoError(hashadapter.Generate(filepath.Join(outputDir, "extensions", "hash"), extInfos...))
 			}
 		}(conf)
 	}

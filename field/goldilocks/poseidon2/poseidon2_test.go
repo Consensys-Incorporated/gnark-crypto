@@ -6,9 +6,13 @@
 package poseidon2
 
 import (
+	"bytes"
+	"io"
 	"testing"
 
 	fr "github.com/consensys/gnark-crypto/field/goldilocks"
+	gnarkHash "github.com/consensys/gnark-crypto/hash"
+	"github.com/stretchr/testify/require"
 )
 
 func TestMulMulInternalInPlaceWidth8(t *testing.T) {
@@ -105,6 +109,108 @@ func TestMatricesMatchInPlace(t *testing.T) {
 			}
 		}
 	}
+}
+
+func randomElements(n int) []fr.Element {
+	e := make([]fr.Element, n)
+	fr.Vector(e).MustSetRandom()
+	return e
+}
+
+func marshalElements(e []fr.Element) []byte {
+	var b []byte
+	for i := range e {
+		b = append(b, e[i].Marshal()...)
+	}
+	return b
+}
+
+// TestMerkleDamgard checks that, after each call, the hasher matches the byte
+// Merkle-Damgard hasher, whether the input is written as bytes or alternately as
+// bytes and field elements, and that a hasher restored from State continues as
+// the original does after PadBlock.
+func TestMerkleDamgard(t *testing.T) {
+	p := NewDefaultPermutation()
+	blockLen := p.params.Width / 2
+
+	// A call writes k bytes of value 1, then n elements. With k != 0 it is written
+	// as bytes, and its last block does not end on an element boundary.
+	type call struct{ k, n int }
+	cases := [][]call{
+		{{n: 0}},
+		{{n: 1}},
+		{{n: blockLen}},
+		{{n: blockLen - 1}, {n: 3}},
+		{{n: 2*blockLen + 1}, {n: 5}, {n: 0}, {n: blockLen}},
+		{{n: 37}},
+	}
+	for k := 1; k < fr.Bytes; k++ {
+		for n := range blockLen {
+			cases = append(cases, []call{{n: blockLen}, {k: k, n: n}})
+		}
+	}
+
+	write := func(t *testing.T, w io.Writer, b []byte) {
+		t.Helper()
+		n, err := w.Write(b)
+		require.NoError(t, err)
+		require.Equal(t, len(b), n)
+	}
+
+	for _, alternate := range []bool{false, true} {
+		name := "bytes"
+		if alternate {
+			name = "alternating"
+		}
+		t.Run(name, func(t *testing.T) {
+			for _, calls := range cases {
+				ref := gnarkHash.NewMerkleDamgardHasher(p, make([]byte, p.BlockSize()))
+				h := NewMerkleDamgardHasher()
+				h.WriteField(randomElements(1)...)
+				h.Reset() // discards the incomplete block
+
+				for i, c := range calls {
+					elems := randomElements(c.n)
+					b := append(bytes.Repeat([]byte{1}, c.k), marshalElements(elems)...)
+					write(t, ref, b)
+					field := c.k == 0 && alternate && i%2 == 0
+					if field {
+						h.WriteField(elems[:c.n/2]...)
+						h.SumField() // does not change the state
+						h.WriteField(elems[c.n/2:]...)
+					} else {
+						write(t, h, b)
+					}
+
+					msg := []any{"calls %v, call %d", calls, i}
+					want := ref.Sum(nil)
+					require.Equal(t, want, h.Sum(nil), msg...)
+					require.Equal(t, want, marshalElements(h.SumField()), msg...)
+					require.Equal(t, ref.State(), h.State(), msg...)
+				}
+
+				restored := NewMerkleDamgardHasher()
+				restored.WriteField(randomElements(1)...) // SetState discards the incomplete block
+				require.NoError(t, restored.SetState(h.State()))
+
+				h.PadBlock()
+				require.Equal(t, ref.State(), h.State(), "calls %v", calls)
+
+				more := marshalElements(randomElements(blockLen + 2))
+				write(t, h, more)
+				write(t, restored, more)
+				require.Equal(t, h.Sum(nil), restored.Sum(nil), "calls %v: the restored state gives another digest", calls)
+			}
+		})
+	}
+}
+
+// TestMerkleDamgardWriteFieldAllocs checks that writing a block of field elements
+// does not allocate.
+func TestMerkleDamgardWriteFieldAllocs(t *testing.T) {
+	h := NewMerkleDamgardHasher()
+	block := randomElements(NewDefaultPermutation().params.Width / 2)
+	require.Zero(t, testing.AllocsPerRun(100, func() { h.WriteField(block...) }))
 }
 func TestPoseidon2Width8(t *testing.T) {
 	var input, expected [8]fr.Element

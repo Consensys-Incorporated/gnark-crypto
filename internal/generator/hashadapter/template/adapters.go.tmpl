@@ -1,0 +1,48 @@
+import (
+	fr "{{.BaseFieldPackagePath}}"
+	"{{.FieldPackagePath}}"
+	"github.com/consensys/gnark-crypto/hash"
+)
+{{range .Adapters}}
+// BaseFieldHashAdapter{{.ExtensionName}} hashes elements of {{.ElementType}} with a hasher over the base
+// field. The {{.ExtensionDegree}} coordinates of each element are written in the order of AppendBase.
+//
+// The digest does not depend on how the elements are split among the calls to
+// WriteField, nor on the calls to SumField in between. Only PadBlock starts a new
+// block.
+type BaseFieldHashAdapter{{.ExtensionName}} struct {
+	hsh    hash.FieldHasher[fr.Element, []fr.Element]
+	coords []fr.Element // the coordinates of the element being written
+}
+
+var _ hash.FieldHasher[{{.ElementType}}, {{.ElementType}}] = (*BaseFieldHashAdapter{{.ExtensionName}})(nil)
+
+// NewBaseFieldHashAdapter{{.ExtensionName}} returns an adapter over baseHasher. The digest of
+// baseHasher must have at least {{.ExtensionDegree}} elements; otherwise NewBaseFieldHashAdapter{{.ExtensionName}} panics.
+func NewBaseFieldHashAdapter{{.ExtensionName}}(baseHasher hash.FieldHasher[fr.Element, []fr.Element]) *BaseFieldHashAdapter{{.ExtensionName}} {
+	if len(baseHasher.SumField()) < {{.ExtensionDegree}} {
+		panic("BaseFieldHashAdapter{{.ExtensionName}}: the digest of the base hasher has fewer than {{.ExtensionDegree}} elements")
+	}
+	return &BaseFieldHashAdapter{{.ExtensionName}}{hsh: baseHasher, coords: make([]fr.Element, 0, {{.ExtensionDegree}})}
+}
+
+// WriteField writes the coordinates of e to the base hasher.
+func (h *BaseFieldHashAdapter{{.ExtensionName}}) WriteField(e ...{{.ElementType}}) {
+	for i := range e {
+		h.coords = e[i].AppendBase(h.coords[:0])
+		h.hsh.WriteField(h.coords...)
+	}
+}
+
+// PadBlock ends the current block of the base hasher, see [hash.FieldHasher].
+func (h *BaseFieldHashAdapter{{.ExtensionName}}) PadBlock() {
+	h.hsh.PadBlock()
+}
+
+// SumField returns the first {{.ExtensionDegree}} elements of the digest of the base hasher as
+// an element of {{.ElementType}}.
+func (h *BaseFieldHashAdapter{{.ExtensionName}}) SumField() {{.ElementType}} {
+	var res {{.ElementType}}
+	return *res.SetBase(h.hsh.SumField()[:{{.ExtensionDegree}}])
+}
+{{end}}
