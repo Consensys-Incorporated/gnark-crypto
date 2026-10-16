@@ -4,6 +4,7 @@
 package utils
 
 import (
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -49,4 +50,22 @@ func TestPoolReusesDumpedSlice(t *testing.T) {
 	// "re-allocated non-dumped slice" check
 	b := pool.Make(4)
 	pool.Dump(b)
+}
+
+func TestPoolConcurrentMakeDump(t *testing.T) {
+	pool := NewPool[int](8, 64)
+	var wg sync.WaitGroup
+	for g := 0; g < 8; g++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for i := 0; i < 200; i++ {
+				pool.Dump(pool.Make(4), pool.Make(40))
+			}
+		}()
+	}
+	wg.Wait()
+	for i := range pool.subPools {
+		require.Equal(t, 0, pool.subPools[i].stats.snapshot().InUse)
+	}
 }

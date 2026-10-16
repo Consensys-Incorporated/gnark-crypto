@@ -13,7 +13,7 @@ import (
 )
 
 // Memory management for polynomials
-// WARNING: This is not thread safe TODO: Make sure that is not a problem
+// The pool statistics are guarded by a mutex; Make and Dump may be called concurrently.
 // TODO: There is a lot of "unsafe" memory management here and needs to be vetted thoroughly
 
 type sizedPool[T any] struct {
@@ -57,7 +57,7 @@ func NewPool[T any](maxN ...int) (pool Pool[T]) {
 		subPool.maxN = maxN[i]
 		subPool.pool = sync.Pool{
 			New: func() any {
-				subPool.stats.Allocated++
+				subPool.stats.allocated()
 				return getDataPointer(make([]T, 0, subPool.maxN))
 			},
 		}
@@ -127,6 +127,7 @@ func (p *Pool[T]) printInUse() {
 }
 
 type poolStats struct {
+	mu            sync.Mutex
 	Used          int
 	Allocated     int
 	ReuseRate     float64
@@ -140,7 +141,29 @@ type poolsStats struct {
 	InUse    int
 }
 
+func (s *poolStats) allocated() {
+	s.mu.Lock()
+	s.Allocated++
+	s.mu.Unlock()
+}
+
+// snapshot returns a copy of the statistics with ReuseRate computed.
+func (s *poolStats) snapshot() poolStats {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return poolStats{
+		Used:          s.Used,
+		Allocated:     s.Allocated,
+		ReuseRate:     float64(s.Used) / float64(s.Allocated),
+		InUse:         s.InUse,
+		GreatestNUsed: s.GreatestNUsed,
+		SmallestNUsed: s.SmallestNUsed,
+	}
+}
+
 func (s *poolStats) make(n int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.Used++
 	s.InUse++
 	if n > s.GreatestNUsed {
@@ -152,11 +175,9 @@ func (s *poolStats) make(n int) {
 }
 
 func (s *poolStats) dump() {
+	s.mu.Lock()
 	s.InUse--
-}
-
-func (s *poolStats) finalize() {
-	s.ReuseRate = float64(s.Used) / float64(s.Allocated)
+	s.mu.Unlock()
 }
 
 func getDataPointer[T any](slice []T) *T {
@@ -168,9 +189,8 @@ func (p *Pool[T]) PrintPoolStats() {
 	subStats := make([]poolStats, len(p.subPools))
 	for i := range p.subPools {
 		subPool := &p.subPools[i]
-		subPool.stats.finalize()
-		subStats[i] = subPool.stats
-		InUse += subPool.stats.InUse
+		subStats[i] = subPool.stats.snapshot()
+		InUse += subStats[i].InUse
 	}
 
 	stats := poolsStats{
