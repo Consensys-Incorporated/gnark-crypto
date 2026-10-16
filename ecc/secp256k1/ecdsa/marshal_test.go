@@ -65,3 +65,34 @@ func TestRejectIdentityPublicKey(t *testing.T) {
 		t.Fatal("SetBytes should reject the identity public key")
 	}
 }
+
+func TestPublicKeyIsValid(t *testing.T) {
+	t.Parallel()
+
+	var identity PublicKey
+	if identity.IsValid() {
+		t.Fatal("Identity point must not be valid")
+	}
+
+	privKey, err := GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !privKey.PublicKey.IsValid() {
+		t.Fatal("Generated public key must be valid")
+	}
+}
+
+func TestPrivateKeySetBytesValidatesPublicKey(t *testing.T) {
+	t.Parallel()
+
+	// PrivateKey.SetBytes must inherit PublicKey.SetBytes's validation
+	var identity PublicKey
+	buf := make([]byte, sizePrivateKey)
+	copy(buf, identity.Bytes())
+
+	var privKey PrivateKey
+	if _, err := privKey.SetBytes(buf); err == nil {
+		t.Fatal("PrivateKey.SetBytes should reject an identity public key")
+	}
+}
