@@ -48,3 +48,45 @@ func TestG2SqrtRatio(t *testing.T) {
 
 	properties.TestingRun(t, gopter.ConsoleReporter(false))
 }
+
+// BenchmarkG2IsogenyPolynomials evaluates the four isogeny polynomials as
+// G2Isogeny does (without the final batch inversion).
+func BenchmarkG2IsogenyPolynomials(b *testing.B) {
+	var x, y, xn, xd, yn, yd fp.Element
+	x.MustSetRandom()
+	y.MustSetRandom()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		g2IsogenyYDenominator(&yd, &x)
+		g2IsogenyXDenominator(&xd, &x)
+		g2IsogenyYNumerator(&yn, &x, &y)
+		g2IsogenyXNumerator(&xn, &x)
+	}
+}
+
+// BenchmarkG2IsogenyPolynomialsHorner evaluates the same polynomials with
+// Horner's rule on the coefficient tables, for reference.
+func BenchmarkG2IsogenyPolynomialsHorner(b *testing.B) {
+	var x, y, xn, xd, yn, yd fp.Element
+	x.MustSetRandom()
+	y.MustSetRandom()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		g2EvalPolynomial(&yd, true, g2IsogenyYDenominatorMap, &x)
+		g2EvalPolynomial(&xd, true, g2IsogenyXDenominatorMap, &x)
+		g2EvalPolynomial(&yn, false, g2IsogenyYNumeratorMap, &x)
+		yn.Mul(&yn, &y)
+		g2EvalPolynomial(&xn, false, g2IsogenyXNumeratorMap, &x)
+	}
+}
+
+// BenchmarkG2Isogeny measures the full isogeny map, batch inversion included.
+func BenchmarkG2Isogeny(b *testing.B) {
+	var x, y fp.Element
+	x.MustSetRandom()
+	y.MustSetRandom()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		G2Isogeny(&x, &y)
+	}
+}
