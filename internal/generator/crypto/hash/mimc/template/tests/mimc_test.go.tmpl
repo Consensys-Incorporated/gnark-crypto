@@ -193,7 +193,7 @@ func sumElements[H hash.FieldHasher[fr.Element, fr.Element]](h H, elems []fr.Ele
 	for i := range elems {
 		h.WriteElement(elems[i])
 	}
-	return h.SumElement()
+	return h.SumDigest()
 }
 
 // TestFieldHasherContract checks the [hash.FieldHasher] contract of
@@ -215,22 +215,22 @@ func TestFieldHasherContract(t *testing.T) {
 	for i := range elems {
 		h.WriteElement(elems[i])
 	}
-	got := h.SumElement()
+	got := h.SumDigest()
 	assert.True(want.Equal(&got), "WriteElement and WriteElements differ")
 	h.Reset()
 	h.WriteElements()
 	h.WriteElements(elems[:4]...)
 	h.WriteElements(elems[4:5]...)
 	h.WriteElements(elems[5:]...)
-	got = h.SumElement()
+	got = h.SumDigest()
 	assert.True(want.Equal(&got), "splitting the writes changes the digest")
 
-	// PadBlock does nothing, and SumElement does not change the state
+	// PadBlock does nothing, and SumDigest does not change the state
 	h.PadBlock()
-	h.SumElement()
+	h.SumDigest()
 	h.PadBlock()
-	got = h.SumElement()
-	assert.True(want.Equal(&got), "PadBlock or SumElement changes the state")
+	got = h.SumDigest()
+	assert.True(want.Equal(&got), "PadBlock or SumDigest changes the state")
 	bigEndian := want.Bytes()
 	assert.Equal(bigEndian[:], h.Sum(nil))
 	assert.Equal(bigEndian[:], h.State())
@@ -238,7 +238,7 @@ func TestFieldHasherContract(t *testing.T) {
 	// the empty digest is zero, and Reset restores it
 	var zero fr.Element
 	h.Reset()
-	got = h.SumElement()
+	got = h.SumDigest()
 	assert.True(zero.Equal(&got), "digest of nothing is not zero")
 
 	// the element hashing is the byte hashing of the marshalled elements
@@ -247,7 +247,7 @@ func TestFieldHasherContract(t *testing.T) {
 		_, err := hb.Write(elems[i].Marshal())
 		assert.NoError(err)
 	}
-	got = hb.SumElement()
+	got = hb.SumDigest()
 	assert.True(want.Equal(&got), "Write and WriteElements differ")
 
 	// the generic interface gives the same result as the concrete type
@@ -274,7 +274,7 @@ func TestCompressor(t *testing.T) {
 	h := mimc.NewHasher()
 	assert.NoError(h.SetState(left.Marshal()))
 	h.WriteElement(right)
-	got := h.SumElement()
+	got := h.SumDigest()
 	assert.True(dst.Equal(&got), "compression differs from the hasher's")
 
 	again := fr.Element{}
@@ -355,6 +355,7 @@ func TestHasherNoAllocations(t *testing.T) {
 		"Sum":              func() { sum = h.Sum(sum[:0]) },
 		"WriteElement":     func() { h.WriteElement(elems[0]) },
 		"WriteElements":    func() { h.WriteElements(elems...) },
+		"SumDigest":        func() { h.SumDigest() },
 		"SumElement":       func() { h.SumElement() },
 		"SumElements":      func() { h.SumElements(elems) },
 		"Reset":            h.Reset,

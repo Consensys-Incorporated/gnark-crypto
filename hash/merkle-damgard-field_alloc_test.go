@@ -16,9 +16,9 @@ func absorbCore[F, D any](h gh.FieldHasher[F, D], es []F) D {
 	for _, e := range es {
 		h.WriteElement(e)
 	}
-	_ = h.SumElement()
+	_ = h.SumDigest()
 	h.PadBlock()
-	return h.SumElement()
+	return h.SumDigest()
 }
 func TestMerkleDamgardCoreAllocations(t *testing.T) {
 	es := []uint64{1, 2, 3, 4, 5}

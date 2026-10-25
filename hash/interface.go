@@ -49,9 +49,9 @@ type FieldHasher[F, D any] interface {
 	// PadBlock ends the current block, left-padding it with zeros. If there is
 	// no incomplete block, it does nothing.
 	PadBlock()
-	// SumElement returns the digest without changing the state. An incomplete
+	// SumDigest returns the digest without changing the state. An incomplete
 	// block is padded as by PadBlock.
-	SumElement() D
+	SumDigest() D
 	// BlockLen returns the number of F elements in an input block, not bytes.
 	BlockLen() int
 }

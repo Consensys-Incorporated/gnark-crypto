@@ -45,10 +45,10 @@ func Marshal[F any, PF interface {
 //
 // It checks that:
 //   - Reset discards everything written before.
-//   - After each call, Sum, State and the marshalled SumElement of the hasher
+//   - After each call, Sum, State and the marshalled SumDigest of the hasher
 //     equal the Sum and State of the reference, and Write reports the length of
 //     its input.
-//   - SumElement does not change the state.
+//   - SumDigest does not change the state.
 //   - A hasher restored by SetState from State continues as the original does
 //     after PadBlock.
 func CheckMatchesByteHasher[F any, PF interface {
@@ -69,14 +69,14 @@ func CheckMatchesByteHasher[F any, PF interface {
 		} else {
 			write(t, ref, Marshal[F, PF](c.Elements))
 			h.WriteElements(c.Elements[:len(c.Elements)/2]...)
-			h.SumElement()
+			h.SumDigest()
 			h.WriteElements(c.Elements[len(c.Elements)/2:]...)
 		}
 
 		msg := []any{"call %d of %d", i, len(calls)}
 		want := ref.Sum(nil)
 		require.Equal(t, want, h.Sum(nil), msg...)
-		require.Equal(t, want, digestBytes(h.SumElement()), msg...)
+		require.Equal(t, want, digestBytes(h.SumDigest()), msg...)
 		require.Equal(t, ref.State(), h.State(), msg...)
 	}
 

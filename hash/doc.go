@@ -32,7 +32,7 @@
 //
 // WriteElement avoids the temporary variadic slice when called through an
 // interface or generic type parameter. WriteElements accepts an existing slice.
-// Both absorb a continuous element stream. SumElement leaves the state unchanged;
+// Both absorb a continuous element stream. SumDigest leaves the state unchanged;
 // PadBlock commits a partial block with zeros on the left. Transcript callers
 // should commit the block before continuing after a squeeze. BlockLen counts
 // input elements, whereas hash.Hash.BlockSize counts bytes.

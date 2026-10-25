@@ -29,8 +29,8 @@ func (h *MerkleDamgardElement[F]) Reset()        { h.state = h.iv }
 func (h *MerkleDamgardElement[F]) BlockLen() int { return 1 }
 
 // PadBlock does nothing: each element is a complete block.
-func (h *MerkleDamgardElement[F]) PadBlock()     {}
-func (h *MerkleDamgardElement[F]) SumElement() F { return h.state }
+func (h *MerkleDamgardElement[F]) PadBlock()    {}
+func (h *MerkleDamgardElement[F]) SumDigest() F { return h.state }
 func (h *MerkleDamgardElement[F]) WriteElement(e F) {
 	// Keep the input in the object so an indirect compression call cannot
 	// force an allocation of a per-call local element.
@@ -43,21 +43,21 @@ func (h *MerkleDamgardElement[F]) WriteElements(es ...F) {
 	}
 }
 
-// SetStateElement replaces the chaining state. It does not change the initial
+// SetStateDigest replaces the chaining state. It does not change the initial
 // state restored by Reset. This is not a snapshot of the absorbed message.
-func (h *MerkleDamgardElement[F]) SetStateElement(state F) { h.state = state }
+func (h *MerkleDamgardElement[F]) SetStateDigest(state F) { h.state = state }
 
 // MerkleDamgardArray hashes array-sized blocks of elements into an array digest.
 // It implements FieldHasher[F, D]. Incomplete blocks are padded with zeros on
 // the left; callers must encode length/domain separation when this ambiguity
-// matters. Instances are mutable and not concurrency-safe, including SumElement.
+// matters. Instances are mutable and not concurrency-safe, including SumDigest.
 // The zero value must not be used; construct it with NewMerkleDamgardArray.
 type MerkleDamgardArray[F any, D ArrayBlock[F]] struct {
 	f              FieldCompressor[D]
 	iv, state, buf D
 	n              int
 	// Interface-visible temporaries belong to the object, avoiding escaping
-	// local arrays in SumElement and PadBlock. They are not chaining state.
+	// local arrays in SumDigest and PadBlock. They are not chaining state.
 	padded, result D
 }
 
@@ -112,9 +112,9 @@ func (h *MerkleDamgardArray[F, D]) PadBlock() {
 	h.n = 0
 }
 
-// SumElement returns the padded digest without changing the chaining state or
+// SumDigest returns the padded digest without changing the chaining state or
 // pending input. Only internal scratch storage is changed.
-func (h *MerkleDamgardArray[F, D]) SumElement() D {
+func (h *MerkleDamgardArray[F, D]) SumDigest() D {
 	if h.n == 0 {
 		return h.state
 	}
@@ -123,7 +123,7 @@ func (h *MerkleDamgardArray[F, D]) SumElement() D {
 	return h.result
 }
 
-// SetStateElement replaces the chaining state and discards pending input. It
+// SetStateDigest replaces the chaining state and discards pending input. It
 // does not change the initial state restored by Reset. A digest alone cannot
 // restore an unfinished block; callers must commit it with PadBlock first.
-func (h *MerkleDamgardArray[F, D]) SetStateElement(state D) { h.state = state; h.n = 0 }
+func (h *MerkleDamgardArray[F, D]) SetStateDigest(state D) { h.state = state; h.n = 0 }

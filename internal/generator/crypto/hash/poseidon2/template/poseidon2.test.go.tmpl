@@ -249,7 +249,7 @@ func TestMerkleDamgard(t *testing.T) {
 		field.WriteElement(e)
 	}
 	require.Equal(t, knownDigest, hex.EncodeToString(h.Sum(nil)), "digest of 1, 2, 3")
-	digest := field.SumElement()
+	digest := field.SumDigest()
 	require.Equal(t, knownDigest, hex.EncodeToString(digest.Marshal()), "digest of 1, 2, 3 by the field hasher")
 
 	p := NewDefaultPermutation()
@@ -269,7 +269,7 @@ func TestMerkleDamgard(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, len(data), written)
 		}
-		d := field.SumElement()
+		d := field.SumDigest()
 		require.Equal(t, ref.Sum(nil), h.Sum(nil), "n=%d", n)
 		require.Equal(t, d.Marshal(), h.Sum(nil), "n=%d", n)
 		require.Equal(t, ref.State(), h.State(), "n=%d", n)
@@ -308,26 +308,26 @@ func TestHasher(t *testing.T) {
 	elems := testElements(11, 1)
 	whole := NewHasher()
 	whole.WriteElements(elems...)
-	want := whole.SumElement()
+	want := whole.SumDigest()
 
 	h := NewHasher()
 	for _, e := range elems {
 		h.WriteElement(e)
 		h.PadBlock()
 	}
-	require.Equal(t, want, h.SumElement())
+	require.Equal(t, want, h.SumDigest())
 
 	for split := 0; split <= len(elems); split++ {
 		h.Reset()
 		h.WriteElements(elems[:split]...)
-		sum := h.SumElement()
-		require.Equal(t, sum, h.SumElement())
+		sum := h.SumDigest()
+		require.Equal(t, sum, h.SumDigest())
 		h.WriteElements(elems[split:]...)
-		require.Equal(t, want, h.SumElement(), "split at %d", split)
+		require.Equal(t, want, h.SumDigest(), "split at %d", split)
 	}
 
 	h.Reset()
-	require.Equal(t, NewHasher().SumElement(), h.SumElement())
+	require.Equal(t, NewHasher().SumDigest(), h.SumDigest())
 }
 
 // writeElements writes the elements with WriteElement, as a generic consumer of
@@ -349,7 +349,7 @@ func TestHasherAllocs(t *testing.T) {
 	require.Zero(t, testing.AllocsPerRun(100, func() { writeElements(fh, elems) }), "generic WriteElement on the interface")
 	require.Zero(t, testing.AllocsPerRun(100, func() { h.WriteElements(elems...) }), "WriteElements")
 	require.Zero(t, testing.AllocsPerRun(100, func() { fh.WriteElements(elems...) }), "WriteElements on the interface")
-	require.Zero(t, testing.AllocsPerRun(100, func() { _ = h.SumElement() }), "SumElement")
+	require.Zero(t, testing.AllocsPerRun(100, func() { _ = h.SumDigest() }), "SumDigest")
 	require.Zero(t, testing.AllocsPerRun(100, func() { h.PadBlock() }), "PadBlock")
 
 	var sink *Hasher

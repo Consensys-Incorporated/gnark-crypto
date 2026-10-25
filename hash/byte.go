@@ -77,7 +77,7 @@ func (h *byteHasher[F, D]) Write(p []byte) (n int, err error) {
 	return n, nil
 }
 
-func (h *byteHasher[F, D]) Sum(b []byte) []byte { return h.codec.AppendDigest(b, h.core.SumElement()) }
+func (h *byteHasher[F, D]) Sum(b []byte) []byte { return h.codec.AppendDigest(b, h.core.SumDigest()) }
 func (h *byteHasher[F, D]) Reset()              { h.core.Reset() }
 func (h *byteHasher[F, D]) Size() int           { return h.digestSize }
 func (h *byteHasher[F, D]) BlockSize() int      { return len(h.block) }

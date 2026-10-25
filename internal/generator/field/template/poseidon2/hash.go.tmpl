@@ -177,7 +177,7 @@ func (c CompressorGeneric[D]) CompressField(dst, left, right *D) {
 // pad it explicitly. See [gnarkHash.NewByteHasher].
 func NewMerkleDamgardHasher() gnarkHash.StateStorer {
 	h := NewHasher()
-	return gnarkHash.NewByteHasher(h, byteCodec{}, h.SetStateElement)
+	return gnarkHash.NewByteHasher(h, byteCodec{}, h.SetStateDigest)
 }
 
 // byteCodec is the encoding of elements and digests of [Hasher] as bytes, in

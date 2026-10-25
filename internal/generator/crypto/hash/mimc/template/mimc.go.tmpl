@@ -80,7 +80,7 @@ var (
 // Hasher is the MiMC hash function: a Merkle-Damgard hasher over [Compressor],
 // with an initial state of zero. It implements [hash.FieldHasher] over
 // fr.Element digests, and [hash.StateStorer] over bytes. The state is the
-// digest, and it is not affected by SumElement, Sum or State.
+// digest, and it is not affected by SumDigest, Sum or State.
 //
 // The zero value is not usable; construct a Hasher with [NewHasher].
 type Hasher struct {
@@ -146,15 +146,23 @@ func (d *Hasher) Reset() {
 // Sum appends the current hash to b and returns the resulting slice.
 // It does not change the underlying hash state.
 func (d *Hasher) Sum(b []byte) []byte {
-	e := d.md.SumElement()
+	e := d.md.SumDigest()
 	digest := e.Bytes()
 	return append(b, digest[:]...)
 }
 
+// SumDigest returns the current hash as a field element. It does not change
+// the underlying hash state.
+func (d *Hasher) SumDigest() fr.Element {
+	return d.md.SumDigest()
+}
+
 // SumElement returns the current hash as a field element. It does not change
 // the underlying hash state.
+//
+// Deprecated: use [Hasher.SumDigest].
 func (d *Hasher) SumElement() fr.Element {
-	return d.md.SumElement()
+	return d.md.SumDigest()
 }
 
 // Size returns the number of bytes Sum will return.
@@ -220,15 +228,15 @@ func (d *Hasher) PadBlock() {
 // SumElements returns the current hash as a field element,
 // after hashing all the provided elements (in addition to the already hashed ones).
 // This is a convenience method to avoid multiple calls to WriteElement
-// followed by a call to SumElement.
+// followed by a call to SumDigest.
 // It is equivalent to:
 //   for _, e := range elems {
 //       h.WriteElement(e)
 //   }
-//   return h. SumElement()
+//   return h. SumDigest()
 func (d *Hasher) SumElements(elems []fr.Element) fr.Element {
 	d.md.WriteElements(elems...)
-	return d.md.SumElement()
+	return d.md.SumDigest()
 }
 
 {{ if eq .Name "bls12-377" }}
@@ -341,7 +349,7 @@ func (d *Hasher) SetState(newState []byte) error {
 	if err := e.SetBytesCanonical(buf[:]); err != nil {
 		return errors.New("the provided newState does not represent a valid state")
 	}
-	d.md.SetStateElement(e)
+	d.md.SetStateDigest(e)
 	return nil
 }
 
