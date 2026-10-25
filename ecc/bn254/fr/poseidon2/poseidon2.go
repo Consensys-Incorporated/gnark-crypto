@@ -381,9 +381,7 @@ func (h *Permutation) Compress(left []byte, right []byte) ([]byte, error) {
 // Compressor compresses two elements with a Poseidon2 permutation of width 2,
 // in the same way as [Permutation.Compress] does on bytes. It implements
 // hash.FieldCompressor over fr.Element. It holds no state besides the
-// permutation, which is read-only, so it is safe for concurrent use. It is a
-// value type of the size of a pointer, so it is stored in a
-// hash.FieldCompressor interface without allocating.
+// permutation, which is read-only, so it is safe for concurrent use.
 type Compressor struct {
 	perm Permutation
 }
