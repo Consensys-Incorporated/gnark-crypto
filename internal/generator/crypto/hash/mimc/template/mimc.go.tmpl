@@ -154,7 +154,7 @@ func NewFieldHasher(opts ...Option) FieldHasher {
 // newByteHasher returns the byte hasher over h, in the byte order of the options.
 func newByteHasher(h *Hasher, opts ...Option) hash.StateStorer {
 	cfg := mimcOptions(opts...)
-	return hash.NewByteHasher(h, byteCodec{byteOrder: cfg.byteOrder}, h.SetStateDigest)
+	return hash.NewByteHasher(h, byteCodec(cfg), h.SetStateDigest)
 }
 
 // byteCodec is the encoding of elements of [Hasher] as bytes in byteOrder, and
