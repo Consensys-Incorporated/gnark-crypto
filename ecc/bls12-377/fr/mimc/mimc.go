@@ -6,8 +6,6 @@
 package mimc
 
 import (
-	"errors"
-	"fmt"
 	stdhash "hash"
 	"math/big"
 	"sync"
@@ -44,10 +42,10 @@ type FieldHasher interface {
 }
 
 var (
-	_ hash.FieldHasher[fr.Element, fr.Element] = (*Hasher)(nil)
-	_ hash.StateStorer                         = (*Hasher)(nil)
-	_ FieldHasher                              = (*Hasher)(nil)
-	_ hash.FieldCompressor[fr.Element]         = Compressor{}
+	_ hash.FieldHasher[fr.Element, fr.Element]     = (*Hasher)(nil)
+	_ hash.FieldCompressor[fr.Element]             = Compressor{}
+	_ hash.ByteHasherCodec[fr.Element, fr.Element] = byteCodec{}
+	_ FieldHasher                                  = (*fieldHasher)(nil)
 )
 
 func init() {
@@ -68,16 +66,18 @@ var (
 	once          sync.Once
 )
 
-// Hasher is the MiMC hash function: a Merkle-Damgard hasher over [Compressor],
-// with an initial state of zero. It implements [hash.FieldHasher] over
-// fr.Element digests, and [hash.StateStorer] over bytes. The state is the
-// digest, and it is not affected by SumDigest, Sum or State.
+// Hasher is the MiMC hash function: a Merkle-Damgard hasher over elements of
+// the field with [Compressor], and the zero initial state. The field is large
+// enough for an element to be a block and a digest. It implements
+// [hash.FieldHasher]. Use [NewBinaryHasher] to hash bytes.
 //
-// The zero value is not usable; construct a Hasher with [NewHasher].
+// The construction does not perform explicit padding on the input data. Every
+// block is a full element, so there is no incomplete block.
+//
+// A Hasher is not safe for concurrent use. Its zero value is not usable;
+// construct it with [NewHasher].
 type Hasher struct {
-	md        hash.MerkleDamgardElement[fr.Element]
-	byteOrder fr.ByteOrder
-	block     [BlockSize]byte // scratch space of Write, held here so that it does not escape to the heap
+	hash.MerkleDamgardElement[fr.Element]
 }
 
 // Compressor is the MiMC compression function in Miyaguchi-Preneel mode: it
@@ -103,132 +103,103 @@ func GetConstants() []big.Int {
 	return res
 }
 
-// NewHasher returns a MiMC hasher, which hashes both field elements and bytes.
-func NewHasher(opts ...Option) *Hasher {
-	cfg := mimcOptions(opts...)
-	return &Hasher{
-		md:        *hash.NewMerkleDamgardElement(Compressor{}, fr.Element{}),
-		byteOrder: cfg.byteOrder,
-	}
+// NewHasher returns a [Hasher] with the zero initial state.
+func NewHasher() *Hasher {
+	return &Hasher{*hash.NewMerkleDamgardElement(Compressor{}, fr.Element{})}
 }
 
-// NewFieldHasher returns a FieldHasher (works with typed field elements, not bytes)
+// NewBinaryHasher returns a MiMC hasher of bytes using the Merkle-Damgard
+// construction. Write decodes every fr.Bytes bytes of its input as an element
+// in the byte order of the options, big endian by default, and returns an error
+// if they do not encode a canonical element. Its state and digest are the digest
+// of a [Hasher], as fr.Bytes bytes in big endian, whatever the byte order.
 //
-// Deprecated: use [NewHasher], whose result implements [hash.FieldHasher].
-func NewFieldHasher(opts ...Option) FieldHasher {
-	return NewHasher(opts...)
-}
-
-// NewBinaryHasher returns a hash.StateStorer (works with bytes, not typed field elements)
+// Write pads the last element of its input with zeros on the left, so the digest
+// depends on how the input is split among the calls to Write.
+//
+// NB! The construction does not perform explicit padding on the input data. The
+// digests of an input and of the same input preceded by zeros in its last
+// element are the same, so the construction is not collision resistant for
+// generic data. For collision resistance the caller should encode the length of
+// the input, or pad it explicitly. See [hash.NewByteHasher]. To hash arbitrary
+// data (bytes not encoding canonical field elements) use fr.Hash first.
 func NewBinaryHasher(opts ...Option) hash.StateStorer {
-	return NewHasher(opts...)
+	return newByteHasher(NewHasher(), opts...)
 }
 
-// NewMiMC returns a MiMC implementation, pure Go reference implementation.
+// NewMiMC returns a MiMC hasher of bytes, see [NewBinaryHasher].
 func NewMiMC(opts ...Option) hash.StateStorer {
-	return NewHasher(opts...)
+	return NewBinaryHasher(opts...)
 }
 
-// Reset resets the Hash to its initial state.
-func (d *Hasher) Reset() {
-	d.md.Reset()
-}
-
-// Sum appends the current hash to b and returns the resulting slice.
-// It does not change the underlying hash state.
-func (d *Hasher) Sum(b []byte) []byte {
-	e := d.md.SumDigest()
-	digest := e.Bytes()
-	return append(b, digest[:]...)
-}
-
-// SumDigest returns the current hash as a field element. It does not change
-// the underlying hash state.
-func (d *Hasher) SumDigest() fr.Element {
-	return d.md.SumDigest()
-}
-
-// SumElement returns the current hash as a field element. It does not change
-// the underlying hash state.
+// NewFieldHasher returns a MiMC hasher of both field elements and bytes, which
+// share the state. The bytes are hashed as by [NewBinaryHasher].
 //
-// Deprecated: use [Hasher.SumDigest].
-func (d *Hasher) SumElement() fr.Element {
-	return d.md.SumDigest()
+// Deprecated: use [NewHasher] to hash field elements, and
+// [NewBinaryHasher] to hash bytes.
+func NewFieldHasher(opts ...Option) FieldHasher {
+	h := NewHasher()
+	return &fieldHasher{Hasher: h, bytes: newByteHasher(h, opts...)}
 }
 
-// Size returns the number of bytes Sum will return.
-func (d *Hasher) Size() int {
-	return BlockSize
+// newByteHasher returns the byte hasher over h, in the byte order of the options.
+func newByteHasher(h *Hasher, opts ...Option) hash.StateStorer {
+	cfg := mimcOptions(opts...)
+	return hash.NewByteHasher(h, byteCodec{byteOrder: cfg.byteOrder}, h.SetStateDigest)
 }
 
-// BlockSize returns the hash's underlying block size.
-// The Write method must be able to accept any amount
-// of data, but it may operate more efficiently if all writes
-// are a multiple of the block size.
-func (d *Hasher) BlockSize() int {
-	return BlockSize
+// byteCodec is the encoding of elements of [Hasher] as bytes in byteOrder, and
+// of its digests in big-endian, in canonical form.
+type byteCodec struct {
+	byteOrder fr.ByteOrder
 }
 
-// BlockLen implements [hash.FieldHasher]. A block is one element.
-func (d *Hasher) BlockLen() int {
-	return d.md.BlockLen()
+func (byteCodec) ElementSize() int { return fr.Bytes }
+
+func (byteCodec) DigestSize() int { return fr.Bytes }
+
+func (c byteCodec) DecodeElement(b []byte) (fr.Element, error) {
+	return c.byteOrder.Element((*[fr.Bytes]byte)(b))
 }
 
-// Write (via the embedded io.Writer interface) adds more data to the running hash.
-//
-// Each []byte block of size BlockSize represents a field element in the byte
-// order of the hasher, big endian by default. A last block shorter than
-// BlockSize is padded with zeros on the left.
-//
-// If a block represents an integer larger than fr.Modulus, this function returns
-// an error.
-//
-// To hash arbitrary data ([]byte not representing canonical field elements) use fr.Hash first
-func (d *Hasher) Write(p []byte) (n int, err error) {
-	for len(p) != 0 {
-		chunk := p[:min(len(p), BlockSize)]
-		d.block = [BlockSize]byte{}
-		copy(d.block[BlockSize-len(chunk):], chunk)
-		var e fr.Element
-		if e, err = d.byteOrder.Element(&d.block); err != nil {
-			return
-		}
-		d.WriteElement(e)
-		n += len(chunk)
-		p = p[len(chunk):]
-	}
+func (byteCodec) AppendDigest(dst []byte, d fr.Element) []byte {
+	b := d.Bytes()
+	return append(dst, b[:]...)
+}
+
+func (byteCodec) DecodeDigest(b []byte) (d fr.Element, err error) {
+	err = d.SetBytesCanonical(b)
 	return
 }
 
-// WriteElement implements [hash.FieldHasher].
-func (d *Hasher) WriteElement(e fr.Element) {
-	d.md.WriteElement(e)
-}
-
-// WriteElements implements [hash.FieldHasher].
-func (d *Hasher) WriteElements(e ...fr.Element) {
-	d.md.WriteElements(e...)
-}
-
-// PadBlock implements [hash.FieldHasher]. A block is an element, so there is
-// never an incomplete block, and PadBlock does nothing.
-func (d *Hasher) PadBlock() {
-	d.md.PadBlock()
-}
-
-// SumElements returns the current hash as a field element,
-// after hashing all the provided elements (in addition to the already hashed ones).
-// This is a convenience method to avoid multiple calls to WriteElement
-// followed by a call to SumDigest.
-// It is equivalent to:
+// fieldHasher is the [FieldHasher] of [NewFieldHasher]. It writes field
+// elements to Hasher directly, and bytes through the byte hasher bytes over
+// Hasher. A block is one element, and the byte hasher keeps no input between
+// writes, so the writes of elements and of bytes may be interleaved.
 //
-//	for _, e := range elems {
-//	    h.WriteElement(e)
-//	}
-//	return h. SumDigest()
-func (d *Hasher) SumElements(elems []fr.Element) fr.Element {
-	d.md.WriteElements(elems...)
-	return d.md.SumDigest()
+// TODO: remove with [NewFieldHasher].
+type fieldHasher struct {
+	*Hasher
+	bytes hash.StateStorer
+}
+
+func (h *fieldHasher) Write(p []byte) (int, error)    { return h.bytes.Write(p) }
+func (h *fieldHasher) Sum(b []byte) []byte            { return h.bytes.Sum(b) }
+func (h *fieldHasher) Size() int                      { return h.bytes.Size() }
+func (h *fieldHasher) BlockSize() int                 { return h.bytes.BlockSize() }
+func (h *fieldHasher) State() []byte                  { return h.bytes.State() }
+func (h *fieldHasher) SetState(newState []byte) error { return h.bytes.SetState(newState) }
+
+// SumElement returns the current hash as a field element. It does not change
+// the underlying hash state.
+func (h *fieldHasher) SumElement() fr.Element {
+	return h.SumDigest()
+}
+
+// SumElements writes elems and returns the current hash as a field element.
+func (h *fieldHasher) SumElements(elems []fr.Element) fr.Element {
+	h.WriteElements(elems...)
+	return h.SumDigest()
 }
 
 // plain execution of a mimc run
@@ -251,9 +222,10 @@ func encrypt(key, m fr.Element) fr.Element {
 	return m
 }
 
-// Sum returns the MiMC digest of msg, read as by [Hasher.Write] in big endian.
+// Sum returns the MiMC digest of msg, read as by [NewBinaryHasher] in big
+// endian.
 func Sum(msg []byte) ([]byte, error) {
-	h := NewHasher()
+	h := NewBinaryHasher()
 	if _, err := h.Write(msg); err != nil {
 		return nil, err
 	}
@@ -285,27 +257,4 @@ func (d *Hasher) WriteString(rawBytes []byte) error {
 	}
 	d.WriteElement(elems[0])
 	return nil
-}
-
-// SetState sets the state of the hasher to newState, the big endian encoding of
-// a field element. A shorter newState is padded with zeros on the left. A longer
-// one, or one that does not encode a canonical element, results in an error.
-func (d *Hasher) SetState(newState []byte) error {
-	if len(newState) > BlockSize {
-		return fmt.Errorf("the mimc state expects a state of at most %d bytes, got %d", BlockSize, len(newState))
-	}
-	var buf [BlockSize]byte
-	copy(buf[BlockSize-len(newState):], newState)
-	var e fr.Element
-	if err := e.SetBytesCanonical(buf[:]); err != nil {
-		return errors.New("the provided newState does not represent a valid state")
-	}
-	d.md.SetStateDigest(e)
-	return nil
-}
-
-// State returns the internal state of the hasher, the big endian encoding of
-// the digest.
-func (d *Hasher) State() []byte {
-	return d.Sum(nil)
 }
