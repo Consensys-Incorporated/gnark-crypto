@@ -15,7 +15,7 @@ import (
 
 var (
 	_ gnarkHash.FieldHasher[fr.Element, fr.Element]     = (*Hasher)(nil)
-	_ gnarkHash.FieldCompressor[fr.Element]             = (*Compressor)(nil)
+	_ gnarkHash.FieldCompressor[fr.Element]             = Compressor{}
 	_ gnarkHash.ByteHasherCodec[fr.Element, fr.Element] = byteCodec{}
 )
 

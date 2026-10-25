@@ -211,6 +211,10 @@ func TestHasherAllocs(t *testing.T) {
 	require.Zero(t, testing.AllocsPerRun(100, func() { fh.WriteElements(elems...) }), "WriteElements on the interface")
 	require.Zero(t, testing.AllocsPerRun(100, func() { _ = h.SumElement() }), "SumElement")
 	require.Zero(t, testing.AllocsPerRun(100, func() { h.PadBlock() }), "PadBlock")
+
+	var sink *Hasher
+	require.Equal(t, 1.0, testing.AllocsPerRun(100, func() { sink = NewHasher() }), "NewHasher allocates only the hasher")
+	_ = sink
 }
 
 // benchmarkSizes are numbers of elements written by the benchmarks of the hasher.

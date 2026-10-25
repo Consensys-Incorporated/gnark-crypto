@@ -515,6 +515,12 @@ func testAllocs[D Digest](t *testing.T) {
 	var dst D
 	require.Zero(t, testing.AllocsPerRun(100, func() { fc.CompressField(&dst, &left, &right) }), "CompressField on the interface")
 	require.Zero(t, testing.AllocsPerRun(100, func() { fc.CompressField(&left, &left, &right) }), "CompressField with dst aliasing left")
+
+	var sink *HasherGeneric[D]
+	require.Equal(t, 1.0, testing.AllocsPerRun(100, func() { sink = NewHasherGeneric[D]() }), "NewHasherGeneric allocates only the hasher")
+	perm := defaultPermutation(n)
+	require.Zero(t, testing.AllocsPerRun(100, func() { fc = NewCompressorGeneric[D](perm) }), "NewCompressorGeneric to the interface")
+	_ = sink
 }
 
 // benchmarkSizes are numbers of elements written by the benchmarks of the hasher.
@@ -601,7 +607,7 @@ func TestCompressorAliasing(t *testing.T) {
 	t.Run("named wide", func(t *testing.T) { testCompressorAliasing(t, pw, NewCompressorGeneric[namedWideBlock](pw)) })
 }
 
-func testCompressorAliasing[D Digest](t *testing.T, p *Permutation, c *CompressorGeneric[D]) {
+func testCompressorAliasing[D Digest](t *testing.T, p *Permutation, c CompressorGeneric[D]) {
 	left, right := blockOf[D](11), blockOf[D](12)
 
 	want := compressed(p, left, right)
@@ -637,7 +643,7 @@ func TestCompressorConcurrent(t *testing.T) {
 	t.Run("named wide", func(t *testing.T) { testCompressorConcurrent(t, pw, NewCompressorGeneric[namedWideBlock](pw)) })
 }
 
-func testCompressorConcurrent[D Digest](t *testing.T, p *Permutation, c *CompressorGeneric[D]) {
+func testCompressorConcurrent[D Digest](t *testing.T, p *Permutation, c CompressorGeneric[D]) {
 	const nbGoroutines, nbIterations = 8, 20
 	var wg sync.WaitGroup
 	got := make([][nbIterations]D, nbGoroutines)

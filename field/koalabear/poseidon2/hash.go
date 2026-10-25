@@ -36,8 +36,8 @@ type Digest interface {
 var (
 	_ gnarkHash.FieldHasher[fr.Element, [BlockLen]fr.Element]     = (*Hasher)(nil)
 	_ gnarkHash.FieldHasher[fr.Element, [WideBlockLen]fr.Element] = (*HasherGeneric[[WideBlockLen]fr.Element])(nil)
-	_ gnarkHash.FieldCompressor[[BlockLen]fr.Element]             = (*Compressor)(nil)
-	_ gnarkHash.FieldCompressor[[WideBlockLen]fr.Element]         = (*CompressorGeneric[[WideBlockLen]fr.Element])(nil)
+	_ gnarkHash.FieldCompressor[[BlockLen]fr.Element]             = Compressor{}
+	_ gnarkHash.FieldCompressor[[WideBlockLen]fr.Element]         = CompressorGeneric[[WideBlockLen]fr.Element]{}
 
 	_ gnarkHash.ByteHasherCodec[fr.Element, [BlockLen]fr.Element] = byteCodec{}
 )
@@ -123,9 +123,10 @@ func compressionParameters(n int) *Parameters {
 // [Permutation.Compress] does on bytes.
 //
 // It holds no state besides the permutation, which is read-only, so it is safe
-// for concurrent use.
+// for concurrent use. It is a value type of the size of a pointer, so it is
+// stored in a [gnarkHash.FieldCompressor] interface without allocating.
 type CompressorGeneric[D Digest] struct {
-	perm *Permutation
+	perm Permutation
 }
 
 // Compressor is the [CompressorGeneric] over blocks of 8 elements, for a
@@ -134,22 +135,22 @@ type Compressor = CompressorGeneric[[BlockLen]fr.Element]
 
 // NewCompressor returns a [Compressor] over p. The width of p must be 16, that
 // of the default compression permutation.
-func NewCompressor(p *Permutation) *Compressor {
+func NewCompressor(p *Permutation) Compressor {
 	return NewCompressorGeneric[[BlockLen]fr.Element](p)
 }
 
 // NewCompressorGeneric returns a [CompressorGeneric] over p. The width of p
 // must be 2*len(D), otherwise it panics.
-func NewCompressorGeneric[D Digest](p *Permutation) *CompressorGeneric[D] {
+func NewCompressorGeneric[D Digest](p *Permutation) CompressorGeneric[D] {
 	var d D
 	if p.params.Width != 2*len(d) {
 		panic(fmt.Sprintf("poseidon2: the width of the permutation must be %d, got %d", 2*len(d), p.params.Width))
 	}
-	return &CompressorGeneric[D]{perm: p}
+	return CompressorGeneric[D]{perm: *p}
 }
 
 // CompressField implements [gnarkHash.FieldCompressor]. dst may alias left or right.
-func (c *CompressorGeneric[D]) CompressField(dst, left, right *D) {
+func (c CompressorGeneric[D]) CompressField(dst, left, right *D) {
 	var x [2 * WideBlockLen]fr.Element
 	n := len(*left)
 	for i := range n {
