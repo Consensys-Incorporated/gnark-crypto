@@ -175,6 +175,11 @@ type Field struct {
 	// Vector type that has no methods on amd64.
 	HandwrittenVectorASMAMD64 bool
 
+	// ValueReceivers makes the methods that only read their receiver (IsZero,
+	// Equal, Cmp, Uint64, String, MarshalJSON, ...) use value receivers
+	// instead of pointer receivers. See WithValueReceivers.
+	ValueReceivers bool
+
 	ASMPackagePath string
 
 	// IFMA (AVX-512) specific constants for 4-word fields
@@ -213,6 +218,47 @@ func WithMontgomeryRadixBits(n uint) FieldOption {
 // unconditionally. See Field.HandwrittenVectorASMAMD64.
 func WithHandwrittenVectorASMAMD64() FieldOption {
 	return func(f *Field) { f.HandwrittenVectorASMAMD64 = true }
+}
+
+// WithValueReceivers makes the methods of the element that only read their
+// receiver use value receivers. Value elements then implement fmt.Stringer
+// and json.Marshaler, and generic code can constrain on the element type
+// itself rather than on a pointer to it.
+//
+// The element is copied on every call that is not inlined, and the copy is
+// only free when the compiler keeps the element in registers, that is for
+// single-word elements. Wider elements (a 4-word scalar field, a 12-word base
+// field) measurably slow down hot paths such as Add, Inverse or the pairing,
+// so only use it for small fields.
+func WithValueReceivers() FieldOption {
+	return func(f *Field) { f.ValueReceivers = true }
+}
+
+// ReadRecv returns the receiver type of the methods that only read their
+// receiver: the element itself with ValueReceivers, a pointer to it otherwise.
+func (f *Field) ReadRecv() string {
+	if f.ValueReceivers {
+		return f.ElementName
+	}
+	return "*" + f.ElementName
+}
+
+// RecvValue returns the expression of the value of the receiver z inside a
+// method declared with ReadRecv.
+func (f *Field) RecvValue() string {
+	if f.ValueReceivers {
+		return "z"
+	}
+	return "*z"
+}
+
+// RecvPtr returns the expression of a pointer to the receiver z inside a
+// method declared with ReadRecv.
+func (f *Field) RecvPtr() string {
+	if f.ValueReceivers {
+		return "&z"
+	}
+	return "z"
 }
 
 // NewFieldConfig returns a data structure with needed information to generate apis for field element

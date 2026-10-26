@@ -8,6 +8,7 @@ package extensions
 import (
 	"bytes"
 	"crypto/rand"
+	"fmt"
 	"math/big"
 	"testing"
 
@@ -741,4 +742,26 @@ func TestE2Base(t *testing.T) {
 	for _, n := range []int{0, 2 - 1, 2 + 1} {
 		require.Panics(t, func() { z.SetBase(make([]fr.Element, n)) }, "SetBase on %d elements", n)
 	}
+}
+
+func TestE2ValueReceivers(t *testing.T) {
+	var x E2
+	x.MustSetRandom()
+	x.A1.SetOne() // not in the base field
+
+	// values print with String, like pointers
+	require.Equal(t, x.String(), fmt.Sprint(x))
+	require.Equal(t, x.String(), fmt.Sprint(&x))
+	require.Equal(t, "{"+x.String()+"}", fmt.Sprintf("%v", struct{ E E2 }{x}))
+
+	// read-only methods are usable on non-addressable values
+	m := map[string]E2{"k": x}
+	require.False(t, m["k"].IsZero())
+	require.False(t, m["k"].IsOne())
+	require.True(t, m["k"].Equal(&x))
+	require.Zero(t, m["k"].Cmp(&x))
+	require.Equal(t, x.Marshal(), m["k"].Marshal())
+	require.Equal(t, x.AppendBase(nil), m["k"].AppendBase(nil))
+	require.Nil(t, m["k"].BigInt(new(big.Int)))
+	require.Equal(t, x, m["k"])
 }

@@ -217,22 +217,22 @@ func (z *{{.ElementName}}) Div( x, y *{{.ElementName}}) *{{.ElementName}} {
 }
 
 // Equal returns z == x; constant-time
-func (z *{{.ElementName}}) Equal(x *{{.ElementName}}) bool {
+func (z {{.ReadRecv}}) Equal(x *{{.ElementName}}) bool {
 	return z.NotEqual(x) == 0
 }
 
 // NotEqual returns 0 if and only if z == x; constant-time
-func (z *{{.ElementName}}) NotEqual(x *{{.ElementName}}) {{.Word.TypeLower}} {
+func (z {{.ReadRecv}}) NotEqual(x *{{.ElementName}}) {{.Word.TypeLower}} {
 return {{- range $i :=  reverse .NbWordsIndexesNoZero}}(z[{{$i}}] ^ x[{{$i}}]) | {{end}}(z[0] ^ x[0])
 }
 
 // IsZero returns z == 0
-func (z *{{.ElementName}}) IsZero() bool {
+func (z {{.ReadRecv}}) IsZero() bool {
 	return ( {{- range $i :=  reverse .NbWordsIndexesNoZero}} z[{{$i}}] | {{end}}z[0]) == 0
 }
 
 // IsOne returns z == 1
-func (z *{{.ElementName}}) IsOne() bool {
+func (z {{.ReadRecv}}) IsOne() bool {
 	{{- if eq .NbWords 1}}
 	return z[0] == {{index $.One 0}}
 	{{- else}}
@@ -241,18 +241,18 @@ func (z *{{.ElementName}}) IsOne() bool {
 }
 
 // IsUint64 reports whether z can be represented as an uint64.
-func (z *{{.ElementName}}) IsUint64() bool {
+func (z {{.ReadRecv}}) IsUint64() bool {
 	{{- if eq .NbWords 1}}
 		return true
 	{{- else}}
-		zz := *z
+		zz := {{.RecvValue}}
 		zz.fromMont()
 		return zz.FitsOnOneWord()
 	{{- end}}
 }
 
 // Uint64 returns the uint64 representation of x. If x cannot be represented in a uint64, the result is undefined.
-func (z *{{.ElementName}}) Uint64() uint64 {
+func (z {{.ReadRecv}}) Uint64() uint64 {
 	{{- if eq .Word.BitSize 32}}
 		return uint64(z.Bits()[0])
 	{{- else}}
@@ -263,7 +263,7 @@ func (z *{{.ElementName}}) Uint64() uint64 {
 // FitsOnOneWord reports whether z words (except the least significant word) are 0
 //
 // It is the responsibility of the caller to convert from Montgomery to Regular form if needed.
-func (z *{{.ElementName}}) FitsOnOneWord() bool {
+func (z {{.ReadRecv}}) FitsOnOneWord() bool {
 	{{- if eq .NbWords 1}}
 		return true
 	{{- else}}
@@ -277,7 +277,7 @@ func (z *{{.ElementName}}) FitsOnOneWord() bool {
 //    0 if z == x
 //   +1 if z >  x
 //
-func (z *{{.ElementName}}) Cmp(x *{{.ElementName}}) int {
+func (z {{.ReadRecv}}) Cmp(x *{{.ElementName}}) int {
 	_z := z.Bits()
 	_x := x.Bits()
 	{{- range $i := reverse $.NbWordsIndexesFull}}
@@ -292,7 +292,7 @@ func (z *{{.ElementName}}) Cmp(x *{{.ElementName}}) int {
 
 // LexicographicallyLargest returns true if this element is strictly lexicographically
 // larger than its negation, false otherwise
-func (z *{{.ElementName}}) LexicographicallyLargest() bool {
+func (z {{.ReadRecv}}) LexicographicallyLargest() bool {
 	// adapted from github.com/zkcrypto/bls12_381
 	// we check if the element is larger than (q-1) / 2
 	// if z - (((q -1) / 2) + 1) have no underflow, then z > (q-1) / 2
@@ -679,7 +679,7 @@ func _butterflyGeneric(a, b *{{.ElementName}}) {
 
 // BitLen returns the minimum number of bits needed to represent z
 // returns 0 if z == 0
-func (z *{{.ElementName}}) BitLen() int {
+func (z {{.ReadRecv}}) BitLen() int {
 	{{- range $i := reverse .NbWordsIndexesNoZero}}
 	if z[{{$i}}] != 0 {
 		return {{mul $i 64}} + bits.{{$.Word.Len}}(z[{{$i}}])
