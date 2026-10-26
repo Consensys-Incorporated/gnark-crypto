@@ -76,6 +76,11 @@ func (h *merkleDamgardHasher) SetState(state []byte) error {
 // using a deterministic method.
 // If the given initialState is shorter than the hash block size, it will be zero-padded
 // on the left. An oversized initialState will cause a panic.
+//
+// Deprecated: new users should use [NewMerkleDamgardElement] and [NewMerkleDamgardArray]
+// consructors for building Merkle-Damgard hash function construction which works
+// directly on field elements, avoiding the byte-conversions. This constructor
+// may be removed in future versions.
 func NewMerkleDamgardHasher(f Compressor, initialState []byte) StateStorer {
 	iv, err := cloneLeftPadded(initialState, f.BlockSize())
 	if err != nil {

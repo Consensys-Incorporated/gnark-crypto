@@ -26,6 +26,11 @@ type StateStorer interface {
 //
 // The Compressor is used in the Merkle-Damgard construction to build a hash
 // function.
+//
+// Deprecated: see also [FieldCompressor] for field-aware compression methods
+// which avoids field <> byte-slice conversions and operates directly on field
+// elements. This interface may be deprecated together with [NewMerkleDamgardHasher]
+// method in future versions.
 type Compressor interface {
 	// Compress compresses the two inputs into one output. All the inputs and
 	// outputs are of the same size, which is the block size. See [BlockSize].
