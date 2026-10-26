@@ -1,7 +1,7 @@
 package vortex
 
 import (
-	"crypto/sha256"
+	"crypto/sha512"
 	"hash"
 	"math/rand/v2"
 	"testing"
@@ -19,14 +19,14 @@ func TestMerkleTree(t *testing.T) {
 		assert := require.New(t)
 		leaves := [32]Hash{}
 
-		tree := BuildMerkleTree(leaves[:], func() hash.Hash { return sha256.New() })
+		tree := BuildMerkleTree(leaves[:], func() hash.Hash { return sha512.New384() })
 
 		for _, pos := range posLists {
 
 			proof, err := tree.Open(pos)
 			assert.NoError(err)
 
-			err = proof.Verify(pos, leaves[pos], tree.Root(), func() hash.Hash { return sha256.New() })
+			err = proof.Verify(pos, leaves[pos], tree.Root(), func() hash.Hash { return sha512.New384() })
 			assert.NoError(err)
 		}
 	})
@@ -45,19 +45,19 @@ func TestMerkleTree(t *testing.T) {
 			}
 		}
 
-		tree := BuildMerkleTree(leaves[:], func() hash.Hash { return sha256.New() })
+		tree := BuildMerkleTree(leaves[:], func() hash.Hash { return sha512.New384() })
 
 		for _, pos := range posLists {
 			proof, err := tree.Open(pos)
 			assert.NoError(err)
 
-			err = proof.Verify(pos, leaves[pos], tree.Root(), func() hash.Hash { return sha256.New() })
+			err = proof.Verify(pos, leaves[pos], tree.Root(), func() hash.Hash { return sha512.New384() })
 			assert.NoError(err)
 		}
 
 	})
 
-	t.Run("full-random-sha256", func(t *testing.T) {
+	t.Run("full-random-sha384", func(t *testing.T) {
 		assert := require.New(t)
 
 		var (
@@ -71,7 +71,7 @@ func TestMerkleTree(t *testing.T) {
 			}
 		}
 
-		nh := func() hash.Hash { return sha256.New() }
+		nh := func() hash.Hash { return sha512.New384() }
 
 		tree := BuildMerkleTree(leaves[:], nh)
 

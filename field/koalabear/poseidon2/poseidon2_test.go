@@ -13,6 +13,7 @@ import (
 
 	fr "github.com/consensys/gnark-crypto/field/koalabear"
 	gnarkHash "github.com/consensys/gnark-crypto/hash"
+	"github.com/consensys/gnark-crypto/internal/matrix"
 	"github.com/consensys/gnark-crypto/utils/cpu"
 	"github.com/stretchr/testify/require"
 )
@@ -64,6 +65,47 @@ func TestMulMulInternalInPlaceWidth24(t *testing.T) {
 		if !input[i].Equal(&expected[i]) {
 			t.Fatal("mat mul internal w/ diagonal doesn't match hand calculated")
 		}
+	}
+}
+
+// TestInternalMatrixCondition checks the internal matrix M_I of both default
+// widths against the condition Poseidon2 requires of it: M_I^i must have an
+// irreducible characteristic polynomial for i = 1..2t, so that no power of M_I
+// fixes a proper subspace and the subspace trails of Section 5.2 of the paper
+// (https://eprint.iacr.org/2023/323.pdf) do not exist.
+//
+// This is a property of the pair (diagonal, prime), NOT of the diagonal alone:
+// porting a diagonal to a field with a different modulus requires rechecking
+// it here. mamabear originally shipped koalabear's diagonal reduced mod its own
+// prime, which fails this test.
+func TestInternalMatrixCondition(t *testing.T) {
+	if testing.Short() {
+		t.Skip("slow: O(t^5) field operations per width")
+	}
+	for _, tc := range []struct {
+		width, nbFullRounds, nbPartialRounds int
+	}{
+		{16, 6, 21},
+		{24, 6, 21},
+	} {
+		p := NewPermutation(tc.width, tc.nbFullRounds, tc.nbPartialRounds).params
+		if !matrix.HasNoInvariantSubspace[fr.Element, *fr.Element](p.InternalMatrix(), fr.Modulus()) {
+			t.Errorf("width %d: internal matrix has an invariant subspace; the diagonal is not usable over this field", tc.width)
+		}
+	}
+}
+
+// TestDigestSize pins the Merkle-Damgard digest to the collision resistance it
+// is meant to provide. The digest is Width/2 field elements, each carrying
+// log2(p) bits of entropy -- not 8*fr.Bytes, which is the padded storage size.
+func TestDigestSize(t *testing.T) {
+	h := NewMerkleDamgardHasher()
+	nbElements := GetDefaultParameters().Width / 2
+	if got := h.Size(); got != nbElements*fr.Bytes {
+		t.Fatalf("digest size: got %d bytes, want %d", got, nbElements*fr.Bytes)
+	}
+	if got := len(h.Sum(nil)); got != h.Size() {
+		t.Fatalf("Sum length %d disagrees with Size() %d", got, h.Size())
 	}
 }
 

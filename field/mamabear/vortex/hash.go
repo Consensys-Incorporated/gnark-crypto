@@ -8,20 +8,31 @@ import (
 	"github.com/consensys/gnark-crypto/field/mamabear/poseidon2"
 )
 
+// The permutations come from the field's own default parameters rather than
+// from literals. Hardcoding them here is how this package ended up running
+// mamabear with koalabear's round numbers (6, 21): the partial-round count has
+// to grow with log2(p), and 21 rounds over a 49-bit field targets about 33 bits
+// of security instead of 128. See the mamabear case in
+// internal/generator/field/generator_poseidon2.go for the derivation.
 var (
-	compressPerm = poseidon2.NewPermutation(16, 6, 21)
-	spongePerm   = poseidon2.NewPermutation(24, 6, 21)
+	compressPerm = poseidon2.NewDefaultPermutation()
+	spongePerm   = poseidon2.NewPermutation(spongeStateSize, defaultFullRounds, defaultPartialRounds)
+)
+
+const (
+	spongeStateSize      = 24
+	defaultFullRounds    = 8
+	defaultPartialRounds = 32
 )
 
 // CompressPoseidon2 runs the Poseidon2 permutation over two hashes.
-// The two 4-element inputs occupy positions 0..7 of a width-16 state
-// (positions 8..15 are zero). The output is positions 0..3 with
-// feed-forward from the left input.
+// The two len(Hash)-element inputs fill the whole width-2*len(Hash) state. The
+// output is the first len(Hash) positions with feed-forward from the left
+// input.
 func CompressPoseidon2(a, b Hash) Hash {
-	var x [16]mamabear.Element
-	copy(x[:4], a[:])
-	copy(x[4:8], b[:])
-	// x[8:16] are zero
+	var x [2 * HashSize]mamabear.Element
+	copy(x[:HashSize], a[:])
+	copy(x[HashSize:], b[:])
 
 	feedforward := a // save left input for feed-forward
 
@@ -30,18 +41,21 @@ func CompressPoseidon2(a, b Hash) Hash {
 	}
 
 	var res Hash
-	for i := range 4 {
+	for i := range HashSize {
 		res[i].Add(&feedforward[i], &x[i])
 	}
 	return res
 }
 
 // HashPoseidon2 returns a Poseidon2 sponge hash of a slice of field elements.
-// The input is absorbed in blocks of 20 (stateSize - len(Hash)) using the duplex construction.
+// The input is absorbed using the duplex construction, with len(Hash) elements
+// of the state reserved as capacity. The capacity must match the digest width:
+// a narrower capacity would cap the collision resistance of the sponge below
+// that of the digest it produces.
 func HashPoseidon2(input []mamabear.Element) Hash {
 	const (
-		stateSize = 24
-		rate      = stateSize - 4 // 4 elements reserved for capacity (= len(Hash))
+		stateSize = spongeStateSize
+		rate      = stateSize - HashSize
 	)
 	var state [stateSize]mamabear.Element
 	for i := 0; i < len(input); i += rate {
@@ -49,10 +63,10 @@ func HashPoseidon2(input []mamabear.Element) Hash {
 		if end > len(input) {
 			end = len(input)
 		}
-		copy(state[4:], input[i:end])
+		copy(state[HashSize:], input[i:end])
 		spongePerm.Permutation(state[:]) //nolint: errcheck
 	}
 	var res Hash
-	copy(res[:], state[:4])
+	copy(res[:], state[:HashSize])
 	return res
 }

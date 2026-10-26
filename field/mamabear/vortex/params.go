@@ -2,6 +2,7 @@ package vortex
 
 import (
 	"errors"
+	"fmt"
 	"hash"
 
 	"github.com/consensys/gnark-crypto/field/mamabear"
@@ -11,7 +12,7 @@ import (
 )
 
 var (
-	ErrWrongSizeHash = errors.New("the hash size should be 32 bytes")
+	ErrWrongSizeHash = fmt.Errorf("the hash size should be %d bytes", HashBytes)
 )
 
 // HashConstructor a functions returning a hash. Hash functions are stored this way, to allocate
@@ -34,7 +35,7 @@ type Option func(opt *Config) error
 func WithMerkleHash(h hash.Hash) Option {
 	return func(opt *Config) error {
 		bs := h.Size()
-		if bs != 32 {
+		if bs != HashBytes {
 			return ErrWrongSizeHash
 		}
 		opt.merkleHashFunc = func() hash.Hash { return h }
@@ -46,7 +47,7 @@ func WithMerkleHash(h hash.Hash) Option {
 func WithColumnHash(h hash.Hash) Option {
 	return func(opt *Config) error {
 		bs := h.Size()
-		if bs != 32 {
+		if bs != HashBytes {
 			return ErrWrongSizeHash
 		}
 		opt.columnHash = func() hash.Hash { return h }

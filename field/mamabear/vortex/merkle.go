@@ -8,9 +8,23 @@ import (
 	"github.com/consensys/gnark-crypto/parallel"
 )
 
+// HashSize is the number of field elements in a Merkle node, and so also the
+// capacity of the sponge and half the width of the compression permutation.
+//
+// It is sized by entropy, not by bytes. A mamabear element is stored in 8 bytes
+// but carries only log2(p) < 49 bits, so a node holds 6 * 49 = 294 bits and the
+// tree offers 147-bit collision resistance. Matching SHA-256's 32 bytes instead
+// would mean 4 elements = 196 bits = 98-bit collision resistance, below the
+// 128-bit level the field is chosen for; 5 elements still falls short at 122.5.
+const HashSize = 6
+
 // Hash represents a hash as they occur in Merkle trees.
-// [4]mamabear.Element = 4 * 8 bytes = 32 bytes (matches SHA-256 output size).
-type Hash = [4]mamabear.Element
+// [HashSize]mamabear.Element = 6 * 8 bytes = 48 bytes.
+type Hash = [HashSize]mamabear.Element
+
+// HashBytes is the serialized size of a Hash, and the size an alternative hash
+// function must have to be usable in place of the built-in Poseidon2.
+const HashBytes = HashSize * mamabear.Bytes
 
 // MerkleTree represents a Merkle tree.
 type MerkleTree struct {
@@ -24,18 +38,25 @@ type MerkleTree struct {
 // It is a list of hashes in ascending order.
 type MerkleProof []Hash
 
-// hashNodes computes h(left || right), interpreted as 4 mamabear elements (32 bytes).
-func hashNodes(h hash.Hash, left, right [4]mamabear.Element) [4]mamabear.Element {
+// hashNodes computes h(left || right), interpreted as HashSize mamabear
+// elements (HashBytes bytes).
+func hashNodes(h hash.Hash, left, right Hash) Hash {
 	h.Reset()
-	var res [4]mamabear.Element
-	for i := range 4 {
+	var res Hash
+	for i := range HashSize {
 		h.Write(left[i].Marshal())
 	}
-	for i := range 4 {
+	for i := range HashSize {
 		h.Write(right[i].Marshal())
 	}
 	s := h.Sum(nil)
-	for i := range 4 {
+	if len(s) < HashBytes {
+		// Caught here rather than as an opaque slice panic: an alternative hash
+		// must fill a whole node. SHA-256 is 32 bytes and no longer fits, since
+		// a node is 6 elements; SHA-384 does.
+		panic(ErrWrongSizeHash)
+	}
+	for i := range HashSize {
 		res[i].SetBytes(s[mamabear.Bytes*i : mamabear.Bytes*(i+1)])
 	}
 	return res

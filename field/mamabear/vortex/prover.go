@@ -76,7 +76,7 @@ func Commit(p *Params, input [][]mamabear.Element) (*ProverState, error) {
 					h.Write(hashedColumns[j].Marshal())
 				}
 				curHash := h.Sum(nil)
-				for j := range 4 {
+				for j := range HashSize {
 					merkleLeaves[i][j].SetBytes(curHash[nbBytes*j : nbBytes*j+nbBytes])
 				}
 			}

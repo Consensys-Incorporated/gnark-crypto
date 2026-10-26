@@ -50,11 +50,6 @@ func generatePoseidon2(F *config.Field, outputDir string) error {
 		FieldPackagePath: fieldImportPath,
 		F31:              F.F31,
 	}
-	if data.FF == "mamabear" {
-		// mamabear uses koalabear's widths, sBox degree and diagonal shape,
-		// with the diagonal entries reduced mod its own modulus.
-		data.Family = "koalabear"
-	}
 	switch data.FF {
 	case "koalabear":
 		data.ParamsCompression = amd64.Poseidon2Parameters{
@@ -119,19 +114,47 @@ func generatePoseidon2(F *config.Field, outputDir string) error {
 			data.ParamsCompression,
 		}
 	case "mamabear":
-		// The diagonal is koalabear's, reduced mod the mamabear prime; the
-		// entries are canonical residues, not Montgomery-encoded, so they do not
-		// depend on the radix.
+		// WIDTH. The compression width is 12, not the 16 the F31 fields use.
+		// The Merkle-Damgard digest is Width/2 elements, so width 12 gives a
+		// 6-element digest: 6*49 = 294 bits, 147-bit collision resistance.
+		// Width 16 would give 8 elements = 392 bits, over-provisioned by half
+		// for a 49-bit field, at the cost of a wider permutation and 64-byte
+		// Merkle nodes. Compare goldilocks, which drops to width 8 for the same
+		// reason. Width 10 (a 5-element, 245-bit digest) misses 128 bits.
 		//
-		// The round numbers are NOT koalabear's. They follow Eq. (1) of the
+		// DIAGONAL. The entries are canonical residues, not Montgomery-encoded,
+		// so they do not depend on the radix. They are NOT koalabear's diagonal
+		// reduced mod this prime: that fails the Poseidon2 internal-matrix
+		// condition over the mamabear prime, which is checked by
+		// TestInternalMatrixCondition in the generated test file.
+		//
+		// The condition (Section 5.2 of the paper, check_minpoly_condition in
+		// the reference scripts) is that M_I^i has irreducible characteristic
+		// polynomial for i = 1..2t, and it is a property of the pair (diagonal,
+		// prime) -- a diagonal valid over one field says nothing about another.
+		// These two were found by scanning, for offset o = 0, 1, 2, ..., the
+		// tail of t-9 consecutive entries starting at o of the fixed pool
+		//
+		//	1/2, -1/2, 1/2^2, -1/2^2, ..., 1/2^40, -1/2^40
+		//
+		// appended to the shared prefix [-2, 1, 2, 1/2, 3, 4, -1/2, -3, -4],
+		// and taking the first offset that passes: o = 2 for t = 12, o = 27 for
+		// t = 24. The pool is restricted to shapes matMulInternalInPlace can
+		// evaluate with shifts and adds rather than a general multiplication.
+		//
+		// The round numbers follow Eq. (1) of the
 		// Poseidon2 paper (https://eprint.iacr.org/2023/323.pdf) for n = 49,
-		// t = 16/24, d = 3 at kappa = 128:
+		// t = 12/24, d = 3 at kappa = 128:
 		//
 		//	R_F = 8
 		//	R_P = ceil(1.075 * max(R_interp, R_GB)) = ceil(1.075 * 29) = 32
 		//
 		// where R_interp = ceil(min{kappa,n}/log2(d)) + ceil(log_d(t)) - 5 = 29
-		// is the binding constraint. The bound grows with min{kappa, log2(p)},
+		// is the binding constraint. t enters only through ceil(log_3(t)), which
+		// is 3 for both 12 and 24, so narrowing the compression width from 16 to
+		// 12 does not change the round numbers.
+		//
+		// The bound grows with min{kappa, log2(p)},
 		// so a wider field needs MORE rounds, not fewer: koalabear saturates at
 		// n = 31 and needs R_P = 20, while mamabear at n = 49 needs 32. Reusing
 		// koalabear's 21 here would target roughly 33 bits of security.
@@ -140,12 +163,12 @@ func generatePoseidon2(F *config.Field, outputDir string) error {
 		// (13/21/30 at t = 16/24/32) and koalabear (20/23/31), and Table 1 of
 		// the paper.
 		data.ParamsCompression = amd64.Poseidon2Parameters{
-			Width:         16,
+			Width:         12,
 			FullRounds:    8,
 			PartialRounds: 32,
 			SBoxDegree:    3,
-			// [-2, 1, 2, 1/2, 3, 4, -1/2, -3, -4, 1/2^8, 1/8, 1/2^24, -1/2^8, -1/8, -1/16, -1/2^24]
-			DiagInternal: []uint64{562932773552127, 1, 2, 281466386776065, 3, 4, 281466386776064, 562932773552126, 562932773552125, 560733817405441, 492566176858113, 562932739998721, 2198956146688, 70366596694016, 35183298347008, 33553408},
+			// [-2, 1, 2, 1/2, 3, 4, -1/2, -3, -4, 1/4, -1/4, 1/8]
+			DiagInternal: []uint64{562932773552127, 1, 2, 281466386776065, 3, 4, 281466386776064, 562932773552126, 562932773552125, 422199580164097, 140733193388032, 492566176858113},
 		}
 
 		data.ParamsSponge = amd64.Poseidon2Parameters{
@@ -153,8 +176,8 @@ func generatePoseidon2(F *config.Field, outputDir string) error {
 			FullRounds:    8,
 			PartialRounds: 32,
 			SBoxDegree:    3,
-			// [-2, 1, 2, 1/2, 3, 4, -1/2, -3, -4, 1/2^8, 1/4, 1/8, 1/16, 1/32, 1/64, 1/2^24, -1/2^8, -1/8, -1/16, -1/32, -1/64, -1/2^7, -1/2^9, -1/2^24]
-			DiagInternal: []uint64{562932773552127, 1, 2, 281466386776065, 3, 4, 281466386776064, 562932773552126, 562932773552125, 560733817405441, 422199580164097, 492566176858113, 527749475205121, 545341124378625, 554136948965377, 562932739998721, 2198956146688, 70366596694016, 35183298347008, 17591649173504, 8795824586752, 4397912293376, 1099478073344, 33553408},
+			// [-2, 1, 2, 1/2, 3, 4, -1/2, -3, -4, -1/2^14, 1/2^15, -1/2^15, 1/2^16, -1/2^16, 1/2^17, -1/2^17, 1/2^18, -1/2^18, 1/2^19, -1/2^19, 1/2^20, -1/2^20, 1/2^21, -1/2^21]
+			DiagInternal: []uint64{562932773552127, 1, 2, 281466386776065, 3, 4, 281466386776064, 562932773552126, 562932773552125, 34358689792, 562915594207233, 17179344896, 562924183879681, 8589672448, 562928478715905, 4294836224, 562930626134017, 2147418112, 562931699843073, 1073709056, 562932236697601, 536854528, 562932505124865, 268427264},
 		}
 
 		data.Params = []amd64.Poseidon2Parameters{

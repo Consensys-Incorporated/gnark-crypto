@@ -16,10 +16,10 @@ func transversalHash(codewords []mamabear.Element, s *sis.RSis, sizeCodeWord int
 }
 
 // transversalHashGeneric hashes the columns of the codewords using the provided hash function.
-// The result should be read 4 elements at a time (= 32 bytes = SHA-256 output size).
+// The result should be read HashSize elements at a time (= HashBytes bytes).
 func transversalHashGeneric(codewords []mamabear.Element, newHash HashConstructor, sizeCodeWord int) []mamabear.Element {
 
-	const nbMamabearElementsPerHash = 4
+	const nbMamabearElementsPerHash = HashSize
 
 	nbCols := sizeCodeWord
 	nbRows := len(codewords) / sizeCodeWord
