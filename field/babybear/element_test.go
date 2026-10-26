@@ -2264,7 +2264,7 @@ func TestElementValueReceivers(t *testing.T) {
 	// values print like pointers: decimal rather than Montgomery limbs
 	assert.Equal("5", fmt.Sprint(x))
 	assert.Equal("5", fmt.Sprint(&x))
-	assert.Equal("5", fmt.Sprintf("%s", x))
+	assert.Equal("5", fmt.Sprintf("%s", x)) //nolint:staticcheck // testing stringer interface
 	assert.Equal("{5}", fmt.Sprintf("%v", struct{ E Element }{x}))
 	assert.Equal("[5 5]", fmt.Sprint([]Element{x, x}))
 	assert.Equal("<nil>", fmt.Sprint((*Element)(nil)))
