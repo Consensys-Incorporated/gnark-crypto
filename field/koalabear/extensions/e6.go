@@ -24,7 +24,7 @@ type E6 struct {
 }
 
 // Equal returns true if z equals x, false otherwise
-func (z *E6) Equal(x *E6) bool {
+func (z E6) Equal(x *E6) bool {
 	return z.B0.Equal(&x.B0) && z.B1.Equal(&x.B1) && z.B2.Equal(&x.B2)
 }
 
@@ -33,7 +33,7 @@ func (z *E6) Equal(x *E6) bool {
 //	-1 if z <  x
 //	 0 if z == x
 //	+1 if z >  x
-func (z *E6) Cmp(x *E6) int {
+func (z E6) Cmp(x *E6) int {
 	if a2 := z.B2.Cmp(&x.B2); a2 != 0 {
 		return a2
 	}
@@ -44,7 +44,7 @@ func (z *E6) Cmp(x *E6) int {
 }
 
 // String puts E6 in string form
-func (z *E6) String() string {
+func (z E6) String() string {
 	return (z.B0.String() + "+(" + z.B1.String() + ")*v+(" + z.B2.String() + ")*v**2")
 }
 
@@ -151,7 +151,7 @@ func (z *E6) SetBigInt(v *big.Int) *E6 {
 
 // BigInt sets res to the integer that z embeds, and returns res.
 // It returns nil if z is not in the image of the embedding ℤ→𝔽, i.e. if any coordinate other than the first is non-zero.
-func (z *E6) BigInt(res *big.Int) *big.Int {
+func (z E6) BigInt(res *big.Int) *big.Int {
 	if !z.B0.A1.IsZero() || !z.B1.A0.IsZero() || !z.B1.A1.IsZero() || !z.B2.A0.IsZero() || !z.B2.A1.IsZero() {
 		return nil
 	}
@@ -159,7 +159,7 @@ func (z *E6) BigInt(res *big.Int) *big.Int {
 }
 
 // AppendBase appends the coordinates B0.A0, B0.A1, B1.A0, B1.A1, B2.A0, B2.A1 of z to s, and returns the extended slice
-func (z *E6) AppendBase(s []fr.Element) []fr.Element {
+func (z E6) AppendBase(s []fr.Element) []fr.Element {
 	return append(s, z.B0.A0, z.B0.A1, z.B1.A0, z.B1.A1, z.B2.A0, z.B2.A1)
 }
 
@@ -180,7 +180,7 @@ func (z *E6) SetBase(s []fr.Element) *E6 {
 
 // Marshal returns the big-endian encodings of the coefficients
 // B0.A0, B0.A1, B1.A0, B1.A1, B2.A0, B2.A1 concatenated, BytesE6 bytes in total
-func (z *E6) Marshal() []byte {
+func (z E6) Marshal() []byte {
 	res := make([]byte, BytesE6)
 	fr.BigEndian.PutElement((*[fr.Bytes]byte)(res[0*fr.Bytes:1*fr.Bytes]), z.B0.A0)
 	fr.BigEndian.PutElement((*[fr.Bytes]byte)(res[1*fr.Bytes:2*fr.Bytes]), z.B0.A1)
@@ -288,12 +288,12 @@ func (z *E6) MustSetRandom() *E6 {
 }
 
 // IsZero returns true if z is zero, false otherwise
-func (z *E6) IsZero() bool {
+func (z E6) IsZero() bool {
 	return z.B0.IsZero() && z.B1.IsZero() && z.B2.IsZero()
 }
 
 // IsOne returns true if z is one, false otherwise
-func (z *E6) IsOne() bool {
+func (z E6) IsOne() bool {
 	return z.B0.IsOne() && z.B1.IsZero() && z.B2.IsZero()
 }
 

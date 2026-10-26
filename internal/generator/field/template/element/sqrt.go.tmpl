@@ -22,7 +22,7 @@ func init() {
 {{- $p20 := and  .UsingP20Inverse (not (eq .NbWords 1))}}
 
 // Legendre returns the Legendre symbol of z (either +1, -1, or 0.)
-func (z *{{.ElementName}}) Legendre() int {
+func (z {{.ReadRecv}}) Legendre() int {
 {{- if $p20}}
 
 	// Adapts "Optimized Binary GCD for Modular Inversion"
@@ -31,7 +31,7 @@ func (z *{{.ElementName}}) Legendre() int {
 
 	// We don't need to account for z being in Montgomery form.
 	// (xR|q) = (x|q)(R|q). R is a square (an even power of 2), so (R|q) = 1.
-	a := *z
+	a := {{.RecvValue}}
 	b := {{.ElementName}} {
 		{{- range $i := .NbWordsIndexesFull}}
 		q{{$i}},{{end}}
@@ -194,9 +194,9 @@ func (z *{{.ElementName}}) Legendre() int {
 	var l {{.ElementName}}
 	// z^((q-1)/2)
 	{{- if .UseAddChain}}
-	l.ExpByLegendreExp(*z)
+	l.ExpByLegendreExp({{.RecvValue}})
 	{{- else}}
-	l.Exp(*z, _bLegendreExponent{{.ElementName}})
+	l.Exp({{.RecvValue}}, _bLegendreExponent{{.ElementName}})
 	{{- end}}
 
 	if l.IsZero() {
