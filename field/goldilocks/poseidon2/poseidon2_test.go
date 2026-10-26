@@ -395,7 +395,7 @@ func testReference[D Digest](t *testing.T) {
 			h := tc.h()
 			h.WriteElements(elems...)
 
-			ref := gnarkHash.NewMerkleDamgardHasher(tc.p, make([]byte, tc.p.BlockSize()))
+			ref := gnarkHash.NewMerkleDamgardHasher(tc.p, make([]byte, tc.p.BlockSize())) //nolint:staticcheck // backwards compatibility: deprecated byte hasher must give the same digests
 			written, err := ref.Write(marshalElements(elems))
 			require.NoError(t, err)
 			require.Equal(t, ln*fr.Bytes, written)
@@ -409,7 +409,7 @@ func testReference[D Digest](t *testing.T) {
 func TestMerkleDamgard(t *testing.T) {
 	p := NewDefaultPermutation()
 	newRef := func() gnarkHash.StateStorer {
-		return gnarkHash.NewMerkleDamgardHasher(p, make([]byte, p.BlockSize()))
+		return gnarkHash.NewMerkleDamgardHasher(p, make([]byte, p.BlockSize())) //nolint:staticcheck // backwards compatibility: deprecated byte hasher must give the same digests
 	}
 
 	for _, n := range lengths {

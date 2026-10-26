@@ -113,7 +113,9 @@ func TestMerkleDamgard(t *testing.T) {
 	require.Equal(t, knownDigest, hex.EncodeToString(digest.Marshal()), "digest of 1, 2, 3 by the field hasher")
 
 	p := NewDefaultPermutation()
-	newRef := func() hash.StateStorer { return hash.NewMerkleDamgardHasher(p, make([]byte, p.BlockSize())) }
+	newRef := func() hash.StateStorer {
+		return hash.NewMerkleDamgardHasher(p, make([]byte, p.BlockSize())) //nolint:staticcheck // backwards compatibility: deprecated byte hasher must give the same digests
+	}
 
 	for _, n := range []int{0, 1, 2, 3, 10} {
 		elems := testElements(n, 7)
@@ -353,7 +355,7 @@ func TestHashReset(t *testing.T) {
 	require.NoError(t, err)
 	b[0] &= msbMask
 	p := Permutation{GetDefaultParameters()}
-	h := hash.NewMerkleDamgardHasher(&p, iv[:])
+	h := hash.NewMerkleDamgardHasher(&p, iv[:]) //nolint:staticcheck // backwards compatibility: deprecated byte hasher must give the same digests
 	_, err = h.Write(b[:])
 	require.NoError(t, err)
 	res := h.Sum(nil)

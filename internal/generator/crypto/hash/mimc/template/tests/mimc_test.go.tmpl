@@ -148,7 +148,7 @@ func TestMerkleDamgard(t *testing.T) {
 	require.Equal(t, knownDigest, hex.EncodeToString(digest.Marshal()), "digest of 1, 2, 3 by the field hasher")
 
 	newRef := func() hash.StateStorer {
-		return hash.NewMerkleDamgardHasher(byteCompressor{}, nil)
+		return hash.NewMerkleDamgardHasher(byteCompressor{}, nil) //nolint:staticcheck // backwards compatibility: deprecated byte hasher must give the same digests
 	}
 	// the deprecated hasher of both elements and bytes
 	newHasher := func() hashtesting.Hasher[fr.Element, fr.Element] {
