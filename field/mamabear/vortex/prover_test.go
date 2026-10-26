@@ -1,7 +1,9 @@
 package vortex
 
 import (
+	"crypto/sha512"
 	"encoding/binary"
+	"hash"
 	"math/rand/v2"
 	"sync"
 	"testing"
@@ -101,6 +103,17 @@ func TestFullRandom(t *testing.T) {
 }
 
 func runTest(t *testing.T, tc *testcaseVortex) {
+	t.Run("poseidon2", func(t *testing.T) { runTestWith(t, tc) })
+	// The alternative-Merkle-hash path is a separate branch in both Commit and
+	// Verify, each unpacking the digest into a leaf independently. Exercise it
+	// end to end: a prover/verifier disagreement about how many elements a leaf
+	// holds is invisible to the Merkle tests, which never run a full opening.
+	t.Run("sha384", func(t *testing.T) {
+		runTestWith(t, tc, WithMerkleHash(func() hash.Hash { return sha512.New384() }))
+	})
+}
+
+func runTestWith(t *testing.T, tc *testcaseVortex, opts ...Option) {
 
 	var (
 		numCol             = len(tc.M[0])
@@ -108,8 +121,11 @@ func runTest(t *testing.T, tc *testcaseVortex) {
 		reedSolomonInvRate = 2
 		numSelectedColumns = len(tc.SelectedColumns)
 		sisParams, _       = sis.NewRSis(0, 9, 16, numRow)
-		params, _          = NewParams(numCol, numRow, sisParams, reedSolomonInvRate, numSelectedColumns)
+		params, err0       = NewParams(numCol, numRow, sisParams, reedSolomonInvRate, numSelectedColumns, opts...)
 	)
+	if err0 != nil {
+		t.Fatal(err0)
+	}
 
 	proverState, err := Commit(params, tc.M)
 	if err != nil {

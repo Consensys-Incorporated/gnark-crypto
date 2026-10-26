@@ -97,7 +97,10 @@ func (p *Params) Verify(input VerifierInput) error {
 				h.Write(e.Marshal())
 			}
 			bs := h.Sum(nil)
-			for j := range 4 {
+			if len(bs) < HashBytes {
+				return ErrWrongSizeHash
+			}
+			for j := range HashSize {
 				leaf[j].SetBytes(bs[nbBytes*j : nbBytes*j+nbBytes])
 			}
 		}

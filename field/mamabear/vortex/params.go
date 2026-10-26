@@ -32,27 +32,40 @@ type Option func(opt *Config) error
 
 // WithMerkleHash specifies the hash function used to build the Merkle tree of the hashed
 // columns of the stacked codewords.
-func WithMerkleHash(h hash.Hash) Option {
+//
+// It takes a constructor, not an instance: Commit and BuildMerkleTree call it
+// once per worker goroutine, so handing them a single shared hash.Hash races on
+// its internal state. Each call must return a fresh hash.
+func WithMerkleHash(newHash HashConstructor) Option {
 	return func(opt *Config) error {
-		bs := h.Size()
-		if bs != HashBytes {
-			return ErrWrongSizeHash
+		if err := checkHashSize(newHash); err != nil {
+			return err
 		}
-		opt.merkleHashFunc = func() hash.Hash { return h }
+		opt.merkleHashFunc = newHash
 		return nil
 	}
 }
 
 // WithColumnHash specifies the hash function used to hash the columns of the stacked codewords.
-func WithColumnHash(h hash.Hash) Option {
+// As with [WithMerkleHash], each call must return a fresh hash.
+func WithColumnHash(newHash HashConstructor) Option {
 	return func(opt *Config) error {
-		bs := h.Size()
-		if bs != HashBytes {
-			return ErrWrongSizeHash
+		if err := checkHashSize(newHash); err != nil {
+			return err
 		}
-		opt.columnHash = func() hash.Hash { return h }
+		opt.columnHash = newHash
 		return nil
 	}
+}
+
+func checkHashSize(newHash HashConstructor) error {
+	if newHash == nil {
+		return errors.New("the hash constructor must not be nil")
+	}
+	if newHash().Size() != HashBytes {
+		return ErrWrongSizeHash
+	}
+	return nil
 }
 
 func defaultConfig() Config {

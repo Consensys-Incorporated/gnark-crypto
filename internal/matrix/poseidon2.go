@@ -123,6 +123,11 @@ func charPoly[E any, PE Ring[E]](a [][]E) []E {
 
 // --- univariate polynomials over the field, coefficients in increasing degree ---
 
+// polyIsZero reports whether f is the zero polynomial.
+func polyIsZero[E any, PE Ring[E]](f []E) bool {
+	return len(f) == 1 && PE(&f[0]).IsZero()
+}
+
 func polyTrim[E any, PE Ring[E]](f []E) []E {
 	i := len(f) - 1
 	for i > 0 && PE(&f[i]).IsZero() {
@@ -189,7 +194,7 @@ func polySub[E any, PE Ring[E]](a, b []E) []E {
 // polyGCD returns a monic greatest common divisor of a and b.
 func polyGCD[E any, PE Ring[E]](a, b []E) []E {
 	a, b = polyTrim[E, PE](a), polyTrim[E, PE](b)
-	for !(len(b) == 1 && PE(&b[0]).IsZero()) {
+	for !polyIsZero[E, PE](b) {
 		var lc E
 		PE(&lc).Inverse(&b[len(b)-1])
 		bm := make([]E, len(b))
@@ -232,7 +237,7 @@ func isIrreducible[E any, PE Ring[E]](f []E, modulus *big.Int) bool {
 	x = polyMod[E, PE](x, f) // degree-1 f reduces x to a constant
 
 	d := polySub[E, PE](xPowQ[E, PE](n, f, modulus), x)
-	if !(len(d) == 1 && PE(&d[0]).IsZero()) {
+	if !polyIsZero[E, PE](d) {
 		return false
 	}
 	for r := 2; r <= n; r++ {
