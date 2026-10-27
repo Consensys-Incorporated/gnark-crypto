@@ -27,7 +27,6 @@ import (
 	fieldConfig "github.com/consensys/gnark-crypto/internal/generator/field/config"
 	"github.com/consensys/gnark-crypto/internal/generator/hash_to_curve"
 	"github.com/consensys/gnark-crypto/internal/generator/hash_to_field"
-	"github.com/consensys/gnark-crypto/internal/generator/hashadapter"
 	"github.com/consensys/gnark-crypto/internal/generator/kzg"
 	"github.com/consensys/gnark-crypto/internal/generator/mpcsetup"
 	"github.com/consensys/gnark-crypto/internal/generator/pairing"
@@ -106,7 +105,7 @@ func main() {
 				}, filepath.Join(outputDir, "polynomial"), true, true, gen))
 			}
 
-			// utility packages (polynomial, hash adapters) over the requested
+			// utility packages (polynomial) over the requested
 			// extensions
 			extPolyDir := filepath.Join(outputDir, "extensions", "polynomial")
 			var extInfos []fieldConfig.FieldDependency
@@ -123,7 +122,6 @@ func main() {
 			}
 			if len(extInfos) > 0 {
 				assertNoError(polynomial.GeneratePool(extPolyDir, extInfos...))
-				assertNoError(hashadapter.Generate(filepath.Join(outputDir, "extensions", "hash"), extInfos...))
 			}
 		}(conf)
 	}
