@@ -100,6 +100,15 @@ func TestMerkleDamgard(t *testing.T) {
 		func(d fr.Element) []byte { return d.Marshal() }, 1, randomElements)
 }
 
+// hasherSink holds the hashers built by TestHasherConstructorAllocs on the heap.
+var hasherSink any
+
+// TestHasherConstructorAllocs checks that constructing a field hasher costs one
+// allocation.
+func TestHasherConstructorAllocs(t *testing.T) {
+	require.Equal(t, 1.0, testing.AllocsPerRun(100, func() { hasherSink = NewMerkleDamgardFieldHasher() }))
+}
+
 // TestFieldHasherAllocs checks that writing a field element and summing does not
 // allocate.
 func TestFieldHasherAllocs(t *testing.T) {

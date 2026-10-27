@@ -16,7 +16,7 @@ import (
 var (
 	_ fr.FieldHasher                        = (*gnarkHash.LargeFieldMerkleDamgardHasher[fr.Element])(nil)
 	_ gnarkHash.StateStorer                 = (*gnarkHash.LargeFieldMerkleDamgardByteHasher[fr.Element, *fr.Element])(nil)
-	_ gnarkHash.FieldCompressor[fr.Element] = (*Compressor)(nil)
+	_ gnarkHash.FieldCompressor[fr.Element] = Compressor{}
 )
 
 // NewMerkleDamgardFieldHasher returns a Poseidon2 field hasher using the Merkle-Damgard

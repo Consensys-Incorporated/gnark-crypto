@@ -613,7 +613,7 @@ type Digest = [DefaultCompressionWidth / 2]fr.Element
 type Compressor[D interface {
 	~[{{div $wc 2}}]fr.Element | ~[{{div $ws 2}}]fr.Element
 }] struct {
-	perm *Permutation
+	perm Permutation
 }
 
 // Compressor{{$wc}} compresses [Digest]s with a permutation of width {{$wc}}.
@@ -624,24 +624,24 @@ type Compressor{{$ws}} = Compressor[[{{div $ws 2}}]fr.Element]
 
 // NewCompressor returns a Compressor{{$wc}} over p. The width of p must be the
 // default compression width.
-func NewCompressor(p *Permutation) *Compressor{{$wc}} {
+func NewCompressor(p *Permutation) Compressor{{$wc}} {
 	if p.params.Width != 2*len(Digest{}) {
 		panic("poseidon2: the width of the permutation must be twice the length of the digest")
 	}
-	return &Compressor{{$wc}}{perm: p}
+	return Compressor{{$wc}}{perm: *p}
 }
 
 // NewCompressor{{$ws}} returns a Compressor{{$ws}} over p. The width of p must be {{$ws}}.
-func NewCompressor{{$ws}}(p *Permutation) *Compressor{{$ws}} {
+func NewCompressor{{$ws}}(p *Permutation) Compressor{{$ws}} {
 	if p.params.Width != 2*len([{{div $ws 2}}]fr.Element{}) {
 		panic("poseidon2: the width of the permutation must be twice the length of the digest")
 	}
-	return &Compressor{{$ws}}{perm: p}
+	return Compressor{{$ws}}{perm: *p}
 }
 
 // CompressField implements hash.FieldCompressor over D. dst may alias left or
 // right.
-func (c *Compressor[D]) CompressField(dst, left, right *D) {
+func (c Compressor[D]) CompressField(dst, left, right *D) {
 	var x [{{$ws}}]fr.Element
 	n := len(*left)
 	for i := range n {

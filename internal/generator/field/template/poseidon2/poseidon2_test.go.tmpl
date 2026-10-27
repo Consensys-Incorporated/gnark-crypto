@@ -181,6 +181,16 @@ func TestHasher{{.ParamsSponge.Width}}(t *testing.T) {
 	require.Equal(t, state, h.SumElement())
 }
 
+// hasherSink holds the hashers built by TestHasherConstructorAllocs on the heap.
+var hasherSink any
+
+// TestHasherConstructorAllocs checks that constructing a field hasher costs one
+// allocation.
+func TestHasherConstructorAllocs(t *testing.T) {
+	require.Equal(t, 1.0, testing.AllocsPerRun(100, func() { hasherSink = NewMerkleDamgardFieldHasher() }))
+	require.Equal(t, 1.0, testing.AllocsPerRun(100, func() { hasherSink = NewMerkleDamgardFieldHasher{{.ParamsSponge.Width}}() }))
+}
+
 // TestFieldHasherAllocs checks that writing a field element and summing does not
 // allocate.
 func TestFieldHasherAllocs(t *testing.T) {

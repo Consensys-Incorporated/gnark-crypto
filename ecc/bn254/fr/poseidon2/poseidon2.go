@@ -382,19 +382,19 @@ func (h *Permutation) Compress(left []byte, right []byte) ([]byte, error) {
 // in the same way as [Permutation.Compress] does on bytes. It implements
 // hash.FieldCompressor over *fr.Element, and is safe for concurrent use.
 type Compressor struct {
-	perm *Permutation
+	perm Permutation
 }
 
 // NewCompressor returns a Compressor over p. The width of p must be 2.
-func NewCompressor(p *Permutation) *Compressor {
+func NewCompressor(p *Permutation) Compressor {
 	if p.params.Width != 2 {
 		panic("poseidon2: compression needs a permutation of width 2")
 	}
-	return &Compressor{perm: p}
+	return Compressor{perm: *p}
 }
 
 // CompressField implements hash.FieldCompressor. dst may alias left or right.
-func (c *Compressor) CompressField(dst, left, right *fr.Element) {
+func (c Compressor) CompressField(dst, left, right *fr.Element) {
 	x := [2]fr.Element{*left, *right}
 	if err := c.perm.Permutation(x[:]); err != nil {
 		panic(err)
