@@ -15,7 +15,7 @@ type E3 struct {
 }
 
 // Equal returns z == x.
-func (z *E3) Equal(x *E3) bool {
+func (z E3) Equal(x *E3) bool {
 	return z.A0.Equal(&x.A0) && z.A1.Equal(&x.A1) && z.A2.Equal(&x.A2)
 }
 
@@ -100,7 +100,7 @@ func (z *E3) SetBigInt(v *big.Int) *E3 {
 
 // BigInt sets res to the integer that z embeds, and returns res.
 // It returns nil if z is not in the image of the embedding ℤ→𝔽, i.e. if any coordinate other than the first is non-zero.
-func (z *E3) BigInt(res *big.Int) *big.Int {
+func (z E3) BigInt(res *big.Int) *big.Int {
 	if !z.A1.IsZero() || !z.A2.IsZero() {
 		return nil
 	}
@@ -108,7 +108,7 @@ func (z *E3) BigInt(res *big.Int) *big.Int {
 }
 
 // AppendBase appends the coordinates A0, A1, A2 of z to s, and returns the extended slice
-func (z *E3) AppendBase(s []fr.Element) []fr.Element {
+func (z E3) AppendBase(s []fr.Element) []fr.Element {
 	return append(s, z.A0, z.A1, z.A2)
 }
 
@@ -126,7 +126,7 @@ func (z *E3) SetBase(s []fr.Element) *E3 {
 
 // Marshal returns the big-endian encodings of the coefficients
 // A0, A1, A2 concatenated, BytesE3 bytes in total
-func (z *E3) Marshal() []byte {
+func (z E3) Marshal() []byte {
 	res := make([]byte, BytesE3)
 	fr.BigEndian.PutElement((*[fr.Bytes]byte)(res[0*fr.Bytes:1*fr.Bytes]), z.A0)
 	fr.BigEndian.PutElement((*[fr.Bytes]byte)(res[1*fr.Bytes:2*fr.Bytes]), z.A1)
@@ -156,12 +156,12 @@ func (z *E3) SetBytesCanonical(b []byte) error {
 }
 
 // IsZero reports whether z is zero.
-func (z *E3) IsZero() bool {
+func (z E3) IsZero() bool {
 	return z.A0.IsZero() && z.A1.IsZero() && z.A2.IsZero()
 }
 
 // IsOne reports whether z is one.
-func (z *E3) IsOne() bool {
+func (z E3) IsOne() bool {
 	return z.A0.IsOne() && z.A1.IsZero() && z.A2.IsZero()
 }
 
@@ -174,10 +174,8 @@ func (z *E3) Set(x *E3) *E3 {
 }
 
 // Clone returns a copy of z.
-func (z *E3) Clone() *E3 {
-	var r E3
-	r.Set(z)
-	return &r
+func (z E3) Clone() *E3 {
+	return &z
 }
 
 // SetRandom sets z to a uniformly random element.
@@ -203,7 +201,7 @@ func (z *E3) MustSetRandom() *E3 {
 }
 
 // String returns a human-readable string representation.
-func (z *E3) String() string {
+func (z E3) String() string {
 	return z.A0.String() + " + (" + z.A1.String() + ")*u + (" + z.A2.String() + ")*u²"
 }
 

@@ -21,7 +21,7 @@ type E2 struct {
 }
 
 // Equal returns true if z equals x, false otherwise
-func (z *E2) Equal(x *E2) bool {
+func (z E2) Equal(x *E2) bool {
 	return z.A0.Equal(&x.A0) && z.A1.Equal(&x.A1)
 }
 
@@ -30,7 +30,7 @@ func (z *E2) Equal(x *E2) bool {
 //	-1 if z <  x
 //	 0 if z == x
 //	+1 if z >  x
-func (z *E2) Cmp(x *E2) int {
+func (z E2) Cmp(x *E2) int {
 	if a1 := z.A1.Cmp(&x.A1); a1 != 0 {
 		return a1
 	}
@@ -39,7 +39,7 @@ func (z *E2) Cmp(x *E2) int {
 
 // LexicographicallyLargest returns true if this element is strictly lexicographically
 // larger than its negation, false otherwise
-func (z *E2) LexicographicallyLargest() bool {
+func (z E2) LexicographicallyLargest() bool {
 	// adapted from github.com/zkcrypto/bls12_381
 	if z.A1.IsZero() {
 		return z.A0.LexicographicallyLargest()
@@ -135,7 +135,7 @@ func (z *E2) SetBigInt(v *big.Int) *E2 {
 
 // BigInt sets res to the integer that z embeds, and returns res.
 // It returns nil if z is not in the image of the embedding ℤ→𝔽, i.e. if any coordinate other than the first is non-zero.
-func (z *E2) BigInt(res *big.Int) *big.Int {
+func (z E2) BigInt(res *big.Int) *big.Int {
 	if !z.A1.IsZero() {
 		return nil
 	}
@@ -143,7 +143,7 @@ func (z *E2) BigInt(res *big.Int) *big.Int {
 }
 
 // AppendBase appends the coordinates A0, A1 of z to s, and returns the extended slice
-func (z *E2) AppendBase(s []fr.Element) []fr.Element {
+func (z E2) AppendBase(s []fr.Element) []fr.Element {
 	return append(s, z.A0, z.A1)
 }
 
@@ -160,7 +160,7 @@ func (z *E2) SetBase(s []fr.Element) *E2 {
 
 // Marshal returns the big-endian encodings of the coefficients
 // A0, A1 concatenated, BytesE2 bytes in total
-func (z *E2) Marshal() []byte {
+func (z E2) Marshal() []byte {
 	res := make([]byte, BytesE2)
 	fr.BigEndian.PutElement((*[fr.Bytes]byte)(res[0*fr.Bytes:1*fr.Bytes]), z.A0)
 	fr.BigEndian.PutElement((*[fr.Bytes]byte)(res[1*fr.Bytes:2*fr.Bytes]), z.A1)
@@ -206,12 +206,12 @@ func (z *E2) MustSetRandom() *E2 {
 }
 
 // IsZero returns true if z is zero, false otherwise
-func (z *E2) IsZero() bool {
+func (z E2) IsZero() bool {
 	return z.A0.IsZero() && z.A1.IsZero()
 }
 
 // IsOne returns true if z is one, false otherwise
-func (z *E2) IsOne() bool {
+func (z E2) IsOne() bool {
 	return z.A0.IsOne() && z.A1.IsZero()
 }
 
@@ -244,7 +244,7 @@ func (z *E2) Neg(x *E2) *E2 {
 }
 
 // String implements Stringer interface for fancy printing
-func (z *E2) String() string {
+func (z E2) String() string {
 	return z.A0.String() + "+" + z.A1.String() + "*u"
 }
 
@@ -269,7 +269,7 @@ func (z *E2) Halve() {
 }
 
 // Legendre returns the Legendre symbol of z
-func (z *E2) Legendre() int {
+func (z E2) Legendre() int {
 	var n fr.Element
 	z.norm(&n)
 	return n.Legendre()

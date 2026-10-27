@@ -7,6 +7,7 @@ package extensions
 
 import (
 	"bytes"
+	"fmt"
 	"math/big"
 	"testing"
 
@@ -612,4 +613,32 @@ func TestE3Base(t *testing.T) {
 	for _, n := range []int{0, 3 - 1, 3 + 1} {
 		require.Panics(t, func() { z.SetBase(make([]fr.Element, n)) }, "SetBase on %d elements", n)
 	}
+}
+
+func TestE3ValueReceivers(t *testing.T) {
+	var x E3
+	x.MustSetRandom()
+	x.A2.SetOne() // not in the base field
+
+	// values print with String, like pointers
+	require.Equal(t, x.String(), fmt.Sprint(x))
+	require.Equal(t, x.String(), fmt.Sprint(&x))
+	require.Equal(t, "{"+x.String()+"}", fmt.Sprintf("%v", struct{ E E3 }{x}))
+
+	// read-only methods are usable on non-addressable values
+	m := map[string]E3{"k": x}
+	require.False(t, m["k"].IsZero())
+	require.False(t, m["k"].IsOne())
+	require.True(t, m["k"].Equal(&x))
+	require.Equal(t, x.Marshal(), m["k"].Marshal())
+	require.Equal(t, x.AppendBase(nil), m["k"].AppendBase(nil))
+	require.Nil(t, m["k"].BigInt(new(big.Int)))
+	require.Equal(t, x, m["k"])
+
+	// Clone must not alias the receiver
+	c := m["k"].Clone()
+	require.True(t, c.Equal(&x))
+	c.SetZero()
+	require.False(t, x.IsZero())
+	require.False(t, m["k"].IsZero())
 }

@@ -1316,3 +1316,25 @@ func TestE4Base(t *testing.T) {
 		require.Panics(t, func() { z.SetBase(make([]fr.Element, n)) }, "SetBase on %d elements", n)
 	}
 }
+
+func TestE4ValueReceivers(t *testing.T) {
+	var x E4
+	x.MustSetRandom()
+	x.B1.A1.SetOne() // not in the base field
+
+	// values print with String, like pointers
+	require.Equal(t, x.String(), fmt.Sprint(x))
+	require.Equal(t, x.String(), fmt.Sprint(&x))
+	require.Equal(t, "{"+x.String()+"}", fmt.Sprintf("%v", struct{ E E4 }{x}))
+
+	// read-only methods are usable on non-addressable values
+	m := map[string]E4{"k": x}
+	require.False(t, m["k"].IsZero())
+	require.False(t, m["k"].IsOne())
+	require.True(t, m["k"].Equal(&x))
+	require.Zero(t, m["k"].Cmp(&x))
+	require.Equal(t, x.Marshal(), m["k"].Marshal())
+	require.Equal(t, x.AppendBase(nil), m["k"].AppendBase(nil))
+	require.Nil(t, m["k"].BigInt(new(big.Int)))
+	require.Equal(t, x, m["k"])
+}

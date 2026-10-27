@@ -70,7 +70,9 @@ func main() {
 		wg.Add(1)
 		go func(f config.Field) {
 			defer wg.Done()
-			var fieldOpts []fieldConfig.FieldOption
+			// WithValueReceivers only takes effect on single-word fields, it is
+			// no-op for multi-word fields.
+			fieldOpts := []fieldConfig.FieldOption{fieldConfig.WithValueReceivers()}
 			if f.RBits != 0 {
 				fieldOpts = append(fieldOpts, fieldConfig.WithMontgomeryRadixBits(f.RBits))
 			}
