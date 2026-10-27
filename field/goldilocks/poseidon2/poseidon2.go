@@ -311,7 +311,7 @@ func (h *Permutation) Permutation(input []fr.Element) error {
 // left and right must each be concatenations of t/2 fr.Elements, where t is the width of the permutation.
 // The result is the concatenation of t/2 fr.Elements.
 //
-// Deprecated: use [Compressor.CompressField].
+// Deprecated: use [Compressor8.CompressField].
 func (h *Permutation) Compress(left []byte, right []byte) ([]byte, error) {
 	n := h.params.Width / 2
 	if h.params.Width != 2*n {
@@ -354,49 +354,42 @@ const DefaultCompressionWidth = 8
 // Digest is a digest of the Merkle-Damgard hasher: half the default compression width of elements.
 type Digest = [DefaultCompressionWidth / 2]fr.Element
 
-// compressor compresses digests D, which are blocks of t/2 elements, with a
-// Poseidon2 permutation of width t, in the same way as [Permutation.Compress]
-// does on bytes. It is safe for concurrent use. See [Compressor8] and
-// [Compressor12].
-type compressor[D interface {
+// Compressor compresses blocks of len(D) elements with a Poseidon2 permutation
+// of twice that width, in the same way as [Permutation.Compress] does on bytes.
+// It is safe for concurrent use. [Compressor8] and [Compressor12] are its
+// instances over the digests of the permutations of width 8 and 12.
+type Compressor[D interface {
 	~[4]fr.Element | ~[6]fr.Element
 }] struct {
 	perm *Permutation
 }
 
-func newCompressor[D interface {
-	~[4]fr.Element | ~[6]fr.Element
-}](p *Permutation) *compressor[D] {
-	var d D
-	if p.params.Width != 2*len(d) {
-		panic("poseidon2: the width of the permutation must be twice the length of the digest")
-	}
-	return &compressor[D]{perm: p}
-}
-
 // Compressor8 compresses [Digest]s with a permutation of width 8.
-type Compressor8 = compressor[Digest]
+type Compressor8 = Compressor[Digest]
 
 // Compressor12 compresses blocks of 6 elements with a permutation of width 12.
-type Compressor12 = compressor[[6]fr.Element]
+type Compressor12 = Compressor[[6]fr.Element]
 
-// Compressor is Compressor8.
-type Compressor = Compressor8
-
-// NewCompressor returns a Compressor over p. The width of p must be the default
-// compression width.
-func NewCompressor(p *Permutation) *Compressor {
-	return newCompressor[Digest](p)
+// NewCompressor returns a Compressor8 over p. The width of p must be the
+// default compression width.
+func NewCompressor(p *Permutation) *Compressor8 {
+	if p.params.Width != 2*len(Digest{}) {
+		panic("poseidon2: the width of the permutation must be twice the length of the digest")
+	}
+	return &Compressor8{perm: p}
 }
 
 // NewCompressor12 returns a Compressor12 over p. The width of p must be 12.
 func NewCompressor12(p *Permutation) *Compressor12 {
-	return newCompressor[[6]fr.Element](p)
+	if p.params.Width != 2*len([6]fr.Element{}) {
+		panic("poseidon2: the width of the permutation must be twice the length of the digest")
+	}
+	return &Compressor12{perm: p}
 }
 
 // CompressField implements hash.FieldCompressor over D. dst may alias left or
 // right.
-func (c *compressor[D]) CompressField(dst, left, right *D) {
+func (c *Compressor[D]) CompressField(dst, left, right *D) {
 	var x [12]fr.Element
 	n := len(*left)
 	for i := range n {
