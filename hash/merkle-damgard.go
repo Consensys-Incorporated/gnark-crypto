@@ -161,8 +161,8 @@ func (h *FieldMerkleDamgardHasher[F, D]) PadBlock() {
 	}
 }
 
-// SumElement implements [FieldHasher].
-func (h *FieldMerkleDamgardHasher[F, D]) SumElement() D {
+// Sum implements [FieldHasher].
+func (h *FieldMerkleDamgardHasher[F, D]) Sum() D {
 	if h.n == 0 {
 		return h.state
 	}
@@ -190,108 +190,11 @@ func (h *FieldMerkleDamgardHasher[F, D]) Reset() {
 	h.n = 0
 }
 
-// FieldMerkleDamgardByteHasher hashes bytes with a [FieldMerkleDamgardHasher].
-// It is a [StateStorer], whose bytes are the marshalled elements of a block, over
-// a field hasher it owns. Write pads the last block of its input, so the digest
-// depends on how the input is split among the calls to Write. See
-// [NewFieldMerkleDamgardByteHasher].
-type FieldMerkleDamgardByteHasher[F any, PF interface {
-	*F
-	SetBytesCanonical([]byte) error
-	Marshal() []byte
-}, D Block[F]] struct {
-	hasher   *FieldMerkleDamgardHasher[F, D]
-	elemSize int // size of a marshaled element, in bytes
-}
-
-// NewFieldMerkleDamgardByteHasher returns a byte hasher over h, which it owns.
-func NewFieldMerkleDamgardByteHasher[F any, PF interface {
-	*F
-	SetBytesCanonical([]byte) error
-	Marshal() []byte
-}, D Block[F]](h *FieldMerkleDamgardHasher[F, D]) *FieldMerkleDamgardByteHasher[F, PF, D] {
-	var e F
-	return &FieldMerkleDamgardByteHasher[F, PF, D]{hasher: h, elemSize: len(PF(&e).Marshal())}
-}
-
-// Write implements hash.Write
-func (h *FieldMerkleDamgardByteHasher[F, PF, D]) Write(p []byte) (n int, err error) {
-	h.hasher.PadBlock()
-	blockSize := h.BlockSize()
-	var block D
-	for len(p) != 0 {
-		chunk := p[:min(len(p), blockSize)]
-		if err = h.parseBlock(&block, chunk); err != nil {
-			return
-		}
-		for i := range len(block) {
-			h.hasher.WriteElement(block[i])
-		}
-		n += len(chunk)
-		p = p[len(chunk):]
-	}
-	return
-}
-
-func (h *FieldMerkleDamgardByteHasher[F, PF, D]) Sum(b []byte) []byte {
-	return h.appendMarshalled(b, h.hasher.SumElement())
-}
-
-func (h *FieldMerkleDamgardByteHasher[F, PF, D]) Reset() {
-	h.hasher.Reset()
-}
-
-func (h *FieldMerkleDamgardByteHasher[F, PF, D]) Size() int {
-	return h.BlockSize()
-}
-
-func (h *FieldMerkleDamgardByteHasher[F, PF, D]) BlockSize() int {
-	return h.hasher.BlockLen() * h.elemSize
-}
-
-// State returns the marshalled state, which is the digest.
-func (h *FieldMerkleDamgardByteHasher[F, PF, D]) State() []byte {
-	return h.Sum(nil)
-}
-
-// SetState sets h's state to state. If len(state) < BlockSize, h's state is set
-// to state, left padded with zeroes.
-// len(state) > BlockSize will result in an error.
-func (h *FieldMerkleDamgardByteHasher[F, PF, D]) SetState(state []byte) error {
-	var newState D
-	if err := h.parseBlock(&newState, state); err != nil {
-		return err
-	}
-	h.hasher.state = newState
-	h.hasher.n = 0
-	return nil
-}
-
-func (h *FieldMerkleDamgardByteHasher[F, PF, D]) appendMarshalled(b []byte, e D) []byte {
-	for i := range len(e) {
-		b = append(b, PF(&e[i]).Marshal()...)
-	}
-	return b
-}
-
-// parseBlock parses b, padded with zeros on the left to a block, into the
-// elements of dst. It is an error if b is longer than a block.
-func (h *FieldMerkleDamgardByteHasher[F, PF, D]) parseBlock(dst *D, b []byte) error {
-	blockSize := h.BlockSize()
-	if len(b) > blockSize {
-		return fmt.Errorf("state/iv must not exceed the hash block size: %d > %d", len(b), blockSize)
-	}
-	if len(b) < blockSize {
-		padded := make([]byte, blockSize)
-		copy(padded[blockSize-len(b):], b)
-		b = padded
-	}
-	for i := range len(*dst) {
-		if err := PF(&(*dst)[i]).SetBytesCanonical(b[i*h.elemSize : (i+1)*h.elemSize]); err != nil {
-			return err
-		}
-	}
-	return nil
+// SetStateDigest replaces the chaining state with state, and discards the
+// pending elements. It does not change the initial state restored by Reset.
+func (h *FieldMerkleDamgardHasher[F, D]) SetStateDigest(state D) {
+	h.state = state
+	h.n = 0
 }
 
 // LargeFieldMerkleDamgardHasher is a Merkle-Damgard hash function over elements
@@ -343,8 +246,8 @@ func (h *LargeFieldMerkleDamgardHasher[F]) WriteElements(e ...F) {
 // incomplete block, and PadBlock does nothing.
 func (h *LargeFieldMerkleDamgardHasher[F]) PadBlock() {}
 
-// SumElement implements [FieldHasher].
-func (h *LargeFieldMerkleDamgardHasher[F]) SumElement() F {
+// Sum implements [FieldHasher].
+func (h *LargeFieldMerkleDamgardHasher[F]) Sum() F {
 	return h.state
 }
 
@@ -358,89 +261,8 @@ func (h *LargeFieldMerkleDamgardHasher[F]) Reset() {
 	h.state = h.iv
 }
 
-// LargeFieldMerkleDamgardByteHasher hashes bytes with a
-// [LargeFieldMerkleDamgardHasher]. It is a [StateStorer], whose bytes are the
-// marshalled elements of a block, over a field hasher it owns. Write pads a
-// partial last element of its input with zeros on the left, so the digests of an
-// input and of the input preceded by zeros in its last element are the same. See
-// [NewLargeFieldMerkleDamgardByteHasher].
-type LargeFieldMerkleDamgardByteHasher[F any, PF interface {
-	*F
-	SetBytesCanonical([]byte) error
-	Marshal() []byte
-}] struct {
-	hasher   *LargeFieldMerkleDamgardHasher[F]
-	block    F   // the element being compressed, held here rather than in a local variable so that it does not escape to the heap
-	elemSize int // size of a marshaled element, in bytes
-}
-
-// NewLargeFieldMerkleDamgardByteHasher returns a byte hasher over h, which it owns.
-func NewLargeFieldMerkleDamgardByteHasher[F any, PF interface {
-	*F
-	SetBytesCanonical([]byte) error
-	Marshal() []byte
-}](h *LargeFieldMerkleDamgardHasher[F]) *LargeFieldMerkleDamgardByteHasher[F, PF] {
-	var e F
-	return &LargeFieldMerkleDamgardByteHasher[F, PF]{hasher: h, elemSize: len(PF(&e).Marshal())}
-}
-
-// Write implements hash.Write
-func (h *LargeFieldMerkleDamgardByteHasher[F, PF]) Write(p []byte) (n int, err error) {
-	for len(p) != 0 {
-		chunk := p[:min(len(p), h.elemSize)]
-		if err = h.parseElement(&h.block, chunk); err != nil {
-			return
-		}
-		h.hasher.f.CompressField(&h.hasher.state, &h.hasher.state, &h.block)
-		n += len(chunk)
-		p = p[len(chunk):]
-	}
-	return
-}
-
-func (h *LargeFieldMerkleDamgardByteHasher[F, PF]) Sum(b []byte) []byte {
-	return append(b, PF(&h.hasher.state).Marshal()...)
-}
-
-func (h *LargeFieldMerkleDamgardByteHasher[F, PF]) Reset() {
-	h.hasher.Reset()
-}
-
-func (h *LargeFieldMerkleDamgardByteHasher[F, PF]) Size() int {
-	return h.elemSize
-}
-
-func (h *LargeFieldMerkleDamgardByteHasher[F, PF]) BlockSize() int {
-	return h.elemSize
-}
-
-// State returns the marshalled state, which is the digest.
-func (h *LargeFieldMerkleDamgardByteHasher[F, PF]) State() []byte {
-	return h.Sum(nil)
-}
-
-// SetState sets h's state to state. If len(state) < BlockSize, it is left padded
-// with zeros. A state longer than BlockSize, or not the encoding of a canonical
-// element, results in an error.
-func (h *LargeFieldMerkleDamgardByteHasher[F, PF]) SetState(state []byte) error {
-	var newState F
-	if err := h.parseElement(&newState, state); err != nil {
-		return err
-	}
-	h.hasher.state = newState
-	return nil
-}
-
-// parseElement parses b, padded with zeros on the left to an element, into dst.
-// It is an error if b is longer than an element.
-func (h *LargeFieldMerkleDamgardByteHasher[F, PF]) parseElement(dst *F, b []byte) error {
-	if len(b) > h.elemSize {
-		return fmt.Errorf("state/iv must not exceed the hash block size: %d > %d", len(b), h.elemSize)
-	}
-	if len(b) < h.elemSize {
-		padded := make([]byte, h.elemSize)
-		copy(padded[h.elemSize-len(b):], b)
-		b = padded
-	}
-	return PF(dst).SetBytesCanonical(b)
+// SetStateDigest replaces the chaining state with state. It does not change the
+// initial state restored by Reset.
+func (h *LargeFieldMerkleDamgardHasher[F]) SetStateDigest(state F) {
+	h.state = state
 }

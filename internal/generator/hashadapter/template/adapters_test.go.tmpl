@@ -25,14 +25,14 @@ func TestChallengeHasher{{.ExtensionName}}(t *testing.T) {
 	ref.PadBlock()
 	ref.WriteElements(coords[2*D:]...)
 	var want {{.ElementType}}
-	d := ref.SumElement()
+	d := ref.Sum()
 	want.SetBase(d[:D])
 
 	h := NewChallengeHasher{{.ExtensionName}}(poseidon2.NewMerkleDamgardFieldHasher())
 	h.WriteElements(es[:2]...)
 	h.PadBlock()
 	h.WriteElements(es[2:]...)
-	got := h.SumElement()
+	got := h.Sum()
 	require.True(t, got.Equal(&want))
 
 	require.Equal(t, {{if eq .ExtensionDegree 6}}4{{else if eq .ExtensionDegree 3}}8{{end}}, h.BlockLen())

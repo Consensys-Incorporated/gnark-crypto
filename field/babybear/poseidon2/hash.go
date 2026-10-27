@@ -44,10 +44,44 @@ var getParameters24 = sync.OnceValue(func() *Parameters {
 	return NewParameters(24, 8, 21)
 })
 
+// codec is the big endian encoding of the elements and digests of the hashers.
+type codec[D gnarkHash.Block[fr.Element]] struct{}
+
+func (codec[D]) ElementSize() int { return fr.Bytes }
+
+func (codec[D]) DigestSize() int {
+	var d D
+	return len(d) * fr.Bytes
+}
+
+func (codec[D]) DecodeElement(b []byte) (fr.Element, error) {
+	return fr.BigEndian.Element((*[fr.Bytes]byte)(b))
+}
+
+func (codec[D]) AppendDigest(b []byte, d D) []byte {
+	var buf [fr.Bytes]byte
+	for i := range len(d) {
+		fr.BigEndian.PutElement(&buf, d[i])
+		b = append(b, buf[:]...)
+	}
+	return b
+}
+
+func (c codec[D]) DecodeDigest(b []byte) (D, error) {
+	var d D
+	var err error
+	for i := range len(d) {
+		if d[i], err = c.DecodeElement(b[i*fr.Bytes : (i+1)*fr.Bytes]); err != nil {
+			return d, err
+		}
+	}
+	return d, nil
+}
+
 // NewMerkleDamgardHasher returns a Poseidon2 hasher using the Merkle-Damgard
 // construction with the default parameters.
-func NewMerkleDamgardHasher() *gnarkHash.FieldMerkleDamgardByteHasher[fr.Element, *fr.Element, Digest] {
-	return gnarkHash.NewFieldMerkleDamgardByteHasher[fr.Element, *fr.Element, Digest](NewMerkleDamgardFieldHasher())
+func NewMerkleDamgardHasher() gnarkHash.StateStorer {
+	return gnarkHash.NewByteHasher[fr.Element, Digest](NewMerkleDamgardFieldHasher(), codec[Digest]{})
 }
 
 // NewDefaultPermutation returns a Poseidon2 permutation with the default

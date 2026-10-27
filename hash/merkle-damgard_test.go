@@ -47,6 +47,35 @@ func (s byteStub[D]) Compress(left, right []byte) ([]byte, error) {
 	return digestBytes(dst), nil
 }
 
+// codec is the big endian encoding of the elements and digests of koalabear.
+type codec[D hash.Block[koalabear.Element]] struct{}
+
+func (codec[D]) ElementSize() int { return koalabear.Bytes }
+
+func (codec[D]) DigestSize() int {
+	var d D
+	return len(d) * koalabear.Bytes
+}
+
+func (codec[D]) DecodeElement(b []byte) (koalabear.Element, error) {
+	return koalabear.BigEndian.Element((*[koalabear.Bytes]byte)(b))
+}
+
+func (codec[D]) AppendDigest(b []byte, d D) []byte {
+	return append(b, digestBytes(d)...)
+}
+
+func (c codec[D]) DecodeDigest(b []byte) (D, error) {
+	var d D
+	var err error
+	for i := range len(d) {
+		if d[i], err = c.DecodeElement(b[i*koalabear.Bytes : (i+1)*koalabear.Bytes]); err != nil {
+			return d, err
+		}
+	}
+	return d, nil
+}
+
 func digestBytes[D hash.Block[koalabear.Element]](d D) []byte {
 	var b []byte
 	for i := range len(d) {
@@ -75,7 +104,7 @@ func testFieldMerkleDamgardHasher[D hash.Block[koalabear.Element]](t *testing.T)
 	}
 	newHasher := func() hash.FieldHasher[koalabear.Element, D] { return newFieldHasher() }
 	newByteHasher := func() hash.StateStorer {
-		return hash.NewFieldMerkleDamgardByteHasher[koalabear.Element, *koalabear.Element, D](newFieldHasher())
+		return hash.NewByteHasher[koalabear.Element, D](newFieldHasher(), codec[D]{})
 	}
 	newRef := func() hash.StateStorer {
 		return hash.NewMerkleDamgardHasher(byteStub[D]{}, make([]byte, blockLen*koalabear.Bytes))

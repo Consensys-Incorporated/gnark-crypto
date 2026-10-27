@@ -32,14 +32,14 @@ func TestChallengeHasherE3(t *testing.T) {
 	ref.PadBlock()
 	ref.WriteElements(coords[2*D:]...)
 	var want extensions.E3
-	d := ref.SumElement()
+	d := ref.Sum()
 	want.SetBase(d[:D])
 
 	h := NewChallengeHasherE3(poseidon2.NewMerkleDamgardFieldHasher())
 	h.WriteElements(es[:2]...)
 	h.PadBlock()
 	h.WriteElements(es[2:]...)
-	got := h.SumElement()
+	got := h.Sum()
 	require.True(t, got.Equal(&want))
 
 	require.Equal(t, 8, h.BlockLen())

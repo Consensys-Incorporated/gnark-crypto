@@ -172,7 +172,11 @@ func TestHasher24(t *testing.T) {
 		c.CompressField(&state, &state, &block)
 		h.WriteElements(block[:]...)
 	}
-	require.Equal(t, state, h.SumElement())
+	require.Equal(t, state, h.Sum())
+}
+
+func TestByteHasherAllocs(t *testing.T) {
+	hashtesting.CheckByteHasherNoAllocs(t, NewMerkleDamgardHasher())
 }
 
 // hasherSink holds the hashers built by TestHasherConstructorAllocs on the heap.

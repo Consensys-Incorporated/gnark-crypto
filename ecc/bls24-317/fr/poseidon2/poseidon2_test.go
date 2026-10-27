@@ -88,8 +88,8 @@ func TestMerkleDamgard(t *testing.T) {
 		return hash.NewLargeFieldMerkleDamgardHasher[fr.Element](NewCompressor(p), iv)
 	}
 	newByteHasher := func() hash.StateStorer {
-		return hash.NewLargeFieldMerkleDamgardByteHasher[fr.Element, *fr.Element](
-			hash.NewLargeFieldMerkleDamgardHasher[fr.Element](NewCompressor(p), iv))
+		return hash.NewByteHasher[fr.Element, fr.Element](
+			hash.NewLargeFieldMerkleDamgardHasher[fr.Element](NewCompressor(p), iv), codec{})
 	}
 	randomElements := func(n int) []fr.Element {
 		e := make([]fr.Element, n)
@@ -98,6 +98,10 @@ func TestMerkleDamgard(t *testing.T) {
 	}
 	hashtesting.CheckMerkleDamgard[fr.Element, *fr.Element](t, newHasher, newByteHasher, newRef,
 		func(d fr.Element) []byte { return d.Marshal() }, 1, randomElements)
+}
+
+func TestByteHasherAllocs(t *testing.T) {
+	hashtesting.CheckByteHasherNoAllocs(t, NewMerkleDamgardHasher())
 }
 
 // hasherSink holds the hashers built by TestHasherConstructorAllocs on the heap.

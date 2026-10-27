@@ -40,9 +40,9 @@ func Marshal[F any, PF interface {
 //
 // It checks that:
 //   - Reset discards everything written before.
-//   - After each call, the marshalled SumElement of the hasher equals the Sum of
+//   - After each call, the marshalled Sum of the hasher equals the Sum of
 //     the reference.
-//   - SumElement does not change the state.
+//   - Sum does not change the state.
 func CheckMatchesByteHasher[F any, PF interface {
 	*F
 	Marshal() []byte
@@ -59,12 +59,12 @@ func CheckMatchesByteHasher[F any, PF interface {
 	for i, c := range calls {
 		write(t, ref, Marshal[F, PF](c.Elements))
 		writeElements(h, c.Elements[:len(c.Elements)/2])
-		h.SumElement()
+		h.Sum()
 		writeElements(h, c.Elements[len(c.Elements)/2:])
 		h.PadBlock()
 
 		msg := []any{"call %d of %d", i, len(calls)}
-		require.Equal(t, ref.Sum(nil), digestBytes(h.SumElement()), msg...)
+		require.Equal(t, ref.Sum(nil), digestBytes(h.Sum()), msg...)
 	}
 }
 
@@ -192,7 +192,18 @@ func writeAndSum[F, D any, H hash.FieldHasher[F, D]](h H, e F) D {
 	for range 9 {
 		h.WriteElement(e)
 	}
-	return h.SumElement()
+	return h.Sum()
+}
+
+// CheckByteHasherNoAllocs checks that Reset, Write of 256 bytes of zeros, and Sum
+// into a slice with enough capacity do not allocate.
+func CheckByteHasherNoAllocs(t *testing.T, h hash.StateStorer) {
+	t.Helper()
+	input := make([]byte, 256)
+	sum := make([]byte, 0, h.Size())
+	require.Zero(t, testing.AllocsPerRun(100, func() { h.Reset() }), "Reset")
+	require.Zero(t, testing.AllocsPerRun(100, func() { _, _ = h.Write(input) }), "Write")
+	require.Zero(t, testing.AllocsPerRun(100, func() { sum = h.Sum(sum[:0]) }), "Sum")
 }
 
 // CheckCompressorConcurrent checks that c gives the same results when used from

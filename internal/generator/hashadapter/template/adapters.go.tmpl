@@ -61,10 +61,10 @@ func (h *ChallengeHasher{{.ExtensionName}}) PadBlock() {
 	h.hsh.PadBlock()
 }
 
-// SumElement returns the first {{.ExtensionDegree}} elements of the digest of the base hasher as
+// Sum returns the first {{.ExtensionDegree}} elements of the digest of the base hasher as
 // an element of {{.ElementType}}.
-func (h *ChallengeHasher{{.ExtensionName}}) SumElement() {{.ElementType}} {
-	d := h.hsh.SumElement()
+func (h *ChallengeHasher{{.ExtensionName}}) Sum() {{.ElementType}} {
+	d := h.hsh.Sum()
 	var res {{.ElementType}}
 	return *res.SetBase(d[:{{.ExtensionDegree}}])
 }

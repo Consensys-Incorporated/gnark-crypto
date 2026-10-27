@@ -48,10 +48,10 @@ type FieldHasher[F, D any] interface {
 	// PadBlock ends the current block, padding it with zeros on the left to a
 	// full block. The elements written afterwards start a new block.
 	PadBlock()
-	// SumElement returns the digest of the elements written so far, where an
+	// Sum returns the digest of the elements written so far, where an
 	// incomplete block is padded as by PadBlock. It does not change the state of
 	// the hasher.
-	SumElement() D
+	Sum() D
 	// BlockLen returns the smallest n > 0 such that writing a multiple of n
 	// elements from a block boundary ends on a block boundary.
 	BlockLen() int

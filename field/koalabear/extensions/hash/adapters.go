@@ -68,10 +68,10 @@ func (h *ChallengeHasherE6) PadBlock() {
 	h.hsh.PadBlock()
 }
 
-// SumElement returns the first 6 elements of the digest of the base hasher as
+// Sum returns the first 6 elements of the digest of the base hasher as
 // an element of extensions.E6.
-func (h *ChallengeHasherE6) SumElement() extensions.E6 {
-	d := h.hsh.SumElement()
+func (h *ChallengeHasherE6) Sum() extensions.E6 {
+	d := h.hsh.Sum()
 	var res extensions.E6
 	return *res.SetBase(d[:6])
 }
