@@ -32,6 +32,8 @@ func mimcOptions(opts ...Option) mimcConfig {
 
 // WithByteOrder sets the byte order used to decode the input
 // in the Write method. Default is BigEndian.
+//
+// Deprecated: once this option is removed, Write decodes big endian only.
 func WithByteOrder(byteOrder fr.ByteOrder) Option {
 	return func(opt *mimcConfig) {
 		opt.byteOrder = byteOrder

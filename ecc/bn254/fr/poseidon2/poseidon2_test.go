@@ -7,10 +7,12 @@ package poseidon2
 
 import (
 	"crypto/rand"
+	stdhash "hash"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark-crypto/hash"
+	"github.com/consensys/gnark-crypto/internal/hashtesting"
 	"github.com/stretchr/testify/require"
 )
 
@@ -154,24 +156,61 @@ func BenchmarkPoseidon2(b *testing.B) {
 
 const msbMask = 0xff >> (9 - (fr.Bits % 8)) // to make sure randomized buffers are smaller than the modulus
 
-func TestHashSmall(t *testing.T) {
-	// hash two elements using Merkle-Damgard
-	var b [2][fr.Bytes]byte
-	h := NewMerkleDamgardHasher()
-	for i := range b {
-		_, err := rand.Read(b[i][:])
-		require.NoError(t, err)
-		b[i][0] &= msbMask
-		_, err = h.Write(b[i][:])
-		require.NoError(t, err)
-	}
-	p := Permutation{GetDefaultParameters()}
-	res, err := p.Compress(make([]byte, fr.Bytes), b[0][:])
-	require.NoError(t, err)
-	res, err = p.Compress(res, b[1][:])
-	require.NoError(t, err)
+// TestVectors checks the byte hasher against the test vectors in testdata.
+func TestVectors(t *testing.T) {
+	hashtesting.CheckVectors(t, func() stdhash.Hash { return NewMerkleDamgardHasher() }, fr.Bytes, "testdata/vectors.json")
+}
 
-	require.Equal(t, res, h.Sum(nil))
+// TestMerkleDamgard checks the hasher against the byte Merkle-Damgard hasher, see
+// [hashtesting.CheckMerkleDamgard].
+func TestMerkleDamgard(t *testing.T) {
+	p := NewDefaultPermutation()
+	var iv fr.Element
+	iv.SetUint64(1)
+	newRef := func() hash.StateStorer { return hash.NewMerkleDamgardHasher(p, iv.Marshal()) }
+	newHasher := func() fr.FieldHasher {
+		return hash.NewLargeFieldMerkleDamgardHasher[fr.Element](NewCompressor(p), iv)
+	}
+	newByteHasher := func() hash.StateStorer {
+		return hash.NewByteHasher[fr.Element, fr.Element](
+			hash.NewLargeFieldMerkleDamgardHasher[fr.Element](NewCompressor(p), iv), codec{})
+	}
+	randomElements := func(n int) []fr.Element {
+		e := make([]fr.Element, n)
+		fr.Vector(e).MustSetRandom()
+		return e
+	}
+	hashtesting.CheckMerkleDamgard[fr.Element, *fr.Element](t, newHasher, newByteHasher, newRef,
+		func(d fr.Element) []byte { return d.Marshal() }, 1, randomElements)
+}
+
+func TestByteHasherAllocs(t *testing.T) {
+	hashtesting.CheckByteHasherNoAllocs(t, NewMerkleDamgardHasher())
+}
+
+// hasherSink holds the hashers built by TestHasherConstructorAllocs on the heap.
+var hasherSink any
+
+// TestHasherConstructorAllocs checks that constructing a field hasher costs one
+// allocation.
+func TestHasherConstructorAllocs(t *testing.T) {
+	require.Equal(t, 1.0, testing.AllocsPerRun(100, func() { hasherSink = NewMerkleDamgardFieldHasher() }))
+}
+
+// TestFieldHasherAllocs checks that writing a field element and summing does not
+// allocate.
+func TestFieldHasherAllocs(t *testing.T) {
+	var x fr.Element
+	x.MustSetRandom()
+	hashtesting.CheckNoAllocs[fr.Element, fr.Element](t, NewMerkleDamgardFieldHasher(), x)
+}
+
+func TestCompressorConcurrent(t *testing.T) {
+	hashtesting.CheckCompressorConcurrent[fr.Element](t, NewCompressor(NewDefaultPermutation()), func() fr.Element {
+		var e fr.Element
+		e.MustSetRandom()
+		return e
+	})
 }
 
 func TestHashReset(t *testing.T) {

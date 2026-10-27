@@ -11,6 +11,7 @@ import (
 
 var (
 	hashes       = make([]func() hash.Hash, maxHash)
+	fieldHashers = make([]any, maxHash) // of type func() FieldHasher[F, D], for some F and D
 	hashesByName = make(map[string]func() hash.Hash)
 )
 
@@ -47,6 +48,23 @@ func NewHash(name string) hash.Hash {
 // [github.com/consensys/gnark-crypto/hash/all] package in your code.
 func RegisterHash(h Hash, new func() hash.Hash) {
 	hashes[h] = new
+}
+
+// RegisterFieldHasher registers newHasher as the constructor of the field hasher
+// of h, over elements of type F with digests of type D.
+func RegisterFieldHasher[F, D any](h Hash, newHasher func() FieldHasher[F, D]) {
+	fieldHashers[h] = newHasher
+}
+
+// NewFieldHasher returns a new field hasher of h, over elements of type F with
+// digests of type D. It panics if h has no such field hasher registered.
+func NewFieldHasher[F, D any](h Hash) FieldHasher[F, D] {
+	if h < maxHash {
+		if newHasher, ok := fieldHashers[h].(func() FieldHasher[F, D]); ok {
+			return newHasher()
+		}
+	}
+	panic(fmt.Errorf("no field hasher of %s registered for these element and digest types", h))
 }
 
 // RegisterCustomHash registers a new hash function constructor, retrievable by name

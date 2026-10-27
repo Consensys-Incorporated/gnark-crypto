@@ -65,6 +65,23 @@
 // be multiple of the field modulus size. And every sequence of byte slice for a
 // single field element must be strictly less than the field modulus.
 //
+// # Hashing extension field elements
+//
+// A hasher over a base field hashes the elements of an extension of it by
+// writing their coordinates, in the order of AppendBase. Its digest is made of
+// base field elements, and the caller converts it explicitly to an extension
+// element, for example with the first coordinates of the digest and SetBase:
+//
+//	h := poseidon2.NewMerkleDamgardFieldHasher()
+//	var coords []koalabear.Element
+//	for _, e := range elements { // elements of extensions.E6
+//		coords = e.AppendBase(coords[:0])
+//		h.WriteElements(coords...)
+//	}
+//	d := h.Sum()
+//	var digest extensions.E6
+//	digest.SetBase(d[:6])
+//
 // See open issues:
 //   - https://github.com/Consensys/gnark-crypto/issues/504
 //   - https://github.com/Consensys/gnark-crypto/issues/485

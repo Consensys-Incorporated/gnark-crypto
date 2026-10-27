@@ -11,6 +11,9 @@ import (
 
 	"github.com/consensys/gnark-crypto/field/hash"
 	"github.com/consensys/gnark-crypto/field/pool"
+	{{- if or (eq .NbWords 1) (eq .PackageName "fr")}}
+	gnarkHash "github.com/consensys/gnark-crypto/hash"
+	{{- end}}
 	"github.com/bits-and-blooms/bitset"
 )
 
@@ -27,6 +30,15 @@ import (
 //
 // This code has not been audited and is provided as-is. In particular, there is no security guarantees such as constant time implementation or side-channel attack resistance.
 type {{.ElementName}} [{{.NbWords}}]{{$.Word.TypeLower}}
+{{- if eq .NbWords 1}}
+
+// FieldHasher is a hasher of elements of this field with digests of type D, see [hash.FieldHasher].
+type FieldHasher[D any] = gnarkHash.FieldHasher[{{.ElementName}}, D]
+{{- else if eq .PackageName "fr"}}
+
+// FieldHasher is a hasher of elements of this field, see [hash.FieldHasher].
+type FieldHasher = gnarkHash.FieldHasher[{{.ElementName}}, {{.ElementName}}]
+{{- end}}
 
 const (
 	Limbs = {{.NbWords}} 	// number of {{$.Word.BitSize}} bits words needed to represent a {{.ElementName}}

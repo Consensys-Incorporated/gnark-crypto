@@ -316,6 +316,7 @@ func (h *Permutation) addRoundKeyInPlace(round int, input []fr.Element) {
 	}
 }
 
+// BlockSize returns the size in bytes of the blocks of [Permutation.Compress], one element.
 func (h *Permutation) BlockSize() int {
 	return fr.Bytes
 }
@@ -359,6 +360,8 @@ func (h *Permutation) Permutation(input []fr.Element) error {
 
 // Compress uses the permutation to compress the left and right input in a collision resistant manner.
 // Returns an error if the permutation instance is not initialized with a width of 2.
+//
+// Deprecated: use [Compressor.CompressField].
 func (h *Permutation) Compress(left []byte, right []byte) ([]byte, error) {
 	if h.params.Width != 2 {
 		return nil, errors.New("need a 2-1 function")
@@ -371,10 +374,30 @@ func (h *Permutation) Compress(left []byte, right []byte) ([]byte, error) {
 	if err := x[1].SetBytesCanonical(right); err != nil {
 		return nil, err
 	}
-	res := x[1] // save right to feed forward later
-	if err := h.Permutation(x[:]); err != nil {
-		return nil, err
+	NewCompressor(h).CompressField(&x[0], &x[0], &x[1])
+	return x[0].Marshal(), nil
+}
+
+// Compressor compresses two elements with a Poseidon2 permutation of width 2,
+// in the same way as [Permutation.Compress] does on bytes. It implements
+// hash.FieldCompressor over *fr.Element, and is safe for concurrent use.
+type Compressor struct {
+	perm Permutation
+}
+
+// NewCompressor returns a Compressor over p. The width of p must be 2.
+func NewCompressor(p *Permutation) Compressor {
+	if p.params.Width != 2 {
+		panic("poseidon2: compression needs a permutation of width 2")
 	}
-	res.Add(&res, &x[1])
-	return res.Marshal(), nil
+	return Compressor{perm: *p}
+}
+
+// CompressField implements hash.FieldCompressor. dst may alias left or right.
+func (c Compressor) CompressField(dst, left, right *fr.Element) {
+	x := [2]fr.Element{*left, *right}
+	if err := c.perm.Permutation(x[:]); err != nil {
+		panic(err)
+	}
+	dst.Add(right, &x[1])
 }

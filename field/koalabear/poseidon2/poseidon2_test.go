@@ -7,9 +7,13 @@ package poseidon2
 
 import (
 	"fmt"
+	"hash"
+	"slices"
 	"testing"
 
 	fr "github.com/consensys/gnark-crypto/field/koalabear"
+	gnarkHash "github.com/consensys/gnark-crypto/hash"
+	"github.com/consensys/gnark-crypto/internal/hashtesting"
 	"github.com/consensys/gnark-crypto/utils/cpu"
 	"github.com/stretchr/testify/require"
 )
@@ -108,6 +112,97 @@ func TestMatricesMatchInPlace(t *testing.T) {
 			}
 		}
 	}
+}
+
+func randomElements(n int) []fr.Element {
+	e := make([]fr.Element, n)
+	fr.Vector(e).MustSetRandom()
+	return e
+}
+
+// TestVectors checks the byte hasher against the test vectors in testdata.
+func TestVectors(t *testing.T) {
+	hashtesting.CheckVectors(t, func() hash.Hash { return NewMerkleDamgardHasher() }, fr.Bytes, "testdata/vectors.json")
+}
+
+// TestMerkleDamgard checks the hasher against the byte Merkle-Damgard hasher, see
+// [hashtesting.CheckMerkleDamgard].
+func TestMerkleDamgard(t *testing.T) {
+	p := NewDefaultPermutation()
+	blockLen := p.params.Width / 2
+
+	newHasher := func() fr.FieldHasher[Digest] { return NewMerkleDamgardFieldHasher() }
+	newByteHasher := func() gnarkHash.StateStorer { return NewMerkleDamgardHasher() }
+	newRef := func() gnarkHash.StateStorer {
+		return gnarkHash.NewMerkleDamgardHasher(p, make([]byte, p.BlockSize()))
+	}
+	digestBytes := func(d Digest) []byte { return hashtesting.Marshal[fr.Element, *fr.Element](d[:]) }
+	hashtesting.CheckMerkleDamgard(t, newHasher, newByteHasher, newRef, digestBytes, blockLen, randomElements)
+}
+
+// TestCompressor24 checks the compression of the permutation of width 24
+// against the permutation applied to the concatenation of the two blocks, plus
+// the second half of its result added to the right block.
+func TestCompressor24(t *testing.T) {
+	p := NewPermutation(24, 6, 21)
+	var left, right [12]fr.Element
+	fr.Vector(left[:]).MustSetRandom()
+	fr.Vector(right[:]).MustSetRandom()
+
+	x := slices.Concat(left[:], right[:])
+	require.NoError(t, p.Permutation(x))
+	var want [12]fr.Element
+	for i := range want {
+		want[i].Add(&right[i], &x[len(want)+i])
+	}
+
+	var got [12]fr.Element
+	NewCompressor24(p).CompressField(&got, &left, &right)
+	require.Equal(t, want, got)
+}
+
+// TestHasher24 checks the digest of the hasher over the permutation of width 24 on
+// random inputs against a direct chain of compressions.
+func TestHasher24(t *testing.T) {
+	c := NewCompressor24(NewPermutation(24, 6, 21))
+	h := NewMerkleDamgardFieldHasher24()
+	var state, block [12]fr.Element
+	for range 3 {
+		fr.Vector(block[:]).MustSetRandom()
+		c.CompressField(&state, &state, &block)
+		h.WriteElements(block[:]...)
+	}
+	require.Equal(t, state, h.Sum())
+}
+
+func TestByteHasherAllocs(t *testing.T) {
+	hashtesting.CheckByteHasherNoAllocs(t, NewMerkleDamgardHasher())
+}
+
+// hasherSink holds the hashers built by TestHasherConstructorAllocs on the heap.
+var hasherSink any
+
+// TestHasherConstructorAllocs checks that constructing a field hasher costs one
+// allocation.
+func TestHasherConstructorAllocs(t *testing.T) {
+	require.Equal(t, 1.0, testing.AllocsPerRun(100, func() { hasherSink = NewMerkleDamgardFieldHasher() }))
+	require.Equal(t, 1.0, testing.AllocsPerRun(100, func() { hasherSink = NewMerkleDamgardFieldHasher24() }))
+}
+
+// TestFieldHasherAllocs checks that writing a field element and summing does not
+// allocate.
+func TestFieldHasherAllocs(t *testing.T) {
+	var x fr.Element
+	x.MustSetRandom()
+	hashtesting.CheckNoAllocs[fr.Element, Digest](t, NewMerkleDamgardFieldHasher(), x)
+}
+
+func TestCompressorConcurrent(t *testing.T) {
+	hashtesting.CheckCompressorConcurrent[Digest](t, NewCompressor(NewDefaultPermutation()), func() Digest {
+		var d Digest
+		fr.Vector(d[:]).MustSetRandom()
+		return d
+	})
 }
 
 func TestAVX512Width16(t *testing.T) {

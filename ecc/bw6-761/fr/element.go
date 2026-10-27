@@ -20,6 +20,7 @@ import (
 	"github.com/bits-and-blooms/bitset"
 	"github.com/consensys/gnark-crypto/field/hash"
 	"github.com/consensys/gnark-crypto/field/pool"
+	gnarkHash "github.com/consensys/gnark-crypto/hash"
 )
 
 // Element represents a field element stored on 6 words (uint64)
@@ -35,6 +36,9 @@ import (
 //
 // This code has not been audited and is provided as-is. In particular, there is no security guarantees such as constant time implementation or side-channel attack resistance.
 type Element [6]uint64
+
+// FieldHasher is a hasher of elements of this field, see [hash.FieldHasher].
+type FieldHasher = gnarkHash.FieldHasher[Element, Element]
 
 const (
 	Limbs = 6   // number of 64 bits words needed to represent a Element
