@@ -7,11 +7,13 @@ package poseidon2
 
 import (
 	"hash"
+	"slices"
 	"testing"
 
 	fr "github.com/consensys/gnark-crypto/field/goldilocks"
 	gnarkHash "github.com/consensys/gnark-crypto/hash"
 	"github.com/consensys/gnark-crypto/internal/hashtesting"
+	"github.com/stretchr/testify/require"
 )
 
 func TestMulMulInternalInPlaceWidth8(t *testing.T) {
@@ -134,6 +136,41 @@ func TestMerkleDamgard(t *testing.T) {
 	}
 	digestBytes := func(d Digest) []byte { return hashtesting.Marshal[fr.Element, *fr.Element](d[:]) }
 	hashtesting.CheckMerkleDamgard(t, newHasher, newByteHasher, newRef, digestBytes, blockLen, randomElements)
+}
+
+// TestCompressor12 checks the compression of the permutation of width 12
+// against the permutation applied to the concatenation of the two blocks, plus
+// the second half of its result added to the right block.
+func TestCompressor12(t *testing.T) {
+	p := NewPermutation(12, 6, 17)
+	var left, right [6]fr.Element
+	fr.Vector(left[:]).MustSetRandom()
+	fr.Vector(right[:]).MustSetRandom()
+
+	x := slices.Concat(left[:], right[:])
+	require.NoError(t, p.Permutation(x))
+	var want [6]fr.Element
+	for i := range want {
+		want[i].Add(&right[i], &x[len(want)+i])
+	}
+
+	var got [6]fr.Element
+	NewCompressor12(p).CompressField(&got, &left, &right)
+	require.Equal(t, want, got)
+}
+
+// TestHasher12 checks the digest of the hasher over the permutation of width 12 on
+// random inputs against a direct chain of compressions.
+func TestHasher12(t *testing.T) {
+	c := NewCompressor12(NewPermutation(12, 6, 17))
+	h := NewMerkleDamgardFieldHasher12()
+	var state, block [6]fr.Element
+	for range 3 {
+		fr.Vector(block[:]).MustSetRandom()
+		c.CompressField(&state, &state, &block)
+		h.WriteElements(block[:]...)
+	}
+	require.Equal(t, state, h.SumElement())
 }
 
 // TestFieldHasherAllocs checks that writing a field element and summing does not

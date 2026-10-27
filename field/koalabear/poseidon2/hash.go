@@ -13,6 +13,15 @@ import (
 	gnarkHash "github.com/consensys/gnark-crypto/hash"
 )
 
+// Hasher16 is the Merkle-Damgard field hasher over the permutation of width 16.
+type Hasher16 = gnarkHash.FieldMerkleDamgardHasher[fr.Element, Digest]
+
+// Hasher24 is the Merkle-Damgard field hasher over the permutation of width 24.
+type Hasher24 = gnarkHash.FieldMerkleDamgardHasher[fr.Element, [12]fr.Element]
+
+// Hasher is Hasher16.
+type Hasher = Hasher16
+
 // NewMerkleDamgardFieldHasher returns a Poseidon2 field hasher using the Merkle-Damgard
 // construction with the default parameters.
 func NewMerkleDamgardFieldHasher() *gnarkHash.FieldMerkleDamgardHasher[fr.Element, Digest] {
@@ -21,6 +30,19 @@ func NewMerkleDamgardFieldHasher() *gnarkHash.FieldMerkleDamgardHasher[fr.Elemen
 		Digest{},
 	)
 }
+
+// NewMerkleDamgardFieldHasher24 returns a Poseidon2 field hasher over the permutation of
+// width 24, using the Merkle-Damgard construction with the parameters of the sponge.
+func NewMerkleDamgardFieldHasher24() *Hasher24 {
+	return gnarkHash.NewFieldMerkleDamgardHasher[fr.Element, [12]fr.Element](
+		NewCompressor24(&Permutation{params: getParameters24()}),
+		[12]fr.Element{},
+	)
+}
+
+var getParameters24 = sync.OnceValue(func() *Parameters {
+	return NewParameters(24, 6, 21)
+})
 
 // NewMerkleDamgardHasher returns a Poseidon2 hasher using the Merkle-Damgard
 // construction with the default parameters.

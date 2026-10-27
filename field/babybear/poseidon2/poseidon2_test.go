@@ -7,6 +7,7 @@ package poseidon2
 
 import (
 	"hash"
+	"slices"
 	"testing"
 
 	fr "github.com/consensys/gnark-crypto/field/babybear"
@@ -136,6 +137,41 @@ func TestMerkleDamgard(t *testing.T) {
 	}
 	digestBytes := func(d Digest) []byte { return hashtesting.Marshal[fr.Element, *fr.Element](d[:]) }
 	hashtesting.CheckMerkleDamgard(t, newHasher, newByteHasher, newRef, digestBytes, blockLen, randomElements)
+}
+
+// TestCompressor24 checks the compression of the permutation of width 24
+// against the permutation applied to the concatenation of the two blocks, plus
+// the second half of its result added to the right block.
+func TestCompressor24(t *testing.T) {
+	p := NewPermutation(24, 8, 21)
+	var left, right [12]fr.Element
+	fr.Vector(left[:]).MustSetRandom()
+	fr.Vector(right[:]).MustSetRandom()
+
+	x := slices.Concat(left[:], right[:])
+	require.NoError(t, p.Permutation(x))
+	var want [12]fr.Element
+	for i := range want {
+		want[i].Add(&right[i], &x[len(want)+i])
+	}
+
+	var got [12]fr.Element
+	NewCompressor24(p).CompressField(&got, &left, &right)
+	require.Equal(t, want, got)
+}
+
+// TestHasher24 checks the digest of the hasher over the permutation of width 24 on
+// random inputs against a direct chain of compressions.
+func TestHasher24(t *testing.T) {
+	c := NewCompressor24(NewPermutation(24, 8, 21))
+	h := NewMerkleDamgardFieldHasher24()
+	var state, block [12]fr.Element
+	for range 3 {
+		fr.Vector(block[:]).MustSetRandom()
+		c.CompressField(&state, &state, &block)
+		h.WriteElements(block[:]...)
+	}
+	require.Equal(t, state, h.SumElement())
 }
 
 // TestFieldHasherAllocs checks that writing a field element and summing does not

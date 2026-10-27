@@ -70,5 +70,5 @@ type FieldCompressor[D any] interface {
 
 // Block is the set of array types of the blocks and digests of [FieldMerkleDamgardHasher].
 type Block[F any] interface {
-	~[4]F | ~[8]F | ~[12]F | ~[16]F
+	~[4]F | ~[6]F | ~[8]F | ~[12]F | ~[16]F
 }

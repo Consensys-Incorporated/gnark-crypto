@@ -1,4 +1,5 @@
 import (
+	"slices"
 	{{- if eq .FF "koalabear"}}
 	"fmt"
 	{{- end}}
@@ -143,6 +144,41 @@ func TestMerkleDamgard(t *testing.T) {
 	}
 	digestBytes := func(d Digest) []byte { return hashtesting.Marshal[fr.Element, *fr.Element](d[:]) }
 	hashtesting.CheckMerkleDamgard(t, newHasher, newByteHasher, newRef, digestBytes, blockLen, randomElements)
+}
+
+// TestCompressor{{.ParamsSponge.Width}} checks the compression of the permutation of width {{.ParamsSponge.Width}}
+// against the permutation applied to the concatenation of the two blocks, plus
+// the second half of its result added to the right block.
+func TestCompressor{{.ParamsSponge.Width}}(t *testing.T) {
+	p := NewPermutation({{.ParamsSponge.Width}}, {{.ParamsSponge.FullRounds}}, {{.ParamsSponge.PartialRounds}})
+	var left, right [{{div .ParamsSponge.Width 2}}]fr.Element
+	fr.Vector(left[:]).MustSetRandom()
+	fr.Vector(right[:]).MustSetRandom()
+
+	x := slices.Concat(left[:], right[:])
+	require.NoError(t, p.Permutation(x))
+	var want [{{div .ParamsSponge.Width 2}}]fr.Element
+	for i := range want {
+		want[i].Add(&right[i], &x[len(want)+i])
+	}
+
+	var got [{{div .ParamsSponge.Width 2}}]fr.Element
+	NewCompressor{{.ParamsSponge.Width}}(p).CompressField(&got, &left, &right)
+	require.Equal(t, want, got)
+}
+
+// TestHasher{{.ParamsSponge.Width}} checks the digest of the hasher over the permutation of width {{.ParamsSponge.Width}} on
+// random inputs against a direct chain of compressions.
+func TestHasher{{.ParamsSponge.Width}}(t *testing.T) {
+	c := NewCompressor{{.ParamsSponge.Width}}(NewPermutation({{.ParamsSponge.Width}}, {{.ParamsSponge.FullRounds}}, {{.ParamsSponge.PartialRounds}}))
+	h := NewMerkleDamgardFieldHasher{{.ParamsSponge.Width}}()
+	var state, block [{{div .ParamsSponge.Width 2}}]fr.Element
+	for range 3 {
+		fr.Vector(block[:]).MustSetRandom()
+		c.CompressField(&state, &state, &block)
+		h.WriteElements(block[:]...)
+	}
+	require.Equal(t, state, h.SumElement())
 }
 
 // TestFieldHasherAllocs checks that writing a field element and summing does not

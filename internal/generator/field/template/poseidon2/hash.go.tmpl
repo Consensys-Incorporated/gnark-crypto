@@ -5,6 +5,15 @@ import (
 	gnarkHash "github.com/consensys/gnark-crypto/hash"
 )
 
+// Hasher{{.ParamsCompression.Width}} is the Merkle-Damgard field hasher over the permutation of width {{.ParamsCompression.Width}}.
+type Hasher{{.ParamsCompression.Width}} = gnarkHash.FieldMerkleDamgardHasher[fr.Element, Digest]
+
+// Hasher{{.ParamsSponge.Width}} is the Merkle-Damgard field hasher over the permutation of width {{.ParamsSponge.Width}}.
+type Hasher{{.ParamsSponge.Width}} = gnarkHash.FieldMerkleDamgardHasher[fr.Element, [{{div .ParamsSponge.Width 2}}]fr.Element]
+
+// Hasher is Hasher{{.ParamsCompression.Width}}.
+type Hasher = Hasher{{.ParamsCompression.Width}}
+
 // NewMerkleDamgardFieldHasher returns a Poseidon2 field hasher using the Merkle-Damgard
 // construction with the default parameters.
 func NewMerkleDamgardFieldHasher() *gnarkHash.FieldMerkleDamgardHasher[fr.Element, Digest] {
@@ -13,6 +22,19 @@ func NewMerkleDamgardFieldHasher() *gnarkHash.FieldMerkleDamgardHasher[fr.Elemen
 		Digest{},
 	)
 }
+
+// NewMerkleDamgardFieldHasher{{.ParamsSponge.Width}} returns a Poseidon2 field hasher over the permutation of
+// width {{.ParamsSponge.Width}}, using the Merkle-Damgard construction with the parameters of the sponge.
+func NewMerkleDamgardFieldHasher{{.ParamsSponge.Width}}() *Hasher{{.ParamsSponge.Width}} {
+	return gnarkHash.NewFieldMerkleDamgardHasher[fr.Element, [{{div .ParamsSponge.Width 2}}]fr.Element](
+		NewCompressor{{.ParamsSponge.Width}}(&Permutation{params: getParameters{{.ParamsSponge.Width}}()}),
+		[{{div .ParamsSponge.Width 2}}]fr.Element{},
+	)
+}
+
+var getParameters{{.ParamsSponge.Width}} = sync.OnceValue(func() *Parameters {
+	return NewParameters({{.ParamsSponge.Width}}, {{.ParamsSponge.FullRounds}}, {{.ParamsSponge.PartialRounds}})
+})
 
 // NewMerkleDamgardHasher returns a Poseidon2 hasher using the Merkle-Damgard
 // construction with the default parameters.
