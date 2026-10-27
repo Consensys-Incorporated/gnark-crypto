@@ -2239,6 +2239,54 @@ func TestElementJSON(t *testing.T) {
 
 	assert.Equal(s, decodedS, " json with strings  -> element  failed")
 
+	// non-addressable values must encode like their pointers (decimal, not Montgomery limbs).
+	encodedByValue, err := json.Marshal(s)
+	assert.NoError(err)
+	assert.Equal(string(encoded), string(encodedByValue), "marshaling a struct by value differs from marshaling it by pointer")
+
+	encodedMap, err := json.Marshal(map[string]Element{"k": s.B[2]})
+	assert.NoError(err)
+	assert.Equal(fmt.Sprintf("{\"k\":%s}", formatValue(42)), string(encodedMap))
+
+	// a struct marshaled by value must decode back to the same struct
+	var decodedByValue S
+	err = json.Unmarshal(encodedByValue, &decodedByValue)
+	assert.NoError(err)
+	assert.Equal(s, decodedByValue, "element -> json (by value) -> element round trip failed")
+
+}
+func TestElementValueReceivers(t *testing.T) {
+	assert := require.New(t)
+
+	var x Element
+	x.SetUint64(5)
+
+	// values print like pointers: decimal rather than Montgomery limbs
+	assert.Equal("5", fmt.Sprint(x))
+	assert.Equal("5", fmt.Sprint(&x))
+	assert.Equal("5", fmt.Sprintf("%s", x)) //nolint:staticcheck // testing stringer interface
+	assert.Equal("{5}", fmt.Sprintf("%v", struct{ E Element }{x}))
+	assert.Equal("[5 5]", fmt.Sprint([]Element{x, x}))
+	assert.Equal("<nil>", fmt.Sprint((*Element)(nil)))
+
+	// read-only methods are usable on non-addressable values
+	m := map[string]Element{"k": x}
+	assert.False(m["k"].IsZero())
+	assert.False(m["k"].IsOne())
+	assert.True(m["k"].Equal(&x))
+	assert.Equal(uint64(5), m["k"].Uint64())
+	assert.Equal("5", m["k"].String())
+
+	// the methods are in the method set of the value type
+	var _ fmt.Stringer = x
+	var _ json.Marshaler = x
+	var _ fmt.Stringer = &x
+	var _ json.Marshaler = &x
+
+	// a nil pointer is encoded as null
+	b, err := json.Marshal((*Element)(nil))
+	assert.NoError(err)
+	assert.Equal("null", string(b))
 }
 func TestElementMul2ExpNegN(t *testing.T) {
 	t.Parallel()

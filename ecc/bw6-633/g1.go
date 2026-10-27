@@ -968,8 +968,12 @@ func (p *G1Affine) fromJacExtended(q *g1JacExtended) *G1Affine {
 		p.Y = fp.Element{}
 		return p
 	}
-	p.X.Inverse(&q.ZZ).Mul(&p.X, &q.X)
-	p.Y.Inverse(&q.ZZZ).Mul(&p.Y, &q.Y)
+	var zInv, zzInv fp.Element
+	p.Y.Inverse(&q.ZZZ)
+	zInv.Mul(&q.ZZ, &p.Y)
+	zzInv.Square(&zInv)
+	p.X.Mul(&q.X, &zzInv)
+	p.Y.Mul(&p.Y, &q.Y)
 	return p
 }
 
@@ -979,17 +983,17 @@ func (p *G1Jac) fromJacExtended(q *g1JacExtended) *G1Jac {
 		p.Set(&g1Infinity)
 		return p
 	}
-	p.X.Mul(&q.ZZ, &q.X).Mul(&p.X, &q.ZZ)
-	p.Y.Mul(&q.ZZZ, &q.Y).Mul(&p.Y, &q.ZZZ)
-	p.Z.Set(&q.ZZZ)
+	p.X.Mul(&q.X, &q.ZZ)
+	p.Y.Mul(&q.Y, &q.ZZZ)
+	p.Z.Set(&q.ZZ)
 	return p
 }
 
 // unsafeFromJacExtended converts an extended Jacobian point, distinct from Infinity, to a Jacobian point.
 func (p *G1Jac) unsafeFromJacExtended(q *g1JacExtended) *G1Jac {
-	p.X.Square(&q.ZZ).Mul(&p.X, &q.X)
-	p.Y.Square(&q.ZZZ).Mul(&p.Y, &q.Y)
-	p.Z = q.ZZZ
+	p.X.Mul(&q.X, &q.ZZ)
+	p.Y.Mul(&q.Y, &q.ZZZ)
+	p.Z = q.ZZ
 	return p
 }
 
