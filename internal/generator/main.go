@@ -70,9 +70,8 @@ func main() {
 		wg.Add(1)
 		go func(f config.Field) {
 			defer wg.Done()
-			// the fields in field/ are single-word: their read-only methods take the
-			// element by value, which costs nothing at that size (the curve fields in
-			// ecc/ are wider and keep pointer receivers, see WithValueReceivers).
+			// WithValueReceivers only takes effect on single-word fields, it is
+			// no-op for multi-word fields.
 			fieldOpts := []fieldConfig.FieldOption{fieldConfig.WithValueReceivers()}
 			if f.RBits != 0 {
 				fieldOpts = append(fieldOpts, fieldConfig.WithMontgomeryRadixBits(f.RBits))

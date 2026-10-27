@@ -230,8 +230,14 @@ func WithHandwrittenVectorASMAMD64() FieldOption {
 // single-word elements. Wider elements (a 4-word scalar field, a 12-word base
 // field) measurably slow down hot paths such as Add, Inverse or the pairing,
 // so only use it for small fields.
+//
+// The option is a request, not a requirement: it only takes effect on a
+// single-word field and does nothing on a wider one, which keeps pointer
+// receivers. A generator can therefore request it for every field of a list
+// without each wider field having to opt out.
 func WithValueReceivers() FieldOption {
-	return func(f *Field) { f.ValueReceivers = true }
+	// NbWords is computed before the options are applied.
+	return func(f *Field) { f.ValueReceivers = f.NbWords == 1 }
 }
 
 // ReadRecv returns the receiver type of the methods that only read their

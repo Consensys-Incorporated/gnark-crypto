@@ -137,6 +137,45 @@ func TestMontgomeryRadixRejected(t *testing.T) {
 	}
 }
 
+// TestValueReceiversOnlyForSingleWord checks that requesting value receivers
+// takes effect on single-word fields only: a wider element would be copied on
+// every non-inlined call, so it silently keeps pointer receivers, which lets a
+// generator request the option for every field of a list.
+func TestValueReceiversOnlyForSingleWord(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name    string
+		modulus string
+		want    bool
+	}{
+		{"koalabear", "0x7f000001", true},
+		{"mamabear", "0x1FFFC00000001", true},
+		{"goldilocks", "0xFFFFFFFF00000001", true},
+		{"bn254Fr", "21888242871839275222246405745257275088548364400416034343698204186575808495617", false},
+		{"bls12-381Fp", "0x1a0111ea397fe69a4b1ba7b6434bacd764774b84f38512bf6730d2a0f6b0f6241eabfffeb153ffffb9feffffffffaaab", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f, err := NewFieldConfig("x", "Element", tc.modulus, false, WithValueReceivers())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if f.ValueReceivers != tc.want {
+				t.Errorf("ValueReceivers = %v with NbWords = %d, want %v", f.ValueReceivers, f.NbWords, tc.want)
+			}
+
+			// not requested: never enabled.
+			f, err = NewFieldConfig("x", "Element", tc.modulus, false)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if f.ValueReceivers {
+				t.Error("ValueReceivers = true without WithValueReceivers")
+			}
+		})
+	}
+}
+
 // TestSparsePrimeExponents covers the detector used to enable the sparse-prime
 // fast reduction, including moduli that must NOT be classified as sparse.
 func TestSparsePrimeExponents(t *testing.T) {
