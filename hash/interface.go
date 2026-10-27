@@ -59,8 +59,9 @@ type FieldHasher[F, D any] interface {
 
 // FieldCompressor is a 2-1 one-way function on field elements, or on blocks of
 // them. It is the analogue of [Compressor] on elements. D is a digest value: an
-// element, or an array of elements. Implementations must be safe for concurrent
-// use.
+// element, or an array of elements. A compressor built from a permutation of
+// width t compresses blocks of t/2 elements. Implementations must be safe for
+// concurrent use.
 type FieldCompressor[D any] interface {
 	// CompressField compresses left and right into dst. dst may alias left or
 	// right. It must not modify left or right unless they alias dst.

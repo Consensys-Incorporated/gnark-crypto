@@ -297,6 +297,10 @@ func (h *FieldMerkleDamgardByteHasher[F, PF, D]) parseBlock(dst *D, b []byte) er
 // LargeFieldMerkleDamgardHasher is a Merkle-Damgard hash function over elements
 // of a field F large enough for one element to be a block and a digest. It is a
 // [FieldHasher] over digests of type F. See [NewLargeFieldMerkleDamgardHasher].
+//
+// A field is large in this sense if one element holds a digest, that is, if it
+// has about 256 bits or more. The elements of a smaller field are packed in
+// blocks of t/2 elements, see [FieldMerkleDamgardHasher].
 type LargeFieldMerkleDamgardHasher[F any] struct {
 	f     FieldCompressor[F]
 	iv    F
