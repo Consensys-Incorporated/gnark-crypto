@@ -6,6 +6,14 @@
 // This implementation is based on the [reference implementation] from
 // HorizenLabs. See the [specifications] for parameter choices.
 //
+// # Hashing
+//
+// [Hasher] is a Merkle-Damgard hasher over field elements, in which each
+// element is a block and the digest is an element. [Compressor] is the
+// underlying 2-to-1 compression function. The field hasher does not implement
+// hash.Hash: [NewMerkleDamgardHasher], also used by the hash registry, returns
+// a byte hasher.
+//
 // [reference implementation]: https://github.com/HorizenLabs/poseidon2/blob/main/plain_implementations/src/poseidon2/poseidon2.rs
 // [specifications]: https://github.com/argumentcomputer/neptune/blob/main/spec/poseidon_spec.pdf
 // [original paper]: https://eprint.iacr.org/2023/323.pdf

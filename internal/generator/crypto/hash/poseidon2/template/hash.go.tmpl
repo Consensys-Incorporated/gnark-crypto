@@ -5,11 +5,70 @@ import (
 	gnarkHash "github.com/consensys/gnark-crypto/hash"
 )
 
-// NewMerkleDamgardHasher returns a Poseidon2 hasher using the Merkle-Damgard
-// construction with the default parameters.
+var (
+	_ gnarkHash.FieldHasher[fr.Element, fr.Element]         = (*Hasher)(nil)
+	_ gnarkHash.FieldCompressor[fr.Element]                 = Compressor{}
+	_ gnarkHash.ByteHasherCodec[fr.Element, fr.Element]     = byteCodec{}
+)
+
+// Hasher is a Merkle-Damgard hasher over elements of the field with the
+// Poseidon2 compression function of the default parameters. The field is large
+// enough for an element to be a block and a digest. It implements
+// [gnarkHash.FieldHasher]. Use [NewMerkleDamgardHasher] to hash bytes.
+//
+// The construction does not perform explicit padding on the input data. Every
+// block is a full element, so there is no incomplete block.
+//
+// A Hasher is not safe for concurrent use. Its zero value is not usable;
+// construct it with [NewHasher].
+type Hasher struct {
+	gnarkHash.MerkleDamgardElement[fr.Element]
+}
+
+// NewHasher returns a [Hasher] with the default parameters, and the zero initial
+// state.
+func NewHasher() *Hasher {
+	return &Hasher{*gnarkHash.NewMerkleDamgardElement(NewCompressor(NewDefaultPermutation()), fr.Element{})}
+}
+
+// NewMerkleDamgardHasher returns a Poseidon2 hasher of bytes using the
+// Merkle-Damgard construction with the default parameters. Its state and digest
+// are the digest of a [Hasher], as fr.Bytes bytes.
+//
+// Write pads the last element of its input with zeros on the left, so the digest
+// depends on how the input is split among the calls to Write.
+//
+// NB! The construction does not perform explicit padding on the input data. The
+// digests of an input and of the same input preceded by zeros in its last
+// element are the same, so the construction is not collision resistant for
+// generic data. For collision resistance the caller should encode the length of
+// the input, or pad it explicitly. See [gnarkHash.NewByteHasher].
 func NewMerkleDamgardHasher() gnarkHash.StateStorer {
-	return gnarkHash.NewMerkleDamgardHasher(
-		NewDefaultPermutation(), make([]byte, fr.Bytes))
+	h := NewHasher()
+	return gnarkHash.NewByteHasher(h, byteCodec{}, h.SetStateDigest)
+}
+
+// byteCodec is the encoding of elements and digests of [Hasher] as bytes, in
+// big-endian canonical form.
+type byteCodec struct{}
+
+func (byteCodec) ElementSize() int { return fr.Bytes }
+
+func (byteCodec) DigestSize() int { return fr.Bytes }
+
+func (byteCodec) DecodeElement(b []byte) (e fr.Element, err error) {
+	err = e.SetBytesCanonical(b)
+	return
+}
+
+func (byteCodec) AppendDigest(dst []byte, d fr.Element) []byte {
+	b := d.Bytes()
+	return append(dst, b[:]...)
+}
+
+func (byteCodec) DecodeDigest(b []byte) (d fr.Element, err error) {
+	err = d.SetBytesCanonical(b)
+	return
 }
 
 // GetDefaultParameters returns a set of parameters for the Poseidon2 permutation.

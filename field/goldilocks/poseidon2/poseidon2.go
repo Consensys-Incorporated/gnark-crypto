@@ -6,11 +6,8 @@
 package poseidon2
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
-	"io"
-	"slices"
 
 	"golang.org/x/crypto/sha3"
 
@@ -265,6 +262,7 @@ func (h *Permutation) addRoundKeyInPlace(round int, input []fr.Element) {
 	}
 }
 
+// BlockSize returns the size in bytes of the blocks of [Permutation.Compress].
 func (h *Permutation) BlockSize() int {
 	return h.params.Width / 2 * fr.Bytes
 }
@@ -309,6 +307,8 @@ func (h *Permutation) Permutation(input []fr.Element) error {
 // Compress uses the permutation to compress the left and right input in a collision resistant manner.
 // left and right must each be concatenations of t/2 fr.Elements, where t is the width of the permutation.
 // The result is the concatenation of t/2 fr.Elements.
+//
+// Deprecated: use [CompressorGeneric.CompressField], or [HasherGeneric] to hash elements.
 func (h *Permutation) Compress(left []byte, right []byte) ([]byte, error) {
 	n := h.params.Width / 2
 	if h.params.Width != 2*n {
@@ -320,28 +320,28 @@ func (h *Permutation) Compress(left []byte, right []byte) ([]byte, error) {
 		return nil, fmt.Errorf("left input should be %d bytes", desiredLen)
 	}
 
-	reader := io.MultiReader(bytes.NewReader(left), bytes.NewReader(right))
 	x := make([]fr.Element, h.params.Width)
-	var buf [fr.Bytes]byte
-
-	for i := range x {
-		if _, err := io.ReadFull(reader, buf[:]); err != nil {
-			return nil, err
-		}
-		if err := x[i].SetBytesCanonical(buf[:]); err != nil {
-			return nil, err
+	for i, in := range [][]byte{left, right} {
+		for j := range n {
+			if err := x[i*n+j].SetBytesCanonical(in[j*fr.Bytes : (j+1)*fr.Bytes]); err != nil {
+				return nil, err
+			}
 		}
 	}
 
-	res := slices.Clone(x[n:]) // saved to feed forward later
-	if err := h.Permutation(x[:]); err != nil {
+	// feed-forward: the digest is the right half of the input added to the
+	// right half of its image
+	y := make([]fr.Element, h.params.Width)
+	copy(y, x)
+	if err := h.Permutation(y); err != nil {
 		return nil, err
 	}
-
-	outBytes := make([]byte, 0, n*fr.Bytes)
-	for i := range res {
-		outBytes = append(outBytes, res[i].Add(&res[i], &x[n+i]).Marshal()...)
+	outBytes := make([]byte, 0, desiredLen)
+	for i := range n {
+		var out fr.Element
+		out.Add(&x[n+i], &y[n+i])
+		b := out.Bytes()
+		outBytes = append(outBytes, b[:]...)
 	}
-
 	return outBytes, nil
 }

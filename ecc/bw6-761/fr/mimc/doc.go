@@ -41,9 +41,16 @@
 //
 // # Hash input format
 //
-// The MiMC hash function is defined over a field. The input to the hash
-// function is a byte slice. The byte slice is interpreted as a sequence of
-// field elements. Due to this interpretation, the input byte slice length must
-// be multiple of the field modulus size. And every sequence of byte slice for a
-// single field element must be strictly less than the field modulus.
+// The MiMC hash function is defined over a field. The input to the byte
+// hasher of [NewBinaryHasher] is a byte slice. The byte slice is
+// interpreted as a sequence of field elements, big endian by default, see
+// [WithByteOrder]. A last chunk shorter than a field element is padded with
+// zeros on the left. Every chunk must encode an integer strictly less than the
+// field modulus.
+//
+// # Field element input
+//
+// [Hasher] implements [hash.FieldHasher] over field elements, which avoids the
+// conversion from and to bytes: each element is a block, so PadBlock does
+// nothing. Use [NewHasher] to obtain it.
 package mimc

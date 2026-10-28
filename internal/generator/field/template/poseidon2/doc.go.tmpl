@@ -6,6 +6,25 @@
 // This implementation is based on the [reference implementation] from
 // HorizenLabs. See the [specifications] for parameter choices.
 //
+// # Hashing
+//
+// [Hasher] is a Merkle-Damgard hasher over field elements, with blocks and
+// digests of [BlockLen] elements, built on the default compression permutation.
+// [HasherGeneric] also supports wider blocks and digests of [WideBlockLen]
+// elements, built on the [GetSpongeParameters] permutation; the constants count
+// elements, not bytes, and can be used as array bounds, e.g.
+//
+//	NewHasherGeneric[[WideBlockLen]fr.Element]()
+//
+// [NewHasherWithPermutation] accepts a permutation with custom seed or round
+// numbers. [GetDefaultParameters] and [GetSpongeParameters] return cached,
+// shared parameters which must not be modified. [Compressor] and
+// [CompressorGeneric] are the underlying 2-to-1 compression functions.
+//
+// The field hashers do not implement hash.Hash. [NewMerkleDamgardHasher], also
+// used by the hash registry, returns a byte hasher in which each Write ends on
+// a block boundary.
+//
 // [reference implementation]: https://github.com/HorizenLabs/poseidon2/blob/main/plain_implementations/src/poseidon2/poseidon2.rs
 // [specifications]: https://github.com/argumentcomputer/neptune/blob/main/spec/poseidon_spec.pdf
 // [original paper]: https://eprint.iacr.org/2023/323.pdf

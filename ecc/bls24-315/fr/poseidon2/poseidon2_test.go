@@ -6,7 +6,11 @@
 package poseidon2
 
 import (
+	"bytes"
 	"crypto/rand"
+	"encoding/hex"
+	"fmt"
+	"sync"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc/bls24-315/fr"
@@ -70,24 +74,277 @@ func BenchmarkPoseidon2(b *testing.B) {
 
 const msbMask = 0xff >> (9 - (fr.Bits % 8)) // to make sure randomized buffers are smaller than the modulus
 
-func TestHashSmall(t *testing.T) {
-	// hash two elements using Merkle-Damgard
-	var b [2][fr.Bytes]byte
-	h := NewMerkleDamgardHasher()
-	for i := range b {
-		_, err := rand.Read(b[i][:])
-		require.NoError(t, err)
-		b[i][0] &= msbMask
-		_, err = h.Write(b[i][:])
-		require.NoError(t, err)
-	}
-	p := Permutation{GetDefaultParameters()}
-	res, err := p.Compress(make([]byte, fr.Bytes), b[0][:])
-	require.NoError(t, err)
-	res, err = p.Compress(res, b[1][:])
-	require.NoError(t, err)
+// knownDigest is the digest of the elements 1, 2, 3 written as bytes.
+const knownDigest = "0b3e26c038d172c550a2db964f382291da6e656a2849a287c33526ca31ccbe13"
 
-	require.Equal(t, res, h.Sum(nil))
+// testElements returns n deterministic elements, which differ with seed.
+func testElements(n int, seed uint64) []fr.Element {
+	e := make([]fr.Element, n)
+	for i := range e {
+		e[i].SetUint64(seed*1_000_003 + uint64(i)*2_654_435_761 + 1)
+	}
+	return e
+}
+
+func marshalElements(e []fr.Element) []byte {
+	var b []byte
+	for i := range e {
+		x := e[i].Bytes()
+		b = append(b, x[:]...)
+	}
+	return b
+}
+
+// TestMerkleDamgard checks the digest of a fixed input, and checks the hasher of
+// bytes against the byte Merkle-Damgard hasher over [Permutation.Compress] and
+// against the field hasher.
+func TestMerkleDamgard(t *testing.T) {
+	h := NewMerkleDamgardHasher()
+	field := NewHasher()
+	for i := range uint64(3) {
+		var e fr.Element
+		e.SetUint64(i + 1)
+		_, err := h.Write(e.Marshal())
+		require.NoError(t, err)
+		field.WriteElement(e)
+	}
+	require.Equal(t, knownDigest, hex.EncodeToString(h.Sum(nil)), "digest of 1, 2, 3")
+	digest := field.SumDigest()
+	require.Equal(t, knownDigest, hex.EncodeToString(digest.Marshal()), "digest of 1, 2, 3 by the field hasher")
+
+	p := NewDefaultPermutation()
+	newRef := func() hash.StateStorer {
+		return hash.NewMerkleDamgardHasher(p, make([]byte, p.BlockSize())) //nolint:staticcheck // backwards compatibility: deprecated byte hasher must give the same digests
+	}
+
+	for _, n := range []int{0, 1, 2, 3, 10} {
+		elems := testElements(n, 7)
+		data := marshalElements(elems)
+
+		field := NewHasher()
+		field.WriteElements(elems...)
+
+		h := NewMerkleDamgardHasher()
+		ref := newRef()
+		for _, w := range []hash.StateStorer{h, ref} {
+			written, err := w.Write(data)
+			require.NoError(t, err)
+			require.Equal(t, len(data), written)
+		}
+		d := field.SumDigest()
+		require.Equal(t, ref.Sum(nil), h.Sum(nil), "n=%d", n)
+		require.Equal(t, d.Marshal(), h.Sum(nil), "n=%d", n)
+		require.Equal(t, ref.State(), h.State(), "n=%d", n)
+
+		// a write of fewer bytes than an element
+		for k := 1; k < fr.Bytes; k++ {
+			short := bytes.Repeat([]byte{1}, k)
+			for _, w := range []hash.StateStorer{h, ref} {
+				written, err := w.Write(short)
+				require.NoError(t, err)
+				require.Equal(t, k, written)
+			}
+			require.Equal(t, ref.Sum(nil), h.Sum(nil), "n=%d, %d more bytes", n, k)
+		}
+
+		// a hasher restored from the state continues as the original
+		restored := NewMerkleDamgardHasher()
+		require.NoError(t, restored.SetState(h.State()))
+		more := marshalElements(testElements(3, 8))
+		for _, w := range []hash.StateStorer{h, restored, ref} {
+			_, err := w.Write(more)
+			require.NoError(t, err)
+		}
+		require.Equal(t, ref.Sum(nil), h.Sum(nil), "n=%d, after more", n)
+		require.Equal(t, ref.Sum(nil), restored.Sum(nil), "n=%d, restored", n)
+
+		h.Reset()
+		ref.Reset()
+		require.Equal(t, ref.Sum(nil), h.Sum(nil), "n=%d, reset", n)
+	}
+}
+
+// TestHasher checks that the digest does not depend on how the elements are
+// split among the writes, that PadBlock does nothing, and Reset.
+func TestHasher(t *testing.T) {
+	elems := testElements(11, 1)
+	whole := NewHasher()
+	whole.WriteElements(elems...)
+	want := whole.SumDigest()
+
+	h := NewHasher()
+	for _, e := range elems {
+		h.WriteElement(e)
+		h.PadBlock()
+	}
+	require.Equal(t, want, h.SumDigest())
+
+	for split := 0; split <= len(elems); split++ {
+		h.Reset()
+		h.WriteElements(elems[:split]...)
+		sum := h.SumDigest()
+		require.Equal(t, sum, h.SumDigest())
+		h.WriteElements(elems[split:]...)
+		require.Equal(t, want, h.SumDigest(), "split at %d", split)
+	}
+
+	h.Reset()
+	require.Equal(t, NewHasher().SumDigest(), h.SumDigest())
+}
+
+// writeElements writes the elements with WriteElement, as a generic consumer of
+// any field hasher does.
+func writeElements[H hash.FieldHasher[fr.Element, fr.Element]](h H, e []fr.Element) {
+	for i := range e {
+		h.WriteElement(e[i])
+	}
+}
+
+// TestHasherAllocs checks that hashing elements does not allocate, including
+// WriteElement called by a generic function.
+func TestHasherAllocs(t *testing.T) {
+	h := NewHasher()
+	elems := testElements(5, 9)
+	var fh hash.FieldHasher[fr.Element, fr.Element] = h
+
+	require.Zero(t, testing.AllocsPerRun(100, func() { writeElements(h, elems) }), "generic WriteElement on *Hasher")
+	require.Zero(t, testing.AllocsPerRun(100, func() { writeElements(fh, elems) }), "generic WriteElement on the interface")
+	require.Zero(t, testing.AllocsPerRun(100, func() { h.WriteElements(elems...) }), "WriteElements")
+	require.Zero(t, testing.AllocsPerRun(100, func() { fh.WriteElements(elems...) }), "WriteElements on the interface")
+	require.Zero(t, testing.AllocsPerRun(100, func() { _ = h.SumDigest() }), "SumDigest")
+	require.Zero(t, testing.AllocsPerRun(100, func() { h.PadBlock() }), "PadBlock")
+
+	var sink *Hasher
+	require.Equal(t, 1.0, testing.AllocsPerRun(100, func() { sink = NewHasher() }), "NewHasher allocates only the hasher")
+	_ = sink
+}
+
+// benchmarkSizes are numbers of elements written by the benchmarks of the hasher.
+var benchmarkSizes = []int{8, 64}
+
+// BenchmarkHasherWriteElement writes elements one by one, with a generic function.
+func BenchmarkHasherWriteElement(b *testing.B) {
+	for _, n := range benchmarkSizes {
+		b.Run(fmt.Sprintf("n=%d", n), func(b *testing.B) {
+			h := NewHasher()
+			elems := testElements(n, 10)
+			b.ReportAllocs()
+			b.ResetTimer()
+			for range b.N {
+				writeElements(h, elems)
+			}
+		})
+	}
+}
+
+// BenchmarkHasherWriteElements writes all elements at once.
+func BenchmarkHasherWriteElements(b *testing.B) {
+	for _, n := range benchmarkSizes {
+		b.Run(fmt.Sprintf("n=%d", n), func(b *testing.B) {
+			h := NewHasher()
+			elems := testElements(n, 10)
+			b.ReportAllocs()
+			b.ResetTimer()
+			for range b.N {
+				h.WriteElements(elems...)
+			}
+		})
+	}
+}
+
+func BenchmarkMerkleDamgardWrite(b *testing.B) {
+	h := NewMerkleDamgardHasher()
+	data := marshalElements(testElements(64, 10))
+	b.SetBytes(int64(len(data)))
+	b.ReportAllocs()
+	b.ResetTimer()
+	for range b.N {
+		if _, err := h.Write(data); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+// compressed returns the compression of left and right by the permutation:
+// right added to the second element of the image of left, right.
+func compressed(p *Permutation, left, right fr.Element) fr.Element {
+	x := [2]fr.Element{left, right}
+	if err := p.Permutation(x[:]); err != nil {
+		panic(err)
+	}
+	var res fr.Element
+	return *res.Add(&right, &x[1])
+}
+
+func TestCompressorAliasing(t *testing.T) {
+	p := NewDefaultPermutation()
+	c := NewCompressor(p)
+	left, right := testElements(1, 11)[0], testElements(1, 12)[0]
+
+	want := compressed(p, left, right)
+	var dst fr.Element
+	l, r := left, right
+	c.CompressField(&dst, &l, &r)
+	require.Equal(t, want, dst)
+	require.Equal(t, left, l, "left is not modified")
+	require.Equal(t, right, r, "right is not modified")
+
+	l, r = left, right
+	c.CompressField(&l, &l, &r)
+	require.Equal(t, want, l, "dst is left")
+	require.Equal(t, right, r)
+
+	l, r = left, right
+	c.CompressField(&r, &l, &r)
+	require.Equal(t, want, r, "dst is right")
+	require.Equal(t, left, l)
+
+	l = left
+	wantSame := compressed(p, left, left)
+	c.CompressField(&l, &l, &l)
+	require.Equal(t, wantSame, l, "dst, left and right are the same")
+}
+
+// TestCompressorConcurrent checks that goroutines can share a compressor.
+func TestCompressorConcurrent(t *testing.T) {
+	p := NewDefaultPermutation()
+	c := NewCompressor(p)
+
+	const nbGoroutines, nbIterations = 8, 20
+	var wg sync.WaitGroup
+	got := make([][nbIterations]fr.Element, nbGoroutines)
+	for g := range nbGoroutines {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for i := range nbIterations {
+				left, right := testElements(1, uint64(100*g+i))[0], testElements(1, uint64(100*g+i+50))[0]
+				c.CompressField(&got[g][i], &left, &right)
+			}
+		}()
+	}
+	wg.Wait()
+
+	for g := range nbGoroutines {
+		for i := range nbIterations {
+			left, right := testElements(1, uint64(100*g+i))[0], testElements(1, uint64(100*g+i+50))[0]
+			require.Equal(t, compressed(p, left, right), got[g][i], "goroutine %d, iteration %d", g, i)
+		}
+	}
+}
+
+// TestPermutationCompress checks the compression of bytes against the compressor.
+func TestPermutationCompress(t *testing.T) {
+	p := NewDefaultPermutation()
+	left, right := testElements(1, 13)[0], testElements(1, 14)[0]
+	want := compressed(p, left, right)
+
+	got, err := p.Compress(left.Marshal(), right.Marshal())
+	require.NoError(t, err)
+	require.Equal(t, want.Marshal(), got)
+
+	_, err = p.Compress(left.Marshal()[1:], right.Marshal())
+	require.Error(t, err)
 }
 
 func TestHashReset(t *testing.T) {
@@ -98,7 +355,7 @@ func TestHashReset(t *testing.T) {
 	require.NoError(t, err)
 	b[0] &= msbMask
 	p := Permutation{GetDefaultParameters()}
-	h := hash.NewMerkleDamgardHasher(&p, iv[:])
+	h := hash.NewMerkleDamgardHasher(&p, iv[:]) //nolint:staticcheck // backwards compatibility: deprecated byte hasher must give the same digests
 	_, err = h.Write(b[:])
 	require.NoError(t, err)
 	res := h.Sum(nil)

@@ -13,6 +13,39 @@
 // the compression primitive. See the interface [Compressor] and the
 // corresponding initialization function [NewMerkleDamgardHasher].
 //
+// # Field-native hashing
+//
+// [FieldHasher] is the common interface for hashing field elements without byte
+// encoding, and [FieldCompressor] the corresponding 2-to-1 compression function.
+// Construct field hashers with poseidon2.NewHasher or mimc.NewHasher in the
+// corresponding field package; see those packages for their block and digest
+// sizes.
+//
+// [MerkleDamgardElement] and [MerkleDamgardArray] provide reusable field cores.
+// The former absorbs one element per block into an element digest. The latter
+// absorbs len(D) elements into an array digest, for the lengths in [ArrayBlock].
+// Both take a compressor and initial chaining state; Reset restores that state.
+// Array construction needs an explicit element type, for example
+// NewMerkleDamgardArray[fr.Element](compressor, initialDigest), since Go cannot
+// infer it from a union-of-arrays constraint. Hashing after construction does
+// not allocate when the compressor itself does not allocate.
+//
+// WriteElement avoids the temporary variadic slice when called through an
+// interface or generic type parameter. WriteElements accepts an existing slice.
+// Both absorb a continuous element stream. SumDigest leaves the state unchanged;
+// PadBlock commits a partial block with zeros on the left. Transcript callers
+// should commit the block before continuing after a squeeze. BlockLen counts
+// input elements, whereas hash.Hash.BlockSize counts bytes.
+//
+// [NewByteHasher] gives a field core a byte-oriented [StateStorer] view, with
+// each Write ending on a block boundary.
+//
+// Extension-field input encoding and challenge derivation belong to the caller:
+// absorb coordinates in a protocol-defined order, retain the full array digest
+// for commitments, and convert to an extension element explicitly for challenges.
+// Converting only part of a digest reduces its collision security; it is not an
+// equivalent commitment digest.
+//
 // # Importing hash functions
 //
 // The package follows registration pattern for importing hash functions. To
@@ -59,11 +92,11 @@
 //
 // # Hash input format
 //
-// The MiMC hash function is defined over a field. The input to the hash
-// function is a byte slice. The byte slice is interpreted as a sequence of
-// field elements. Due to this interpretation, the input byte slice length must
-// be multiple of the field modulus size. And every sequence of byte slice for a
-// single field element must be strictly less than the field modulus.
+// MiMC byte input is interpreted as canonical field elements, strictly smaller
+// than the field modulus. Every Write left-pads a short final element with zeros.
+// Poseidon2 byte input is similarly left-padded to its full input block. These
+// encodings do not bind the length; callers hashing arbitrary bytes must provide
+// explicit padding or length encoding. Prefer [FieldHasher] for field inputs.
 //
 // See open issues:
 //   - https://github.com/Consensys/gnark-crypto/issues/504
