@@ -88,7 +88,7 @@ func TestInternalMatrixCondition(t *testing.T) {
 		{24, 8, 32},
 	} {
 		p := NewPermutation(tc.width, tc.nbFullRounds, tc.nbPartialRounds).params
-		if !matrix.HasNoInvariantSubspace[fr.Element, *fr.Element](p.InternalMatrix(), fr.Modulus()) {
+		if !matrix.HasNoInvariantSubspace(p.InternalMatrix(), fr.Modulus()) {
 			t.Errorf("width %d: internal matrix has an invariant subspace; the diagonal is not usable over this field", tc.width)
 		}
 	}

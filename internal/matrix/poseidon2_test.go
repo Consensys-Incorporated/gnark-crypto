@@ -42,7 +42,7 @@ func internalMatrix(d []fr.Element) [][]fr.Element {
 func TestCharPolyCayleyHamilton(t *testing.T) {
 	d := []fr.Element{feNeg(2), fe(1), fe(2), fe(7), fe(3), fe(4), feNeg(5), feNeg(3)}
 	m := internalMatrix(d)
-	cp := charPoly[fr.Element, *fr.Element](m)
+	cp := charPoly(m)
 
 	if len(cp)-1 != len(d) {
 		t.Fatalf("charpoly degree: got %d, want %d", len(cp)-1, len(d))
@@ -66,7 +66,7 @@ func TestCharPolyCayleyHamilton(t *testing.T) {
 				acc[i][j].Add(&acc[i][j], &tmp)
 			}
 		}
-		pow = matMul[fr.Element, *fr.Element](m, pow)
+		pow = matMul(m, pow)
 	}
 	for i := range n {
 		for j := range n {
@@ -84,13 +84,13 @@ func TestIsIrreducible(t *testing.T) {
 
 	// x - 1: irreducible (degree 1).
 	linear := []fr.Element{feNeg(1), fe(1)}
-	if !isIrreducible[fr.Element, *fr.Element](linear, q) {
+	if !isIrreducible(linear, q) {
 		t.Error("x - 1 should be irreducible")
 	}
 
 	// (x - 1)(x - 2) = x^2 - 3x + 2: reducible.
 	reducible := []fr.Element{fe(2), feNeg(3), fe(1)}
-	if isIrreducible[fr.Element, *fr.Element](reducible, q) {
+	if isIrreducible(reducible, q) {
 		t.Error("(x-1)(x-2) should be reducible")
 	}
 
@@ -106,7 +106,7 @@ func TestIsIrreducible(t *testing.T) {
 	var negNR fr.Element
 	negNR.Neg(&nonResidue)
 	quadratic := []fr.Element{negNR, {}, fe(1)} // x^2 - nonResidue
-	if !isIrreducible[fr.Element, *fr.Element](quadratic, q) {
+	if !isIrreducible(quadratic, q) {
 		t.Error("x^2 - (non-residue) should be irreducible")
 	}
 
@@ -114,7 +114,7 @@ func TestIsIrreducible(t *testing.T) {
 	var residue, negR fr.Element
 	residue.SetUint64(4)
 	negR.Neg(&residue)
-	if isIrreducible[fr.Element, *fr.Element]([]fr.Element{negR, {}, fe(1)}, q) {
+	if isIrreducible([]fr.Element{negR, {}, fe(1)}, q) {
 		t.Error("x^2 - 4 should be reducible")
 	}
 }
@@ -127,7 +127,7 @@ func TestHasNoInvariantSubspaceRejects(t *testing.T) {
 	for i := range d {
 		d[i].SetOne() // every diagonal entry equal => repeated eigenvalue
 	}
-	if HasNoInvariantSubspace[fr.Element, *fr.Element](internalMatrix(d), fr.Modulus()) {
+	if HasNoInvariantSubspace(internalMatrix(d), fr.Modulus()) {
 		t.Fatal("J + I should be rejected")
 	}
 }
@@ -141,7 +141,7 @@ func TestHasNoInvariantSubspaceAccepts(t *testing.T) {
 	for i, v := range raw {
 		d[i].SetUint64(v)
 	}
-	if !HasNoInvariantSubspace[fr.Element, *fr.Element](internalMatrix(d), fr.Modulus()) {
+	if !HasNoInvariantSubspace(internalMatrix(d), fr.Modulus()) {
 		t.Fatal("koalabear's shipped diag16 should pass")
 	}
 }

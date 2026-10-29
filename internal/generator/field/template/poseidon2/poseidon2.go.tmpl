@@ -20,6 +20,9 @@ import (
 {{- $ws := .ParamsSponge.Width}}
 {{- $fs := .ParamsSponge.FullRounds}}
 {{- $ps := .ParamsSponge.PartialRounds}}
+{{- /* the standalone small fields ship exactly two permutation widths,
+       compression and sponge; the curve scalar fields are unconstrained */}}
+{{- $smallField := or (eq .FF "babybear") (eq .FF "koalabear") (eq .FF "goldilocks") (eq .FF "mamabear")}}
 
 
 var (
@@ -169,18 +172,16 @@ func (p *Parameters) InternalMatrix() [][]fr.Element {
 
 // NewPermutation returns a new Poseidon2 permutation instance.
 func NewPermutation(t, rf, rp int) *Permutation {
-    {{- if or (eq .Family "babybear") (eq .Family "koalabear")}}
-	if t != 16 && t != 24 {
-		panic("only Width=16,24 are supported")
+    {{- if $smallField}}
+        {{- if eq $wc $ws}}
+	if t != {{$wc}} {
+		panic("only Width={{$wc}} is supported")
 	}
-    {{- else if eq .FF "goldilocks"}}
-	if t != 8 && t != 12 {
-		panic("only Width=8,12 are supported")
+        {{- else}}
+	if t != {{$wc}} && t != {{$ws}} {
+		panic("only Width={{$wc}},{{$ws}} are supported")
 	}
-    {{- else if eq .FF "mamabear"}}
-	if t != 12 && t != 24 {
-		panic("only Width=12,24 are supported")
-	}
+        {{- end}}
     {{- end}}
 	params := NewParameters(t, rf, rp)
 	res := &Permutation{params: params}
@@ -190,18 +191,16 @@ func NewPermutation(t, rf, rp int) *Permutation {
 // NewPermutationWithSeed returns a new Poseidon2 permutation instance with a
 // given seed.
 func NewPermutationWithSeed(t, rf, rp int, seed string) *Permutation {
-	{{- if or (eq .Family "babybear") (eq .Family "koalabear")}}
-	if t != 16 && t != 24 {
-		panic("only Width=16,24 are supported")
+	{{- if $smallField}}
+        {{- if eq $wc $ws}}
+	if t != {{$wc}} {
+		panic("only Width={{$wc}} is supported")
 	}
-    {{- else if eq .FF "goldilocks"}}
-	if t != 8 && t != 12 {
-		panic("only Width=8,12 are supported")
+        {{- else}}
+	if t != {{$wc}} && t != {{$ws}} {
+		panic("only Width={{$wc}},{{$ws}} are supported")
 	}
-    {{- else if eq .FF "mamabear"}}
-	if t != 12 && t != 24 {
-		panic("only Width=12,24 are supported")
-	}
+        {{- end}}
     {{- end}}
 	params := NewParametersWithSeed(t, rf, rp, seed)
 	res := &Permutation{params: params}
