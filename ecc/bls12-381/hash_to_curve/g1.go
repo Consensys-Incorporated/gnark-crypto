@@ -109,22 +109,248 @@ func G1IsogenyMap() [4][]fp.Element {
 	}
 }
 
+// g1IsogenyXNumerator evaluates the degree-11 XNumerator polynomial of the isogeny
+// with 7 field multiplications (Horner: 11).
+//
+// The multiplication chain was preprocessed offline from the polynomial's
+// coefficients (g1IsogenyXNumeratorMap) by internal/generator/hash_to_curve/gen_isogeny_chains.py,
+// using the decoder of T. D. Ahle, "Fast Evaluation of Polynomials with Rational
+// Preprocessing", https://arxiv.org/abs/2609.06022. The code is straight line:
+// no branches, no divisions.
 func g1IsogenyXNumerator(dst *fp.Element, x *fp.Element) {
-	g1EvalPolynomial(dst, false, g1IsogenyXNumeratorMap, x)
+	var w [6]fp.Element // gate outputs
+	var p, r fp.Element
+	w[0].Add(x, &g1IsogenyXNumeratorChainConstants[0])
+	w[0].Mul(&w[0], x)
+	w[1].Add(x, &w[0])
+	w[1].Add(&w[1], &g1IsogenyXNumeratorChainConstants[1])
+	r.Add(&w[0], &g1IsogenyXNumeratorChainConstants[2])
+	r.Sub(&r, x)
+	w[1].Mul(&w[1], &r)
+	w[2].Add(x, &g1IsogenyXNumeratorChainConstants[3])
+	r.Add(&w[1], &g1IsogenyXNumeratorChainConstants[4])
+	w[2].Mul(&w[2], &r)
+	w[3].Add(&w[0], &w[1])
+	w[3].Add(&w[3], &w[2])
+	w[3].Add(&w[3], &g1IsogenyXNumeratorChainConstants[5])
+	r.Add(&w[1], &w[2])
+	r.Add(&r, &g1IsogenyXNumeratorChainConstants[6])
+	r.Sub(&r, &w[0])
+	w[3].Mul(&w[3], &r)
+	w[4].Add(&w[0], &w[1])
+	w[4].Add(&w[4], &w[2])
+	w[4].Add(&w[4], &g1IsogenyXNumeratorChainConstants[7])
+	r.Add(&w[1], &w[2])
+	r.Add(&r, &g1IsogenyXNumeratorChainConstants[8])
+	r.Sub(&r, &w[0])
+	w[4].Mul(&w[4], &r)
+	w[5].Add(&w[3], &g1IsogenyXNumeratorChainConstants[9])
+	w[5].Mul(&w[5], x)
+	p.Add(&w[4], &w[5])
+	p.Add(&p, &g1IsogenyXNumeratorChainConstants[10])
+	dst.Mul(&p, &g1IsogenyXNumeratorLeadingCoeff)
 }
 
+var g1IsogenyXNumeratorChainConstants = [11]fp.Element{
+	{8992951131840873894, 3387476711969253240, 4539336759033536591, 12488624726021108657, 7230480994775629691, 327685669864996006},
+	{5849978871014661991, 3299210057729334947, 10213664306841556855, 6988138907883825126, 5851573080832783677, 1505384747542192590},
+	{6621723790879161923, 8725684519580169775, 4998559352523084955, 17574152691559460445, 12264031173239141248, 587383677433106806},
+	{1589990106900212114, 3341874774160898667, 17238968235675567731, 2282640806487941067, 14882363664373431196, 1390393302660214142},
+	{10079038892965161282, 7733559902670471093, 1241685292914441228, 18212349560582283958, 2938980714404582900, 219220052743233837},
+	{650630103369754573, 942955954031092877, 11494930751603260178, 8698138106874299146, 1570379813838235149, 192769120734568164},
+	{2404515647446305741, 11600466276507383248, 6332538259456936066, 9203778796711576901, 16811017751432941187, 1115524013434653827},
+	{8196308499861517995, 8331244683374573117, 2489189790547868797, 18223539196963773664, 16045093755370245329, 648698279329134613},
+	{1301632144555848050, 12463838453761528415, 2830686766207694270, 3838281030502845463, 16554580213400950167, 1810939862297351704},
+	{12298184293847723583, 15795227307971680007, 4651728225712919295, 8839537707709685739, 16099337955735932345, 1072521649492638714},
+	{2932339930693979532, 11419407500141344736, 12091845989678553817, 10834818932706466464, 18293039879892309497, 1321577289741533921},
+}
+
+var g1IsogenyXNumeratorLeadingCoeff = fp.Element{8276255265012938363, 9997870203437298645, 16819210142450232135, 5062450688048499179, 12776432501206859311, 1778476024187613533}
+
+// g1IsogenyXDenominator evaluates the degree-10 XDenominator polynomial of the isogeny
+// with 6 field multiplications (Horner: 9).
+//
+// The multiplication chain was preprocessed offline from the polynomial's
+// coefficients (g1IsogenyXDenominatorMap) by internal/generator/hash_to_curve/gen_isogeny_chains.py,
+// using the decoder of T. D. Ahle, "Fast Evaluation of Polynomials with Rational
+// Preprocessing", https://arxiv.org/abs/2609.06022. The code is straight line:
+// no branches, no divisions.
 func g1IsogenyXDenominator(dst *fp.Element, x *fp.Element) {
-	g1EvalPolynomial(dst, true, g1IsogenyXDenominatorMap, x)
+	var w [6]fp.Element // gate outputs
+	var p, r fp.Element
+	w[0].Add(x, &g1IsogenyXDenominatorChainConstants[0])
+	w[0].Mul(&w[0], x)
+	w[1].Add(x, &w[0])
+	w[1].Add(&w[1], &g1IsogenyXDenominatorChainConstants[1])
+	r.Add(&w[0], &g1IsogenyXDenominatorChainConstants[2])
+	r.Sub(&r, x)
+	w[1].Mul(&w[1], &r)
+	w[2].Add(x, &w[0])
+	w[2].Add(&w[2], &w[1])
+	w[2].Add(&w[2], &g1IsogenyXDenominatorChainConstants[3])
+	r.Add(&w[1], &g1IsogenyXDenominatorChainConstants[4])
+	r.Sub(&r, x)
+	r.Sub(&r, &w[0])
+	w[2].Mul(&w[2], &r)
+	w[3].Add(&w[0], &w[1])
+	w[3].Add(&w[3], &g1IsogenyXDenominatorChainConstants[5])
+	r.Add(&w[1], &g1IsogenyXDenominatorChainConstants[6])
+	r.Sub(&r, &w[0])
+	w[3].Mul(&w[3], &r)
+	w[4].Add(x, &w[2])
+	w[4].Add(&w[4], &g1IsogenyXDenominatorChainConstants[7])
+	w[4].Mul(&w[4], x)
+	w[5].Add(&w[3], &w[4])
+	w[5].Add(&w[5], &g1IsogenyXDenominatorChainConstants[8])
+	w[5].Mul(&w[5], x)
+	p.Add(&w[5], &g1IsogenyXDenominatorChainConstants[9])
+	dst.Set(&p)
 }
 
+var g1IsogenyXDenominatorChainConstants = [10]fp.Element{
+	{7339395362885092632, 3231078578318435503, 3650564119615239380, 14326743474610619866, 6057888008318385428, 877261269812179554},
+	{4173134538206962623, 3229204914066791106, 14373492604488313855, 3534389340803093834, 9428519468573984436, 852153558715099384},
+	{2824247917315701850, 9262429833338027215, 6341671507896672099, 6534432122201534844, 5345435135662795437, 842173193418807282},
+	{4909241937507314855, 7694924294263165239, 8769219130691586997, 10793032422595820302, 9842347481337833813, 1715422591737782675},
+	{4992773620456183628, 4960124718556857406, 16635883869473222492, 9030723886105284465, 9639626004410796071, 1472936790627757079},
+	{4633471081912608531, 2457456277494344524, 13154727034911391217, 2104665078954431868, 10295379395729086298, 767461104919195256},
+	{14729471909635070116, 5368296582378797012, 1897086539710188546, 361103558383519886, 8896957840055463365, 1735788401392751111},
+	{1592137931790919824, 11719194462760023767, 9497330277892716736, 2098900411859438058, 10363149712103394122, 365907846568320398},
+	{11815793238760025457, 17791303014563980294, 12530918126900801364, 12119502670364524909, 5311671350461240609, 673825776386754884},
+	{13358415881952098629, 12009257493157516192, 13928884382876484932, 12988314785833227070, 11244145530317148182, 100673949996487007},
+}
+
+// g1IsogenyYNumerator evaluates the degree-15 YNumerator polynomial of the isogeny
+// with 9 field multiplications (Horner: 15), then multiplies by y.
+//
+// The multiplication chain was preprocessed offline from the polynomial's
+// coefficients (g1IsogenyYNumeratorMap) by internal/generator/hash_to_curve/gen_isogeny_chains.py,
+// using the decoder of T. D. Ahle, "Fast Evaluation of Polynomials with Rational
+// Preprocessing", https://arxiv.org/abs/2609.06022. The code is straight line:
+// no branches, no divisions.
 func g1IsogenyYNumerator(dst *fp.Element, x *fp.Element, y *fp.Element) {
-	var _dst fp.Element
-	g1EvalPolynomial(&_dst, false, g1IsogenyYNumeratorMap, x)
-	dst.Mul(&_dst, y)
+	var w [8]fp.Element // gate outputs
+	var p, r fp.Element
+	w[0].Add(x, &g1IsogenyYNumeratorChainConstants[0])
+	w[0].Mul(&w[0], x)
+	w[1].Add(x, &w[0])
+	w[1].Add(&w[1], &g1IsogenyYNumeratorChainConstants[1])
+	r.Add(&w[0], &g1IsogenyYNumeratorChainConstants[2])
+	r.Sub(&r, x)
+	w[1].Mul(&w[1], &r)
+	w[2].Add(&w[0], &g1IsogenyYNumeratorChainConstants[3])
+	r.Add(&w[1], &g1IsogenyYNumeratorChainConstants[4])
+	w[2].Mul(&w[2], &r)
+	w[3].Add(&w[0], &g1IsogenyYNumeratorChainConstants[5])
+	r.Add(&w[1], &g1IsogenyYNumeratorChainConstants[6])
+	w[3].Mul(&w[3], &r)
+	w[4].Add(x, &g1IsogenyYNumeratorChainConstants[7])
+	r.Add(&w[2], &g1IsogenyYNumeratorChainConstants[8])
+	w[4].Mul(&w[4], &r)
+	w[5].Add(&w[0], &w[3])
+	w[5].Add(&w[5], &w[4])
+	w[5].Add(&w[5], &g1IsogenyYNumeratorChainConstants[9])
+	r.Add(&w[3], &w[4])
+	r.Add(&r, &g1IsogenyYNumeratorChainConstants[10])
+	r.Sub(&r, &w[0])
+	w[5].Mul(&w[5], &r)
+	w[6].Add(&w[0], &w[1])
+	w[6].Add(&w[6], &g1IsogenyYNumeratorChainConstants[11])
+	r.Add(&w[1], &g1IsogenyYNumeratorChainConstants[12])
+	r.Sub(&r, &w[0])
+	w[6].Mul(&w[6], &r)
+	w[7].Add(&w[5], &g1IsogenyYNumeratorChainConstants[13])
+	w[7].Mul(&w[7], x)
+	p.Add(&w[5], &w[6])
+	p.Add(&p, &w[7])
+	p.Add(&p, &g1IsogenyYNumeratorChainConstants[14])
+	p.Mul(&p, &g1IsogenyYNumeratorLeadingCoeff)
+	dst.Mul(&p, y)
 }
 
+var g1IsogenyYNumeratorChainConstants = [15]fp.Element{
+	{9341539374419864187, 12661666650125547291, 15050576578818458782, 16436560605120082265, 12841803867247672760, 1697966257822301786},
+	{6997187068704776211, 2047886054065902469, 7491229313099591803, 12468015617744307702, 3793870287777280947, 1737857573665420684},
+	{4938565506972034573, 2864676642734395385, 11238434408777804416, 7072535503611183952, 13056009866684644877, 286612937897282981},
+	{5180625823623048065, 10722223189657292576, 7248347495285899561, 10812636461575635612, 3881204420667020004, 35222930534196566},
+	{8652564573598987473, 3524396078714310015, 7045869031198929516, 13471023177429493854, 815236807700183836, 323341754126334457},
+	{1838335475177633654, 6980877077897340857, 2223731915321694143, 13846171241860571934, 11995721847854244786, 50070691631217393},
+	{6128884934326455690, 16971720263397206527, 4990019604929463039, 14494183259125775673, 10455529814494935719, 70169560533589392},
+	{3934982667839147994, 10046253461943093433, 14274289710757525477, 3484358031075370555, 9910442355738907046, 567014539515328387},
+	{10646432616152236610, 888087672710863378, 12617259199898917194, 11369500421827162127, 15148939875395180206, 429842411056305823},
+	{11575858602251881000, 14270999975731726268, 11181778005899840394, 10327764244215573138, 18349930057735815896, 1005727036882437081},
+	{645655947397059775, 14453413599267349525, 7390250566895406544, 12301720097166065737, 11517525156216452170, 1565853868543151395},
+	{2092668882148706981, 3298714587590855248, 4377134456701193110, 2930336244409030124, 7303944704450282219, 877137892996283143},
+	{12186209992434181351, 5722838635091871002, 14655215173329337886, 15130269355595617562, 10042678233841425533, 1419317083964138544},
+	{16660243636546444693, 6528919913781322378, 8655073692430651876, 92017086777216117, 13333407411990660470, 1518618373869877762},
+	{18238852772689360389, 18194121461366999202, 3219895556372350675, 17850580149965114675, 7661345408107376805, 907232516480140134},
+}
+
+var g1IsogenyYNumeratorLeadingCoeff = fp.Element{9739780494108151959, 17207219630538774058, 553911396609642498, 6085929320386029624, 14175410874026216616, 1183751611824804793}
+
+// g1IsogenyYDenominator evaluates the degree-15 YDenominator polynomial of the isogeny
+// with 8 field multiplications (Horner: 14).
+//
+// The multiplication chain was preprocessed offline from the polynomial's
+// coefficients (g1IsogenyYDenominatorMap) by internal/generator/hash_to_curve/gen_isogeny_chains.py,
+// using the decoder of T. D. Ahle, "Fast Evaluation of Polynomials with Rational
+// Preprocessing", https://arxiv.org/abs/2609.06022. The code is straight line:
+// no branches, no divisions.
 func g1IsogenyYDenominator(dst *fp.Element, x *fp.Element) {
-	g1EvalPolynomial(dst, true, g1IsogenyYDenominatorMap, x)
+	var w [8]fp.Element // gate outputs
+	var p, r fp.Element
+	w[0].Add(x, &g1IsogenyYDenominatorChainConstants[0])
+	w[0].Mul(&w[0], x)
+	w[1].Add(x, &w[0])
+	w[1].Add(&w[1], &g1IsogenyYDenominatorChainConstants[1])
+	r.Add(&w[0], &g1IsogenyYDenominatorChainConstants[2])
+	r.Sub(&r, x)
+	w[1].Mul(&w[1], &r)
+	w[2].Add(&w[0], &g1IsogenyYDenominatorChainConstants[3])
+	r.Add(&w[1], &g1IsogenyYDenominatorChainConstants[4])
+	w[2].Mul(&w[2], &r)
+	w[3].Add(&w[0], &g1IsogenyYDenominatorChainConstants[5])
+	r.Add(&w[1], &g1IsogenyYDenominatorChainConstants[6])
+	w[3].Mul(&w[3], &r)
+	w[4].Add(x, &g1IsogenyYDenominatorChainConstants[7])
+	r.Add(&w[2], &g1IsogenyYDenominatorChainConstants[8])
+	w[4].Mul(&w[4], &r)
+	w[5].Add(&w[0], &w[3])
+	w[5].Add(&w[5], &w[4])
+	w[5].Add(&w[5], &g1IsogenyYDenominatorChainConstants[9])
+	r.Add(&w[3], &w[4])
+	r.Add(&r, &g1IsogenyYDenominatorChainConstants[10])
+	r.Sub(&r, &w[0])
+	w[5].Mul(&w[5], &r)
+	w[6].Add(&w[0], &w[1])
+	w[6].Add(&w[6], &g1IsogenyYDenominatorChainConstants[11])
+	r.Add(&w[1], &g1IsogenyYDenominatorChainConstants[12])
+	r.Sub(&r, &w[0])
+	w[6].Mul(&w[6], &r)
+	w[7].Add(&w[5], &g1IsogenyYDenominatorChainConstants[13])
+	w[7].Mul(&w[7], x)
+	p.Add(&w[5], &w[6])
+	p.Add(&p, &w[7])
+	p.Add(&p, &g1IsogenyYDenominatorChainConstants[14])
+	dst.Set(&p)
+}
+
+var g1IsogenyYDenominatorChainConstants = [15]fp.Element{
+	{4351853825157900291, 3189959405956014183, 9693781038269944662, 15999343542487569112, 14262186284771958870, 330976732091920498},
+	{10834359129204116260, 16811186731023720251, 1361070829148503264, 10496597033781340076, 8195281093538926709, 472586028999636043},
+	{14668432752695927216, 15860557426716348904, 4989869950405347471, 18030876457067564895, 9226144332763544815, 951931119130756645},
+	{4445477433815392464, 8355408609401992925, 9714636477313264944, 4334180216196067476, 15596847285811231819, 459458012477518768},
+	{9175117263506407330, 7665043603563099639, 14992039796913401838, 16641849914295347300, 11601684182277509569, 1657079538992265389},
+	{15929087890134406300, 10319760383178931499, 10285300532742421389, 7943410795804900993, 14876643139186439457, 1596276481878178830},
+	{16340489378605803174, 11283011956259475143, 674387761048624939, 4426307692803713723, 14443219635974173744, 1557828691568519518},
+	{10545921357178864108, 15594348097707723990, 15473327185274904438, 8764077371853036608, 13271831619934195741, 920385881411392518},
+	{14855786627654630811, 10416493882560543519, 13850931933133536255, 15697408803640484948, 7086584489928944952, 1571814805331589983},
+	{15712014058109948774, 1169959681326011752, 10564652649649904541, 5798307453948932272, 18216503191581507329, 891856449765012965},
+	{3697259045068105471, 13047750717235959811, 3265390356188050980, 4711864639360334533, 15958555604686194312, 1089417612796412513},
+	{15668298835808880424, 11197470773611241957, 8178531292742659665, 7362770734193596843, 1101242818956391365, 1481758300769216242},
+	{660082192885946951, 11892281773336660831, 16154631808458759393, 9657867637233850719, 4055474180365982538, 406314121927326411},
+	{5968546725914058265, 18384324834702704977, 2528860028235658609, 958158598599046617, 9450697084054812609, 1774547465891498542},
+	{1438921833372391620, 11365291231562371378, 11126110123879639732, 17581243018772093145, 12831861873541904436, 1012439064721072293},
 }
 
 // G1 computes the isogeny map of the curve element, given by its coordinates pX and pY.
