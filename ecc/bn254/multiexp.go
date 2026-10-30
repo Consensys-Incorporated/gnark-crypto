@@ -101,9 +101,9 @@ func (p *G1Jac) MultiExp(points []G1Affine, scalars []fr.Element, config ecc.Mul
 	// splitting the msm will **add** operations, but if it allows to use more CPU, it might be worth it.
 
 	// costFunction returns a metric that represent the "wall time" of the algorithm
-	costFunction := func(nbTasks, nbCpus, costPerTask int) int {
-		// cost for the reduction of all tasks (msmReduceChunk)
-		totalCost := nbTasks
+	costFunction := func(c uint64, nbTasks, nbCpus, costPerTask int) int {
+		// msmReduceChunk does c doublings and one addition per chunk.
+		totalCost := nbTasks * int(c+1)
 
 		// cost for the computation of each task (msmProcessChunk)
 		for nbTasks >= nbCpus {
@@ -119,11 +119,13 @@ func (p *G1Jac) MultiExp(points []G1Affine, scalars []fr.Element, config ecc.Mul
 	// costPerTask is the approximate number of group ops per task
 	costPerTask := func(c uint64, nbPoints int) int { return (nbPoints + int((1 << c))) }
 
-	costPreSplit := costFunction(nbChunks, config.NbTasks, costPerTask(C, nbPoints))
+	// The task limit may exceed the number of CPUs, as it does by default.
+	nbCpus := min(config.NbTasks, runtime.NumCPU())
+	costPreSplit := costFunction(C, nbChunks, nbCpus, costPerTask(C, nbPoints))
 
 	cPostSplit := bestC(nbPoints / 2)
 	nbChunksPostSplit := int(computeNbChunks(cPostSplit))
-	costPostSplit := costFunction(nbChunksPostSplit*2, config.NbTasks, costPerTask(cPostSplit, nbPoints/2))
+	costPostSplit := costFunction(cPostSplit, nbChunksPostSplit*2, nbCpus, costPerTask(cPostSplit, nbPoints/2))
 
 	// if the cost of the split msm is lower than the cost of the non split msm, we split
 	if costPostSplit < costPreSplit {
@@ -426,9 +428,9 @@ func (p *G2Jac) MultiExp(points []G2Affine, scalars []fr.Element, config ecc.Mul
 	// splitting the msm will **add** operations, but if it allows to use more CPU, it might be worth it.
 
 	// costFunction returns a metric that represent the "wall time" of the algorithm
-	costFunction := func(nbTasks, nbCpus, costPerTask int) int {
-		// cost for the reduction of all tasks (msmReduceChunk)
-		totalCost := nbTasks
+	costFunction := func(c uint64, nbTasks, nbCpus, costPerTask int) int {
+		// msmReduceChunk does c doublings and one addition per chunk.
+		totalCost := nbTasks * int(c+1)
 
 		// cost for the computation of each task (msmProcessChunk)
 		for nbTasks >= nbCpus {
@@ -444,11 +446,13 @@ func (p *G2Jac) MultiExp(points []G2Affine, scalars []fr.Element, config ecc.Mul
 	// costPerTask is the approximate number of group ops per task
 	costPerTask := func(c uint64, nbPoints int) int { return (nbPoints + int((1 << c))) }
 
-	costPreSplit := costFunction(nbChunks, config.NbTasks, costPerTask(C, nbPoints))
+	// The task limit may exceed the number of CPUs, as it does by default.
+	nbCpus := min(config.NbTasks, runtime.NumCPU())
+	costPreSplit := costFunction(C, nbChunks, nbCpus, costPerTask(C, nbPoints))
 
 	cPostSplit := bestC(nbPoints / 2)
 	nbChunksPostSplit := int(computeNbChunks(cPostSplit))
-	costPostSplit := costFunction(nbChunksPostSplit*2, config.NbTasks, costPerTask(cPostSplit, nbPoints/2))
+	costPostSplit := costFunction(cPostSplit, nbChunksPostSplit*2, nbCpus, costPerTask(cPostSplit, nbPoints/2))
 
 	// if the cost of the split msm is lower than the cost of the non split msm, we split
 	if costPostSplit < costPreSplit {
