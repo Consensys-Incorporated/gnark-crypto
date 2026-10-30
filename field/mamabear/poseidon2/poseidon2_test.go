@@ -13,18 +13,19 @@ import (
 
 	fr "github.com/consensys/gnark-crypto/field/mamabear"
 	gnarkHash "github.com/consensys/gnark-crypto/hash"
+	"github.com/consensys/gnark-crypto/internal/matrix"
 	"github.com/stretchr/testify/require"
 )
 
-func TestMulMulInternalInPlaceWidth16(t *testing.T) {
-	var input, expected [16]fr.Element
+func TestMulMulInternalInPlaceWidth12(t *testing.T) {
+	var input, expected [12]fr.Element
 	for i := range input {
 		input[i].MustSetRandom()
 	}
 
 	expected = input
 
-	h := NewPermutation(16, 8, 32)
+	h := NewPermutation(12, 8, 32)
 	h.matMulInternalInPlace(expected[:])
 
 	var sum fr.Element
@@ -33,7 +34,7 @@ func TestMulMulInternalInPlaceWidth16(t *testing.T) {
 		sum.Add(&sum, &input[i])
 	}
 	for i := range h.params.Width {
-		input[i].Mul(&input[i], &diag16[i]).
+		input[i].Mul(&input[i], &diag12[i]).
 			Add(&input[i], &sum)
 		if !input[i].Equal(&expected[i]) {
 			t.Fatal("mat mul internal w/ diagonal doesn't match hand calculated")
@@ -66,6 +67,55 @@ func TestMulMulInternalInPlaceWidth24(t *testing.T) {
 	}
 }
 
+// TestInternalMatrixCondition checks the internal matrix M_I of both default
+// widths against the condition Poseidon2 requires of it: M_I^i must have an
+// irreducible characteristic polynomial for i = 1..2t, so that no power of M_I
+// fixes a proper subspace and the subspace trails of Section 5.2 of the paper
+// (https://eprint.iacr.org/2023/323.pdf) do not exist.
+//
+// This is a property of the pair (diagonal, prime), NOT of the diagonal alone:
+// porting a diagonal to a field with a different modulus requires rechecking
+// it here. mamabear originally shipped koalabear's diagonal reduced mod its own
+// prime, which fails this test.
+func TestInternalMatrixCondition(t *testing.T) {
+	if testing.Short() {
+		t.Skip("slow: O(t^5) field operations per width")
+	}
+	for _, tc := range []struct {
+		width, nbFullRounds, nbPartialRounds int
+	}{
+		{12, 8, 32},
+		{24, 8, 32},
+	} {
+		p := NewPermutation(tc.width, tc.nbFullRounds, tc.nbPartialRounds).params
+		if !matrix.HasNoInvariantSubspace(p.InternalMatrix(), fr.Modulus()) {
+			t.Errorf("width %d: internal matrix has an invariant subspace; the diagonal is not usable over this field", tc.width)
+		}
+	}
+}
+
+// TestDigestSize pins the Merkle-Damgard digest to the collision resistance it
+// is meant to provide. The digest is Width/2 field elements, each carrying
+// log2(p) bits of entropy -- not 8*fr.Bytes, which is the padded storage size.
+func TestDigestSize(t *testing.T) {
+	h := NewMerkleDamgardHasher()
+	nbElements := GetDefaultParameters().Width / 2
+	if got := h.Size(); got != nbElements*fr.Bytes {
+		t.Fatalf("digest size: got %d bytes, want %d", got, nbElements*fr.Bytes)
+	}
+	if got := len(h.Sum(nil)); got != h.Size() {
+		t.Fatalf("Sum length %d disagrees with Size() %d", got, h.Size())
+	}
+	// A conservative floor on the entropy: each element carries strictly more
+	// than BitLen-1 bits. Asserted only here because mamabear is the one field
+	// whose width was chosen to clear 128 bits -- koalabear and babybear sit at
+	// about 124 and goldilocks at 128 exactly, which is a separate call.
+	bits := nbElements * (fr.Modulus().BitLen() - 1)
+	if bits/2 < 128 {
+		t.Fatalf("digest carries at least %d bits of entropy => %d-bit collision resistance, want >= 128", bits, bits/2)
+	}
+}
+
 // denseMatrixMul returns m·x.
 func denseMatrixMul(m [][]fr.Element, x []fr.Element) []fr.Element {
 	res := make([]fr.Element, len(m))
@@ -85,7 +135,7 @@ func TestMatricesMatchInPlace(t *testing.T) {
 	for _, tc := range []struct {
 		width, nbFullRounds, nbPartialRounds int
 	}{
-		{16, 8, 32},
+		{12, 8, 32},
 		{24, 8, 32},
 	} {
 		h := NewPermutation(tc.width, tc.nbFullRounds, tc.nbPartialRounds)
@@ -180,7 +230,7 @@ func blockOf[D Digest](seed uint64) D {
 func defaultPermutation(n int) *Permutation {
 	switch n {
 	case BlockLen:
-		return NewPermutation(16, 8, 32)
+		return NewPermutation(12, 8, 32)
 	case WideBlockLen:
 		return NewPermutation(24, 8, 32)
 	}
@@ -713,7 +763,7 @@ func TestWideDefaultSchedule(t *testing.T) {
 // TestConstructorsRejectWidthMismatch checks that a permutation whose width is
 // not twice the length of the digest type is rejected.
 func TestConstructorsRejectWidthMismatch(t *testing.T) {
-	narrow := NewPermutationWithSeed(16, 4, 7, "seed")
+	narrow := NewPermutationWithSeed(12, 4, 7, "seed")
 	wide := NewPermutationWithSeed(24, 4, 7, "seed")
 
 	require.Panics(t, func() { NewCompressor(wide) })
@@ -734,7 +784,7 @@ func TestPermutationCompress(t *testing.T) {
 	for _, tc := range []struct {
 		width, nbFullRounds, nbPartialRounds int
 	}{
-		{16, 8, 32},
+		{12, 8, 32},
 		{24, 8, 32},
 	} {
 		p := NewPermutation(tc.width, tc.nbFullRounds, tc.nbPartialRounds)
@@ -757,8 +807,8 @@ func TestPermutationCompress(t *testing.T) {
 	}
 }
 
-func TestPoseidon2Width16(t *testing.T) {
-	var input, expected [16]fr.Element
+func TestPoseidon2Width12(t *testing.T) {
+	var input, expected [12]fr.Element
 	// these are random values generated by MustSetRandom()
 	input[0].SetUint64(2147483655)
 	input[1].SetUint64(4294967303)
@@ -772,29 +822,21 @@ func TestPoseidon2Width16(t *testing.T) {
 	input[9].SetUint64(21474836487)
 	input[10].SetUint64(23622320135)
 	input[11].SetUint64(25769803783)
-	input[12].SetUint64(27917287431)
-	input[13].SetUint64(30064771079)
-	input[14].SetUint64(32212254727)
-	input[15].SetUint64(34359738375)
 
-	expected[0].SetUint64(50602402429679)
-	expected[1].SetUint64(205154033184305)
-	expected[2].SetUint64(171690306064314)
-	expected[3].SetUint64(290743356206654)
-	expected[4].SetUint64(52057371620722)
-	expected[5].SetUint64(357993730760812)
-	expected[6].SetUint64(30792446669472)
-	expected[7].SetUint64(560929088275684)
-	expected[8].SetUint64(351129771614234)
-	expected[9].SetUint64(167825709741404)
-	expected[10].SetUint64(435628772411913)
-	expected[11].SetUint64(263726494550579)
-	expected[12].SetUint64(253184459815810)
-	expected[13].SetUint64(470108995398990)
-	expected[14].SetUint64(245845535172115)
-	expected[15].SetUint64(339090281054048)
+	expected[0].SetUint64(128351653496578)
+	expected[1].SetUint64(381717791328781)
+	expected[2].SetUint64(18068292944956)
+	expected[3].SetUint64(78049578916765)
+	expected[4].SetUint64(522387156367558)
+	expected[5].SetUint64(263212768897772)
+	expected[6].SetUint64(93332071769154)
+	expected[7].SetUint64(22761878782019)
+	expected[8].SetUint64(145336807691440)
+	expected[9].SetUint64(28667223610560)
+	expected[10].SetUint64(98350504622438)
+	expected[11].SetUint64(468892849949241)
 
-	h := NewPermutation(16, 8, 32)
+	h := NewPermutation(12, 8, 32)
 	h.Permutation(input[:])
 	for i := range h.params.Width {
 		if !input[i].Equal(&expected[i]) {
@@ -831,30 +873,30 @@ func TestPoseidon2Width24(t *testing.T) {
 	input[22].SetUint64(49392123911)
 	input[23].SetUint64(51539607559)
 
-	expected[0].SetUint64(221949310464874)
-	expected[1].SetUint64(80986520567350)
-	expected[2].SetUint64(188405925758112)
-	expected[3].SetUint64(265381136928946)
-	expected[4].SetUint64(531029040459252)
-	expected[5].SetUint64(267299294930657)
-	expected[6].SetUint64(232053702598666)
-	expected[7].SetUint64(125866528816944)
-	expected[8].SetUint64(375645824840808)
-	expected[9].SetUint64(493982275312219)
-	expected[10].SetUint64(491313642825887)
-	expected[11].SetUint64(225430104088042)
-	expected[12].SetUint64(12298241502257)
-	expected[13].SetUint64(174077256549267)
-	expected[14].SetUint64(211511214646258)
-	expected[15].SetUint64(461473402745453)
-	expected[16].SetUint64(373037057867494)
-	expected[17].SetUint64(16199147773576)
-	expected[18].SetUint64(527007590318455)
-	expected[19].SetUint64(280256541869745)
-	expected[20].SetUint64(457055166286236)
-	expected[21].SetUint64(438914526671414)
-	expected[22].SetUint64(454144458652198)
-	expected[23].SetUint64(499223682805339)
+	expected[0].SetUint64(390145511834556)
+	expected[1].SetUint64(91862562514016)
+	expected[2].SetUint64(142413513295745)
+	expected[3].SetUint64(171781903492008)
+	expected[4].SetUint64(119741555759009)
+	expected[5].SetUint64(513012987780896)
+	expected[6].SetUint64(305419934377188)
+	expected[7].SetUint64(349671182149453)
+	expected[8].SetUint64(464258200314551)
+	expected[9].SetUint64(374577213652385)
+	expected[10].SetUint64(179796604956243)
+	expected[11].SetUint64(360410467482643)
+	expected[12].SetUint64(179678526367101)
+	expected[13].SetUint64(415107277195132)
+	expected[14].SetUint64(51361218962491)
+	expected[15].SetUint64(257473631970656)
+	expected[16].SetUint64(521066863816582)
+	expected[17].SetUint64(1524176090020)
+	expected[18].SetUint64(352839831587040)
+	expected[19].SetUint64(485078777955475)
+	expected[20].SetUint64(532160846458413)
+	expected[21].SetUint64(138858605461899)
+	expected[22].SetUint64(471009111084063)
+	expected[23].SetUint64(187492944687746)
 
 	h := NewPermutation(24, 8, 32)
 	h.Permutation(input[:])
@@ -865,10 +907,10 @@ func TestPoseidon2Width24(t *testing.T) {
 	}
 }
 
-func BenchmarkPoseidon2Width16(b *testing.B) {
-	h := NewPermutation(16, 8, 32)
+func BenchmarkPoseidon2Width12(b *testing.B) {
+	h := NewPermutation(12, 8, 32)
 
-	var tmp [16]fr.Element
+	var tmp [12]fr.Element
 	for i := range tmp {
 		tmp[i].MustSetRandom()
 	}
@@ -908,8 +950,8 @@ func BenchmarkPoseidon2Width24(b *testing.B) {
 // partial rounds, while mamabear needs 32.
 func TestDefaultRoundNumbers(t *testing.T) {
 	p := GetDefaultParameters()
-	if p.Width != 16 {
-		t.Fatalf("width: got %d, want 16", p.Width)
+	if p.Width != 12 {
+		t.Fatalf("width: got %d, want 12", p.Width)
 	}
 	if p.NbFullRounds != 8 {
 		t.Fatalf("full rounds: got %d, want 8", p.NbFullRounds)

@@ -107,30 +107,40 @@ const (
 	maxHash
 )
 
-// size of digests in bytes
+// size of digests in bytes.
+//
+// These must agree with the Size() of the hasher each one describes;
+// TestDigestSizeMatchesHasher in hash/all enforces it. The curve entries are
+// the size of the SCALAR field fr, which is what MiMC and Poseidon2 are
+// instantiated over -- not the base field fp. Using fp here over-reported every
+// non-BN254 curve digest by up to a factor of two.
 var digestSize = []uint8{
 	MIMC_BN254:     32,
-	MIMC_BLS12_381: 48,
-	MIMC_BLS12_377: 48,
-	MIMC_BW6_761:   96,
-	MIMC_BLS24_315: 48,
-	MIMC_BLS24_317: 48,
-	MIMC_BW6_633:   80,
+	MIMC_BLS12_381: 32,
+	MIMC_BLS12_377: 32,
+	MIMC_BW6_761:   48,
+	MIMC_BLS24_315: 32,
+	MIMC_BLS24_317: 32,
+	MIMC_BW6_633:   40,
 	MIMC_GRUMPKIN:  32,
 
 	POSEIDON2_BN254:     32,
-	POSEIDON2_BLS12_381: 48,
-	POSEIDON2_BLS12_377: 48,
-	POSEIDON2_BW6_761:   96,
-	POSEIDON2_BLS24_315: 48,
-	POSEIDON2_BLS24_317: 48,
-	POSEIDON2_BW6_633:   80,
+	POSEIDON2_BLS12_381: 32,
+	POSEIDON2_BLS12_377: 32,
+	POSEIDON2_BW6_761:   48,
+	POSEIDON2_BLS24_315: 32,
+	POSEIDON2_BLS24_317: 32,
+	POSEIDON2_BW6_633:   40,
 	POSEIDON2_GRUMPKIN:  32,
 
-	POSEIDON2_KOALABEAR:  4,
-	POSEIDON2_BABYBEAR:   4,
-	POSEIDON2_GOLDILOCKS: 8,
-	POSEIDON2_MAMABEAR:   8,
+	// The small-field Poseidon2 hashers are Merkle-Damgard over a width-t
+	// compression function, so a digest is t/2 field elements, each stored
+	// padded to fr.Bytes. These are NOT the size of a single element: entries
+	// of 4, 4, 8, 8 here used to under-report the digest by a factor of 4 to 8.
+	POSEIDON2_KOALABEAR:  32, // 8 x 4 bytes (t = 16)
+	POSEIDON2_BABYBEAR:   32, // 8 x 4 bytes (t = 16)
+	POSEIDON2_GOLDILOCKS: 32, // 4 x 8 bytes (t = 8)
+	POSEIDON2_MAMABEAR:   48, // 6 x 8 bytes (t = 12)
 }
 
 // New initializes the hash function. This is a convenience function which does

@@ -137,15 +137,15 @@ func (p *Parameters) ExternalMatrix() [][]fr.Element {
 //	M_I = J + diag(d),
 //
 // that is, for a state x, (M_I·x)_i = Σ_j x_j + d_i·x_i, where d is the diagonal
-// of the permutation (diag16 for width 16, diag24 for width 24).
+// of the permutation (diag12 for width 12, diag24 for width 24).
 func (p *Parameters) InternalMatrix() [][]fr.Element {
 	return matrix.FromLinearMap(p.Width, (&Permutation{params: p}).matMulInternalInPlace)
 }
 
 // NewPermutation returns a new Poseidon2 permutation instance.
 func NewPermutation(t, rf, rp int) *Permutation {
-	if t != 16 && t != 24 {
-		panic("only Width=16,24 are supported")
+	if t != 12 && t != 24 {
+		panic("only Width=12,24 are supported")
 	}
 	params := NewParameters(t, rf, rp)
 	res := &Permutation{params: params}
@@ -155,8 +155,8 @@ func NewPermutation(t, rf, rp int) *Permutation {
 // NewPermutationWithSeed returns a new Poseidon2 permutation instance with a
 // given seed.
 func NewPermutationWithSeed(t, rf, rp int, seed string) *Permutation {
-	if t != 16 && t != 24 {
-		panic("only Width=16,24 are supported")
+	if t != 12 && t != 24 {
+		panic("only Width=12,24 are supported")
 	}
 	params := NewParametersWithSeed(t, rf, rp, seed)
 	res := &Permutation{params: params}
@@ -250,10 +250,10 @@ func sumState(input []fr.Element) fr.Element {
 // when Width = 0 mod 4 the matrix is filled with ones except on the diagonal
 func (h *Permutation) matMulInternalInPlace(input []fr.Element) {
 	switch h.params.Width {
-	case 16:
+	case 12:
 		sum := sumState(input[:h.params.Width])
-		// mul by diag16:
-		// [-2, 1, 2, 1/2, 3, 4, -1/2, -3, -4, 1/2^8, 1/8, 1/2^24, -1/2^8, -1/8, -1/16, -1/2^24]
+		// mul by diag12:
+		// [-2, 1, 2, 1/2, 3, 4, -1/2, -3, -4, 1/4, -1/4, 1/8]
 		var temp fr.Element
 		input[0].Sub(&sum, temp.Double(&input[0]))
 		input[1].Add(&sum, &input[1])
@@ -266,17 +266,13 @@ func (h *Permutation) matMulInternalInPlace(input []fr.Element) {
 		input[6].Sub(&sum, &temp)
 		input[7].Sub(&sum, temp.Double(&input[7]).Add(&temp, &input[7]))
 		input[8].Sub(&sum, temp.Double(&input[8]).Double(&temp))
-		input[9].Add(&sum, temp.Mul2ExpNegN(&input[9], 8))
-		input[10].Add(&sum, temp.Mul2ExpNegN(&input[10], 3))
-		input[11].Add(&sum, temp.Mul2ExpNegN(&input[11], 24))
-		input[12].Sub(&sum, temp.Mul2ExpNegN(&input[12], 8))
-		input[13].Sub(&sum, temp.Mul2ExpNegN(&input[13], 3))
-		input[14].Sub(&sum, temp.Mul2ExpNegN(&input[14], 4))
-		input[15].Sub(&sum, temp.Mul2ExpNegN(&input[15], 24))
+		input[9].Add(&sum, temp.Mul2ExpNegN(&input[9], 2))
+		input[10].Sub(&sum, temp.Mul2ExpNegN(&input[10], 2))
+		input[11].Add(&sum, temp.Mul2ExpNegN(&input[11], 3))
 	case 24:
 		sum := sumState(input[:h.params.Width])
 		// mul by diag24:
-		// [-2, 1, 2, 1/2, 3, 4, -1/2, -3, -4, 1/2^8, 1/4, 1/8, 1/16, 1/32, 1/64, 1/2^24, -1/2^8, -1/8, -1/16, -1/32, -1/64, -1/2^7, -1/2^9, -1/2^24]
+		// [-2, 1, 2, 1/2, 3, 4, -1/2, -3, -4, -1/2^14, 1/2^15, -1/2^15, 1/2^16, -1/2^16, 1/2^17, -1/2^17, 1/2^18, -1/2^18, 1/2^19, -1/2^19, 1/2^20, -1/2^20, 1/2^21, -1/2^21]
 		var temp fr.Element
 		input[0].Sub(&sum, temp.Double(&input[0]))
 		input[1].Add(&sum, &input[1])
@@ -289,23 +285,23 @@ func (h *Permutation) matMulInternalInPlace(input []fr.Element) {
 		input[6].Sub(&sum, &temp)
 		input[7].Sub(&sum, temp.Double(&input[7]).Add(&temp, &input[7]))
 		input[8].Sub(&sum, temp.Double(&input[8]).Double(&temp))
-		input[9].Add(&sum, temp.Mul2ExpNegN(&input[9], 8))
-		input[10].Add(&sum, temp.Mul2ExpNegN(&input[10], 2))
-		input[11].Add(&sum, temp.Mul2ExpNegN(&input[11], 3))
-		input[12].Add(&sum, temp.Mul2ExpNegN(&input[12], 4))
-		input[13].Add(&sum, temp.Mul2ExpNegN(&input[13], 5))
-		input[14].Add(&sum, temp.Mul2ExpNegN(&input[14], 6))
-		input[15].Add(&sum, temp.Mul2ExpNegN(&input[15], 24))
-		input[16].Sub(&sum, temp.Mul2ExpNegN(&input[16], 8))
-		input[17].Sub(&sum, temp.Mul2ExpNegN(&input[17], 3))
-		input[18].Sub(&sum, temp.Mul2ExpNegN(&input[18], 4))
-		input[19].Sub(&sum, temp.Mul2ExpNegN(&input[19], 5))
-		input[20].Sub(&sum, temp.Mul2ExpNegN(&input[20], 6))
-		input[21].Sub(&sum, temp.Mul2ExpNegN(&input[21], 7))
-		input[22].Sub(&sum, temp.Mul2ExpNegN(&input[22], 9))
-		input[23].Sub(&sum, temp.Mul2ExpNegN(&input[23], 24))
+		input[9].Sub(&sum, temp.Mul2ExpNegN(&input[9], 14))
+		input[10].Add(&sum, temp.Mul2ExpNegN(&input[10], 15))
+		input[11].Sub(&sum, temp.Mul2ExpNegN(&input[11], 15))
+		input[12].Add(&sum, temp.Mul2ExpNegN(&input[12], 16))
+		input[13].Sub(&sum, temp.Mul2ExpNegN(&input[13], 16))
+		input[14].Add(&sum, temp.Mul2ExpNegN(&input[14], 17))
+		input[15].Sub(&sum, temp.Mul2ExpNegN(&input[15], 17))
+		input[16].Add(&sum, temp.Mul2ExpNegN(&input[16], 18))
+		input[17].Sub(&sum, temp.Mul2ExpNegN(&input[17], 18))
+		input[18].Add(&sum, temp.Mul2ExpNegN(&input[18], 19))
+		input[19].Sub(&sum, temp.Mul2ExpNegN(&input[19], 19))
+		input[20].Add(&sum, temp.Mul2ExpNegN(&input[20], 20))
+		input[21].Sub(&sum, temp.Mul2ExpNegN(&input[21], 20))
+		input[22].Add(&sum, temp.Mul2ExpNegN(&input[22], 21))
+		input[23].Sub(&sum, temp.Mul2ExpNegN(&input[23], 21))
 	default:
-		panic("only Width=16,24 are supported")
+		panic("only Width=12,24 are supported")
 	}
 }
 

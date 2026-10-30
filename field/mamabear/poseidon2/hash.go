@@ -16,8 +16,8 @@ import (
 
 const (
 	// BlockLen is the input block and digest length of [Hasher], in field
-	// elements, not bytes: half the default permutation width (16).
-	BlockLen = 8
+	// elements, not bytes: half the default permutation width (12).
+	BlockLen = 6
 
 	// WideBlockLen is the input block and digest length of a wider
 	// [HasherGeneric], in field elements, not bytes: half the wider
@@ -26,8 +26,8 @@ const (
 )
 
 // Digest constrains the block and digest types of [HasherGeneric] and
-// [CompressorGeneric] to arrays of [BlockLen] = 8 elements (permutation of
-// width 16), or [WideBlockLen] = 12 elements (permutation of width 24).
+// [CompressorGeneric] to arrays of [BlockLen] = 6 elements (permutation of
+// width 12), or [WideBlockLen] = 12 elements (permutation of width 24).
 // Named array types are accepted.
 type Digest interface {
 	~[BlockLen]fr.Element | ~[WideBlockLen]fr.Element
@@ -44,7 +44,7 @@ var (
 
 // HasherGeneric is a Merkle-Damgard hasher over blocks of elements of the
 // field, with a Poseidon2 compression function, and a digest of the same size
-// as a block. D is [BlockLen] = 8 elements for a permutation of width 16, or
+// as a block. D is [BlockLen] = 6 elements for a permutation of width 12, or
 // [WideBlockLen] = 12 elements for a permutation of width 24. It implements
 // [gnarkHash.FieldHasher]. [Hasher] is the default instance. Use
 // [NewMerkleDamgardHasher] to hash bytes.
@@ -60,8 +60,8 @@ type HasherGeneric[D Digest] struct {
 	gnarkHash.MerkleDamgardArray[fr.Element, D]
 }
 
-// Hasher is the [HasherGeneric] over blocks of 8 elements, with the
-// compression function of the default parameters (width 16).
+// Hasher is the [HasherGeneric] over blocks of 6 elements, with the
+// compression function of the default parameters (width 12).
 type Hasher = HasherGeneric[[BlockLen]fr.Element]
 
 // NewHasher returns a [Hasher] with the default parameters, and the zero initial
@@ -73,7 +73,7 @@ func NewHasher() *Hasher {
 // NewHasherGeneric returns a [HasherGeneric] with the zero initial state, and
 // the compression function of cached parameters of the width 2*len(D):
 //
-//   - for blocks of 8 elements, those of [GetDefaultParameters] (width 16,
+//   - for blocks of 6 elements, those of [GetDefaultParameters] (width 12,
 //     8 full and 32 partial rounds), as [NewHasher];
 //   - for blocks of 12 elements, those of [GetSpongeParameters] (width 24, 8 full and 32 partial rounds).
 //
@@ -128,11 +128,11 @@ type CompressorGeneric[D Digest] struct {
 	perm Permutation
 }
 
-// Compressor is the [CompressorGeneric] over blocks of 8 elements, for a
-// permutation of width 16.
+// Compressor is the [CompressorGeneric] over blocks of 6 elements, for a
+// permutation of width 12.
 type Compressor = CompressorGeneric[[BlockLen]fr.Element]
 
-// NewCompressor returns a [Compressor] over p. The width of p must be 16, that
+// NewCompressor returns a [Compressor] over p. The width of p must be 12, that
 // of the default compression permutation.
 func NewCompressor(p *Permutation) Compressor {
 	return NewCompressorGeneric[[BlockLen]fr.Element](p)
@@ -166,9 +166,9 @@ func (c CompressorGeneric[D]) CompressField(dst, left, right *D) {
 
 // NewMerkleDamgardHasher returns a Poseidon2 hasher of bytes using the
 // Merkle-Damgard construction with the default parameters. Its state and digest
-// are the 8 elements of the digest of a [Hasher], as bytes.
+// are the 6 elements of the digest of a [Hasher], as bytes.
 //
-// Each element is fr.Bytes bytes, and a block 8 elements. Write pads the last
+// Each element is fr.Bytes bytes, and a block 6 elements. Write pads the last
 // block of its input with zeros on the left, so the digest depends on how the
 // input is split among the calls to Write.
 //
@@ -222,36 +222,32 @@ func NewDefaultPermutation() *Permutation {
 }
 
 // GetDefaultParameters returns the cached compression parameters for the
-// Poseidon2 permutation: width 16, 8 full rounds and
+// Poseidon2 permutation: width 12, 8 full rounds and
 // 32 partial rounds, as used by [NewDefaultPermutation] and [NewHasher].
 // For the wider sponge parameters, use [GetSpongeParameters].
 // The returned parameters are shared; callers must not modify them.
 var GetDefaultParameters = sync.OnceValue(func() *Parameters {
-	return NewParameters(16, 8, 32)
+	return NewParameters(12, 8, 32)
 })
 
-var diag16 []fr.Element = make([]fr.Element, 16)
+var diag12 []fr.Element = make([]fr.Element, 12)
 var diag24 []fr.Element = make([]fr.Element, 24)
 
 func init() {
-	// diagonal diag16 for the internal diagonal of the matrix of the compression layer
+	// diagonal diag12 for the internal diagonal of the matrix of the compression layer
 	// (from https://github.com/Plonky3/Plonky3 )
-	diag16[0].SetUint64(562932773552127)
-	diag16[1].SetUint64(1)
-	diag16[2].SetUint64(2)
-	diag16[3].SetUint64(281466386776065)
-	diag16[4].SetUint64(3)
-	diag16[5].SetUint64(4)
-	diag16[6].SetUint64(281466386776064)
-	diag16[7].SetUint64(562932773552126)
-	diag16[8].SetUint64(562932773552125)
-	diag16[9].SetUint64(560733817405441)
-	diag16[10].SetUint64(492566176858113)
-	diag16[11].SetUint64(562932739998721)
-	diag16[12].SetUint64(2198956146688)
-	diag16[13].SetUint64(70366596694016)
-	diag16[14].SetUint64(35183298347008)
-	diag16[15].SetUint64(33553408)
+	diag12[0].SetUint64(562932773552127)
+	diag12[1].SetUint64(1)
+	diag12[2].SetUint64(2)
+	diag12[3].SetUint64(281466386776065)
+	diag12[4].SetUint64(3)
+	diag12[5].SetUint64(4)
+	diag12[6].SetUint64(281466386776064)
+	diag12[7].SetUint64(562932773552126)
+	diag12[8].SetUint64(562932773552125)
+	diag12[9].SetUint64(422199580164097)
+	diag12[10].SetUint64(140733193388032)
+	diag12[11].SetUint64(492566176858113)
 
 	// diagonal diag24 for the internal diagonal of the matrix of the sponge layer
 	// (from https://github.com/Plonky3/Plonky3 )
@@ -264,21 +260,21 @@ func init() {
 	diag24[6].SetUint64(281466386776064)
 	diag24[7].SetUint64(562932773552126)
 	diag24[8].SetUint64(562932773552125)
-	diag24[9].SetUint64(560733817405441)
-	diag24[10].SetUint64(422199580164097)
-	diag24[11].SetUint64(492566176858113)
-	diag24[12].SetUint64(527749475205121)
-	diag24[13].SetUint64(545341124378625)
-	diag24[14].SetUint64(554136948965377)
-	diag24[15].SetUint64(562932739998721)
-	diag24[16].SetUint64(2198956146688)
-	diag24[17].SetUint64(70366596694016)
-	diag24[18].SetUint64(35183298347008)
-	diag24[19].SetUint64(17591649173504)
-	diag24[20].SetUint64(8795824586752)
-	diag24[21].SetUint64(4397912293376)
-	diag24[22].SetUint64(1099478073344)
-	diag24[23].SetUint64(33553408)
+	diag24[9].SetUint64(34358689792)
+	diag24[10].SetUint64(562915594207233)
+	diag24[11].SetUint64(17179344896)
+	diag24[12].SetUint64(562924183879681)
+	diag24[13].SetUint64(8589672448)
+	diag24[14].SetUint64(562928478715905)
+	diag24[15].SetUint64(4294836224)
+	diag24[16].SetUint64(562930626134017)
+	diag24[17].SetUint64(2147418112)
+	diag24[18].SetUint64(562931699843073)
+	diag24[19].SetUint64(1073709056)
+	diag24[20].SetUint64(562932236697601)
+	diag24[21].SetUint64(536854528)
+	diag24[22].SetUint64(562932505124865)
+	diag24[23].SetUint64(268427264)
 
 	gnarkHash.RegisterHash(gnarkHash.POSEIDON2_MAMABEAR, func() hash.Hash {
 		return NewMerkleDamgardHasher()
