@@ -635,24 +635,34 @@ func (p *G1Jac) IsOnCurve() bool {
 }
 
 // IsInSubGroup returns true if p is on the r-torsion, false otherwise.
-
-// 3r P = (x+1)ϕ(P) + (-x^5 + x⁴ + x)P
+//
+// With u = -x₀ and w = (u+1)/3, the kernel of (a,b)->a+λb mod r, where ϕ acts
+// as [λ] on G1, is generated as a Z[ϕ]-module by π = (w(2u⁴-1), w(u⁴-2)+1),
+// and we check that [w(2u⁴-1)]p + [w(u⁴-2)+1]ϕ(p) is the infinity.
+//
+// Since ϕ²+ϕ+1 = 0, k₁+k₂ϕ composed with its conjugate is the multiplication
+// by N = k₁²-k₁k₂+k₂², so this check is exact on E(Fp) iff r | N, r ∤ h
+// and gcd(h, N) = 1, where h = #E(Fp)/r. Here N = r.
+//
+// The relation is [w]([u⁴]([2]p + ϕ(p)) - p - [2]ϕ(p)) == -ϕ(p).
+//
+// The relation is mirrored in internal/generator/config/bw6-633.go.
 func (p *G1Jac) IsInSubGroup() bool {
 	if !p.IsOnCurve() {
 		return false
 	}
-	var uP, u4P, u5P, q, r G1Jac
-	uP.mulBySeed(p)
-	u4P.mulBySeed(&uP).
-		mulBySeed(&u4P).
-		mulBySeed(&u4P)
-	u5P.mulBySeed(&u4P)
-	q.Set(p).SubAssign(&uP)
-	r.phi(&q).SubAssign(&uP).
-		AddAssign(&u4P).
-		AddAssign(&u5P)
+	var phip, res, tmp G1Jac
+	phip.phi(p)
+	res.Double(p).AddAssign(&phip)
+	res.mulBySeed(&res).
+		mulBySeed(&res).
+		mulBySeed(&res).
+		mulBySeed(&res)
+	tmp.Double(&phip).AddAssign(p)
+	res.SubAssign(&tmp).mulByW(&res)
+	phip.Neg(&phip)
 
-	return r.Z.IsZero()
+	return res.Equal(&phip)
 }
 
 // mulWindowed computes a double-and-add scalar multiplication p=[s]q in
@@ -730,6 +740,24 @@ func (p *G1Jac) mulBySeed(q *G1Jac) *G1Jac {
 		res.Double(&res)
 	}
 	res.SubAssign(q)
+	p.Set(&res)
+	return p
+}
+
+// mulByW multiplies the point q by w = (|x₀|+1)/3 = 1072693248
+// in Jacobian coordinates using an addition chain:
+// w = (2¹⁰-1) << 20.
+// Operations: 30 doublings, 1 subtraction.
+func (p *G1Jac) mulByW(q *G1Jac) *G1Jac {
+	var res G1Jac
+	res.Set(q)
+	for range 10 {
+		res.Double(&res)
+	}
+	res.SubAssign(q)
+	for range 20 {
+		res.Double(&res)
+	}
 	p.Set(&res)
 	return p
 }
