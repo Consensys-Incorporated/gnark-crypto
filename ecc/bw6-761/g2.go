@@ -640,28 +640,32 @@ func (p *G2Jac) IsOnCurve() bool {
 }
 
 // IsInSubGroup returns true if p is on the r-torsion, false otherwise.
-
-// Z[r,0]+Z[-lambdaG2Affine, 1] is the kernel
-// of (u,v)->u+lambdaG2Affinev mod r. Expressing r, lambdaG2Affine as
-// polynomials in x, a short vector of this Zmodule is
-// (x+1), (x³-x²+1). So we check that (x+1)p+(x³-x²+1)ϕ(p)
-// is the infinity.
+//
+// The kernel of (u,v)->u+λv mod r, where ϕ acts as [λ] on G2, is generated
+// as a Z[ϕ]-module by π = (y(2-x²)+1, y(x²+1)+1) with y = (x-1)/3, and we
+// check that [y(2-x²)+1]p + [y(x²+1)+1]ϕ(p) is the infinity.
+//
+// Since ϕ²+ϕ+1 = 0, k₁+k₂ϕ composed with its conjugate is the multiplication
+// by N = k₁²-k₁k₂+k₂², so this check is exact on E'(Fp) iff r | N, r ∤ h
+// and gcd(h, N) = 1, where h = #E'(Fp)/r. Here N = r.
+//
+// Using ϕ(p) + p = -ϕ²(p), the relation is
+// [y]([x²](ϕ(p)-p) + [2]p + ϕ(p)) == ϕ²(p).
+//
+// The relation is mirrored in internal/generator/config/bw6-761.go.
 func (p *G2Jac) IsInSubGroup() bool {
 	if !p.IsOnCurve() {
 		return false
 	}
-	var res, phip G2Jac
+	var phip, res, tmp G2Jac
 	phip.phi(p)
-	res.mulBySeed(&phip).
-		SubAssign(&phip).
-		mulBySeed(&res).
-		mulBySeed(&res).
-		AddAssign(&phip)
+	res.Set(&phip).SubAssign(p)
+	res.mulBySeed(&res).mulBySeed(&res)
+	tmp.Double(p).AddAssign(&phip)
+	res.AddAssign(&tmp).mulByW(&res)
+	phip.phi(&phip)
 
-	phip.mulBySeed(p).AddAssign(p).Neg(&phip)
-
-	return phip.Equal(&res)
-
+	return res.Equal(&phip)
 }
 
 // mulWindowed computes a double-and-add scalar multiplication p=[s]q in
@@ -752,6 +756,33 @@ func (p *G2Jac) mulBySeed(q *G2Jac) *G2Jac {
 	}
 	z.AddAssign(q)
 	p.Set(z)
+	return p
+}
+
+// mulByW multiplies the point q by w = (x₀-1)/3 = 3195374304363544576
+// in Jacobian coordinates using an addition chain:
+// w = 0xb161 << 46 and 0xb161 = (((3 + 8)·(1 + 2⁷)) << 5) + 1.
+// Operations: 61 doublings, 1 tripling, 3 additions.
+func (p *G2Jac) mulByW(q *G2Jac) *G2Jac {
+	var t0, t1 G2Jac
+	t0.Triple(q)
+	t1.Double(q)
+	t1.Double(&t1)
+	t1.Double(&t1)
+	t0.AddAssign(&t1)
+	t1.Set(&t0)
+	for range 7 {
+		t1.Double(&t1)
+	}
+	t0.AddAssign(&t1)
+	for range 5 {
+		t0.Double(&t0)
+	}
+	t0.AddAssign(q)
+	for range 46 {
+		t0.Double(&t0)
+	}
+	p.Set(&t0)
 	return p
 }
 
