@@ -13,6 +13,15 @@ var BLS24_317 = Curve{
 		GLV:              true,
 		CofactorCleaning: true,
 		CRange:           defaultCRange(),
+		SubgroupCheck: &EndoSubgroupCheck{
+			// p + [x⁴]ϕ(p) == O
+			Endomorphism: EndoPhi,
+			Cofactor:     "4418363654259976875",
+			Coeffs: []string{
+				seedPoly("3640754176", 1, 1),
+				seedPoly("3640754176", 1, 0, 0, 0, 0, 1),
+			},
+		},
 	},
 	G2: Point{
 		CoordType:        "fptower.E4",
@@ -22,6 +31,16 @@ var BLS24_317 = Curve{
 		CofactorCleaning: true,
 		CRange:           defaultCRange(),
 		Projective:       true,
+		SubgroupCheck: &EndoSubgroupCheck{
+			// ψ(p) - [x]p == O
+			Endomorphism: EndoPsi,
+			Trace:        "3640754177",
+			Cofactor:     "11210845891624836531176012918062914462021840282941743787554192641910416517412899358318656504699111654137487891251681348586979064452553742551765180004072432778267339363198533762231562428665144287826113466579256058771552959868232593502754445031920722873908317845734623813971633199310474447624304228331971876",
+			Coeffs: []string{
+				seedPoly("3640754176", 1, 0, -1),
+				seedPoly("3640754176", 1, 1),
+			},
+		},
 	},
 	// 5-isogeny
 	HashE1: &HashSuiteSswu{

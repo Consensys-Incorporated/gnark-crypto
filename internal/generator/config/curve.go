@@ -156,6 +156,103 @@ type Point struct {
 	Projective       bool   // generate projective coordinates
 	A                string // A linear coefficient in Weierstrass form y²=x³+ax+b
 	B                string // B constant term in Weierstrass form y²=x³+ax+b
+
+	// SubgroupCheck describes the endomorphism relation used by IsInSubGroup,
+	// if any. It is validated when the curve is registered (see addCurve).
+	SubgroupCheck *EndoSubgroupCheck
+}
+
+// Endomorphisms used in subgroup membership tests.
+const (
+	EndoPhi = "phi" // ϕ: (x,y) → (ωx,y), ϕ² + ϕ + 1 = 0
+	EndoPsi = "psi" // ψ = untwist∘π∘twist, ψ² - tψ + p = 0 with t the trace of E(Fp)
+)
+
+// EndoSubgroupCheck describes an IsInSubGroup implementation which checks
+// f(ϕ)(P) == O, where f(X) = Σ Coeffs[i]·Xⁱ and ϕ is Endomorphism.
+//
+// It mirrors the hand-written relation in the point template and is only used
+// to check that this relation is an exact membership test.
+type EndoSubgroupCheck struct {
+	Endomorphism string   // EndoPhi or EndoPsi
+	Trace        string   // EndoPsi only: trace t of Frobenius of E(Fp)
+	Cofactor     string   // h = #E(F_q) / r for the group the check applies to
+	Coeffs       []string // f(X) = Σ Coeffs[i]·Xⁱ
+}
+
+// Norm returns N = Res(X² - tX + n, f) where X² - tX + n = 0 is the
+// characteristic polynomial of the endomorphism. f(ϕ) composed with its
+// conjugate is the multiplication by N, so ker f(ϕ) ⊆ E[N].
+func (c *EndoSubgroupCheck) Norm(p *big.Int) *big.Int {
+	var t, n big.Int
+	switch c.Endomorphism {
+	case EndoPhi:
+		t.SetInt64(-1)
+		n.SetInt64(1)
+	case EndoPsi:
+		mustSetString(&t, c.Trace)
+		n.Set(p)
+	default:
+		panic("unknown endomorphism " + c.Endomorphism)
+	}
+	// f(X) mod (X² - tX + n) = a + bX, with Xⁱ = xa + xb·X
+	a, b := new(big.Int), new(big.Int)
+	xa, xb := big.NewInt(1), big.NewInt(0)
+	var ci, tmp big.Int
+	for i, s := range c.Coeffs {
+		if i > 0 {
+			// X·(xa + xb·X) = -n·xb + (xa + t·xb)·X
+			tmp.Mul(&t, xb).Add(&tmp, xa)
+			xa.Mul(&n, xb).Neg(xa)
+			xb.Set(&tmp)
+		}
+		mustSetString(&ci, s)
+		a.Add(a, tmp.Mul(&ci, xa))
+		b.Add(b, tmp.Mul(&ci, xb))
+	}
+	// N(a + bX) = a² + t·ab + n·b²
+	N := new(big.Int).Mul(a, a)
+	N.Add(N, tmp.Mul(a, b).Mul(&tmp, &t))
+	N.Add(N, tmp.Mul(b, b).Mul(&tmp, &n))
+	return N.Abs(N)
+}
+
+// IsExact reports whether f(ϕ)(P) == O ⟺ P ∈ G on E(F_q), where G is the
+// subgroup of order r. This holds iff
+//   - r | N, i.e. f(λ) ≡ 0 mod r for an eigenvalue λ of the endomorphism (G ⊆ ker),
+//   - r ∤ h, so that E(F_q)[r] = G,
+//   - gcd(h, N) = 1, so that f(ϕ) is injective on the cofactor part of E(F_q).
+func (c *EndoSubgroupCheck) IsExact(p, r *big.Int) bool {
+	var h, tmp big.Int
+	mustSetString(&h, c.Cofactor)
+	N := c.Norm(p)
+	return tmp.Mod(N, r).Sign() == 0 &&
+		tmp.Mod(&h, r).Sign() != 0 &&
+		tmp.GCD(nil, nil, &h, N).Cmp(big.NewInt(1)) == 0
+}
+
+// seedPoly returns (Σ c[i]·xⁱ) / den in decimal. It panics if the division is
+// not exact.
+func seedPoly(x string, den int64, c ...int64) string {
+	var bx, res, xi, tmp big.Int
+	mustSetString(&bx, x)
+	xi.SetInt64(1)
+	for _, ci := range c {
+		res.Add(&res, tmp.Mul(&xi, big.NewInt(ci)))
+		xi.Mul(&xi, &bx)
+	}
+	var rem big.Int
+	res.QuoRem(&res, big.NewInt(den), &rem)
+	if rem.Sign() != 0 {
+		panic("seedPoly: non-integral polynomial value")
+	}
+	return res.String()
+}
+
+func mustSetString(z *big.Int, s string) {
+	if _, ok := z.SetString(s, 10); !ok {
+		panic("invalid integer " + s)
+	}
 }
 
 func (p Point) IsZeroA() bool {
@@ -200,6 +297,13 @@ func addCurve(c *Curve) {
 
 	// Compute E2 Cbrt precomputes
 	p := c.FpInfo.Modulus()
+
+	// the endomorphism-based subgroup membership tests must be exact
+	for _, g := range []Point{c.G1, c.G2} {
+		if g.SubgroupCheck != nil && !g.SubgroupCheck.IsExact(p, c.FrInfo.Modulus()) {
+			panic("IsInSubGroup endomorphism relation is not an exact membership test for " + c.Name + "/" + g.PointName)
+		}
+	}
 	p2 := new(big.Int).Mul(p, p)
 	c.E2CbrtP2Mod9 = new(big.Int).Mod(p2, big.NewInt(9)).Uint64()
 	c.E2CbrtP2Mod27 = new(big.Int).Mod(p2, big.NewInt(27)).Uint64()
