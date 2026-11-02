@@ -24,6 +24,11 @@ type Curve struct {
 	G1             Point
 	G2             Point
 
+	// LambdaGLV is the eigenvalue of ϕ on G1 and G2: ϕ(P) = [LambdaGLV]P. It
+	// is required by SubgroupCheck relations in ϕ and must match lambdaGLV in
+	// ecc/<curve>/<curve>.go.
+	LambdaGLV string
+
 	HashE1 HashSuite
 	HashE2 HashSuite
 
@@ -180,55 +185,107 @@ type EndoSubgroupCheck struct {
 	Coeffs       []string // f(X) = Σ Coeffs[i]·Xⁱ
 }
 
-// Norm returns N = Res(X² - tX + n, f) where X² - tX + n = 0 is the
-// characteristic polynomial of the endomorphism. f(ϕ) composed with its
-// conjugate is the multiplication by N, so ker f(ϕ) ⊆ E[N].
-func (c *EndoSubgroupCheck) Norm(p *big.Int) *big.Int {
-	var t, n big.Int
+// charPoly returns (t, n) such that X² - tX + n is the characteristic
+// polynomial of the endomorphism.
+func (c *EndoSubgroupCheck) charPoly(p *big.Int) (t, n *big.Int) {
 	switch c.Endomorphism {
 	case EndoPhi:
-		t.SetInt64(-1)
-		n.SetInt64(1)
+		return big.NewInt(-1), big.NewInt(1)
 	case EndoPsi:
-		mustSetString(&t, c.Trace)
-		n.Set(p)
+		t = new(big.Int)
+		mustSetString(t, c.Trace)
+		return t, new(big.Int).Set(p)
 	default:
 		panic("unknown endomorphism " + c.Endomorphism)
 	}
-	// f(X) mod (X² - tX + n) = a + bX, with Xⁱ = xa + xb·X
-	a, b := new(big.Int), new(big.Int)
+}
+
+// reduce returns (a, b) such that f(X) ≡ a + bX mod (X² - tX + n), the
+// characteristic polynomial of the endomorphism.
+func (c *EndoSubgroupCheck) reduce(p *big.Int) (a, b *big.Int) {
+	t, n := c.charPoly(p)
+	a, b = new(big.Int), new(big.Int)
+	// Xⁱ = xa + xb·X
 	xa, xb := big.NewInt(1), big.NewInt(0)
 	var ci, tmp big.Int
 	for i, s := range c.Coeffs {
 		if i > 0 {
 			// X·(xa + xb·X) = -n·xb + (xa + t·xb)·X
-			tmp.Mul(&t, xb).Add(&tmp, xa)
-			xa.Mul(&n, xb).Neg(xa)
+			tmp.Mul(t, xb).Add(&tmp, xa)
+			xa.Mul(n, xb).Neg(xa)
 			xb.Set(&tmp)
 		}
 		mustSetString(&ci, s)
 		a.Add(a, tmp.Mul(&ci, xa))
 		b.Add(b, tmp.Mul(&ci, xb))
 	}
+	return a, b
+}
+
+// Norm returns N = Res(X² - tX + n, f) where X² - tX + n = 0 is the
+// characteristic polynomial of the endomorphism. f(ϕ) composed with its
+// conjugate is the multiplication by N, so ker f(ϕ) ⊆ E[N].
+func (c *EndoSubgroupCheck) Norm(p *big.Int) *big.Int {
+	t, n := c.charPoly(p)
+	a, b := c.reduce(p)
 	// N(a + bX) = a² + t·ab + n·b²
+	var tmp big.Int
 	N := new(big.Int).Mul(a, a)
-	N.Add(N, tmp.Mul(a, b).Mul(&tmp, &t))
-	N.Add(N, tmp.Mul(b, b).Mul(&tmp, &n))
+	N.Add(N, tmp.Mul(a, b).Mul(&tmp, t))
+	N.Add(N, tmp.Mul(b, b).Mul(&tmp, n))
 	return N.Abs(N)
 }
 
 // IsExact reports whether f(ϕ)(P) == O ⟺ P ∈ G on E(F_q), where G is the
-// subgroup of order r. This holds iff
-//   - r | N, i.e. f(λ) ≡ 0 mod r for an eigenvalue λ of the endomorphism (G ⊆ ker),
+// subgroup of order r and ϕ acts as [λ] on G. This holds iff
+//   - f(λ) ≡ 0 mod r, so that G ⊆ ker f(ϕ),
 //   - r ∤ h, so that E(F_q)[r] = G,
 //   - gcd(h, N) = 1, so that f(ϕ) is injective on the cofactor part of E(F_q).
-func (c *EndoSubgroupCheck) IsExact(p, r *big.Int) bool {
-	var h, tmp big.Int
+//
+// r | N does not imply G ⊆ ker f(ϕ): N is also the norm of the conjugate of
+// f, which vanishes at the other eigenvalue of ϕ mod r.
+//
+// λ must be a root of the characteristic polynomial of ϕ mod r.
+func (c *EndoSubgroupCheck) IsExact(p, r, lambda *big.Int) bool {
+	var tmp big.Int
+	t, n := c.charPoly(p)
+	// λ² - tλ + n ≡ 0 mod r
+	tmp.Sub(lambda, t).Mul(&tmp, lambda).Add(&tmp, n)
+	if tmp.Mod(&tmp, r).Sign() != 0 {
+		return false
+	}
+	// f(λ) ≡ 0 mod r
+	var f, ci big.Int
+	for i := len(c.Coeffs) - 1; i >= 0; i-- {
+		mustSetString(&ci, c.Coeffs[i])
+		f.Mul(&f, lambda).Add(&f, &ci).Mod(&f, r)
+	}
+	if f.Sign() != 0 {
+		return false
+	}
+	var h big.Int
 	mustSetString(&h, c.Cofactor)
-	N := c.Norm(p)
-	return tmp.Mod(N, r).Sign() == 0 &&
-		tmp.Mod(&h, r).Sign() != 0 &&
-		tmp.GCD(nil, nil, &h, N).Cmp(big.NewInt(1)) == 0
+	return tmp.Mod(&h, r).Sign() != 0 &&
+		tmp.GCD(nil, nil, &h, c.Norm(p)).Cmp(big.NewInt(1)) == 0
+}
+
+// EndoEigenvalue returns λ such that the endomorphism acts as [λ] on G1 and
+// G2 (for EndoPsi: on G2).
+func (c Curve) EndoEigenvalue(endo string) *big.Int {
+	switch endo {
+	case EndoPhi:
+		if c.LambdaGLV == "" {
+			panic("LambdaGLV is required by ϕ-based subgroup checks for " + c.Name)
+		}
+		lambda := new(big.Int)
+		mustSetString(lambda, c.LambdaGLV)
+		return lambda
+	case EndoPsi:
+		// ψ acts as the p-power Frobenius on G2
+		return new(big.Int).Mod(c.FpInfo.Modulus(), c.FrInfo.Modulus())
+	default:
+		panic("unknown endomorphism " + endo)
+	}
 }
 
 // seedPoly returns (Σ c[i]·xⁱ) / den in decimal. It panics if the division is
@@ -300,7 +357,11 @@ func addCurve(c *Curve) {
 
 	// the endomorphism-based subgroup membership tests must be exact
 	for _, g := range []Point{c.G1, c.G2} {
-		if g.SubgroupCheck != nil && !g.SubgroupCheck.IsExact(p, c.FrInfo.Modulus()) {
+		if g.SubgroupCheck == nil {
+			continue
+		}
+		lambda := c.EndoEigenvalue(g.SubgroupCheck.Endomorphism)
+		if !g.SubgroupCheck.IsExact(p, c.FrInfo.Modulus(), lambda) {
 			panic("IsInSubGroup endomorphism relation is not an exact membership test for " + c.Name + "/" + g.PointName)
 		}
 	}
