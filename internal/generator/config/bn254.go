@@ -23,6 +23,18 @@ var BN254 = Curve{
 		CofactorCleaning: true,
 		CRange:           defaultCRange(),
 		Projective:       true,
+		SubgroupCheck: &EndoSubgroupCheck{
+			// [x+1]p + ψ([x]p) + ψ²([x]p) - ψ³([2x]p) == O
+			Endomorphism: EndoPsi,
+			Trace:        "147946756881789318990833708069417712967",
+			Cofactor:     "21888242871839275222246405745257275088844257914179612981679871602714643921549",
+			Coeffs: []string{
+				seedPoly("4965661367192848881", 1, 1, 1),
+				seedPoly("4965661367192848881", 1, 0, 1),
+				seedPoly("4965661367192848881", 1, 0, 1),
+				seedPoly("4965661367192848881", 1, 0, -2),
+			},
+		},
 	},
 	HashE1: &HashSuiteSvdw{
 		z:  []string{"1"},

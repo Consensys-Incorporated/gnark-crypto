@@ -6,6 +6,7 @@ var BLS12_377 = Curve{
 	EnumID:       "BLS12_377",
 	FrModulus:    "8444461749428370424248824938781546531375899335154063827935233455917409239041",
 	FpModulus:    "258664426012969094010652733694893533536393512754914660539884262666720468348340822774968888139573360124440321458177",
+	LambdaGLV:    "91893752504881257701523279626832445440", // x₀²-1
 	G1: Point{
 		CoordType:        "fp.Element",
 		CoordExtDegree:   1,
@@ -13,6 +14,15 @@ var BLS12_377 = Curve{
 		GLV:              true,
 		CofactorCleaning: true,
 		CRange:           defaultCRange(),
+		SubgroupCheck: &EndoSubgroupCheck{
+			// p + [x²]ϕ(p) == O
+			Endomorphism: EndoPhi,
+			Cofactor:     "30631250834960419227450344600217059328",
+			Coeffs: []string{
+				seedPoly("9586122913090633729", 1, 1),
+				seedPoly("9586122913090633729", 1, 0, 0, 1),
+			},
+		},
 	},
 	G2: Point{
 		CoordType:        "fptower.E2",
@@ -23,6 +33,16 @@ var BLS12_377 = Curve{
 		CofactorCleaning: true,
 		CRange:           defaultCRange(),
 		Projective:       true,
+		SubgroupCheck: &EndoSubgroupCheck{
+			// ψ(p) - [x]p == O
+			Endomorphism: EndoPsi,
+			Trace:        "9586122913090633730",
+			Cofactor:     "7923214915284317143930293550643874566881017850177945424769256759165301436616933228209277966774092486467289478618404761412630691835764674559376407658497",
+			Coeffs: []string{
+				seedPoly("9586122913090633729", 1, 0, -1),
+				seedPoly("9586122913090633729", 1, 1),
+			},
+		},
 	},
 	// 2-isogeny
 	HashE1: &HashSuiteSswu{

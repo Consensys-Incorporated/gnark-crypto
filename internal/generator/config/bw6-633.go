@@ -6,6 +6,7 @@ var BW6_633 = Curve{
 	EnumID:       "BW6_633",
 	FrModulus:    "39705142709513438335025689890408969744933502416914749335064285505637884093126342347073617133569",
 	FpModulus:    "20494478644167774678813387386538961497669590920908778075528754551012016751717791778743535050360001387419576570244406805463255765034468441182772056330021723098661967429339971741066259394985997",
+	LambdaGLV:    "39705142672498995661671850106945620852186608752525090699191017895721506694646055668218723303426", // 1-x+2x²-2x³+3x⁵-4x⁶+4x⁷-3x⁸+x⁹
 	G1: Point{
 		CoordType:        "fp.Element",
 		CoordExtDegree:   1,
@@ -13,6 +14,15 @@ var BW6_633 = Curve{
 		GLV:              true,
 		CofactorCleaning: true,
 		CRange:           []int{4, 5, 8, 16},
+		SubgroupCheck: &EndoSubgroupCheck{
+			// [w(2u⁴-1)]p + [w(u⁴-2)+1]ϕ(p) == O, with u = |x₀|, w = (u+1)/3
+			Endomorphism: EndoPhi,
+			Cofactor:     "516166855112631370346774477030598579858367278343565509012644853411927535599366632765988905418773",
+			Coeffs: []string{
+				seedPoly("3218079743", 3, -1, -1, 0, 0, 2, 2),
+				seedPoly("3218079743", 3, 1, -2, 0, 0, 1, 1),
+			},
+		},
 	},
 	G2: Point{
 		CoordType:        "fp.Element",
@@ -22,6 +32,15 @@ var BW6_633 = Curve{
 		CofactorCleaning: true,
 		CRange:           []int{4, 5, 8, 16},
 		Projective:       true,
+		SubgroupCheck: &EndoSubgroupCheck{
+			// [u⁵+u⁴-u]p + [1-u]ϕ(p) == O, with u = |x₀|
+			Endomorphism: EndoPhi,
+			Cofactor:     "516166855112631370346774477030598579858367278343565509012644853411927535599366632765988905418768",
+			Coeffs: []string{
+				seedPoly("3218079743", 1, 0, -1, 0, 0, 1, 1),
+				seedPoly("3218079743", 1, 1, -1),
+			},
+		},
 	},
 	// 7-isogeny
 	HashE1: &HashSuiteSswu{

@@ -895,6 +895,36 @@ func (p *{{ $TJacobian }}) IsOnCurve() bool {
 
             return res.Equal(&c)
 		}
+{{else if and (eq .Name "bw6-761") .GLV (eq .PointName "g2")}}
+	// IsInSubGroup returns true if p is on the r-torsion, false otherwise.
+	//
+	// The kernel of (u,v)->u+λv mod r, where ϕ acts as [λ] on G2, is generated
+	// as a Z[ϕ]-module by π = (y(2-x²)+1, y(x²+1)+1) with y = (x-1)/3, and we
+	// check that [y(2-x²)+1]p + [y(x²+1)+1]ϕ(p) is the infinity.
+	//
+	// Since ϕ²+ϕ+1 = 0, k₁+k₂ϕ composed with its conjugate is the multiplication
+	// by N = k₁²-k₁k₂+k₂², so this check is exact on E'(Fp) iff k₁+k₂λ ≡ 0 mod r,
+	// r ∤ h and gcd(h, N) = 1, where h = #E'(Fp)/r. Here N = r. (r | N alone
+	// would also hold for the conjugate relation, which vanishes at -λ-1.)
+	//
+	// Using ϕ(p) + p = -ϕ²(p), the relation is
+	// [y]([x²](ϕ(p)-p) + [2]p + ϕ(p)) == ϕ²(p).
+	//
+	// The relation is mirrored in internal/generator/config/bw6-761.go.
+	func (p *{{ $TJacobian }}) IsInSubGroup() bool {
+		if !p.IsOnCurve() {
+			return false
+		}
+		var phip, res, tmp {{ $TJacobian }}
+		phip.phi(p)
+		res.Set(&phip).SubAssign(p)
+		res.mulBySeed(&res).mulBySeed(&res)
+		tmp.Double(p).AddAssign(&phip)
+		res.AddAssign(&tmp).mulByW(&res)
+		phip.phi(&phip)
+
+		return res.Equal(&phip)
+	}
 {{else if eq .Name "bw6-761"}}
 	// IsInSubGroup returns true if p is on the r-torsion, false otherwise.
     {{ if .GLV}}
@@ -928,6 +958,38 @@ func (p *{{ $TJacobian }}) IsOnCurve() bool {
 		return res.Z.IsZero()
     {{ end}}
 
+	}
+{{else if and (eq .Name "bw6-633") .GLV (eq .PointName "g1")}}
+	// IsInSubGroup returns true if p is on the r-torsion, false otherwise.
+	//
+	// With u = -x₀ and w = (u+1)/3, the kernel of (a,b)->a+λb mod r, where ϕ acts
+	// as [λ] on G1, is generated as a Z[ϕ]-module by π = (w(2u⁴-1), w(u⁴-2)+1),
+	// and we check that [w(2u⁴-1)]p + [w(u⁴-2)+1]ϕ(p) is the infinity.
+	//
+	// Since ϕ²+ϕ+1 = 0, k₁+k₂ϕ composed with its conjugate is the multiplication
+	// by N = k₁²-k₁k₂+k₂², so this check is exact on E(Fp) iff k₁+k₂λ ≡ 0 mod r,
+	// r ∤ h and gcd(h, N) = 1, where h = #E(Fp)/r. Here N = r. (r | N alone
+	// would also hold for the conjugate relation, which vanishes at -λ-1.)
+	//
+	// The relation is [w]([u⁴]([2]p + ϕ(p)) - p - [2]ϕ(p)) == -ϕ(p).
+	//
+	// The relation is mirrored in internal/generator/config/bw6-633.go.
+	func (p *{{ $TJacobian }}) IsInSubGroup() bool {
+		if !p.IsOnCurve() {
+			return false
+		}
+		var phip, res, tmp {{ $TJacobian }}
+		phip.phi(p)
+		res.Double(p).AddAssign(&phip)
+		res.mulBySeed(&res).
+			mulBySeed(&res).
+			mulBySeed(&res).
+			mulBySeed(&res)
+		tmp.Double(&phip).AddAssign(p)
+		res.SubAssign(&tmp).mulByW(&res)
+		phip.Neg(&phip)
+
+		return res.Equal(&phip)
 	}
 {{else if eq .Name "bw6-633"}}
     // IsInSubGroup returns true if p is on the r-torsion, false otherwise.
@@ -1346,6 +1408,55 @@ func (p *{{ $TJacobian }}) mulBySeed(q *{{ $TJacobian }}) *{{ $TJacobian }} {
 {{- else}}
     p.mulWindowed(q, &xGen)
 {{- end}}
+	return p
+}
+{{- end}}
+
+{{- if and (eq .Name "bw6-761") .GLV (eq .PointName "g2")}}
+
+// mulByW multiplies the point q by w = (x₀-1)/3 = 3195374304363544576
+// in Jacobian coordinates using an addition chain:
+// w = 0xb161 << 46 and 0xb161 = (((3 + 8)·(1 + 2⁷)) << 5) + 1.
+// Operations: 61 doublings, 1 tripling, 3 additions.
+func (p *{{ $TJacobian }}) mulByW(q *{{ $TJacobian }}) *{{ $TJacobian }} {
+	var t0, t1 {{ $TJacobian }}
+	t0.Triple(q)
+	t1.Double(q)
+	t1.Double(&t1)
+	t1.Double(&t1)
+	t0.AddAssign(&t1)
+	t1.Set(&t0)
+	for range 7 {
+		t1.Double(&t1)
+	}
+	t0.AddAssign(&t1)
+	for range 5 {
+		t0.Double(&t0)
+	}
+	t0.AddAssign(q)
+	for range 46 {
+		t0.Double(&t0)
+	}
+	p.Set(&t0)
+	return p
+}
+{{- else if and (eq .Name "bw6-633") .GLV (eq .PointName "g1")}}
+
+// mulByW multiplies the point q by w = (|x₀|+1)/3 = 1072693248
+// in Jacobian coordinates using an addition chain:
+// w = (2¹⁰-1) << 20.
+// Operations: 30 doublings, 1 subtraction.
+func (p *{{ $TJacobian }}) mulByW(q *{{ $TJacobian }}) *{{ $TJacobian }} {
+	var res {{ $TJacobian }}
+	res.Set(q)
+	for range 10 {
+		res.Double(&res)
+	}
+	res.SubAssign(q)
+	for range 20 {
+		res.Double(&res)
+	}
+	p.Set(&res)
 	return p
 }
 {{- end}}

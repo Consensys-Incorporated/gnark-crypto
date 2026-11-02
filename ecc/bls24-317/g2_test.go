@@ -90,6 +90,38 @@ func TestG2Endomorphism(t *testing.T) {
 	properties.TestingRun(t, gopter.ConsoleReporter(false))
 }
 
+// TestG2SubgroupCheckEigenvalue checks that psi acts as [λ] on
+// G2, where λ is the eigenvalue for which the generator proved that
+// IsInSubGroup is exact (see EndoSubgroupCheck in internal/generator/config).
+func TestG2SubgroupCheckEigenvalue(t *testing.T) {
+	t.Parallel()
+	parameters := gopter.DefaultTestParameters()
+	if testing.Short() {
+		parameters.MinSuccessfulTests = nbFuzzShort
+	} else {
+		parameters.MinSuccessfulTests = nbFuzz
+	}
+
+	properties := gopter.NewProperties(parameters)
+
+	lambda, _ := new(big.Int).SetString("3640754176", 10)
+
+	properties.Property("[BLS24-317] check that psi(P) = [λ]P", prop.ForAll(
+		func(a fptower.E4) bool {
+			var p, res1, res2 G2Jac
+			g := MapToG2(a)
+			p.FromAffine(&g)
+			res1.psi(&p)
+			res2.mulWindowed(&p, lambda)
+
+			return res1.Equal(&res2)
+		},
+		GenE4(),
+	))
+
+	properties.TestingRun(t, gopter.ConsoleReporter(false))
+}
+
 func TestIsOnG2(t *testing.T) {
 	t.Parallel()
 	parameters := gopter.DefaultTestParameters()
@@ -172,6 +204,64 @@ func TestIsInSubGroupBatchG2(t *testing.T) {
 	))
 
 	properties.TestingRun(t, gopter.ConsoleReporter(false))
+}
+
+// TestIsInSubGroupG2ThreeTorsion checks that points with
+// a non-trivial rational 3-torsion component are rejected. On y² = x³ + b, if
+// b is a square then T = (0, √b) is an inflection point, i.e. of order 3, and
+// T ∉ G2 since 3 ∤ r.
+func TestIsInSubGroupG2ThreeTorsion(t *testing.T) {
+	t.Parallel()
+	b := bTwistCurveCoeff
+	if b.Legendre() != 1 {
+		t.Skip("no rational 3-torsion point (0, √b)")
+	}
+
+	var t3, t3Neg G2Affine
+	t3.X.SetZero()
+	t3.Y.Sqrt(&b)
+	t3Neg.Neg(&t3)
+
+	var t3Jac, tmp G2Jac
+	t3Jac.FromAffine(&t3)
+	tmp.Triple(&t3Jac)
+	if !t3.IsOnCurve() || t3Jac.Z.IsZero() || !tmp.Z.IsZero() {
+		t.Fatal("(0, √b) should be a point of order 3")
+	}
+
+	if t3.IsInSubGroup() || t3Neg.IsInSubGroup() || t3Jac.IsInSubGroup() {
+		t.Fatal("IsInSubGroup accepts a 3-torsion point")
+	}
+
+	// P = [5]g + T is not in G2
+	var pJac G2Jac
+	pJac.mulWindowed(&g2Gen, big.NewInt(5)).AddMixed(&t3)
+	tmp.mulWindowed(&pJac, fr.Modulus())
+	if tmp.Z.IsZero() {
+		t.Fatal("[r]([5]g + T) should not be the infinity")
+	}
+	var p G2Affine
+	p.FromJacobian(&pJac)
+	if pJac.IsInSubGroup() || p.IsInSubGroup() {
+		t.Fatal("IsInSubGroup accepts g + 3-torsion")
+	}
+
+	// batch variants: the naive one (< 160 points) and the probabilistic one
+	for _, nbSamples := range []int{2, 100, 200} {
+		sampleScalars := make([]fr.Element, nbSamples)
+		for i := range sampleScalars {
+			sampleScalars[i].SetUint64(uint64(i + 1))
+		}
+		points := BatchScalarMultiplicationG2(&g2GenAff, sampleScalars)
+		if !IsInSubGroupBatchG2(points) {
+			t.Fatalf("IsInSubGroupBatchG2 rejects points in G2 (n=%d)", nbSamples)
+		}
+		points[0] = t3
+		points[nbSamples-1] = p
+		if IsInSubGroupBatchG2(points) {
+			t.Fatalf("IsInSubGroupBatchG2 accepts 3-torsion points (n=%d)", nbSamples)
+		}
+	}
 }
 
 func TestG2Conversions(t *testing.T) {
