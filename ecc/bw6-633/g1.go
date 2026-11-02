@@ -641,8 +641,9 @@ func (p *G1Jac) IsOnCurve() bool {
 // and we check that [w(2u⁴-1)]p + [w(u⁴-2)+1]ϕ(p) is the infinity.
 //
 // Since ϕ²+ϕ+1 = 0, k₁+k₂ϕ composed with its conjugate is the multiplication
-// by N = k₁²-k₁k₂+k₂², so this check is exact on E(Fp) iff r | N, r ∤ h
-// and gcd(h, N) = 1, where h = #E(Fp)/r. Here N = r.
+// by N = k₁²-k₁k₂+k₂², so this check is exact on E(Fp) iff k₁+k₂λ ≡ 0 mod r,
+// r ∤ h and gcd(h, N) = 1, where h = #E(Fp)/r. Here N = r. (r | N alone
+// would also hold for the conjugate relation, which vanishes at -λ-1.)
 //
 // The relation is [w]([u⁴]([2]p + ϕ(p)) - p - [2]ϕ(p)) == -ϕ(p).
 //
