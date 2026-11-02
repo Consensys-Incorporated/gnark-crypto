@@ -77,6 +77,38 @@ func TestG1Endomorphism(t *testing.T) {
 	properties.TestingRun(t, gopter.ConsoleReporter(false))
 }
 
+// TestG1SubgroupCheckEigenvalue checks that phi acts as [λ] on
+// G1, where λ is the eigenvalue for which the generator proved that
+// IsInSubGroup is exact (see EndoSubgroupCheck in internal/generator/config).
+func TestG1SubgroupCheckEigenvalue(t *testing.T) {
+	t.Parallel()
+	parameters := gopter.DefaultTestParameters()
+	if testing.Short() {
+		parameters.MinSuccessfulTests = nbFuzzShort
+	} else {
+		parameters.MinSuccessfulTests = nbFuzz
+	}
+
+	properties := gopter.NewProperties(parameters)
+
+	lambda, _ := new(big.Int).SetString("91893752504881257701523279626832445440", 10)
+
+	properties.Property("[BLS12-377] check that phi(P) = [λ]P", prop.ForAll(
+		func(a fp.Element) bool {
+			var p, res1, res2 G1Jac
+			g := MapToG1(a)
+			p.FromAffine(&g)
+			res1.phi(&p)
+			res2.mulWindowed(&p, lambda)
+
+			return res1.Equal(&res2)
+		},
+		GenFp(),
+	))
+
+	properties.TestingRun(t, gopter.ConsoleReporter(false))
+}
+
 func TestIsOnG1(t *testing.T) {
 	t.Parallel()
 	parameters := gopter.DefaultTestParameters()

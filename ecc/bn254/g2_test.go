@@ -89,6 +89,38 @@ func TestG2Endomorphism(t *testing.T) {
 	properties.TestingRun(t, gopter.ConsoleReporter(false))
 }
 
+// TestG2SubgroupCheckEigenvalue checks that psi acts as [λ] on
+// G2, where λ is the eigenvalue for which the generator proved that
+// IsInSubGroup is exact (see EndoSubgroupCheck in internal/generator/config).
+func TestG2SubgroupCheckEigenvalue(t *testing.T) {
+	t.Parallel()
+	parameters := gopter.DefaultTestParameters()
+	if testing.Short() {
+		parameters.MinSuccessfulTests = nbFuzzShort
+	} else {
+		parameters.MinSuccessfulTests = nbFuzz
+	}
+
+	properties := gopter.NewProperties(parameters)
+
+	lambda, _ := new(big.Int).SetString("147946756881789318990833708069417712966", 10)
+
+	properties.Property("[BN254] check that psi(P) = [λ]P", prop.ForAll(
+		func(a fptower.E2) bool {
+			var p, res1, res2 G2Jac
+			g := MapToG2(a)
+			p.FromAffine(&g)
+			res1.psi(&p)
+			res2.mulWindowed(&p, lambda)
+
+			return res1.Equal(&res2)
+		},
+		GenE2(),
+	))
+
+	properties.TestingRun(t, gopter.ConsoleReporter(false))
+}
+
 func TestIsOnG2(t *testing.T) {
 	t.Parallel()
 	parameters := gopter.DefaultTestParameters()

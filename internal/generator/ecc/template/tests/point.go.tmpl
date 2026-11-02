@@ -117,6 +117,41 @@ import (
     }
 {{end}}
 
+{{- with .SubgroupCheck}}
+
+// Test{{ toUpper $.PointName }}SubgroupCheckEigenvalue checks that {{ .Endomorphism }} acts as [λ] on
+// {{ toUpper $.PointName }}, where λ is the eigenvalue for which the generator proved that
+// IsInSubGroup is exact (see EndoSubgroupCheck in internal/generator/config).
+func Test{{ toUpper $.PointName }}SubgroupCheckEigenvalue(t *testing.T) {
+	t.Parallel()
+	parameters := gopter.DefaultTestParameters()
+	if testing.Short() {
+		parameters.MinSuccessfulTests = nbFuzzShort
+	} else {
+		parameters.MinSuccessfulTests = nbFuzz
+	}
+
+	properties := gopter.NewProperties(parameters)
+
+	lambda, _ := new(big.Int).SetString("{{ $.EndoEigenvalue .Endomorphism }}", 10)
+
+	properties.Property("[{{ toUpper $.Name }}] check that {{ .Endomorphism }}(P) = [λ]P", prop.ForAll(
+		func(a {{ $.CoordType }}) bool {
+			var p, res1, res2 {{ $TJacobian }}
+			g := MapTo{{ toUpper $.PointName }}(a)
+			p.FromAffine(&g)
+			res1.{{ .Endomorphism }}(&p)
+			res2.mulWindowed(&p, lambda)
+
+			return res1.Equal(&res2)
+		},
+		{{ $fuzzer }},
+	))
+
+	properties.TestingRun(t, gopter.ConsoleReporter(false))
+}
+{{- end}}
+
 func TestIsOn{{ toUpper .PointName }}(t *testing.T) {
 	t.Parallel()
 	parameters := gopter.DefaultTestParameters()
