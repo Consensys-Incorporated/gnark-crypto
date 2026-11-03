@@ -279,10 +279,10 @@ func init() {
 	gnarkHash.RegisterHash(gnarkHash.POSEIDON2_MAMABEAR, func() hash.Hash {
 		return NewMerkleDamgardHasher()
 	})
-	gnarkHash.RegisterFieldHasher(gnarkHash.FieldHasherPOSEIDON2, func() gnarkHash.FieldHasher[fr.Element, [BlockLen]fr.Element] {
+	gnarkHash.RegisterFieldHasher(gnarkHash.FieldHasherPoseidon2, func() gnarkHash.FieldHasher[fr.Element, [BlockLen]fr.Element] {
 		return NewHasher()
 	})
-	gnarkHash.RegisterFieldHasher(gnarkHash.FieldHasherPOSEIDON2, func() gnarkHash.FieldHasher[fr.Element, [WideBlockLen]fr.Element] {
+	gnarkHash.RegisterFieldHasher(gnarkHash.FieldHasherPoseidon2, func() gnarkHash.FieldHasher[fr.Element, [WideBlockLen]fr.Element] {
 		return NewHasherGeneric[[WideBlockLen]fr.Element]()
 	})
 }

@@ -265,7 +265,7 @@ func TestFieldHasherContract(t *testing.T) {
 // TestFieldHasherRegistry checks that the registered field hasher gives the
 // digest of NewHasher.
 func TestFieldHasherRegistry(t *testing.T) {
-	h, err := hash.NewFieldHasher[fr.Element, fr.Element](hash.FieldHasherMIMC)
+	h, err := hash.NewFieldHasher[fr.Element, fr.Element](hash.FieldHasherMiMC)
 	require.NoError(t, err)
 
 	input := make([]fr.Element, 10)

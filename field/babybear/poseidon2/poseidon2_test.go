@@ -658,14 +658,14 @@ func TestFieldHasherRegistry(t *testing.T) {
 	input := make([]fr.Element, 3*WideBlockLen+1)
 	fr.Vector(input).MustSetRandom()
 
-	h, err := gnarkHash.NewFieldHasher[fr.Element, [BlockLen]fr.Element](gnarkHash.FieldHasherPOSEIDON2)
+	h, err := gnarkHash.NewFieldHasher[fr.Element, [BlockLen]fr.Element](gnarkHash.FieldHasherPoseidon2)
 	require.NoError(t, err)
 	want := NewHasher()
 	want.WriteElements(input...)
 	h.WriteElements(input...)
 	require.Equal(t, want.SumDigest(), h.SumDigest())
 
-	hWide, err := gnarkHash.NewFieldHasher[fr.Element, [WideBlockLen]fr.Element](gnarkHash.FieldHasherPOSEIDON2)
+	hWide, err := gnarkHash.NewFieldHasher[fr.Element, [WideBlockLen]fr.Element](gnarkHash.FieldHasherPoseidon2)
 	require.NoError(t, err)
 	wantWide := NewHasherGeneric[[WideBlockLen]fr.Element]()
 	wantWide.WriteElements(input...)

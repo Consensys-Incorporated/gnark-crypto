@@ -54,7 +54,7 @@ func checkFieldHasher[F, D any](t *testing.T, name string) {
 // Poseidon2 over each curve's scalar field, and Poseidon2 over each small field with both digest
 // lengths.
 func TestFieldHashersRegistered(t *testing.T) {
-	for _, name := range []string{hash.FieldHasherMIMC, hash.FieldHasherPOSEIDON2} {
+	for _, name := range []string{hash.FieldHasherMiMC, hash.FieldHasherPoseidon2} {
 		checkFieldHasher[bls12377.Element, bls12377.Element](t, name)
 		checkFieldHasher[bls12381.Element, bls12381.Element](t, name)
 		checkFieldHasher[bls24315.Element, bls24315.Element](t, name)
@@ -65,12 +65,12 @@ func TestFieldHashersRegistered(t *testing.T) {
 		checkFieldHasher[grumpkin.Element, grumpkin.Element](t, name)
 	}
 
-	checkFieldHasher[babybear.Element, [babybearPoseidon2.BlockLen]babybear.Element](t, hash.FieldHasherPOSEIDON2)
-	checkFieldHasher[babybear.Element, [babybearPoseidon2.WideBlockLen]babybear.Element](t, hash.FieldHasherPOSEIDON2)
-	checkFieldHasher[goldilocks.Element, [goldilocksPoseidon2.BlockLen]goldilocks.Element](t, hash.FieldHasherPOSEIDON2)
-	checkFieldHasher[goldilocks.Element, [goldilocksPoseidon2.WideBlockLen]goldilocks.Element](t, hash.FieldHasherPOSEIDON2)
-	checkFieldHasher[koalabear.Element, [koalabearPoseidon2.BlockLen]koalabear.Element](t, hash.FieldHasherPOSEIDON2)
-	checkFieldHasher[koalabear.Element, [koalabearPoseidon2.WideBlockLen]koalabear.Element](t, hash.FieldHasherPOSEIDON2)
-	checkFieldHasher[mamabear.Element, [mamabearPoseidon2.BlockLen]mamabear.Element](t, hash.FieldHasherPOSEIDON2)
-	checkFieldHasher[mamabear.Element, [mamabearPoseidon2.WideBlockLen]mamabear.Element](t, hash.FieldHasherPOSEIDON2)
+	checkFieldHasher[babybear.Element, [babybearPoseidon2.BlockLen]babybear.Element](t, hash.FieldHasherPoseidon2)
+	checkFieldHasher[babybear.Element, [babybearPoseidon2.WideBlockLen]babybear.Element](t, hash.FieldHasherPoseidon2)
+	checkFieldHasher[goldilocks.Element, [goldilocksPoseidon2.BlockLen]goldilocks.Element](t, hash.FieldHasherPoseidon2)
+	checkFieldHasher[goldilocks.Element, [goldilocksPoseidon2.WideBlockLen]goldilocks.Element](t, hash.FieldHasherPoseidon2)
+	checkFieldHasher[koalabear.Element, [koalabearPoseidon2.BlockLen]koalabear.Element](t, hash.FieldHasherPoseidon2)
+	checkFieldHasher[koalabear.Element, [koalabearPoseidon2.WideBlockLen]koalabear.Element](t, hash.FieldHasherPoseidon2)
+	checkFieldHasher[mamabear.Element, [mamabearPoseidon2.BlockLen]mamabear.Element](t, hash.FieldHasherPoseidon2)
+	checkFieldHasher[mamabear.Element, [mamabearPoseidon2.WideBlockLen]mamabear.Element](t, hash.FieldHasherPoseidon2)
 }

@@ -279,7 +279,7 @@ func compressed(p *Permutation, left, right fr.Element) fr.Element {
 // TestFieldHasherRegistry checks that the registered field hasher gives the
 // digest of NewHasher.
 func TestFieldHasherRegistry(t *testing.T) {
-	h, err := hash.NewFieldHasher[fr.Element, fr.Element](hash.FieldHasherPOSEIDON2)
+	h, err := hash.NewFieldHasher[fr.Element, fr.Element](hash.FieldHasherPoseidon2)
 	require.NoError(t, err)
 
 	input := make([]fr.Element, 10)

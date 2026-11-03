@@ -19,8 +19,8 @@ var (
 // The names of the algorithms of the registered field hashers, to be used with
 // [RegisterFieldHasher] and [NewFieldHasher].
 const (
-	FieldHasherMIMC      = "MIMC"
-	FieldHasherPOSEIDON2 = "POSEIDON2"
+	FieldHasherMiMC      = "MIMC"
+	FieldHasherPoseidon2 = "POSEIDON2"
 )
 
 // fieldHasherRegistry maps the names of field hashers, and the types they are
@@ -77,7 +77,7 @@ func RegisterHash(h Hash, new func() hash.Hash) {
 // for use after init.
 //
 // Unlike the names of [NewHash], those of field hashers are the names of their
-// algorithm alone, such as [FieldHasherMIMC] or [FieldHasherPOSEIDON2], with no
+// algorithm alone, such as [FieldHasherMiMC] or [FieldHasherPoseidon2], with no
 // suffix for the field: the field and the digest are given by F and D. The same
 // name may be registered over several pairs of types.
 func RegisterFieldHasher[F, D any](name string, newHasher func() FieldHasher[F, D]) {
@@ -90,9 +90,9 @@ func RegisterFieldHasher[F, D any](name string, newHasher func() FieldHasher[F, 
 // through [github.com/consensys/gnark-crypto/hash/all], as for [NewHash].
 //
 // Unlike the names of [NewHash], those of field hashers are the names of their
-// algorithm alone, such as [FieldHasherMIMC] or [FieldHasherPOSEIDON2], with no
+// algorithm alone, such as [FieldHasherMiMC] or [FieldHasherPoseidon2], with no
 // suffix for the field: the field and the digest are given by F and D. The same
-// name over different digest types is a different function: [FieldHasherPOSEIDON2]
+// name over different digest types is a different function: [FieldHasherPoseidon2]
 // over [8] and [12] elements of KoalaBear are Poseidon2 permutations of widths 16
 // and 24.
 func NewFieldHasher[F, D any](name string) (FieldHasher[F, D], error) {
