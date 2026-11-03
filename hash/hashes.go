@@ -13,8 +13,19 @@ import (
 var (
 	hashes       = make([]func() hash.Hash, maxHash)
 	hashesByName = make(map[string]func() hash.Hash)
-	fieldHashers = make(map[fieldHasherKey]any)
+	fieldHashers = make(fieldHasherRegistry)
 )
+
+// The names of the algorithms of the registered field hashers, to be used with
+// [RegisterFieldHasher] and [NewFieldHasher].
+const (
+	FieldHasherMIMC      = "MIMC"
+	FieldHasherPOSEIDON2 = "POSEIDON2"
+)
+
+// fieldHasherRegistry maps the names of field hashers, and the types they are
+// registered over, to their constructors.
+type fieldHasherRegistry map[fieldHasherKey]any
 
 // fieldHasherKey identifies a field hasher by its name and the type
 // FieldHasher[F, D] it is registered over. The registered value is its
@@ -62,29 +73,43 @@ func RegisterHash(h Hash, new func() hash.Hash) {
 // RegisterFieldHasher registers newHasher as the constructor of the field hasher
 // called name, over elements of type F with digests of type D. It should be
 // called in the init function of the package defining the hasher, and panics if
-// name is already registered over F and D.
+// name is already registered over F and D. Like [RegisterHash], it is not safe
+// for use after init.
 //
 // Unlike the names of [NewHash], those of field hashers are the names of their
-// algorithm alone, such as "MIMC" or "POSEIDON2", with no suffix for the field:
-// the field and the digest are given by F and D. The same name may be registered
-// over several pairs of types.
+// algorithm alone, such as [FieldHasherMIMC] or [FieldHasherPOSEIDON2], with no
+// suffix for the field: the field and the digest are given by F and D. The same
+// name may be registered over several pairs of types.
 func RegisterFieldHasher[F, D any](name string, newHasher func() FieldHasher[F, D]) {
-	key := fieldHasherKey{name, reflect.TypeFor[FieldHasher[F, D]]()}
-	if _, ok := fieldHashers[key]; ok {
-		panic(fmt.Errorf("field hasher \"%s\" over elements of type %v and digests of type %v already registered",
-			name, reflect.TypeFor[F](), reflect.TypeFor[D]()))
-	}
-	fieldHashers[key] = newHasher
+	registerFieldHasher(fieldHashers, name, newHasher)
 }
 
 // NewFieldHasher returns a new field hasher called name, over elements of type F
-// with digests of type D, or an error if none is registered under these.
+// with digests of type D, or an error if none is registered under these. The
+// package defining the hasher must have been imported, by a blank import or
+// through [github.com/consensys/gnark-crypto/hash/all], as for [NewHash].
 //
 // Unlike the names of [NewHash], those of field hashers are the names of their
-// algorithm alone, such as "MIMC" or "POSEIDON2", with no suffix for the field:
-// the field and the digest are given by F and D.
+// algorithm alone, such as [FieldHasherMIMC] or [FieldHasherPOSEIDON2], with no
+// suffix for the field: the field and the digest are given by F and D. The same
+// name over different digest types is a different function: [FieldHasherPOSEIDON2]
+// over [8] and [12] elements of KoalaBear are Poseidon2 permutations of widths 16
+// and 24.
 func NewFieldHasher[F, D any](name string) (FieldHasher[F, D], error) {
-	newHasher, ok := fieldHashers[fieldHasherKey{name, reflect.TypeFor[FieldHasher[F, D]]()}].(func() FieldHasher[F, D])
+	return newFieldHasher[F, D](fieldHashers, name)
+}
+
+func registerFieldHasher[F, D any](r fieldHasherRegistry, name string, newHasher func() FieldHasher[F, D]) {
+	key := fieldHasherKey{name, reflect.TypeFor[FieldHasher[F, D]]()}
+	if _, ok := r[key]; ok {
+		panic(fmt.Errorf("field hasher \"%s\" over elements of type %v and digests of type %v already registered",
+			name, reflect.TypeFor[F](), reflect.TypeFor[D]()))
+	}
+	r[key] = newHasher
+}
+
+func newFieldHasher[F, D any](r fieldHasherRegistry, name string) (FieldHasher[F, D], error) {
+	newHasher, ok := r[fieldHasherKey{name, reflect.TypeFor[FieldHasher[F, D]]()}].(func() FieldHasher[F, D])
 	if !ok {
 		return nil, fmt.Errorf("field hasher \"%s\" over elements of type %v and digests of type %v not registered",
 			name, reflect.TypeFor[F](), reflect.TypeFor[D]())

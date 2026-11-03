@@ -262,12 +262,10 @@ func TestFieldHasherContract(t *testing.T) {
 	assert.True(want.Equal(&got), "generic and concrete hashers differ")
 }
 
-// TestCompressor checks that [mimc.Compressor] is stateless, supports
-// aliasing, and does not modify its inputs.
 // TestFieldHasherRegistry checks that the registered field hasher gives the
 // digest of NewHasher.
 func TestFieldHasherRegistry(t *testing.T) {
-	h, err := hash.NewFieldHasher[fr.Element, fr.Element]("MIMC")
+	h, err := hash.NewFieldHasher[fr.Element, fr.Element](hash.FieldHasherMIMC)
 	require.NoError(t, err)
 
 	input := make([]fr.Element, 10)
@@ -278,6 +276,8 @@ func TestFieldHasherRegistry(t *testing.T) {
 	require.Equal(t, want.SumDigest(), h.SumDigest())
 }
 
+// TestCompressor checks that [mimc.Compressor] is stateless, supports
+// aliasing, and does not modify its inputs.
 func TestCompressor(t *testing.T) {
 	assert := require.New(t)
 
