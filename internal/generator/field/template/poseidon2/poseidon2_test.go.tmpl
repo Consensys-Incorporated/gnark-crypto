@@ -668,6 +668,27 @@ func BenchmarkHasherWideWriteElements(b *testing.B) {
 	}
 }
 
+// TestFieldHasherRegistry checks that the registered field hashers give the
+// digests of NewHasher and NewHasherGeneric.
+func TestFieldHasherRegistry(t *testing.T) {
+	input := make([]fr.Element, 3*WideBlockLen+1)
+	fr.Vector(input).MustSetRandom()
+
+	h, err := gnarkHash.NewFieldHasher[fr.Element, [BlockLen]fr.Element](gnarkHash.FieldHasherPoseidon2)
+	require.NoError(t, err)
+	want := NewHasher()
+	want.WriteElements(input...)
+	h.WriteElements(input...)
+	require.Equal(t, want.SumDigest(), h.SumDigest())
+
+	hWide, err := gnarkHash.NewFieldHasher[fr.Element, [WideBlockLen]fr.Element](gnarkHash.FieldHasherPoseidon2)
+	require.NoError(t, err)
+	wantWide := NewHasherGeneric[[WideBlockLen]fr.Element]()
+	wantWide.WriteElements(input...)
+	hWide.WriteElements(input...)
+	require.Equal(t, wantWide.SumDigest(), hWide.SumDigest())
+}
+
 func TestCompressorAliasing(t *testing.T) {
 	p, pw := defaultPermutation(BlockLen), defaultPermutation(WideBlockLen)
 	t.Run("default", func(t *testing.T) { testCompressorAliasing(t, p, NewCompressor(p)) })

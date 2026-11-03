@@ -92,4 +92,7 @@ func init() {
 	gnarkHash.RegisterHash(gnarkHash.POSEIDON2_BLS12_381, func() hash.Hash {
 		return NewMerkleDamgardHasher()
 	})
+	gnarkHash.RegisterFieldHasher(gnarkHash.FieldHasherPoseidon2, func() gnarkHash.FieldHasher[fr.Element, fr.Element] {
+		return NewHasher()
+	})
 }

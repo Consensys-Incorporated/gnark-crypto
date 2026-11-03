@@ -19,7 +19,9 @@
 // encoding, and [FieldCompressor] the corresponding 2-to-1 compression function.
 // Construct field hashers with poseidon2.NewHasher or mimc.NewHasher in the
 // corresponding field package; see those packages for their block and digest
-// sizes.
+// sizes. They can also be constructed by name with [NewFieldHasher], over the
+// element and digest types of the field, once the package defining them has been
+// imported (see [Importing hash functions]).
 //
 // [MerkleDamgardElement] and [MerkleDamgardArray] provide reusable field cores.
 // The former absorbs one element per block into an element digest. The latter
