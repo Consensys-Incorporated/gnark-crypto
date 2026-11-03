@@ -6,13 +6,23 @@ package hash
 import (
 	"fmt"
 	"hash"
+	"reflect"
 	"strings"
 )
 
 var (
 	hashes       = make([]func() hash.Hash, maxHash)
 	hashesByName = make(map[string]func() hash.Hash)
+	fieldHashers = make(map[fieldHasherKey]any)
 )
+
+// fieldHasherKey identifies a field hasher by its name and the type
+// FieldHasher[F, D] it is registered over. The registered value is its
+// constructor, a func() FieldHasher[F, D].
+type fieldHasherKey struct {
+	name       string
+	hasherType reflect.Type
+}
 
 func findStdHashByName(name string) Hash {
 	for h := range maxHash {
@@ -47,6 +57,39 @@ func NewHash(name string) hash.Hash {
 // [github.com/consensys/gnark-crypto/hash/all] package in your code.
 func RegisterHash(h Hash, new func() hash.Hash) {
 	hashes[h] = new
+}
+
+// RegisterFieldHasher registers newHasher as the constructor of the field hasher
+// called name, over elements of type F with digests of type D. It should be
+// called in the init function of the package defining the hasher, and panics if
+// name is already registered over F and D.
+//
+// Unlike the names of [NewHash], those of field hashers are the names of their
+// algorithm alone, such as "MIMC" or "POSEIDON2", with no suffix for the field:
+// the field and the digest are given by F and D. The same name may be registered
+// over several pairs of types.
+func RegisterFieldHasher[F, D any](name string, newHasher func() FieldHasher[F, D]) {
+	key := fieldHasherKey{name, reflect.TypeFor[FieldHasher[F, D]]()}
+	if _, ok := fieldHashers[key]; ok {
+		panic(fmt.Errorf("field hasher \"%s\" over elements of type %v and digests of type %v already registered",
+			name, reflect.TypeFor[F](), reflect.TypeFor[D]()))
+	}
+	fieldHashers[key] = newHasher
+}
+
+// NewFieldHasher returns a new field hasher called name, over elements of type F
+// with digests of type D, or an error if none is registered under these.
+//
+// Unlike the names of [NewHash], those of field hashers are the names of their
+// algorithm alone, such as "MIMC" or "POSEIDON2", with no suffix for the field:
+// the field and the digest are given by F and D.
+func NewFieldHasher[F, D any](name string) (FieldHasher[F, D], error) {
+	newHasher, ok := fieldHashers[fieldHasherKey{name, reflect.TypeFor[FieldHasher[F, D]]()}].(func() FieldHasher[F, D])
+	if !ok {
+		return nil, fmt.Errorf("field hasher \"%s\" over elements of type %v and digests of type %v not registered",
+			name, reflect.TypeFor[F](), reflect.TypeFor[D]())
+	}
+	return newHasher(), nil
 }
 
 // RegisterCustomHash registers a new hash function constructor, retrievable by name

@@ -52,6 +52,9 @@ func init() {
 	hash.RegisterHash(hash.MIMC_BLS12_377, func() stdhash.Hash {
 		return NewMiMC()
 	})
+	hash.RegisterFieldHasher("MIMC", func() hash.FieldHasher[fr.Element, fr.Element] {
+		return NewHasher()
+	})
 }
 
 const (

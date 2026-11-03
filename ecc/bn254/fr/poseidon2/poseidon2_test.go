@@ -360,6 +360,20 @@ func compressed(p *Permutation, left, right fr.Element) fr.Element {
 	return *res.Add(&right, &x[1])
 }
 
+// TestFieldHasherRegistry checks that the registered field hasher gives the
+// digest of NewHasher.
+func TestFieldHasherRegistry(t *testing.T) {
+	h, err := hash.NewFieldHasher[fr.Element, fr.Element]("POSEIDON2")
+	require.NoError(t, err)
+
+	input := make([]fr.Element, 10)
+	fr.Vector(input).MustSetRandom()
+	want := NewHasher()
+	want.WriteElements(input...)
+	h.WriteElements(input...)
+	require.Equal(t, want.SumDigest(), h.SumDigest())
+}
+
 func TestCompressorAliasing(t *testing.T) {
 	p := NewDefaultPermutation()
 	c := NewCompressor(p)

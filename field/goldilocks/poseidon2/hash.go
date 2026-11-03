@@ -263,4 +263,10 @@ func init() {
 	gnarkHash.RegisterHash(gnarkHash.POSEIDON2_GOLDILOCKS, func() hash.Hash {
 		return NewMerkleDamgardHasher()
 	})
+	gnarkHash.RegisterFieldHasher("POSEIDON2", func() gnarkHash.FieldHasher[fr.Element, [BlockLen]fr.Element] {
+		return NewHasher()
+	})
+	gnarkHash.RegisterFieldHasher("POSEIDON2", func() gnarkHash.FieldHasher[fr.Element, [WideBlockLen]fr.Element] {
+		return NewHasherGeneric[[WideBlockLen]fr.Element]()
+	})
 }
