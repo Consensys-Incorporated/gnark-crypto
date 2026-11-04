@@ -83,6 +83,15 @@ func (vector VectorE3) ScalarMul(a VectorE3, b *E3) {
 	}
 }
 
+// Sum returns the sum of all elements in the vector.
+func (vector VectorE3) Sum() E3 {
+	var sum E3
+	for i := range vector {
+		sum.Add(&sum, &vector[i])
+	}
+	return sum
+}
+
 // InnerProduct returns ∑ vector[i] * a[i] over E3.
 func (vector VectorE3) InnerProduct(a VectorE3) E3 {
 	if len(vector) != len(a) {
