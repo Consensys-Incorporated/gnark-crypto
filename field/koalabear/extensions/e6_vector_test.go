@@ -8,6 +8,7 @@ package extensions
 import (
 	"strconv"
 	"testing"
+	"unsafe"
 
 	fr "github.com/consensys/gnark-crypto/field/koalabear"
 	"github.com/stretchr/testify/require"
@@ -360,6 +361,133 @@ func TestVectorE6Mul(t *testing.T) {
 				require.Equal(t, expected, bb)
 			})
 		}
+	}
+}
+
+// makeE6AddSubTestInputs returns two vectors whose coordinates are random,
+// except every third one of a (resp. b) which cycles through 0, 1, q-1 so the
+// conditional reduction of Add and Sub is exercised in both branches.
+func makeE6AddSubTestInputs(size int) (VectorE6, VectorE6) {
+	a, b := make(VectorE6, size), make(VectorE6, size)
+	a.MustSetRandom()
+	b.MustSetRandom()
+	var edges [3]fr.Element
+	edges[1].SetOne()
+	edges[2].SetInt64(-1)
+	for i := range size {
+		za := fr.Vector(unsafe.Slice((*fr.Element)(unsafe.Pointer(&a[i])), 6))
+		zb := fr.Vector(unsafe.Slice((*fr.Element)(unsafe.Pointer(&b[i])), 6))
+		for j := range 6 {
+			if (i+j)%3 == 0 {
+				za[j] = edges[(i/3+j)%3]
+				zb[j] = edges[(i/3+2*j+1)%3]
+			}
+		}
+	}
+	return a, b
+}
+
+func cloneE6Vector(v VectorE6) VectorE6 {
+	return append(make(VectorE6, 0, len(v)), v...)
+}
+
+func TestVectorE6AddSub(t *testing.T) {
+	sizes := []int{1 << 10, 1<<10 + 7, 1 << 14}
+	for i := range 71 {
+		sizes = append(sizes, i)
+	}
+	for _, size := range sizes {
+		t.Run(strconv.Itoa(size), func(t *testing.T) {
+			a, b := makeE6AddSubTestInputs(size)
+			expectedAdd, expectedSub := make(VectorE6, size), make(VectorE6, size)
+			for i := range expectedAdd {
+				expectedAdd[i].Add(&a[i], &b[i])
+				expectedSub[i].Sub(&a[i], &b[i])
+			}
+			aCopy := cloneE6Vector(a)
+			bCopy := cloneE6Vector(b)
+
+			res := make(VectorE6, size)
+			res.MustSetRandom() // must be fully overwritten
+			res.Add(a, b)
+			require.Equal(t, expectedAdd, res)
+			res.MustSetRandom()
+			res.Sub(a, b)
+			require.Equal(t, expectedSub, res)
+			require.Equal(t, aCopy, a, "inputs must not be modified")
+			require.Equal(t, bCopy, b, "inputs must not be modified")
+
+			// res may be identical to a, to b, or to both
+			for _, op := range []struct {
+				name     string
+				f        func(res, a, b VectorE6)
+				expected VectorE6
+			}{
+				{"Add", func(res, a, b VectorE6) { res.Add(a, b) }, expectedAdd},
+				{"Sub", func(res, a, b VectorE6) { res.Sub(a, b) }, expectedSub},
+			} {
+				aa := cloneE6Vector(a)
+				op.f(aa, aa, b)
+				require.Equal(t, op.expected, aa, "%s: res == a", op.name)
+
+				bb := cloneE6Vector(b)
+				op.f(bb, a, bb)
+				require.Equal(t, op.expected, bb, "%s: res == b", op.name)
+
+				vv := cloneE6Vector(a)
+				op.f(vv, vv, vv)
+				for i := range vv {
+					var e E6
+					if op.name == "Add" {
+						e.Add(&a[i], &a[i])
+					} else {
+						e.Sub(&a[i], &a[i])
+					}
+					require.True(t, e.Equal(&vv[i]), "%s: res == a == b at %d", op.name, i)
+				}
+			}
+		})
+	}
+}
+
+func TestVectorE6AddSubLengthMismatch(t *testing.T) {
+	a, b, c := make(VectorE6, 4), make(VectorE6, 4), make(VectorE6, 5)
+	require.Panics(t, func() { a.Add(b, c) })
+	require.Panics(t, func() { a.Add(c, b) })
+	require.Panics(t, func() { c.Add(a, b) })
+	require.Panics(t, func() { a.Sub(b, c) })
+	require.Panics(t, func() { a.Sub(c, b) })
+	require.Panics(t, func() { c.Sub(a, b) })
+}
+
+func BenchmarkVectorE6AddSub(b *testing.B) {
+	for _, size := range []int{64, 1024, 16384, 262144} {
+		x, y := makeE6AddSubTestInputs(size)
+		res := make(VectorE6, size)
+		b.Run("Add/"+strconv.Itoa(size), func(b *testing.B) {
+			for b.Loop() {
+				res.Add(x, y)
+			}
+		})
+		b.Run("Sub/"+strconv.Itoa(size), func(b *testing.B) {
+			for b.Loop() {
+				res.Sub(x, y)
+			}
+		})
+		b.Run("AddGeneric/"+strconv.Itoa(size), func(b *testing.B) {
+			for b.Loop() {
+				for i := range res {
+					res[i].Add(&x[i], &y[i])
+				}
+			}
+		})
+		b.Run("SubGeneric/"+strconv.Itoa(size), func(b *testing.B) {
+			for b.Loop() {
+				for i := range res {
+					res[i].Sub(&x[i], &y[i])
+				}
+			}
+		})
 	}
 }
 
