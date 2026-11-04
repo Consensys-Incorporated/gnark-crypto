@@ -1018,6 +1018,34 @@ func BenchmarkG1AffineBatchScalarMultiplication(b *testing.B) {
 	}
 }
 
+func BenchmarkG1JacJointScalarMultiplication(b *testing.B) {
+	var mixer fr.Element
+	mixer.SetString("7716837800905789770901243404444209691916730933998574719964609384059111546487")
+	s1 := mixer.BigInt(new(big.Int))
+	s2 := new(big.Int).Add(s1, big.NewInt(1))
+
+	var qJac G1Jac
+	qJac.ScalarMultiplication(&g1Gen, big.NewInt(0xdeadbeef))
+	var q G1Affine
+	q.FromJacobian(&qJac)
+
+	var res G1Jac
+
+	b.Run("generic", func(b *testing.B) {
+		b.ResetTimer()
+		for range b.N {
+			res.JointScalarMultiplication(&g1GenAff, &q, s1, s2)
+		}
+	})
+
+	b.Run("fixed base", func(b *testing.B) {
+		b.ResetTimer()
+		for range b.N {
+			res.JointScalarMultiplicationBase(&q, s1, s2)
+		}
+	})
+}
+
 func BenchmarkG1JacScalarMultiplication(b *testing.B) {
 	for i := 0; i <= fr.Modulus().BitLen(); i += 8 {
 		bound := new(big.Int).Lsh(big.NewInt(1), uint(i))
