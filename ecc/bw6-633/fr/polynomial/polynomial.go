@@ -218,7 +218,7 @@ func InterpolateOnRange(v []fr.Element) Polynomial {
 	if int(nEvals) != len(v) {
 		panic("interpolation method too inefficient for nEvals > 255")
 	}
-	lagrange := getLagrangeBasis(nEvals)
+	lagrange := LagrangeBasisOnRange(nEvals)
 
 	var res Polynomial
 	res.Scale(&v[0], lagrange[0])
@@ -236,7 +236,11 @@ func InterpolateOnRange(v []fr.Element) Polynomial {
 // lagrange bases used by InterpolateOnRange
 var lagrangeBasis sync.Map
 
-func getLagrangeBasis(domainSize uint8) []Polynomial {
+// LagrangeBasisOnRange returns, for each 0 ≤ l < domainSize, the polynomial pₗ in
+// explicit coefficient form such that pₗ(l) = 1 and pₗ(n) = 0 for every other
+// 0 ≤ n < domainSize. They are the bases of InterpolateOnRange. The result is
+// cached and shared: it must not be modified.
+func LagrangeBasisOnRange(domainSize uint8) []Polynomial {
 	if res, ok := lagrangeBasis.Load(domainSize); ok {
 		return res.([]Polynomial)
 	}
