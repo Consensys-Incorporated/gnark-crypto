@@ -249,7 +249,7 @@ func TestPrecomputeLagrange(t *testing.T) {
 
 func TestLagrangeCache(t *testing.T) {
 	for _, i := range []int{5, 2, 8, 4, 6, 3, 0} {
-		b := getLagrangeBasis(uint8(i))
-		assert.Equal(t, b, getLagrangeBasis(uint8(i))) // second call must yield the same result
+		b := LagrangeBasisOnRange(uint8(i))
+		assert.Equal(t, b, LagrangeBasisOnRange(uint8(i))) // second call must yield the same result
 	}
 }

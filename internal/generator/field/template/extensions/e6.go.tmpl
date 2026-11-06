@@ -692,6 +692,15 @@ func (vector VectorE6) MustSetRandom() {
 	}
 }
 
+// Sum returns the sum of all elements in the vector.
+func (vector VectorE6) Sum() E6 {
+	var sum E6
+	for i := range vector {
+		sum.Add(&sum, &vector[i])
+	}
+	return sum
+}
+
 // Mul sets vector[i] = a[i] * b[i]. vector may alias a or b.
 func (vector VectorE6) Mul(a, b VectorE6) {
 	N := len(vector)

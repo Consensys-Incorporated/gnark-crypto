@@ -6,9 +6,8 @@
 package polynomial
 
 import (
-	"sync"
-
 	"github.com/consensys/gnark-crypto/field/mamabear/extensions"
+	basePolynomial "github.com/consensys/gnark-crypto/field/mamabear/polynomial"
 )
 
 // PolynomialE3 represented by coefficients in the field.
@@ -161,92 +160,19 @@ func InterpolateOnRangeE3(v []extensions.E3) PolynomialE3 {
 	if int(nEvals) != len(v) {
 		panic("interpolation method too inefficient for nEvals > 255")
 	}
-	lagrange := getLagrangeBasisE3(nEvals)
-
-	var res PolynomialE3
-	res.Scale(&v[0], lagrange[0])
-
-	temp := make(PolynomialE3, nEvals)
-
-	for i := uint8(1); i < nEvals; i++ {
-		temp.Scale(&v[i], lagrange[i])
-		res.Add(res, temp)
+	if nEvals == 0 {
+		panic("interpolation of an empty vector")
 	}
+	// the Lagrange bases have coefficients in the base field
+	lagrange := basePolynomial.LagrangeBasisOnRange(nEvals)
 
-	return res
-}
-
-// lagrange bases used by InterpolateOnRangeE3
-var lagrangeBasisE3 sync.Map
-
-func getLagrangeBasisE3(domainSize uint8) []PolynomialE3 {
-	if res, ok := lagrangeBasisE3.Load(domainSize); ok {
-		return res.([]PolynomialE3)
-	}
-
-	// not found. compute
-	var res []PolynomialE3
-	if domainSize >= 2 {
-		res = computeLagrangeBasisE3(domainSize)
-	} else if domainSize == 1 {
-		res = []PolynomialE3{make(PolynomialE3, 1)}
-		res[0][0].SetOne()
-	}
-	lagrangeBasisE3.Store(domainSize, res)
-
-	return res
-}
-
-// computeLagrangeBasisE3 precomputes in explicit coefficient form for each 0 ≤ l < domainSize the polynomial
-// pₗ := X (X-1) ... (X-l-1) (X-l+1) ... (X - domainSize + 1) / ( l (l-1) ... 2 (-1) ... (l - domainSize +1) )
-// Note that pₗ(l) = 1 and pₗ(n) = 0 if 0 ≤ l < domainSize, n ≠ l
-func computeLagrangeBasisE3(domainSize uint8) []PolynomialE3 {
-
-	constTerms := make([]extensions.E3, domainSize)
-	for i := range domainSize {
-		constTerms[i].SetInt64(-int64(i))
-	}
-
-	res := make([]PolynomialE3, domainSize)
-	multScratch := make(PolynomialE3, domainSize-1)
-
-	// compute pₗ
-	for l := range domainSize {
-
-		// TODO @Tabaie Optimize this with some trees? O(log(domainSize)) polynomial mults instead of O(domainSize)? Then again it would be fewer big poly mults vs many small poly mults
-		d := uint8(0) //d is the current degree of res
-		for i := range domainSize {
-			if i == l {
-				continue
-			}
-			if d == 0 {
-				res[l] = make(PolynomialE3, domainSize)
-				res[l][domainSize-2] = constTerms[i]
-				res[l][domainSize-1].SetOne()
-			} else {
-				current := res[l][domainSize-d-2:]
-				timesConst := multScratch[domainSize-d-2:]
-
-				timesConst.Scale(&constTerms[i], current[1:]) //TODO: Directly double and add since constTerms are tiny? (even less than 4 bits)
-				nonLeading := current[0 : d+1]
-
-				nonLeading.Add(nonLeading, timesConst)
-
-			}
-			d++
+	res := make(PolynomialE3, nEvals)
+	var term extensions.E3
+	for i := range nEvals {
+		for j := range lagrange[i] {
+			term.MulByElement(&v[i], &lagrange[i][j])
+			res[j].Add(&res[j], &term)
 		}
-
-	}
-
-	// We have pₗ(i≠l)=0. Now scale so that pₗ(l)=1
-	// Replace the constTerms with norms
-	for l := range domainSize {
-		constTerms[l].Neg(&constTerms[l])
-		constTerms[l] = res[l].Eval(&constTerms[l])
-	}
-	constTerms = extensions.BatchInvertE3(constTerms)
-	for l := range domainSize {
-		res[l].ScaleInPlace(&constTerms[l])
 	}
 
 	return res

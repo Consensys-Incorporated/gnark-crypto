@@ -13,7 +13,6 @@ import (
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/gen"
 	"github.com/leanovate/gopter/prop"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestPolynomialEvalE6(t *testing.T) {
@@ -203,7 +202,13 @@ func TestPolynomialAddE6(t *testing.T) {
 func TestPrecomputeLagrangeE6(t *testing.T) {
 
 	testForDomainSize := func(domainSize uint8) bool {
-		polys := computeLagrangeBasisE6(domainSize)
+		// the bases are base field polynomials, interpolated from the unit vectors
+		polys := make([]PolynomialE6, domainSize)
+		for l := range domainSize {
+			unit := make([]extensions.E6, domainSize)
+			unit[l].SetOne()
+			polys[l] = InterpolateOnRangeE6(unit)
+		}
 
 		for l := range domainSize {
 			for i := range domainSize {
@@ -235,11 +240,4 @@ func TestPrecomputeLagrangeE6(t *testing.T) {
 	))
 
 	properties.TestingRun(t, gopter.ConsoleReporter(false))
-}
-
-func TestLagrangeCacheE6(t *testing.T) {
-	for _, i := range []int{5, 2, 8, 4, 6, 3, 0} {
-		b := getLagrangeBasisE6(uint8(i))
-		assert.Equal(t, b, getLagrangeBasisE6(uint8(i))) // second call must yield the same result
-	}
 }
