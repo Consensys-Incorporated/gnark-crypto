@@ -11,6 +11,8 @@ import (
 	"math/big"
 	"testing"
 
+	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
+	"github.com/consensys/gnark-crypto/ecc/bls12-381/fp"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
 
 	"github.com/leanovate/gopter"
@@ -127,6 +129,115 @@ func TestNoZeros(t *testing.T) {
 			t.Fatal("expected error for zero S")
 		}
 	})
+}
+
+// TestVerifyCandidateBound pins the invariant that makes the inversion-free
+// branch of Verify safe: whenever it is taken, the candidate loop terminates
+// within maxXCandidates iterations. On a curve with a large cofactor there are
+// about h candidates, and taking that branch would turn Verify into a hang.
+func TestVerifyCandidateBound(t *testing.T) {
+	t.Parallel()
+
+	if nbXCandidates > maxXCandidates {
+		t.Skip("curve uses the inversion fallback")
+	}
+
+	// the loop starts at r >= 1 and steps by n, so maxXCandidates steps must
+	// already carry it past p
+	reach := new(big.Int).Mul(order, big.NewInt(maxXCandidates))
+	if reach.Cmp(fp.Modulus()) < 0 {
+		t.Fatalf("inversion-free branch taken but %d steps of n do not reach p", maxXCandidates)
+	}
+}
+
+// TestVerifyXAboveOrder exercises the branch of Verify where x(R) lands in
+// [n, p), so that x(R) equals r only after the reduction mod n. Random
+// signatures reach it with negligible probability, so the input is built by
+// hand from a point whose x coordinate is just above n.
+func TestVerifyXAboveOrder(t *testing.T) {
+	t.Parallel()
+
+	order := fr.Modulus()
+	if order.Cmp(fp.Modulus()) >= 0 {
+		t.Skip("n >= p, x(R) is always below n")
+	}
+
+	a, b := bls12381.CurveCoefficients()
+
+	// smallest k >= 1 such that n+k is a valid x coordinate below p whose
+	// point lies in the prime-order subgroup
+	var R *bls12381.G1Affine
+	var k int64
+	for k = 1; k < 1000; k++ {
+		x := new(big.Int).Add(order, big.NewInt(k))
+		if x.Cmp(fp.Modulus()) >= 0 {
+			break
+		}
+		var xe, y2, ye fp.Element
+		xe.SetBigInt(x)
+		y2.Square(&xe).Mul(&y2, &xe)
+		if !a.IsZero() {
+			var ax fp.Element
+			ax.Mul(&a, &xe)
+			y2.Add(&y2, &ax)
+		}
+		y2.Add(&y2, &b)
+		if ye.Sqrt(&y2) == nil {
+			continue
+		}
+		candidate := bls12381.G1Affine{X: xe, Y: ye}
+		if !candidate.IsInSubGroup() {
+			continue
+		}
+		R = &candidate
+		break
+	}
+	if R == nil {
+		t.Skip("no liftable subgroup point with x in [n, n+1000)")
+	}
+
+	// r = k, so that x(R) = r + n ≡ r (mod n)
+	r := big.NewInt(k)
+	s := big.NewInt(2)
+	e := big.NewInt(3)
+
+	// Q = r⁻¹(s·R - e·G) is the public key for which (r,s) signs e
+	rInv := new(big.Int).ModInverse(r, order)
+	u1 := new(big.Int).Mul(e, rInv)
+	u1.Neg(u1).Mod(u1, order)
+	u2 := new(big.Int).Mul(s, rInv)
+	u2.Mod(u2, order)
+
+	var Q bls12381.G1Jac
+	Q.JointScalarMultiplicationBase(R, u1, u2)
+	var pub PublicKey
+	pub.A.FromJacobian(&Q)
+
+	var sig Signature
+	r.FillBytes(sig.R[:])
+	s.FillBytes(sig.S[:])
+
+	msg := make([]byte, sizeFr)
+	e.FillBytes(msg)
+
+	ok, err := pub.Verify(sig.Bytes(), msg, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ok {
+		t.Fatal("rejected a valid signature whose x(R) lies in [n, p)")
+	}
+
+	// a different message must still be rejected
+	wrong := make([]byte, sizeFr)
+	big.NewInt(4).FillBytes(wrong)
+	ok, err = pub.Verify(sig.Bytes(), wrong, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ok {
+		t.Fatal("accepted a signature for the wrong message")
+	}
 }
 
 // ------------------------------------------------------------

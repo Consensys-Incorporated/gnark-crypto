@@ -32,6 +32,23 @@ const (
 
 var order = fr.Modulus()
 
+// maxXCandidates is how many candidates Verify is willing to enumerate before
+// falling back to an inversion.
+const maxXCandidates = 4
+
+// nbXCandidates is an upper bound on the number of x in [0,p) with x ≡ r
+// (mod n), namely ⌈p/n⌉. It is 2 on a prime-order curve, where enumerating the
+// candidates is cheaper than converting U to affine, and roughly the cofactor
+// otherwise, where it is far too large to enumerate.
+var nbXCandidates = func() int {
+	q := new(big.Int).Div(fp.Modulus(), order)
+	q.Add(q, big.NewInt(1))
+	if !q.IsInt64() || q.Int64() > maxXCandidates {
+		return maxXCandidates + 1
+	}
+	return int(q.Int64())
+}()
+
 // PublicKey represents an ECDSA public key
 type PublicKey struct {
 	A bls24317.G1Affine
@@ -326,6 +343,32 @@ func (publicKey *PublicKey) Verify(sigBin, message []byte, hFunc hash.Hash) (boo
 	var U bls24317.G1Jac
 	U.JointScalarMultiplicationBase(&publicKey.A, u1, u2)
 
+	if U.Z.IsZero() {
+		// U is the point at infinity and has no x coordinate; without this
+		// guard the Jacobian test below would compare 0 against 0
+		return false, nil
+	}
+
+	if nbXCandidates <= maxXCandidates {
+		// Check x(U) ≡ r (mod n) without inverting Z: x(U) = X/Z², so for each
+		// candidate x < p with x ≡ r (mod n) it is enough to test X == x·Z².
+		var zz fp.Element
+		zz.Square(&U.Z)
+
+		fpModulus := fp.Modulus()
+		for x := new(big.Int).Set(r); x.Cmp(fpModulus) < 0; x.Add(x, order) {
+			var xzz fp.Element
+			xzz.SetBigInt(x).Mul(&xzz, &zz)
+			if xzz.Equal(&U.X) {
+				return true, nil
+			}
+		}
+
+		return false, nil
+	}
+
+	// Too many candidates to enumerate, so reduce x(U) mod n instead and pay
+	// for the inversion.
 	var z big.Int
 	U.Z.Square(&U.Z).
 		Inverse(&U.Z).
