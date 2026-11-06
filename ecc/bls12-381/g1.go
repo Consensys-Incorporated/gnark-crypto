@@ -136,7 +136,7 @@ func (p *G1Affine) Add(a, b *G1Affine) *G1Affine {
 // inversion is paid either way, and going through Jacobian coordinates only
 // adds the multiplications of the detour.
 //
-//	λ = (3x²+a)/(2y), x₃ = λ²-2x, y₃ = λ(x-x₃)-y
+//	λ = (3x²)/(2y), x₃ = λ²-2x, y₃ = λ(x-x₃)-y
 //
 // https://hyperelliptic.org/EFD/g1p/auto-shortw.html
 // ~Cost: 1I + 2M + 2S
@@ -151,7 +151,7 @@ func (p *G1Affine) Double(a *G1Affine) *G1Affine {
 
 	var lambda, xr, t fp.Element
 
-	// λ = (3x²+a)/(2y)
+	// λ = (3x²)/(2y)
 	t.Square(&a.X)
 	lambda.Double(&t).Add(&lambda, &t)
 	t.Double(&a.Y).Inverse(&t)

@@ -177,7 +177,7 @@ func (p *{{ $TAffine }}) Add(a, b *{{ $TAffine }}) *{{ $TAffine }} {
 // inversion is paid either way, and going through Jacobian coordinates only
 // adds the multiplications of the detour.
 //
-//	λ = (3x²+a)/(2y), x₃ = λ²-2x, y₃ = λ(x-x₃)-y
+//	λ = (3x²{{ if not .IsZeroA }}+a{{ end }})/(2y), x₃ = λ²-2x, y₃ = λ(x-x₃)-y
 //
 // https://hyperelliptic.org/EFD/g1p/auto-shortw.html
 // ~Cost: 1I + 2M + 2S
@@ -192,7 +192,7 @@ func (p *{{ $TAffine }}) Double(a *{{ $TAffine }}) *{{ $TAffine }} {
 
 	var lambda, xr, t {{.CoordType}}
 
-	// λ = (3x²+a)/(2y)
+	// λ = (3x²{{ if not .IsZeroA }}+a{{ end }})/(2y)
 	t.Square(&a.X)
 	lambda.Double(&t).Add(&lambda, &t)
 	{{- if not .IsZeroA}}
