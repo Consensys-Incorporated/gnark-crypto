@@ -719,7 +719,7 @@ func TestG2AffineAgainstJacobian(t *testing.T) {
 	// A randomized walk through the subgroup: [s]G, [s+t]G, [s+2t]G, and so on.
 	// The multiples are built in Jacobian coordinates, so none of the inputs
 	// comes out of the functions under test.
-	nbSamples := 200
+	nbSamples := 201
 	var s, step fr.Element
 	s.MustSetRandom()
 	step.MustSetRandom()

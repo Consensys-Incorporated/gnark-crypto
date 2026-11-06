@@ -2,6 +2,10 @@
 {{ $TAffine := print (toUpper .PointName) "Affine" }}
 {{ $TJacobian := print (toUpper .PointName) "Jac" }}
 {{ $TJacobianExtended := print (toLower .PointName) "JacExtended" }}
+{{ $hasOrder2 := or
+    (and (eq .PointName "g1") (or (eq .Name "bls12-377") (eq .Name "bls24-315") (eq .Name "bw6-761")))
+    (and (eq .PointName "g2") (or (eq .Name "bw6-633") (eq .Name "bls24-317")))
+}}
 
 {{$fuzzer := "GenFp()"}}
 {{if eq .CoordType "fptower.E2" }}
@@ -803,7 +807,7 @@ func Test{{ $TAffine }}AgainstJacobian(t *testing.T) {
 	// A randomized walk through the subgroup: [s]G, [s+t]G, [s+2t]G, and so on.
 	// The multiples are built in Jacobian coordinates, so none of the inputs
 	// comes out of the functions under test.
-	nbSamples := {{ if eq .PointName "g1" }}300{{ else }}200{{ end }}
+	nbSamples := {{ if eq .PointName "g1" }}301{{ else }}201{{ end }}
 	var s, step fr.Element
 	s.MustSetRandom()
 	step.MustSetRandom()
@@ -865,14 +869,21 @@ func Test{{ $TAffine }}AgainstJacobian(t *testing.T) {
 	} {
 		checkDouble(tc.name, tc.a)
 	}
-{{- if and (eq .PointName "g1") (or (eq .Name "bls12-377") (eq .Name "bls24-315") (eq .Name "bw6-761")) }}
+{{- if $hasOrder2 }}
 
-	// the on-curve point of order 2, the one input where the vertical tangent
-	// is reached by a point that is genuinely on E(𝔽ₚ)
+	// An on-curve point of order 2 also reaches the vertical tangent.
 	var order2 {{ $TAffine }}
+	{{- if and (eq .PointName "g2") (eq .Name "bw6-633") }}
+	order2.X.SetUint64(2)
+	order2.X.Neg(&order2.X)
+	{{- else if and (eq .PointName "g2") (eq .Name "bls24-317") }}
+	order2.X.B1.A0.SetOne()
+	order2.X.B1.A1.SetOne()
+	{{- else }}
 	order2.X.SetOne()
 	{{- if ne .Name "bw6-761" }}
 	order2.X.Neg(&order2.X)
+	{{- end }}
 	{{- end }}
 	order2.Y.SetZero()
 	checkAdd("T+T", &order2, &order2)
@@ -885,16 +896,25 @@ func Test{{ $TAffine }}AgainstJacobian(t *testing.T) {
 
 
 {{if .CofactorCleaning }}
-{{- if and (eq .PointName "g1") (or (eq .Name "bls12-377") (eq .Name "bls24-315") (eq .Name "bw6-761")) }}
+{{- if $hasOrder2 }}
 
 // Test{{ toUpper .PointName }}Order2 exercises the point of order 2 that exists
-// on this curve. It is on E(𝔽ₚ) but outside the r-torsion subgroup, and it is
+// on this curve. It is outside the r-torsion subgroup, and it is
 // the case the affine slope cannot evaluate.
 func Test{{ toUpper .PointName }}Order2(t *testing.T) {
 	t.Parallel()
 
 	var P {{ $TAffine }}
-	{{- if eq .Name "bw6-761" }}
+	{{- if and (eq .PointName "g2") (eq .Name "bw6-633") }}
+	// G2 is Y² = X³ + 8, so (-2,0) is on the curve.
+	P.X.SetUint64(2)
+	P.X.Neg(&P.X)
+	{{- else if and (eq .PointName "g2") (eq .Name "bls24-317") }}
+	// In Fp4, u² = -1 and v² = 1+u. G2 is Y² = X³ + 4v,
+	// so X = (1+u)v = v³ has X³ = -4v and (X,0) is on the curve.
+	P.X.B1.A0.SetOne()
+	P.X.B1.A1.SetOne()
+	{{- else if eq .Name "bw6-761" }}
 	// {{ toUpper .PointName }} is Y² = X³ - 1, so (1,0) is on the curve.
 	P.X.SetOne()
 	{{- else }}

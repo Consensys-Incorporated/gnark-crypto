@@ -729,7 +729,7 @@ func TestG1AffineAgainstJacobian(t *testing.T) {
 	// A randomized walk through the subgroup: [s]G, [s+t]G, [s+2t]G, and so on.
 	// The multiples are built in Jacobian coordinates, so none of the inputs
 	// comes out of the functions under test.
-	nbSamples := 300
+	nbSamples := 301
 	var s, step fr.Element
 	s.MustSetRandom()
 	step.MustSetRandom()
@@ -792,8 +792,7 @@ func TestG1AffineAgainstJacobian(t *testing.T) {
 		checkDouble(tc.name, tc.a)
 	}
 
-	// the on-curve point of order 2, the one input where the vertical tangent
-	// is reached by a point that is genuinely on E(𝔽ₚ)
+	// An on-curve point of order 2 also reaches the vertical tangent.
 	var order2 G1Affine
 	order2.X.SetOne()
 	order2.X.Neg(&order2.X)
@@ -805,7 +804,7 @@ func TestG1AffineAgainstJacobian(t *testing.T) {
 }
 
 // TestG1Order2 exercises the point of order 2 that exists
-// on this curve. It is on E(𝔽ₚ) but outside the r-torsion subgroup, and it is
+// on this curve. It is outside the r-torsion subgroup, and it is
 // the case the affine slope cannot evaluate.
 func TestG1Order2(t *testing.T) {
 	t.Parallel()

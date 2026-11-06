@@ -689,7 +689,7 @@ func TestG2AffineAgainstJacobian(t *testing.T) {
 	// A randomized walk through the subgroup: [s]G, [s+t]G, [s+2t]G, and so on.
 	// The multiples are built in Jacobian coordinates, so none of the inputs
 	// comes out of the functions under test.
-	nbSamples := 200
+	nbSamples := 201
 	var s, step fr.Element
 	s.MustSetRandom()
 	step.MustSetRandom()
@@ -750,6 +750,72 @@ func TestG2AffineAgainstJacobian(t *testing.T) {
 		{"[2]offCurve", &offCurve},
 	} {
 		checkDouble(tc.name, tc.a)
+	}
+
+	// An on-curve point of order 2 also reaches the vertical tangent.
+	var order2 G2Affine
+	order2.X.B1.A0.SetOne()
+	order2.X.B1.A1.SetOne()
+	order2.Y.SetZero()
+	checkAdd("T+T", &order2, &order2)
+	checkAdd("T+P", &order2, &pts[0])
+	checkAdd("P+T", &pts[0], &order2)
+	checkDouble("[2]T", &order2)
+}
+
+// TestG2Order2 exercises the point of order 2 that exists
+// on this curve. It is outside the r-torsion subgroup, and it is
+// the case the affine slope cannot evaluate.
+func TestG2Order2(t *testing.T) {
+	t.Parallel()
+
+	var P G2Affine
+	// In Fp4, u² = -1 and v² = 1+u. G2 is Y² = X³ + 4v,
+	// so X = (1+u)v = v³ has X³ = -4v and (X,0) is on the curve.
+	P.X.B1.A0.SetOne()
+	P.X.B1.A1.SetOne()
+	P.Y.SetZero()
+
+	if !P.IsOnCurve() {
+		t.Fatal("the order-2 point should be on the curve")
+	}
+	if P.IsInfinity() {
+		t.Fatal("the order-2 point should not be the point at infinity")
+	}
+	if P.IsInSubGroup() {
+		t.Fatal("the order-2 point should not be in the r-torsion subgroup")
+	}
+
+	var got G2Affine
+	if !got.Double(&P).IsInfinity() {
+		t.Fatalf("[2]P = %s, want the point at infinity", got.String())
+	}
+	if !got.Add(&P, &P).IsInfinity() {
+		t.Fatalf("P + P = %s, want the point at infinity", got.String())
+	}
+	// aliasing: the destination is the operand
+	got.Set(&P)
+	if !got.Double(&got).IsInfinity() {
+		t.Fatal("Double(p, p) on the order-2 point should be the point at infinity")
+	}
+	got.Set(&P)
+	if !got.Add(&got, &got).IsInfinity() {
+		t.Fatal("Add(p, p, p) on the order-2 point should be the point at infinity")
+	}
+	// P + Q against the generic path
+	var Q, sum, back G2Affine
+	Q.Set(&g2GenAff)
+	sum.Add(&P, &Q)
+	if sum.IsInfinity() {
+		t.Fatal("P + G should not be the point at infinity")
+	}
+	if !sum.IsOnCurve() {
+		t.Fatal("P + G should be on the curve")
+	}
+	// (P + Q) - Q = P
+	back.Sub(&sum, &Q)
+	if !back.Equal(&P) {
+		t.Fatalf("(P + G) - G = %s, want %s", back.String(), P.String())
 	}
 }
 
