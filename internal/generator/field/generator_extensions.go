@@ -100,8 +100,8 @@ func generateExtensions(F *config.Field, outputDir string) error {
 		entries_ext3 := []bavard.Entry{
 			{File: filepath.Join(outputDir, "e3.go"), Templates: []string{"e3.go.tmpl"}},
 			{File: filepath.Join(outputDir, "e3_test.go"), Templates: []string{"e3_test.go.tmpl"}},
-			{File: filepath.Join(outputDir, "e3_vector.go"), Templates: []string{"e3vector.go.tmpl"}},
-			{File: filepath.Join(outputDir, "e3_vector_internal_test.go"), Templates: []string{"e3vector_test.go.tmpl"}},
+			{File: filepath.Join(outputDir, "e3_vector.go"), Templates: []string{"e3_vector.go.tmpl"}},
+			{File: filepath.Join(outputDir, "e3_vector_internal_test.go"), Templates: []string{"e3_vector_internal_test.go.tmpl"}},
 		}
 		if err := g.Generate(data, "extensions", "", "extensions", entries_ext3...); err != nil {
 			return err
@@ -114,7 +114,7 @@ func generateExtensions(F *config.Field, outputDir string) error {
 			{File: filepath.Join(outputDir, "e4_test.go"), Templates: []string{"e4_test.go.tmpl"}},
 			{File: filepath.Join(outputDir, "e6.go"), Templates: []string{"e6.go.tmpl"}},
 			{File: filepath.Join(outputDir, "e6_test.go"), Templates: []string{"e6_test.go.tmpl"}},
-			{File: filepath.Join(outputDir, "e6_vector_test.go"), Templates: []string{"e6vector_test.go.tmpl"}},
+			{File: filepath.Join(outputDir, "e6_vector_test.go"), Templates: []string{"e6_vector_test.go.tmpl"}},
 		}
 
 		if isKoalaBear {
