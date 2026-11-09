@@ -104,6 +104,46 @@ func (vector VectorE4) ScalarMul(a VectorE4, b *E4) {
 	}
 }
 
+// Neg sets vector[i] = -a[i]. vector may alias a.
+func (vector VectorE4) Neg(a VectorE4) {
+	if len(a) != len(vector) {
+		panic("vector.Neg: vectors don't have the same length")
+	}
+	for i := range vector {
+		vector[i].Neg(&a[i])
+	}
+}
+
+// ScalarAddElement sets vector[i] = a[i] + c, where c is an element of the base field. vector may alias a.
+func (vector VectorE4) ScalarAddElement(a VectorE4, c *fr.Element) {
+	if len(a) != len(vector) {
+		panic("vector.ScalarAddElement: vectors don't have the same length")
+	}
+	for i := range vector {
+		vector[i].AddElement(&a[i], c)
+	}
+}
+
+// ScalarSubElement sets vector[i] = a[i] - c, where c is an element of the base field. vector may alias a.
+func (vector VectorE4) ScalarSubElement(a VectorE4, c *fr.Element) {
+	if len(a) != len(vector) {
+		panic("vector.ScalarSubElement: vectors don't have the same length")
+	}
+	for i := range vector {
+		vector[i].SubElement(&a[i], c)
+	}
+}
+
+// ScalarSubFromElement sets vector[i] = c - a[i], where c is an element of the base field. vector may alias a.
+func (vector VectorE4) ScalarSubFromElement(c *fr.Element, a VectorE4) {
+	if len(a) != len(vector) {
+		panic("vector.ScalarSubFromElement: vectors don't have the same length")
+	}
+	for i := range vector {
+		vector[i].SubFromElement(c, &a[i])
+	}
+}
+
 // Sum computes the sum of all elements in the vector.
 func (vector VectorE4) Sum() E4 {
 	const blockSize = 2

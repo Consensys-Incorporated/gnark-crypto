@@ -60,6 +60,43 @@ func TestVectorE6Sum(t *testing.T) {
 	}
 }
 
+func TestVectorE6ElementwiseOps(t *testing.T) {
+	const size = 17
+	a := make(VectorE6, size)
+	a.MustSetRandom()
+	var c fr.Element
+	c.MustSetRandom()
+	b := make(VectorE6, size)
+	b.MustSetRandom()
+	add, sub, mul := make(VectorE6, size), make(VectorE6, size), make(VectorE6, size)
+	add.Add(a, b)
+	sub.Sub(a, b)
+	mul.Mul(a, b)
+
+	neg, scalarAdd, scalarSub, subFrom := make(VectorE6, size), make(VectorE6, size), make(VectorE6, size), make(VectorE6, size)
+	neg.Neg(a)
+	scalarAdd.ScalarAddElement(a, &c)
+	scalarSub.ScalarSubElement(a, &c)
+	subFrom.ScalarSubFromElement(&c, a)
+
+	for i := range a {
+		var e E6
+		require.Equal(t, *e.Add(&a[i], &b[i]), add[i])
+		require.Equal(t, *e.Sub(&a[i], &b[i]), sub[i])
+		require.Equal(t, *e.Mul(&a[i], &b[i]), mul[i])
+		require.Equal(t, *e.Neg(&a[i]), neg[i])
+		require.Equal(t, *e.AddElement(&a[i], &c), scalarAdd[i])
+		require.Equal(t, *e.SubElement(&a[i], &c), scalarSub[i])
+		require.Equal(t, *e.SubFromElement(&c, &a[i]), subFrom[i])
+	}
+
+	// the destination may alias a
+	aliased := make(VectorE6, size)
+	copy(aliased, a)
+	aliased.Neg(aliased)
+	require.Equal(t, neg, aliased)
+}
+
 func TestVectorE6ButterflyPair(t *testing.T) {
 	for _, size := range []int{2, 4, 8, 16, 18} {
 		t.Run(strconv.Itoa(size), func(t *testing.T) {

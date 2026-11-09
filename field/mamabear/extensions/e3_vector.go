@@ -90,6 +90,76 @@ func (vector VectorE3) ScalarMul(a VectorE3, b *E3) {
 	}
 }
 
+// Add sets vector[i] = a[i] + b[i]. vector may alias a or b.
+func (vector VectorE3) Add(a, b VectorE3) {
+	if len(a) != len(vector) || len(b) != len(vector) {
+		panic("vector.Add: vectors don't have the same length")
+	}
+	for i := range vector {
+		vector[i].Add(&a[i], &b[i])
+	}
+}
+
+// Sub sets vector[i] = a[i] - b[i]. vector may alias a or b.
+func (vector VectorE3) Sub(a, b VectorE3) {
+	if len(a) != len(vector) || len(b) != len(vector) {
+		panic("vector.Sub: vectors don't have the same length")
+	}
+	for i := range vector {
+		vector[i].Sub(&a[i], &b[i])
+	}
+}
+
+// Mul sets vector[i] = a[i] * b[i]. vector may alias a or b.
+func (vector VectorE3) Mul(a, b VectorE3) {
+	if len(a) != len(vector) || len(b) != len(vector) {
+		panic("vector.Mul: vectors don't have the same length")
+	}
+	for i := range vector {
+		vector[i].Mul(&a[i], &b[i])
+	}
+}
+
+// Neg sets vector[i] = -a[i]. vector may alias a.
+func (vector VectorE3) Neg(a VectorE3) {
+	if len(a) != len(vector) {
+		panic("vector.Neg: vectors don't have the same length")
+	}
+	for i := range vector {
+		vector[i].Neg(&a[i])
+	}
+}
+
+// ScalarAddElement sets vector[i] = a[i] + c, where c is an element of the base field. vector may alias a.
+func (vector VectorE3) ScalarAddElement(a VectorE3, c *fr.Element) {
+	if len(a) != len(vector) {
+		panic("vector.ScalarAddElement: vectors don't have the same length")
+	}
+	for i := range vector {
+		vector[i].AddElement(&a[i], c)
+	}
+}
+
+// ScalarSubElement sets vector[i] = a[i] - c, where c is an element of the base field. vector may alias a.
+func (vector VectorE3) ScalarSubElement(a VectorE3, c *fr.Element) {
+	if len(a) != len(vector) {
+		panic("vector.ScalarSubElement: vectors don't have the same length")
+	}
+	for i := range vector {
+		vector[i].SubElement(&a[i], c)
+	}
+}
+
+// ScalarSubFromElement sets vector[i] = c - a[i], where c is an element of the base field. vector may alias a.
+func (vector VectorE3) ScalarSubFromElement(c *fr.Element, a VectorE3) {
+	if len(a) != len(vector) {
+		panic("vector.ScalarSubFromElement: vectors don't have the same length")
+	}
+	for i := range vector {
+		vector[i].SubFromElement(c, &a[i])
+	}
+}
+
 // Sum returns the sum of all elements in the vector.
 func (vector VectorE3) Sum() E3 {
 	var sum E3
