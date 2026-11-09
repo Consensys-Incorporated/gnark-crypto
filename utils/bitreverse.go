@@ -10,9 +10,17 @@ import (
 )
 
 // BitReverse applies the bit-reversal permutation to v.
-// len(v) must be a power of 2
-func BitReverse[T any](v []T) {
+// len(v) must be a power of 2.
+//
+// By default it runs on the calling goroutine; pass [WithNbTasks] to split
+// large inputs over several goroutines.
+func BitReverse[T any](v []T, opts ...BitReverseOption) {
 	checkBitReverseLength(len(v))
+
+	if tasks, logTile := bitReverseParallelTasks[T](len(v), bitReverseNbTasks(opts)); tasks > 1 {
+		bitReversePermuteParallel(v, tasks, logTile)
+		return
+	}
 
 	if runtime.GOARCH == "arm64" || len(v) < (1<<21) || unsafe.Sizeof(v[0]) < 8 {
 		bitReverseNaive(v)
@@ -41,8 +49,15 @@ func BitReverseCobra[T any](v []T) {
 // BitReverseCopy writes dst[bitrev(i)] = src[i]. The slices must have the
 // same power-of-two length and must not overlap. It uses the same architecture,
 // input-size, and element-size heuristic as [BitReverse].
-func BitReverseCopy[T any](dst, src []T) {
+//
+// By default it runs on the calling goroutine; pass [WithNbTasks] to split
+// large inputs over several goroutines.
+func BitReverseCopy[T any](dst, src []T, opts ...BitReverseOption) {
 	checkBitReverseCopy(dst, src)
+	if tasks, logTile := bitReverseParallelTasks[T](len(src), bitReverseNbTasks(opts)); tasks > 1 {
+		bitReverseCopyParallel(dst, src, tasks, logTile)
+		return
+	}
 	if runtime.GOARCH == "arm64" || len(src) < (1<<21) || unsafe.Sizeof(src[0]) < 8 {
 		bitReverseCopyNaive(dst, src)
 	} else {

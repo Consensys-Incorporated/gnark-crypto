@@ -102,7 +102,7 @@ func TestBitReverseAlgorithms(t *testing.T) {
 		}
 
 		for name, copyFn := range map[string]func([]uint32, []uint32){
-			"auto":  BitReverseCopy[uint32],
+			"auto":  func(dst, src []uint32) { BitReverseCopy(dst, src) },
 			"naive": BitReverseCopyNaive[uint32],
 			"cobra": BitReverseCopyCobra[uint32],
 		} {
