@@ -1,5 +1,6 @@
 import (
 	"testing"
+	"strconv"
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/prop"
 	"os"
@@ -326,16 +327,6 @@ func TestVectorOps(t *testing.T) {
 		return true
 	}
 
-	sumVector := func(a VectorE4) bool {
-		var sum E4
-		computed := a.Sum()
-		for i := range len(a) {
-			sum.Add(&sum, &a[i])
-		}
-
-		return sum.Equal(&computed)
-	}
-
 	innerProductVector := func(a, b VectorE4) bool {
 		computed := a.InnerProduct(b)
 		var innerProduct E4
@@ -394,11 +385,6 @@ func TestVectorOps(t *testing.T) {
 				scalarMulVector,
 				gp.g1,
 				genE4(),
-			))
-
-			properties.Property(fmt.Sprintf("vector sum %d - %s", size, gp.label), prop.ForAll(
-				sumVector,
-				gp.g1,
 			))
 
 			properties.Property(fmt.Sprintf("vector inner product %d - %s", size, gp.label), prop.ForAll(
@@ -516,6 +502,41 @@ func TestVectorOps(t *testing.T) {
 	}
 
 	properties.TestingRun(t, gopter.NewFormatedReporter(false, 260, os.Stdout))
+}
+
+func TestVectorE4Sum(t *testing.T) {
+	var zero E4
+	var nilVector VectorE4
+	require.Equal(t, zero, nilVector.Sum())
+
+	for _, size := range []int{0, 1, 2, 3, 15, 16, 17, 33, 100, 1 << 12} {
+		t.Run(strconv.Itoa(size), func(t *testing.T) {
+			v := make(VectorE4, size)
+			for i := range v {
+				v[i].MustSetRandom()
+			}
+
+			// the sum is the inner product with ones
+			ones := make(VectorE4, size)
+			for i := range ones {
+				ones[i].SetOne()
+			}
+			require.Equal(t, v.InnerProduct(ones), v.Sum())
+
+			// size copies of x sum to x multiplied by size, as an element of the base field
+			var x E4
+			x.MustSetRandom()
+			xs := make(VectorE4, size)
+			for i := range xs {
+				xs[i] = x
+			}
+			var n fr.Element
+			n.SetUint64(uint64(size))
+			var expected E4
+			expected.MulByElement(&x, &n)
+			require.Equal(t, expected, xs.Sum())
+		})
+	}
 }
 
 // TestVectorExp tests the Exp method for VectorE4 type.
@@ -1244,6 +1265,20 @@ func TestE4SetBytesCanonicalRejectsNonCanonical(t *testing.T) {
 		require.Error(t, y.SetBytesCanonical(b), "coefficient %d equal to the modulus must be rejected", i)
 		require.True(t, y.Equal(&x), "E4 must be unchanged on error")
 	}
+}
+
+func TestE4Halve(t *testing.T) {
+	var x E4
+	x.MustSetRandom()
+	y := x
+	y.Halve()
+
+	var twoInv fr.Element
+	twoInv.SetUint64(2)
+	twoInv.Inverse(&twoInv)
+	var expected E4
+	expected.MulByElement(&x, &twoInv)
+	require.Equal(t, expected, y)
 }
 
 func TestE4ElementOps(t *testing.T) {

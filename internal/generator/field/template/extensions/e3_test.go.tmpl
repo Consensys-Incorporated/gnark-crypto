@@ -1,6 +1,7 @@
 import (
 	"github.com/stretchr/testify/require"
 	"math/big"
+	"strconv"
 	"testing"
 
 	fr "{{ .FieldPackagePath }}"
@@ -434,6 +435,53 @@ func BenchmarkE3VectorMulAccByElement(b *testing.B) {
 	b.ResetTimer()
 	for range b.N {
 		dst.MulAccByElement(scale, &alpha)
+	}
+}
+
+func TestE3Halve(t *testing.T) {
+	var x E3
+	x.MustSetRandom()
+	y := x
+	y.Halve()
+
+	var twoInv fr.Element
+	twoInv.SetUint64(2)
+	twoInv.Inverse(&twoInv)
+	var expected E3
+	expected.MulByElement(&x, &twoInv)
+	require.Equal(t, expected, y)
+}
+
+func TestE3VectorSum(t *testing.T) {
+	var zero E3
+	var nilVector VectorE3
+	require.Equal(t, zero, nilVector.Sum())
+
+	for _, size := range []int{0, 1, 2, 3, 15, 16, 17, 33, 100, 1 << 12} {
+		t.Run(strconv.Itoa(size), func(t *testing.T) {
+			v := make(VectorE3, size)
+			v.MustSetRandom()
+
+			// the sum is the inner product with ones
+			ones := make(VectorE3, size)
+			for i := range ones {
+				ones[i].SetOne()
+			}
+			require.Equal(t, v.InnerProduct(ones), v.Sum())
+
+			// size copies of x sum to x multiplied by size, as an element of the base field
+			var x E3
+			x.MustSetRandom()
+			xs := make(VectorE3, size)
+			for i := range xs {
+				xs[i] = x
+			}
+			var n fr.Element
+			n.SetUint64(uint64(size))
+			var expected E3
+			expected.MulByElement(&x, &n)
+			require.Equal(t, expected, xs.Sum())
+		})
 	}
 }
 

@@ -269,6 +269,20 @@ func TestE6Exp(t *testing.T) {
 	properties.TestingRun(t, gopter.ConsoleReporter(false))
 }
 
+func TestE6Halve(t *testing.T) {
+	var x E6
+	x.MustSetRandom()
+	y := x
+	y.Halve()
+
+	var twoInv fr.Element
+	twoInv.SetUint64(2)
+	twoInv.Inverse(&twoInv)
+	var expected E6
+	expected.MulByElement(&x, &twoInv)
+	require.Equal(t, expected, y)
+}
+
 func TestE6Div(t *testing.T) {
 
 	parameters := gopter.DefaultTestParameters()
