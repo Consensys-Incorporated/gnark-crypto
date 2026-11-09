@@ -27,6 +27,39 @@ func TestVectorE6MustSetRandom(t *testing.T) {
 	}
 }
 
+func TestVectorE6Sum(t *testing.T) {
+	var zero E6
+	var nilVector VectorE6
+	require.Equal(t, zero, nilVector.Sum())
+
+	for _, size := range []int{0, 1, 2, 3, 15, 16, 17, 33, 100, 1 << 12} {
+		t.Run(strconv.Itoa(size), func(t *testing.T) {
+			v := make(VectorE6, size)
+			v.MustSetRandom()
+
+			// the sum is the inner product with ones
+			ones := make(VectorE6, size)
+			for i := range ones {
+				ones[i].SetOne()
+			}
+			require.Equal(t, v.InnerProduct(ones), v.Sum())
+
+			// size copies of x sum to x multiplied by size, as an element of the base field
+			var x E6
+			x.MustSetRandom()
+			xs := make(VectorE6, size)
+			for i := range xs {
+				xs[i] = x
+			}
+			var n fr.Element
+			n.SetUint64(uint64(size))
+			var expected E6
+			expected.MulByElement(&x, &n)
+			require.Equal(t, expected, xs.Sum())
+		})
+	}
+}
+
 func TestVectorE6ButterflyPair(t *testing.T) {
 	for _, size := range []int{2, 4, 8, 16, 18} {
 		t.Run(strconv.Itoa(size), func(t *testing.T) {

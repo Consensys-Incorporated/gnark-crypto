@@ -692,6 +692,15 @@ func (vector VectorE6) MustSetRandom() {
 	}
 }
 
+// Sum returns the sum of all elements in the vector.
+func (vector VectorE6) Sum() E6 {
+	var sum E6
+	for i := range vector {
+		sum.Add(&sum, &vector[i])
+	}
+	return sum
+}
+
 // Add sets vector[i] = a[i] + b[i]. vector may be identical to a and/or b;
 // partially overlapping slices are not supported.
 func (vector VectorE6) Add(a, b VectorE6) {

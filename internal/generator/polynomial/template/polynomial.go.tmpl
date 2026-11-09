@@ -1,5 +1,8 @@
 import (
 	"{{.FieldPackagePath}}"
+{{- if .ExtensionDegree}}
+	basePolynomial "{{.BaseFieldPackagePath}}/polynomial"
+{{- end}}
 	"github.com/consensys/gnark-crypto/utils"
 	"strconv"
 	"strings"
@@ -212,12 +215,30 @@ func InterpolateOnRange{{.ExtensionName}}(v []{{.ElementType}}) Polynomial{{.Ext
 	if int(nEvals) != len(v) {
 		panic("interpolation method too inefficient for nEvals > 255")
 	}
-	lagrange := getLagrangeBasis{{.ExtensionName}}(nEvals)
+{{- if .ExtensionDegree}}
+	if nEvals == 0 {
+		panic("interpolation of an empty vector")
+	}
+	// the Lagrange bases have coefficients in the base field
+	lagrange := basePolynomial.LagrangeBasisOnRange(nEvals)
 
-	var res Polynomial{{.ExtensionName}}
+	res := make(Polynomial{{.ExtensionName}}, nEvals)
+	var term {{.ElementType}}
+	for i := range nEvals {
+		for j := range lagrange[i] {
+			term.MulByElement(&v[i], &lagrange[i][j])
+			res[j].Add(&res[j], &term)
+		}
+	}
+
+	return res
+{{- else}}
+	lagrange := LagrangeBasisOnRange(nEvals)
+
+	var res Polynomial
 	res.Scale(&v[0], lagrange[0])
 
-	temp := make(Polynomial{{.ExtensionName}}, nEvals)
+	temp := make(Polynomial, nEvals)
 
 	for i := uint8(1); i < nEvals; i++ {
 		temp.Scale(&v[i], lagrange[i])
@@ -225,41 +246,47 @@ func InterpolateOnRange{{.ExtensionName}}(v []{{.ElementType}}) Polynomial{{.Ext
 	}
 
 	return res
+{{- end}}
 }
+{{- if not .ExtensionDegree}}
 
-// lagrange bases used by InterpolateOnRange{{.ExtensionName}}
-var lagrangeBasis{{.ExtensionName}} sync.Map
+// lagrange bases used by InterpolateOnRange
+var lagrangeBasis sync.Map
 
-func getLagrangeBasis{{.ExtensionName}}(domainSize uint8) []Polynomial{{.ExtensionName}} {
-	if res, ok := lagrangeBasis{{.ExtensionName}}.Load(domainSize); ok {
-		return res.([]Polynomial{{.ExtensionName}})
+// LagrangeBasisOnRange returns, for each 0 ≤ l < domainSize, the polynomial pₗ in
+// explicit coefficient form such that pₗ(l) = 1 and pₗ(n) = 0 for every other
+// 0 ≤ n < domainSize. They are the bases of InterpolateOnRange. The result is
+// cached and shared: it must not be modified.
+func LagrangeBasisOnRange(domainSize uint8) []Polynomial {
+	if res, ok := lagrangeBasis.Load(domainSize); ok {
+		return res.([]Polynomial)
 	}
 
 	// not found. compute
-	var res []Polynomial{{.ExtensionName}}
+	var res []Polynomial
 	if domainSize >= 2 {
-		res = computeLagrangeBasis{{.ExtensionName}}(domainSize)
+		res = computeLagrangeBasis(domainSize)
 	} else if domainSize == 1 {
-		res = []Polynomial{{.ExtensionName}}{make(Polynomial{{.ExtensionName}}, 1)}
+		res = []Polynomial{make(Polynomial, 1)}
 		res[0][0].SetOne()
 	}
-	lagrangeBasis{{.ExtensionName}}.Store(domainSize, res)
+	lagrangeBasis.Store(domainSize, res)
 
 	return res
 }
 
-// computeLagrangeBasis{{.ExtensionName}} precomputes in explicit coefficient form for each 0 ≤ l < domainSize the polynomial
+// computeLagrangeBasis precomputes in explicit coefficient form for each 0 ≤ l < domainSize the polynomial
 // pₗ := X (X-1) ... (X-l-1) (X-l+1) ... (X - domainSize + 1) / ( l (l-1) ... 2 (-1) ... (l - domainSize +1) )
 // Note that pₗ(l) = 1 and pₗ(n) = 0 if 0 ≤ l < domainSize, n ≠ l
-func computeLagrangeBasis{{.ExtensionName}}(domainSize uint8) []Polynomial{{.ExtensionName}} {
+func computeLagrangeBasis(domainSize uint8) []Polynomial {
 
 	constTerms := make([]{{.ElementType}}, domainSize)
 	for i := range domainSize {
 		constTerms[i].SetInt64(-int64(i))
 	}
 
-	res := make([]Polynomial{{.ExtensionName}}, domainSize)
-	multScratch := make(Polynomial{{.ExtensionName}}, domainSize-1)
+	res := make([]Polynomial, domainSize)
+	multScratch := make(Polynomial, domainSize-1)
 
 	// compute pₗ
 	for l := range domainSize {
@@ -271,7 +298,7 @@ func computeLagrangeBasis{{.ExtensionName}}(domainSize uint8) []Polynomial{{.Ext
 				continue
 			}
 			if d == 0 {
-				res[l] = make(Polynomial{{.ExtensionName}}, domainSize)
+				res[l] = make(Polynomial, domainSize)
 				res[l][domainSize-2] = constTerms[i]
 				res[l][domainSize-1].SetOne()
 			} else {
@@ -295,14 +322,11 @@ func computeLagrangeBasis{{.ExtensionName}}(domainSize uint8) []Polynomial{{.Ext
 		constTerms[l].Neg(&constTerms[l])
 		constTerms[l] = res[l].Eval(&constTerms[l])
 	}
-{{- if .ExtensionDegree}}
-	constTerms = {{.FieldPackageName}}.BatchInvert{{.ExtensionName}}(constTerms)
-{{- else}}
 	constTerms = {{.FieldPackageName}}.BatchInvert(constTerms)
-{{- end}}
 	for l := range domainSize {
 		res[l].ScaleInPlace(&constTerms[l])
 	}
 
 	return res
 }
+{{- end}}

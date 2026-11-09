@@ -638,7 +638,117 @@ func TestG1AffineOps(t *testing.T) {
 		genScalar,
 	))
 
+	properties.Property("[BW6-633] JointScalarMultiplication and ScalarMultiplication should output the same results", prop.ForAll(
+		func(s1, s2, k fr.Element) bool {
+
+			var a2Jac G1Jac
+			a2Jac.ScalarMultiplication(&g1Gen, k.BigInt(new(big.Int)))
+			var a2 G1Affine
+			a2.FromJacobian(&a2Jac)
+
+			var op1, op2, temp G1Jac
+
+			op1.JointScalarMultiplication(&g1GenAff, &a2, s1.BigInt(new(big.Int)), s2.BigInt(new(big.Int)))
+			temp.ScalarMultiplication(&a2Jac, s2.BigInt(new(big.Int)))
+			op2.ScalarMultiplication(&g1Gen, s1.BigInt(new(big.Int))).
+				AddAssign(&temp)
+
+			return op1.Equal(&op2)
+
+		},
+		genScalar,
+		genScalar,
+		genScalar,
+	))
+
+	properties.Property("[BW6-633] JointScalarMultiplicationBase should match the generic JointScalarMultiplication", prop.ForAll(
+		func(s1, s2, k fr.Element) bool {
+
+			var a2Jac G1Jac
+			a2Jac.ScalarMultiplication(&g1Gen, k.BigInt(new(big.Int)))
+			var a2 G1Affine
+			a2.FromJacobian(&a2Jac)
+
+			var op1, op2 G1Jac
+			op1.JointScalarMultiplicationBase(&a2, s1.BigInt(new(big.Int)), s2.BigInt(new(big.Int)))
+			op2.JointScalarMultiplication(&g1GenAff, &a2, s1.BigInt(new(big.Int)), s2.BigInt(new(big.Int)))
+
+			return op1.Equal(&op2)
+
+		},
+		genScalar,
+		genScalar,
+		genScalar,
+	))
+
 	properties.TestingRun(t, gopter.ConsoleReporter(false))
+}
+
+// TestJointScalarMultiplicationEdgeCases covers the inputs that random scalars
+// and points essentially never reach: zero and negative scalars, the point at
+// infinity, and a second base equal to ±the first, which is what drives the
+// mixed addition into its doubling and cancellation branches.
+func TestJointScalarMultiplicationEdgeCases(t *testing.T) {
+	t.Parallel()
+
+	var minusG G1Affine
+	minusG.Neg(&g1GenAff)
+
+	var infinity G1Affine // (0,0) is the affine point at infinity
+
+	var randJac G1Jac
+	randJac.ScalarMultiplication(&g1Gen, big.NewInt(0xdeadbeef))
+	var rand G1Affine
+	rand.FromJacobian(&randJac)
+
+	order := fr.Modulus()
+	var orderMinusOne big.Int
+	orderMinusOne.Sub(order, big.NewInt(1))
+
+	scalars := []*big.Int{
+		big.NewInt(0),
+		big.NewInt(1),
+		big.NewInt(-1),
+		big.NewInt(7),
+		&orderMinusOne,
+		order,
+	}
+	points := []*G1Affine{&g1GenAff, &minusG, &rand, &infinity}
+
+	// reference: [s1]a1 + [s2]a2 via two independent scalar multiplications
+	reference := func(a1, a2 *G1Affine, s1, s2 *big.Int) G1Jac {
+		var j1, j2, res G1Jac
+		j1.FromAffine(a1)
+		j2.FromAffine(a2)
+		j1.ScalarMultiplication(&j1, s1)
+		j2.ScalarMultiplication(&j2, s2)
+		res.Set(&j1).AddAssign(&j2)
+		return res
+	}
+
+	for _, a1 := range points {
+		for _, a2 := range points {
+			for _, s1 := range scalars {
+				for _, s2 := range scalars {
+					want := reference(a1, a2, s1, s2)
+
+					var got G1Jac
+					got.JointScalarMultiplication(a1, a2, s1, s2)
+					if !got.Equal(&want) {
+						t.Fatalf("JointScalarMultiplication(%v, %v, %s, %s) mismatch", a1, a2, s1, s2)
+					}
+
+					if a1.Equal(&g1GenAff) {
+						var gotBase G1Jac
+						gotBase.JointScalarMultiplicationBase(a2, s1, s2)
+						if !gotBase.Equal(&want) {
+							t.Fatalf("JointScalarMultiplicationBase(%v, %s, %s) mismatch", a2, s1, s2)
+						}
+					}
+				}
+			}
+		}
+	}
 }
 
 func TestG1CofactorClearing(t *testing.T) {
@@ -874,6 +984,34 @@ func BenchmarkG1AffineBatchScalarMultiplication(b *testing.B) {
 			}
 		})
 	}
+}
+
+func BenchmarkG1JacJointScalarMultiplication(b *testing.B) {
+	var mixer fr.Element
+	mixer.SetString("7716837800905789770901243404444209691916730933998574719964609384059111546487")
+	s1 := mixer.BigInt(new(big.Int))
+	s2 := new(big.Int).Add(s1, big.NewInt(1))
+
+	var qJac G1Jac
+	qJac.ScalarMultiplication(&g1Gen, big.NewInt(0xdeadbeef))
+	var q G1Affine
+	q.FromJacobian(&qJac)
+
+	var res G1Jac
+
+	b.Run("generic", func(b *testing.B) {
+		b.ResetTimer()
+		for range b.N {
+			res.JointScalarMultiplication(&g1GenAff, &q, s1, s2)
+		}
+	})
+
+	b.Run("fixed base", func(b *testing.B) {
+		b.ResetTimer()
+		for range b.N {
+			res.JointScalarMultiplicationBase(&q, s1, s2)
+		}
+	})
 }
 
 func BenchmarkG1JacScalarMultiplication(b *testing.B) {
