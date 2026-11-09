@@ -6,7 +6,6 @@ package utils
 import (
 	"fmt"
 	"math/bits"
-	"runtime"
 	"slices"
 	"testing"
 	"unsafe"
@@ -92,9 +91,8 @@ func TestBitReverseWithNbTasks(t *testing.T) {
 }
 
 // testBitReverseCopyRouting checks BitReverseCopy against the naive kernel on
-// both sides of every switch point: tiny, the power of two just under the
-// tiling threshold and the one at it, and 2^21 where COBRA takes over for
-// non-power-of-two element sizes.
+// both sides of the tiling threshold (the power of two just under it and the
+// one at it), on a tiny slice, and on a large 2^21 slice.
 func testBitReverseCopyRouting[T comparable](t *testing.T, gen func(i int) T) {
 	elemSize := int(unsafe.Sizeof(*new(T)))
 	logAt := bits.Len(uint(bitReverseMinTiledBytes/elemSize - 1)) // smallest 2^k with 2^k·elemSize >= threshold
@@ -135,34 +133,21 @@ func TestBitReverseCopyRouting(t *testing.T) {
 	})
 }
 
-func TestBitReverseUseCobra(t *testing.T) {
-	notArm64 := runtime.GOARCH != "arm64"
-	for _, tc := range []struct {
-		n        int
-		elemSize uintptr
-		want     bool
-	}{
-		{1 << 21, 24, notArm64},
-		{1 << 21, 32, false},
-		{1 << 20, 24, false},
-		{1 << 21, 4, false},
-	} {
-		if got := bitReverseUseCobra(tc.n, tc.elemSize); got != tc.want {
-			t.Errorf("bitReverseUseCobra(2^%d, %d) = %v, want %v", bits.TrailingZeros(uint(tc.n)), tc.elemSize, got, tc.want)
-		}
-	}
-}
-
 // BenchmarkBitReverseCopyKernels compares the serial copy kernels; it documents
-// the routing in BitReverseCopy. Pin it to a core for stable numbers, e.g.
+// why BitReverseCopy uses the tiled kernel on one task. benchE6 mirrors the
+// nested struct of a koalabear/babybear E6; a flat [6]uint32 of the same size
+// compiles to slower element copies and favours COBRA instead. Pin it to a core for stable numbers, e.g.
 // taskset -c 2 go test -run '^$' -bench BitReverseCopyKernels -count 5 ./utils/
 func BenchmarkBitReverseCopyKernels(b *testing.B) {
 	logNs := []int{20, 21, 22, 23}
 	benchBitReverseCopyKernels[uint32](b, "uint32", logNs)
 	benchBitReverseCopyKernels[uint64](b, "uint64", logNs)
-	benchBitReverseCopyKernels[[3]uint64](b, "[3]uint64", logNs)
+	benchBitReverseCopyKernels[benchE6](b, "E6", logNs)
 	benchBitReverseCopyKernels[[4]uint64](b, "[4]uint64", logNs)
 }
+
+type benchE2 struct{ A0, A1 [1]uint32 }
+type benchE6 struct{ B0, B1, B2 benchE2 }
 
 func benchBitReverseCopyKernels[T any](b *testing.B, name string, logNs []int) {
 	logTile := bitReverseLogTile(int(unsafe.Sizeof(*new(T))))

@@ -52,51 +52,18 @@ func BitReverseCobra[T any](v []T) {
 // same power-of-two length and must not overlap.
 //
 // Slices of at least 128 KiB use a cache-tiled transpose, also on a single
-// task; on amd64, large slices of elements whose size is not a power of two
-// use COBRA instead when running on one task. Smaller slices use the naive
-// scatter.
+// task; smaller slices use the naive scatter.
 //
 // By default it runs on the calling goroutine; pass [WithNbTasks] to split
 // large inputs over several goroutines.
 func BitReverseCopy[T any](dst, src []T, opts ...BitReverseOption) {
 	checkBitReverseCopy(dst, src)
-	n := len(src)
-	elemSize := unsafe.Sizeof(*new(T))
-	nbTasks := bitReverseNbTasks(opts)
-
-	// COBRA beats the tiled transpose for large slices of elements whose size
-	// is not a power of two (e.g. 24-byte E6: 75 vs 88 ms at 2^23 on a Xeon
-	// 8488C, single task). For power-of-two sizes the tiled kernel is faster
-	// or equal (uint64: 3x; 32 B: 20-35% up to 2^22, tie at 2^23). With
-	// several tasks the parallel tiled kernel wins regardless of element size
-	// (E6 2^20: 1.04 ms on 64 tasks vs 7.1 ms serial), and COBRA is serial.
-	if nbTasks <= 1 && bitReverseUseCobra(n, elemSize) {
-		bitReverseCopyCobra(dst, src)
-		return
-	}
-	if tasks, logTile, ok := bitReverseTiling[T](n, nbTasks); ok {
+	if tasks, logTile, ok := bitReverseTiling[T](len(src), bitReverseNbTasks(opts)); ok {
 		bitReverseCopyParallel(dst, src, tasks, logTile) // tasks may be 1
 		return
 	}
-	// Unreachable for n >= 2^21 with the current tiling rules; kept so COBRA
-	// is not silently lost if they change.
-	if bitReverseUseCobra(n, elemSize) {
-		bitReverseCopyCobra(dst, src)
-		return
-	}
+	// Below the tiling threshold the slice is cache-resident; naive is fastest.
 	bitReverseCopyNaive(dst, src)
-}
-
-// bitReverseUseCobra reports whether the serial COBRA kernel should handle a
-// slice of n elements of elemSize bytes: amd64 only (naive wins on arm64), at
-// least 2^21 elements, and an element size of at least 8 bytes that is not a
-// power of two, the only case where it beats the tiled kernel. This was
-// measured at 24 bytes; at 48 bytes COBRA and tiling tie or tiling wins.
-func bitReverseUseCobra(n int, elemSize uintptr) bool {
-	return runtime.GOARCH != "arm64" &&
-		n >= 1<<21 &&
-		elemSize >= 8 &&
-		elemSize&(elemSize-1) != 0
 }
 
 // BitReverseCopyNaive writes dst[bitrev(i)] = src[i] using direct indexed
