@@ -26,7 +26,7 @@ type bitReverseConfig struct {
 // should keep the default or pass their share of the CPUs.
 //
 // Fewer tasks than requested are used on small inputs, where spawning a
-// goroutine costs more than it saves; below that size the serial path is used.
+// goroutine costs more than it saves (each task gets at least 256 KiB).
 func WithNbTasks(nbTasks int) BitReverseOption {
 	return func(c *bitReverseConfig) {
 		if nbTasks <= 0 {
@@ -54,29 +54,38 @@ const (
 	bitReverseMaxLogTile   = 5
 	// bitReverseBytesPerTask is the least data a goroutine is given.
 	bitReverseBytesPerTask = 256 << 10
+	// bitReverseMinTiledBytes is the smallest slice the tiled kernels handle;
+	// below it the naive scatter is cache-resident and faster.
+	bitReverseMinTiledBytes = 128 << 10
 )
 
-// bitReverseParallelTasks returns the number of goroutines to use for a
-// parallel bit reversal of n elements of type T, and log2 of the tile side.
-// It returns nbTasks <= 1 when the serial path should be used instead.
-func bitReverseParallelTasks[T any](n, nbTasks int) (tasks, logTile int) {
-	if nbTasks <= 1 {
-		return 1, 0
-	}
+// bitReverseTiling reports whether the tiled kernels apply to n elements of
+// type T (ok), and if so how many goroutines to use (at most nbTasks, possibly
+// 1) and log2 of the tile side. Tiling applies to slices of at least
+// bitReverseMinTiledBytes whose length allows a full tile.
+func bitReverseTiling[T any](n, nbTasks int) (tasks, logTile int, ok bool) {
 	elemSize := int(unsafe.Sizeof(*new(T)))
-	if elemSize == 0 {
-		return 1, 0
+	if elemSize == 0 || n*elemSize < bitReverseMinTiledBytes {
+		return 1, 0, false
 	}
-	logTile = bitReverseMaxLogTile
+	logTile = bitReverseLogTile(elemSize)
+	logN := bits.TrailingZeros(uint(n))
+	if logN < 2*logTile {
+		return 1, 0, false
+	}
+	tasks = max(1, min(nbTasks, n*elemSize/bitReverseBytesPerTask, 1<<(logN-2*logTile)))
+	return tasks, logTile, true
+}
+
+// bitReverseLogTile returns log2 of the tile side for elements of elemSize
+// bytes: the largest power of two, at most 2^bitReverseMaxLogTile, with
+// B·elemSize <= bitReverseTileRowBytes.
+func bitReverseLogTile(elemSize int) int {
+	logTile := bitReverseMaxLogTile
 	for logTile > 1 && (1<<logTile)*elemSize > bitReverseTileRowBytes {
 		logTile--
 	}
-	logN := bits.TrailingZeros(uint(n))
-	if logN < 2*logTile {
-		return 1, 0
-	}
-	tasks = min(nbTasks, n*elemSize/bitReverseBytesPerTask, 1<<(logN-2*logTile))
-	return tasks, logTile
+	return logTile
 }
 
 // The parallel bit reversals below split the logN index bits as
