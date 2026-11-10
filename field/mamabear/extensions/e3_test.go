@@ -532,6 +532,21 @@ func TestVectorE3ElementwiseOps(t *testing.T) {
 	require.Equal(t, neg, aliased)
 }
 
+func TestVectorE3InnerProductByElement(t *testing.T) {
+	const size = 17
+	a := make(VectorE3, size)
+	a.MustSetRandom()
+	scalars := make(fr.Vector, size)
+	scalars.MustSetRandom()
+
+	var expected, p E3
+	for i := range a {
+		p.MulByElement(&a[i], &scalars[i])
+		expected.Add(&expected, &p)
+	}
+	require.Equal(t, expected, a.InnerProductByElement(scalars))
+}
+
 func TestE3MarshalSetBytesCanonicalRoundTrip(t *testing.T) {
 	for range 100 {
 		var x E3

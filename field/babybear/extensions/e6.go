@@ -830,6 +830,19 @@ func (vector VectorE6) InnerProduct(a VectorE6) E6 {
 	return res
 }
 
+// InnerProductByElement returns the sum of vector[i] * a[i], where a[i] ∈ F_p.
+func (vector VectorE6) InnerProductByElement(a fr.Vector) E6 {
+	if len(vector) != len(a) {
+		panic("vector.InnerProductByElement: vectors don't have the same length")
+	}
+	var res, tmp E6
+	for i := range vector {
+		tmp.MulByElement(&vector[i], &a[i])
+		res.Add(&res, &tmp)
+	}
+	return res
+}
+
 // Butterfly computes the in-place butterfly operation on two vectors of E6 elements.
 // If other overlaps with vector, the result is undefined; the caller should use a temp vector.
 func (vector VectorE6) Butterfly(other VectorE6) {

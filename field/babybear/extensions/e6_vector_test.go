@@ -572,6 +572,15 @@ func TestVectorE6InnerProduct(t *testing.T) {
 					expected.Add(&expected, &p)
 				}
 				require.Equal(t, expected, a.InnerProduct(b))
+
+				scalars := make(fr.Vector, size)
+				scalars.MustSetRandom()
+				var expectedByElement E6
+				for i := range a {
+					p.MulByElement(&a[i], &scalars[i])
+					expectedByElement.Add(&expectedByElement, &p)
+				}
+				require.Equal(t, expectedByElement, a.InnerProductByElement(scalars))
 			})
 		}
 	}
