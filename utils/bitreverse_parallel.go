@@ -54,12 +54,12 @@ const (
 	bitReverseMaxLogTile   = 5
 	// bitReverseBytesPerTask is the least data a goroutine is given.
 	bitReverseBytesPerTask = 256 << 10
-	// bitReverseMinTiledBytes is the smallest slice the tiled kernels handle;
+	// bitReverseMinTiledBytes is the smallest slice the COBRA-L1 kernels handle;
 	// below it the naive scatter is cache-resident and faster.
 	bitReverseMinTiledBytes = 128 << 10
 )
 
-// bitReverseTiling reports whether the tiled kernels apply to n elements of
+// bitReverseTiling reports whether the COBRA-L1 kernels apply to n elements of
 // type T (ok), and if so how many goroutines to use (at most nbTasks, possibly
 // 1) and log2 of the tile side. Tiling applies to slices of at least
 // bitReverseMinTiledBytes whose length allows a full tile.
@@ -88,18 +88,37 @@ func bitReverseLogTile(elemSize int) int {
 	return logTile
 }
 
-// The parallel bit reversals below split the logN index bits as
-// i = a|c|b, with a and b of q = logTile bits each and c of mid = logN-2q bits,
-// so that bitrev(i) = rev(b)|rev(c)|rev(a). For a fixed middle c, the B×B
-// elements (a, b) form B contiguous runs of B elements (the tile of c), and
-// their images form the tile of rev(c). Each tile is transposed through a
-// small L1-resident buffer, so every source and destination cache line is
-// touched in one burst; storing straight from the tile would make the B
-// destination runs, which are a power-of-two stride apart, evict each other.
+// COBRA-L1: the COBRA bit reversal (Carter and Gatlin, "Towards an Optimal
+// Bit-Reversal Permutation Program", 1998; see bitReverseCobraInPlace for the
+// references) with tiles sized to stay in L1, spread over goroutines.
+//
+// Reversing a bit string split into three fields is reversing each field and
+// swapping the outer two. With the logN index bits split as i = a|c|b, a and b
+// of q = logTile bits and c of mid = logN-2q bits,
+//
+//	bitrev(a|c|b) = rev(b)|rev(c)|rev(a).
+//
+// For a fixed middle c, the B×B elements (a, b), B = 2^q, form B contiguous
+// runs of B elements (the tile of c), and their images form the tile of
+// rev(c): element (a, b) goes to row rev(b), column rev(a), i.e. the tile is
+// transposed with both coordinates reversed. Each tile goes through a small
+// buffer, so every source and destination cache line is touched in one burst;
+// storing straight from the tile would make the B destination runs, which are
+// a power-of-two stride apart, evict each other.
+//
+// Differences with bitReverseCobra / bitReverseCopyCobra (same algorithm):
+//   - the tile side is 2^q with B·sizeof(T) <= 256 bytes and q <= 5, so the
+//     B×B buffer is a few KiB and stays in L1, where bitReverseCobra uses a
+//     side of up to 2^9 (a buffer of up to 2^18 elements, in L2/L3);
+//   - the transpose happens when filling the buffer (strided writes into it,
+//     then contiguous copies out) rather than when emptying it;
+//   - tiles of distinct c are disjoint, so they are split over the tasks; in
+//     place, the tiles of c and rev(c) are exchanged together by one task.
 
-// bitReverseCopyParallel writes dst[bitrev(i)] = src[i]. Tiles of distinct c
+// bitReverseCopyCobraL1 writes dst[bitrev(i)] = src[i] with COBRA-L1, on
+// tasks goroutines (1 runs it on the calling goroutine). Tiles of distinct c
 // are disjoint and are spread over the tasks.
-func bitReverseCopyParallel[T any](dst, src []T, tasks, logTile int) {
+func bitReverseCopyCobraL1[T any](dst, src []T, tasks, logTile int) {
 	n := len(src)
 	logN := bits.TrailingZeros(uint(n))
 	q := logTile
@@ -133,10 +152,11 @@ func bitReverseCopyParallel[T any](dst, src []T, tasks, logTile int) {
 	}, tasks)
 }
 
-// bitReversePermuteParallel applies the bit-reversal permutation to v in place.
-// The tiles of c and rev(c) are exchanged by the task that owns
-// min(c, rev(c)); distinct pairs are disjoint, so tasks do not race.
-func bitReversePermuteParallel[T any](v []T, tasks, logTile int) {
+// bitReverseCobraInPlaceL1 applies the bit-reversal permutation to v in place
+// with COBRA-L1, on tasks goroutines. The tiles of c and rev(c) are exchanged
+// by the task that owns min(c, rev(c)); distinct pairs are disjoint, so tasks
+// do not race.
+func bitReverseCobraInPlaceL1[T any](v []T, tasks, logTile int) {
 	n := len(v)
 	logN := bits.TrailingZeros(uint(n))
 	q := logTile

@@ -11,10 +11,10 @@ import (
 	"unsafe"
 )
 
-// testBitReverseParallelKernels checks the parallel kernels against the naive
+// testBitReverseCobraL1Kernels checks the COBRA-L1 kernels against the naive
 // permutation for every size, tile size and task count, bypassing the size
 // heuristic of the public API.
-func testBitReverseParallelKernels[T comparable](t *testing.T, gen func(i int) T, maxLogN int) {
+func testBitReverseCobraL1Kernels[T comparable](t *testing.T, gen func(i int) T, maxLogN int) {
 	for logN := 2; logN <= maxLogN; logN++ {
 		n := 1 << logN
 		src := make([]T, n)
@@ -27,13 +27,13 @@ func testBitReverseParallelKernels[T comparable](t *testing.T, gen func(i int) T
 		for logTile := 1; logTile <= bitReverseMaxLogTile && 2*logTile <= logN; logTile++ {
 			for _, tasks := range []int{1, 2, 3, 7, 64} {
 				dst := make([]T, n)
-				bitReverseCopyParallel(dst, src, tasks, logTile)
+				bitReverseCopyCobraL1(dst, src, tasks, logTile)
 				if !slices.Equal(dst, want) {
 					t.Fatalf("copy: 2^%d, logTile=%d, tasks=%d: mismatch", logN, logTile, tasks)
 				}
 
 				got := slices.Clone(src)
-				bitReversePermuteParallel(got, tasks, logTile)
+				bitReverseCobraInPlaceL1(got, tasks, logTile)
 				if !slices.Equal(got, want) {
 					t.Fatalf("in-place: 2^%d, logTile=%d, tasks=%d: mismatch", logN, logTile, tasks)
 				}
@@ -42,15 +42,15 @@ func testBitReverseParallelKernels[T comparable](t *testing.T, gen func(i int) T
 	}
 }
 
-func TestBitReverseParallelKernels(t *testing.T) {
+func TestBitReverseCobraL1Kernels(t *testing.T) {
 	t.Run("uint32", func(t *testing.T) {
-		testBitReverseParallelKernels(t, func(i int) uint32 { return uint32(i) }, 14)
+		testBitReverseCobraL1Kernels(t, func(i int) uint32 { return uint32(i) }, 14)
 	})
 	t.Run("[6]uint32", func(t *testing.T) {
-		testBitReverseParallelKernels(t, func(i int) [6]uint32 { return [6]uint32{uint32(i), uint32(^i)} }, 12)
+		testBitReverseCobraL1Kernels(t, func(i int) [6]uint32 { return [6]uint32{uint32(i), uint32(^i)} }, 12)
 	})
 	t.Run("[4]uint64", func(t *testing.T) {
-		testBitReverseParallelKernels(t, func(i int) [4]uint64 { return [4]uint64{uint64(i), 0, 0, uint64(^i)} }, 12)
+		testBitReverseCobraL1Kernels(t, func(i int) [4]uint64 { return [4]uint64{uint64(i), 0, 0, uint64(^i)} }, 12)
 	})
 }
 
@@ -134,9 +134,9 @@ func TestBitReverseCopyRouting(t *testing.T) {
 }
 
 // BenchmarkBitReverseCopyKernels compares the serial copy kernels; it documents
-// why BitReverseCopy uses the tiled kernel on one task. benchE6 mirrors the
-// nested struct of a koalabear/babybear E6; a flat [6]uint32 of the same size
-// compiles to slower element copies and favours COBRA instead. Pin it to a core for stable numbers, e.g.
+// why BitReverseCopy uses COBRA-L1 on one task. benchE6 mirrors the nested
+// struct of a koalabear/babybear E6; a flat [6]uint32 of the same size
+// compiles to slower element copies and favours COBRA with 2^9 tiles instead. Pin it to a core for stable numbers, e.g.
 // taskset -c 2 go test -run '^$' -bench BitReverseCopyKernels -count 5 ./utils/
 func BenchmarkBitReverseCopyKernels(b *testing.B) {
 	logNs := []int{20, 21, 22, 23}
@@ -159,14 +159,14 @@ func benchBitReverseCopyKernels[T any](b *testing.B, name string, logNs []int) {
 				bitReverseCopyNaive(dst, src)
 			}
 		})
-		b.Run(fmt.Sprintf("%s/2^%d/cobra", name, logN), func(b *testing.B) {
+		b.Run(fmt.Sprintf("%s/2^%d/cobra9", name, logN), func(b *testing.B) {
 			for b.Loop() {
 				bitReverseCopyCobra(dst, src)
 			}
 		})
-		b.Run(fmt.Sprintf("%s/2^%d/tiled1", name, logN), func(b *testing.B) {
+		b.Run(fmt.Sprintf("%s/2^%d/cobraL1", name, logN), func(b *testing.B) {
 			for b.Loop() {
-				bitReverseCopyParallel(dst, src, 1, logTile)
+				bitReverseCopyCobraL1(dst, src, 1, logTile)
 			}
 		})
 	}
