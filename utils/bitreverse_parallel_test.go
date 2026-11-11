@@ -6,6 +6,7 @@ package utils
 import (
 	"fmt"
 	"math/bits"
+	"runtime"
 	"slices"
 	"testing"
 	"unsafe"
@@ -73,6 +74,15 @@ func testBitReverseWithNbTasks[T comparable](t *testing.T, gen func(i int) T, lo
 			if !slices.Equal(got, want) {
 				t.Fatalf("BitReverse: 2^%d, nbTasks=%d: mismatch", logN, nbTasks)
 			}
+		}
+	}
+}
+
+func TestWithNbTasksBounds(t *testing.T) {
+	// Same convention as fft.WithNbTasks: < 1 means serial, capped at 512.
+	for in, want := range map[int]int{-3: 1, 0: 1, 1: 1, 7: 7, 512: 512, 10000: 512} {
+		if got := bitReverseNbTasks([]BitReverseOption{WithNbTasks(in)}); got != want {
+			t.Errorf("WithNbTasks(%d): %d tasks, want %d", in, got, want)
 		}
 	}
 }
@@ -189,11 +199,8 @@ func benchBitReverseParallel[T any](b *testing.B, name string, logNs []int) {
 	for _, logN := range logNs {
 		src := make([]T, 1<<logN)
 		dst := make([]T, 1<<logN)
-		for _, nbTasks := range []int{1, 8, 32, 0} {
+		for _, nbTasks := range []int{1, 8, 32, runtime.GOMAXPROCS(0)} {
 			label := fmt.Sprint(nbTasks)
-			if nbTasks == 0 {
-				label = "max"
-			}
 			b.Run(fmt.Sprintf("%s/copy/2^%d/tasks=%s", name, logN, label), func(b *testing.B) {
 				for b.Loop() {
 					BitReverseCopy(dst, src, WithNbTasks(nbTasks))
