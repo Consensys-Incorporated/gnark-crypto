@@ -51,7 +51,7 @@ const (
 	// it the slice fits in cache and the naive loop is used. One threshold for
 	// all element sizes, measured on amd64 and arm64.
 	bitReverseMinTiledBytes = 128 << 10
-	// bitReverseLargeSliceBytes is the slice size from which 16- to 64-byte
+	// bitReverseLargeSliceBytes is the slice size from which 16- to 96-byte
 	// elements use the largest tile (see bitReverseTiling).
 	bitReverseLargeSliceBytes = 64 << 20
 )
@@ -85,7 +85,7 @@ func bitReverseSerialInPlace(elemSize uintptr) bool {
 //	slice < 128 KiB                        → naive
 //	q = largest q <= 6 with B²·elemSize <= bitReverseTileBufBytes()
 //	    (16 KiB, or 32 KiB on arm64)
-//	16 <= elemSize <= 64, slice >= 64 MiB  → q = 6
+//	16 <= elemSize <= 96, slice >= 64 MiB  → q = 6
 //	logN < 2q (no full B×B tile)           → naive
 //	tasks = max(1, min(nbTasks, slice/256 KiB, tiles))
 //	BitReverseCopy                         → COBRA-L1(tasks, q)
@@ -103,11 +103,12 @@ func bitReverseTiling[T any](n, nbTasks int) (tasks, logTile int, ok bool) {
 	logTile = bitReverseLogTile(elemSize)
 	// On slices far beyond the caches, each far jump costs a DRAM access, and
 	// fewer jumps per element (a bigger tile) pay off more than keeping the
-	// tile in L1. For 16- to 64-byte elements, q = 6 is then 1.3–1.4× faster
-	// on AMD Zen 4 (where the L1 budget's q = 4 lost to COBRA-9) and equal or
-	// faster on a Xeon 8488C. The upper bound keeps the q = 6 buffer at
-	// 256 KiB or less; larger elements keep the budget's q.
-	if elemSize >= 16 && elemSize <= 64 && bytes >= bitReverseLargeSliceBytes {
+	// tile in L1. For 16- to 96-byte elements, q = 6 is then 1.1–1.4× faster
+	// on AMD Zen 4 (where the L1 budget's smaller q lost to COBRA-9) and equal
+	// or faster on a Xeon 8488C. The upper bound (the largest size measured)
+	// keeps each q = 6 tile buffer at 384 KiB or less, two of them in place;
+	// larger elements keep the budget's q.
+	if elemSize >= 16 && elemSize <= 96 && bytes >= bitReverseLargeSliceBytes {
 		logTile = bitReverseMaxLogTile
 	}
 	logN := bits.TrailingZeros(uint(n))
