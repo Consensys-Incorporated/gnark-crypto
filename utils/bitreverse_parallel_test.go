@@ -65,12 +65,12 @@ func testBitReverseWithNbTasks[T comparable](t *testing.T, gen func(i int) T, lo
 		bitReverseNaive(want)
 		for _, nbTasks := range []int{0, 1, 2, 5, 16} {
 			dst := make([]T, len(src))
-			BitReverseCopy(dst, src, WithNbTasks(nbTasks))
+			BitReverseCopy(dst, src, WithBitReverseNbTasks(nbTasks))
 			if !slices.Equal(dst, want) {
 				t.Fatalf("BitReverseCopy: 2^%d, nbTasks=%d: mismatch", logN, nbTasks)
 			}
 			got := slices.Clone(src)
-			BitReverse(got, WithNbTasks(nbTasks))
+			BitReverse(got, WithBitReverseNbTasks(nbTasks))
 			if !slices.Equal(got, want) {
 				t.Fatalf("BitReverse: 2^%d, nbTasks=%d: mismatch", logN, nbTasks)
 			}
@@ -78,11 +78,11 @@ func testBitReverseWithNbTasks[T comparable](t *testing.T, gen func(i int) T, lo
 	}
 }
 
-func TestWithNbTasksBounds(t *testing.T) {
+func TestWithBitReverseNbTasksBounds(t *testing.T) {
 	// Same convention as fft.WithNbTasks: < 1 means serial, capped at 512.
 	for in, want := range map[int]int{-3: 1, 0: 1, 1: 1, 7: 7, 512: 512, 10000: 512} {
-		if got := bitReverseNbTasks([]BitReverseOption{WithNbTasks(in)}); got != want {
-			t.Errorf("WithNbTasks(%d): %d tasks, want %d", in, got, want)
+		if got := bitReverseNbTasks([]BitReverseOption{WithBitReverseNbTasks(in)}); got != want {
+			t.Errorf("WithBitReverseNbTasks(%d): %d tasks, want %d", in, got, want)
 		}
 	}
 }
@@ -117,12 +117,12 @@ func testBitReverseCopyRouting[T comparable](t *testing.T, gen func(i int) T) {
 		dst := make([]T, n)
 		for _, nbTasks := range []int{0, 1, 2, 64} {
 			clear(dst)
-			BitReverseCopy(dst, src, WithNbTasks(nbTasks))
+			BitReverseCopy(dst, src, WithBitReverseNbTasks(nbTasks))
 			if !slices.Equal(dst, want) {
 				t.Fatalf("copy: 2^%d, nbTasks=%d: mismatch", logN, nbTasks)
 			}
 			copy(dst, src)
-			BitReverse(dst, WithNbTasks(nbTasks))
+			BitReverse(dst, WithBitReverseNbTasks(nbTasks))
 			if !slices.Equal(dst, want) {
 				t.Fatalf("in-place: 2^%d, nbTasks=%d: mismatch", logN, nbTasks)
 			}
@@ -203,12 +203,12 @@ func benchBitReverseParallel[T any](b *testing.B, name string, logNs []int) {
 			label := fmt.Sprint(nbTasks)
 			b.Run(fmt.Sprintf("%s/copy/2^%d/tasks=%s", name, logN, label), func(b *testing.B) {
 				for b.Loop() {
-					BitReverseCopy(dst, src, WithNbTasks(nbTasks))
+					BitReverseCopy(dst, src, WithBitReverseNbTasks(nbTasks))
 				}
 			})
 			b.Run(fmt.Sprintf("%s/in-place/2^%d/tasks=%s", name, logN, label), func(b *testing.B) {
 				for b.Loop() {
-					BitReverse(src, WithNbTasks(nbTasks))
+					BitReverse(src, WithBitReverseNbTasks(nbTasks))
 				}
 			})
 		}
@@ -229,10 +229,10 @@ func TestBitReverseNoAlloc(t *testing.T) {
 	v := make([]uint64, 16)
 	dst := make([]uint64, 16)
 	for name, f := range map[string]func(){
-		"BitReverse":                 func() { BitReverse(v) },
-		"BitReverse/WithNbTasks":     func() { BitReverse(v, WithNbTasks(4)) },
-		"BitReverseCopy":             func() { BitReverseCopy(dst, v) },
-		"BitReverseCopy/WithNbTasks": func() { BitReverseCopy(dst, v, WithNbTasks(0)) },
+		"BitReverse":                           func() { BitReverse(v) },
+		"BitReverse/WithBitReverseNbTasks":     func() { BitReverse(v, WithBitReverseNbTasks(4)) },
+		"BitReverseCopy":                       func() { BitReverseCopy(dst, v) },
+		"BitReverseCopy/WithBitReverseNbTasks": func() { BitReverseCopy(dst, v, WithBitReverseNbTasks(0)) },
 	} {
 		if n := testing.AllocsPerRun(100, f); n != 0 {
 			t.Errorf("%s: %v allocations per call, want 0", name, n)

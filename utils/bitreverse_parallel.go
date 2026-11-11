@@ -20,13 +20,12 @@ type bitReverseConfig struct {
 	nbTasks int
 }
 
-// WithNbTasks lets [BitReverse] and [BitReverseCopy] split the permutation
-// over up to nbTasks goroutines. Like fft.WithNbTasks, nbTasks < 1 means one
-// task (serial) and nbTasks is capped at 512; pass runtime.GOMAXPROCS(0) to
-// use every core.
-// The default is one task. Small inputs use fewer tasks (each gets at least
-// 256 KiB).
-func WithNbTasks(nbTasks int) BitReverseOption {
+// WithBitReverseNbTasks lets [BitReverse] and [BitReverseCopy] split the
+// permutation over up to nbTasks goroutines. Like fft.WithNbTasks, nbTasks < 1
+// means one task (serial) and nbTasks is capped at 512; pass
+// runtime.GOMAXPROCS(0) to use every core. The default is one task. Small
+// inputs use fewer tasks (each gets at least 256 KiB).
+func WithBitReverseNbTasks(nbTasks int) BitReverseOption {
 	nbTasks = min(max(nbTasks, 1), 512)
 	return func(c bitReverseConfig) bitReverseConfig {
 		c.nbTasks = nbTasks
@@ -83,7 +82,7 @@ func bitReverseSerialInPlace(elemSize uintptr) bool {
 //
 // Together with BitReverse and BitReverseCopy, the full dispatch is:
 //
-//	nbTasks = WithNbTasks(n) clamped to [1, 512], 1 by default
+//	nbTasks = WithBitReverseNbTasks(n) clamped to [1, 512], 1 by default
 //	slice < 128 KiB                        → naive
 //	q = largest q <= 6 with B²·elemSize <= bitReverseTileBufBytes()
 //	    (16 KiB, or 32 KiB on arm64)

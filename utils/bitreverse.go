@@ -13,7 +13,7 @@ import (
 //
 // Slices of at least 128 KiB use COBRA-L1 (see bitReverseCobraInPlaceL1),
 // except for elements over 4 bytes on one task on arm64; smaller slices use
-// the naive loop. It runs on the calling goroutine unless [WithNbTasks] is
+// the naive loop. It runs on the calling goroutine unless [WithBitReverseNbTasks] is
 // given.
 func BitReverse[T any](v []T, opts ...BitReverseOption) {
 	checkBitReverseLength(len(v))
@@ -47,7 +47,7 @@ func BitReverseCobra[T any](v []T) {
 //
 // Slices of at least 128 KiB use COBRA-L1 (see bitReverseCopyCobraL1);
 // smaller slices use the naive loop. It runs on the calling goroutine unless
-// [WithNbTasks] is given.
+// [WithBitReverseNbTasks] is given.
 func BitReverseCopy[T any](dst, src []T, opts ...BitReverseOption) {
 	checkBitReverseCopy(dst, src)
 	if tasks, logTile, ok := bitReverseTiling[T](len(src), bitReverseNbTasks(opts)); ok {
