@@ -25,6 +25,7 @@ import (
 	"github.com/consensys/gnark-crypto/internal/generator/fflonk"
 	"github.com/consensys/gnark-crypto/internal/generator/field"
 	fieldConfig "github.com/consensys/gnark-crypto/internal/generator/field/config"
+	fieldTemplate "github.com/consensys/gnark-crypto/internal/generator/field/template"
 	"github.com/consensys/gnark-crypto/internal/generator/hash_to_curve"
 	"github.com/consensys/gnark-crypto/internal/generator/hash_to_field"
 	"github.com/consensys/gnark-crypto/internal/generator/kzg"
@@ -276,6 +277,15 @@ func main() {
 		}
 		eccFieldGen := common.NewGenerator(configTemplate.FS, copyrightHolder, copyrightYear, "consensys/gnark-crypto")
 		assertNoError(eccFieldGen.Generate(config.Curves, "ecc", "", "", entries...))
+	}
+
+	// generate utils/bitreverse.go (generic, not per field)
+	{
+		entries := []bavard.Entry{
+			{File: filepath.Join(baseDir, "utils", "bitreverse.go"), Templates: []string{"bitreverse.go.tmpl"}},
+		}
+		utilsGen := common.NewGenerator(fieldTemplate.FS, copyrightHolder, copyrightYear, "consensys/gnark-crypto")
+		assertNoError(utilsGen.Generate(struct{}{}, "utils", "", "fft", entries...))
 	}
 
 	// format the whole directory
