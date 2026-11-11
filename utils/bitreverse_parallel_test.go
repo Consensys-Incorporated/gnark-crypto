@@ -90,7 +90,7 @@ func TestBitReverseWithNbTasks(t *testing.T) {
 	})
 }
 
-// testBitReverseCopyRouting checks BitReverseCopy against the naive kernel on
+// testBitReverseCopyRouting checks BitReverseCopy and BitReverse against the naive kernel on
 // both sides of the tiling threshold (the power of two just under it and the
 // one at it), on a tiny slice, and on a large 2^21 slice.
 func testBitReverseCopyRouting[T comparable](t *testing.T, gen func(i int) T) {
@@ -109,7 +109,12 @@ func testBitReverseCopyRouting[T comparable](t *testing.T, gen func(i int) T) {
 			clear(dst)
 			BitReverseCopy(dst, src, WithNbTasks(nbTasks))
 			if !slices.Equal(dst, want) {
-				t.Fatalf("2^%d, nbTasks=%d: mismatch", logN, nbTasks)
+				t.Fatalf("copy: 2^%d, nbTasks=%d: mismatch", logN, nbTasks)
+			}
+			copy(dst, src)
+			BitReverse(dst, WithNbTasks(nbTasks))
+			if !slices.Equal(dst, want) {
+				t.Fatalf("in-place: 2^%d, nbTasks=%d: mismatch", logN, nbTasks)
 			}
 		}
 	}
@@ -150,7 +155,7 @@ type benchE2 struct{ A0, A1 [1]uint32 }
 type benchE6 struct{ B0, B1, B2 benchE2 }
 
 func benchBitReverseCopyKernels[T any](b *testing.B, name string, logNs []int) {
-	logTile := bitReverseLogTile(int(unsafe.Sizeof(*new(T))), 1)
+	logTile := bitReverseLogTile(int(unsafe.Sizeof(*new(T))))
 	for _, logN := range logNs {
 		src := make([]T, 1<<logN)
 		dst := make([]T, 1<<logN)

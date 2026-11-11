@@ -5,30 +5,27 @@ package utils
 
 import (
 	"math/bits"
-	"runtime"
 	"unsafe" // used for a heuristic on size of generic type, non critical.
 )
 
 // BitReverse applies the bit-reversal permutation to v.
 // len(v) must be a power of 2.
 //
+// Slices of at least 128 KiB use COBRA with L1-sized tiles (see
+// bitReverseCobraInPlaceL1), also on a single task (on arm64, single-task
+// tiling is limited to elements of at most 4 bytes); smaller slices use naive
+// swaps.
+//
 // By default it runs on the calling goroutine; pass [WithNbTasks] to split
 // large inputs over several goroutines.
 func BitReverse[T any](v []T, opts ...BitReverseOption) {
 	checkBitReverseLength(len(v))
-
-	// In place, COBRA-L1 only pays off when it runs on several tasks: on one
-	// core it ties or loses against naive/COBRA (2^9 tiles) for large elements.
-	if tasks, logTile, ok := bitReverseTiling[T](len(v), bitReverseNbTasks(opts), 2); ok && tasks > 1 {
-		bitReverseCobraInPlaceL1(v, tasks, logTile)
+	if tasks, logTile, ok := bitReverseTiling[T](len(v), bitReverseNbTasks(opts)); ok &&
+		(tasks > 1 || unsafe.Sizeof(*new(T)) <= bitReverseSerialInPlaceMaxElemSize) {
+		bitReverseCobraInPlaceL1(v, tasks, logTile) // tasks may be 1
 		return
 	}
-
-	if runtime.GOARCH == "arm64" || len(v) < (1<<21) || unsafe.Sizeof(v[0]) < 8 {
-		bitReverseNaive(v)
-	} else {
-		bitReverseCobra(v)
-	}
+	bitReverseNaive(v)
 }
 
 // BitReverseNaive applies the bit-reversal permutation to v using direct
@@ -59,7 +56,7 @@ func BitReverseCobra[T any](v []T) {
 // large inputs over several goroutines.
 func BitReverseCopy[T any](dst, src []T, opts ...BitReverseOption) {
 	checkBitReverseCopy(dst, src)
-	if tasks, logTile, ok := bitReverseTiling[T](len(src), bitReverseNbTasks(opts), 1); ok {
+	if tasks, logTile, ok := bitReverseTiling[T](len(src), bitReverseNbTasks(opts)); ok {
 		bitReverseCopyCobraL1(dst, src, tasks, logTile) // tasks may be 1
 		return
 	}

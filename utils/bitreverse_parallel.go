@@ -55,7 +55,7 @@ const (
 )
 
 // bitReverseTileBufBytes (bitreverse_tile_*.go) is the L1 budget for the B×B
-// tile buffers of one task. The kernels scatter into the buffer with strided
+// tile buffer of one task. The kernels scatter into the buffer with strided
 // stores, which become expensive as soon as the buffer leaves L1, so the
 // budget is a fraction of a conservative L1d size per architecture.
 //
@@ -69,14 +69,13 @@ const (
 // bitReverseTiling reports whether the COBRA-L1 kernels apply to n elements of
 // type T (ok), and if so how many goroutines to use (at most nbTasks, possibly
 // 1) and log2 of the tile side. Tiling applies to slices of at least
-// bitReverseMinTiledBytes whose length allows a full tile. nbBufs is the number
-// of B×B buffers a task holds at once (1 for copy, 2 in place).
-func bitReverseTiling[T any](n, nbTasks, nbBufs int) (tasks, logTile int, ok bool) {
+// bitReverseMinTiledBytes whose length allows a full tile.
+func bitReverseTiling[T any](n, nbTasks int) (tasks, logTile int, ok bool) {
 	elemSize := int(unsafe.Sizeof(*new(T)))
 	if elemSize == 0 || n*elemSize < bitReverseMinTiledBytes {
 		return 1, 0, false
 	}
-	logTile = bitReverseLogTile(elemSize, nbBufs)
+	logTile = bitReverseLogTile(elemSize)
 	logN := bits.TrailingZeros(uint(n))
 	if logN < 2*logTile {
 		return 1, 0, false
@@ -86,11 +85,13 @@ func bitReverseTiling[T any](n, nbTasks, nbBufs int) (tasks, logTile int, ok boo
 }
 
 // bitReverseLogTile returns log2 of the tile side for elements of elemSize
-// bytes when a task holds nbBufs B×B buffers: the largest q in
-// [1, bitReverseMaxLogTile] with nbBufs·B²·elemSize <= bitReverseTileBufBytes.
-func bitReverseLogTile(elemSize, nbBufs int) int {
+// bytes: the largest q in [1, bitReverseMaxLogTile] with
+// B²·elemSize <= bitReverseTileBufBytes. In place, a task holds two such
+// buffers but uses them one after the other; measured, it does best with the
+// same q as copy (uint32: 15–20% faster at q = 6 than at q = 5).
+func bitReverseLogTile(elemSize int) int {
 	logTile := bitReverseMaxLogTile
-	for logTile > 1 && nbBufs*(1<<(2*logTile))*elemSize > bitReverseTileBufBytes {
+	for logTile > 1 && (1<<(2*logTile))*elemSize > bitReverseTileBufBytes {
 		logTile--
 	}
 	return logTile
