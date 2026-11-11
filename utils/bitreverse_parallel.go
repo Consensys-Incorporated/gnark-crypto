@@ -84,12 +84,6 @@ func bitReverseTiling[T any](n, nbTasks int) (tasks, logTile int, ok bool) {
 		return 1, 0, false
 	}
 	logTile = bitReverseLogTile(elemSize)
-	// Elements so large that even a 2×2 tile exceeds the budget (over 4 KiB
-	// on amd64) already fill whole cache lines, so naive wastes nothing and
-	// tiling would only add a copy through an over-budget buffer.
-	if uint64(1)<<(2*logTile)*uint64(elemSize) > uint64(bitReverseTileBufBytes()) {
-		return 1, 0, false
-	}
 	logN := bits.TrailingZeros(uint(n))
 	// The slice must hold at least one full B×B tile (logN >= 2q).
 	if logN < 2*logTile {
@@ -100,8 +94,7 @@ func bitReverseTiling[T any](n, nbTasks int) (tasks, logTile int, ok bool) {
 }
 
 // bitReverseLogTile returns the largest q in [1, bitReverseMaxLogTile] such
-// that a 2^q × 2^q tile of elemSize-byte elements fits bitReverseTileBufBytes(),
-// or 1 if none does (bitReverseTiling then falls back to naive).
+// that a 2^q × 2^q tile of elemSize-byte elements fits bitReverseTileBufBytes().
 func bitReverseLogTile(elemSize int) int {
 	logTile := bitReverseMaxLogTile
 	for logTile > 1 && (1<<(2*logTile))*elemSize > bitReverseTileBufBytes() {

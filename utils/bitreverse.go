@@ -33,7 +33,7 @@ func BitReverseNaive[T any](v []T) {
 }
 
 // BitReverseCobra applies the cache-friendly COBRA bit-reversal permutation
-// to v, with tiles of side up to 2^9. len(v) must be a power of two.
+// to v. len(v) must be a power of two.
 func BitReverseCobra[T any](v []T) {
 	checkBitReverseLength(len(v))
 	if len(v) == 1 {
@@ -66,8 +66,8 @@ func BitReverseCopyNaive[T any](dst, src []T) {
 }
 
 // BitReverseCopyCobra writes dst[bitrev(i)] = src[i] using cache-friendly
-// COBRA tiling with tiles of side up to 2^9. The slices must have the same
-// power-of-two length and must not overlap.
+// COBRA tiling. The slices must have the same power-of-two length and must not
+// overlap.
 func BitReverseCopyCobra[T any](dst, src []T) {
 	checkBitReverseCopy(dst, src)
 	bitReverseCopyCobra(dst, src)
@@ -109,9 +109,6 @@ func bitReverseCopyNaive[T any](dst, src []T) {
 	}
 }
 
-// bitReverseCopyCobra is the COBRA copy with fixed 512×512 tiles (q = 9, see
-// deriveLogTileSize). BitReverseCopy uses the COBRA-L1 variant
-// (bitReverseCopyCobraL1) instead.
 func bitReverseCopyCobra[T any](dst, src []T) {
 	if len(src) == 1 {
 		dst[0] = src[0]
@@ -244,11 +241,6 @@ func bitReverseCobraInPlace[T any](v []T) {
 	}
 }
 
-// bitReverseCobra is the in-place COBRA with fixed 512×512 tiles (q = 9).
-// BitReverse uses the COBRA-L1 variant (bitReverseCobraInPlaceL1) instead.
-// The size-specialized bitReverseCobraInPlace_9_* functions are generated in
-// bitreverse_cobra9.go from
-// internal/generator/field/template/fft/bitreverse.go.tmpl.
 func bitReverseCobra[T any](v []T) {
 	switch len(v) {
 	case 1 << 21:
@@ -278,4 +270,405 @@ func deriveLogTileSize(logN uint64) uint64 {
 	}
 
 	return q
+}
+
+// note these are generated from bitreverse.go.tmpl
+
+// bitReverseCobraInPlace_9_21 applies the bit-reversal permutation to v.
+// len(v) must be 1 << 21.
+// see bitReverseCobraInPlace for more details; this function is specialized for 9,
+// as it declares the t buffer and various constants statically for performance.
+func bitReverseCobraInPlace_9_21[T any](v []T) {
+	const (
+		logTileSize = uint64(9)
+		tileSize    = uint64(1) << logTileSize
+		logN        = 21
+		logBLen     = logN - 2*logTileSize
+		bShift      = logBLen + logTileSize
+		bLen        = uint64(1) << logBLen
+	)
+
+	var t [tileSize * tileSize]T
+
+	for b := range bLen {
+
+		for a := range tileSize {
+			aRev := (bits.Reverse64(a) >> 55) << logTileSize
+			for c := range tileSize {
+				idx := (a << bShift) | (b << logTileSize) | c
+				t[aRev|c] = v[idx]
+			}
+		}
+
+		bRev := (bits.Reverse64(b) >> (64 - logBLen)) << logTileSize
+
+		for c := range tileSize {
+			cRev := ((bits.Reverse64(c) >> 55) << bShift) | bRev
+			for aRev := range tileSize {
+				a := bits.Reverse64(aRev) >> 55
+				idx := (a << bShift) | (b << logTileSize) | c
+				idxRev := cRev | aRev
+				if idx < idxRev {
+					tIdx := (aRev << logTileSize) | c
+					v[idxRev], t[tIdx] = t[tIdx], v[idxRev]
+				}
+			}
+		}
+
+		for a := range tileSize {
+			aRev := bits.Reverse64(a) >> 55
+			for c := range tileSize {
+				cRev := (bits.Reverse64(c) >> 55) << bShift
+				idx := (a << bShift) | (b << logTileSize) | c
+				idxRev := cRev | bRev | aRev
+				if idx < idxRev {
+					tIdx := (aRev << logTileSize) | c
+					v[idx], t[tIdx] = t[tIdx], v[idx]
+				}
+			}
+		}
+	}
+
+}
+
+// bitReverseCobraInPlace_9_22 applies the bit-reversal permutation to v.
+// len(v) must be 1 << 22.
+// see bitReverseCobraInPlace for more details; this function is specialized for 9,
+// as it declares the t buffer and various constants statically for performance.
+func bitReverseCobraInPlace_9_22[T any](v []T) {
+	const (
+		logTileSize = uint64(9)
+		tileSize    = uint64(1) << logTileSize
+		logN        = 22
+		logBLen     = logN - 2*logTileSize
+		bShift      = logBLen + logTileSize
+		bLen        = uint64(1) << logBLen
+	)
+
+	var t [tileSize * tileSize]T
+
+	for b := range bLen {
+
+		for a := range tileSize {
+			aRev := (bits.Reverse64(a) >> 55) << logTileSize
+			for c := range tileSize {
+				idx := (a << bShift) | (b << logTileSize) | c
+				t[aRev|c] = v[idx]
+			}
+		}
+
+		bRev := (bits.Reverse64(b) >> (64 - logBLen)) << logTileSize
+
+		for c := range tileSize {
+			cRev := ((bits.Reverse64(c) >> 55) << bShift) | bRev
+			for aRev := range tileSize {
+				a := bits.Reverse64(aRev) >> 55
+				idx := (a << bShift) | (b << logTileSize) | c
+				idxRev := cRev | aRev
+				if idx < idxRev {
+					tIdx := (aRev << logTileSize) | c
+					v[idxRev], t[tIdx] = t[tIdx], v[idxRev]
+				}
+			}
+		}
+
+		for a := range tileSize {
+			aRev := bits.Reverse64(a) >> 55
+			for c := range tileSize {
+				cRev := (bits.Reverse64(c) >> 55) << bShift
+				idx := (a << bShift) | (b << logTileSize) | c
+				idxRev := cRev | bRev | aRev
+				if idx < idxRev {
+					tIdx := (aRev << logTileSize) | c
+					v[idx], t[tIdx] = t[tIdx], v[idx]
+				}
+			}
+		}
+	}
+
+}
+
+// bitReverseCobraInPlace_9_23 applies the bit-reversal permutation to v.
+// len(v) must be 1 << 23.
+// see bitReverseCobraInPlace for more details; this function is specialized for 9,
+// as it declares the t buffer and various constants statically for performance.
+func bitReverseCobraInPlace_9_23[T any](v []T) {
+	const (
+		logTileSize = uint64(9)
+		tileSize    = uint64(1) << logTileSize
+		logN        = 23
+		logBLen     = logN - 2*logTileSize
+		bShift      = logBLen + logTileSize
+		bLen        = uint64(1) << logBLen
+	)
+
+	var t [tileSize * tileSize]T
+
+	for b := range bLen {
+
+		for a := range tileSize {
+			aRev := (bits.Reverse64(a) >> 55) << logTileSize
+			for c := range tileSize {
+				idx := (a << bShift) | (b << logTileSize) | c
+				t[aRev|c] = v[idx]
+			}
+		}
+
+		bRev := (bits.Reverse64(b) >> (64 - logBLen)) << logTileSize
+
+		for c := range tileSize {
+			cRev := ((bits.Reverse64(c) >> 55) << bShift) | bRev
+			for aRev := range tileSize {
+				a := bits.Reverse64(aRev) >> 55
+				idx := (a << bShift) | (b << logTileSize) | c
+				idxRev := cRev | aRev
+				if idx < idxRev {
+					tIdx := (aRev << logTileSize) | c
+					v[idxRev], t[tIdx] = t[tIdx], v[idxRev]
+				}
+			}
+		}
+
+		for a := range tileSize {
+			aRev := bits.Reverse64(a) >> 55
+			for c := range tileSize {
+				cRev := (bits.Reverse64(c) >> 55) << bShift
+				idx := (a << bShift) | (b << logTileSize) | c
+				idxRev := cRev | bRev | aRev
+				if idx < idxRev {
+					tIdx := (aRev << logTileSize) | c
+					v[idx], t[tIdx] = t[tIdx], v[idx]
+				}
+			}
+		}
+	}
+
+}
+
+// bitReverseCobraInPlace_9_24 applies the bit-reversal permutation to v.
+// len(v) must be 1 << 24.
+// see bitReverseCobraInPlace for more details; this function is specialized for 9,
+// as it declares the t buffer and various constants statically for performance.
+func bitReverseCobraInPlace_9_24[T any](v []T) {
+	const (
+		logTileSize = uint64(9)
+		tileSize    = uint64(1) << logTileSize
+		logN        = 24
+		logBLen     = logN - 2*logTileSize
+		bShift      = logBLen + logTileSize
+		bLen        = uint64(1) << logBLen
+	)
+
+	var t [tileSize * tileSize]T
+
+	for b := range bLen {
+
+		for a := range tileSize {
+			aRev := (bits.Reverse64(a) >> 55) << logTileSize
+			for c := range tileSize {
+				idx := (a << bShift) | (b << logTileSize) | c
+				t[aRev|c] = v[idx]
+			}
+		}
+
+		bRev := (bits.Reverse64(b) >> (64 - logBLen)) << logTileSize
+
+		for c := range tileSize {
+			cRev := ((bits.Reverse64(c) >> 55) << bShift) | bRev
+			for aRev := range tileSize {
+				a := bits.Reverse64(aRev) >> 55
+				idx := (a << bShift) | (b << logTileSize) | c
+				idxRev := cRev | aRev
+				if idx < idxRev {
+					tIdx := (aRev << logTileSize) | c
+					v[idxRev], t[tIdx] = t[tIdx], v[idxRev]
+				}
+			}
+		}
+
+		for a := range tileSize {
+			aRev := bits.Reverse64(a) >> 55
+			for c := range tileSize {
+				cRev := (bits.Reverse64(c) >> 55) << bShift
+				idx := (a << bShift) | (b << logTileSize) | c
+				idxRev := cRev | bRev | aRev
+				if idx < idxRev {
+					tIdx := (aRev << logTileSize) | c
+					v[idx], t[tIdx] = t[tIdx], v[idx]
+				}
+			}
+		}
+	}
+
+}
+
+// bitReverseCobraInPlace_9_25 applies the bit-reversal permutation to v.
+// len(v) must be 1 << 25.
+// see bitReverseCobraInPlace for more details; this function is specialized for 9,
+// as it declares the t buffer and various constants statically for performance.
+func bitReverseCobraInPlace_9_25[T any](v []T) {
+	const (
+		logTileSize = uint64(9)
+		tileSize    = uint64(1) << logTileSize
+		logN        = 25
+		logBLen     = logN - 2*logTileSize
+		bShift      = logBLen + logTileSize
+		bLen        = uint64(1) << logBLen
+	)
+
+	var t [tileSize * tileSize]T
+
+	for b := range bLen {
+
+		for a := range tileSize {
+			aRev := (bits.Reverse64(a) >> 55) << logTileSize
+			for c := range tileSize {
+				idx := (a << bShift) | (b << logTileSize) | c
+				t[aRev|c] = v[idx]
+			}
+		}
+
+		bRev := (bits.Reverse64(b) >> (64 - logBLen)) << logTileSize
+
+		for c := range tileSize {
+			cRev := ((bits.Reverse64(c) >> 55) << bShift) | bRev
+			for aRev := range tileSize {
+				a := bits.Reverse64(aRev) >> 55
+				idx := (a << bShift) | (b << logTileSize) | c
+				idxRev := cRev | aRev
+				if idx < idxRev {
+					tIdx := (aRev << logTileSize) | c
+					v[idxRev], t[tIdx] = t[tIdx], v[idxRev]
+				}
+			}
+		}
+
+		for a := range tileSize {
+			aRev := bits.Reverse64(a) >> 55
+			for c := range tileSize {
+				cRev := (bits.Reverse64(c) >> 55) << bShift
+				idx := (a << bShift) | (b << logTileSize) | c
+				idxRev := cRev | bRev | aRev
+				if idx < idxRev {
+					tIdx := (aRev << logTileSize) | c
+					v[idx], t[tIdx] = t[tIdx], v[idx]
+				}
+			}
+		}
+	}
+
+}
+
+// bitReverseCobraInPlace_9_26 applies the bit-reversal permutation to v.
+// len(v) must be 1 << 26.
+// see bitReverseCobraInPlace for more details; this function is specialized for 9,
+// as it declares the t buffer and various constants statically for performance.
+func bitReverseCobraInPlace_9_26[T any](v []T) {
+	const (
+		logTileSize = uint64(9)
+		tileSize    = uint64(1) << logTileSize
+		logN        = 26
+		logBLen     = logN - 2*logTileSize
+		bShift      = logBLen + logTileSize
+		bLen        = uint64(1) << logBLen
+	)
+
+	var t [tileSize * tileSize]T
+
+	for b := range bLen {
+
+		for a := range tileSize {
+			aRev := (bits.Reverse64(a) >> 55) << logTileSize
+			for c := range tileSize {
+				idx := (a << bShift) | (b << logTileSize) | c
+				t[aRev|c] = v[idx]
+			}
+		}
+
+		bRev := (bits.Reverse64(b) >> (64 - logBLen)) << logTileSize
+
+		for c := range tileSize {
+			cRev := ((bits.Reverse64(c) >> 55) << bShift) | bRev
+			for aRev := range tileSize {
+				a := bits.Reverse64(aRev) >> 55
+				idx := (a << bShift) | (b << logTileSize) | c
+				idxRev := cRev | aRev
+				if idx < idxRev {
+					tIdx := (aRev << logTileSize) | c
+					v[idxRev], t[tIdx] = t[tIdx], v[idxRev]
+				}
+			}
+		}
+
+		for a := range tileSize {
+			aRev := bits.Reverse64(a) >> 55
+			for c := range tileSize {
+				cRev := (bits.Reverse64(c) >> 55) << bShift
+				idx := (a << bShift) | (b << logTileSize) | c
+				idxRev := cRev | bRev | aRev
+				if idx < idxRev {
+					tIdx := (aRev << logTileSize) | c
+					v[idx], t[tIdx] = t[tIdx], v[idx]
+				}
+			}
+		}
+	}
+
+}
+
+// bitReverseCobraInPlace_9_27 applies the bit-reversal permutation to v.
+// len(v) must be 1 << 27.
+// see bitReverseCobraInPlace for more details; this function is specialized for 9,
+// as it declares the t buffer and various constants statically for performance.
+func bitReverseCobraInPlace_9_27[T any](v []T) {
+	const (
+		logTileSize = uint64(9)
+		tileSize    = uint64(1) << logTileSize
+		logN        = 27
+		logBLen     = logN - 2*logTileSize
+		bShift      = logBLen + logTileSize
+		bLen        = uint64(1) << logBLen
+	)
+
+	var t [tileSize * tileSize]T
+
+	for b := range bLen {
+
+		for a := range tileSize {
+			aRev := (bits.Reverse64(a) >> 55) << logTileSize
+			for c := range tileSize {
+				idx := (a << bShift) | (b << logTileSize) | c
+				t[aRev|c] = v[idx]
+			}
+		}
+
+		bRev := (bits.Reverse64(b) >> (64 - logBLen)) << logTileSize
+
+		for c := range tileSize {
+			cRev := ((bits.Reverse64(c) >> 55) << bShift) | bRev
+			for aRev := range tileSize {
+				a := bits.Reverse64(aRev) >> 55
+				idx := (a << bShift) | (b << logTileSize) | c
+				idxRev := cRev | aRev
+				if idx < idxRev {
+					tIdx := (aRev << logTileSize) | c
+					v[idxRev], t[tIdx] = t[tIdx], v[idxRev]
+				}
+			}
+		}
+
+		for a := range tileSize {
+			aRev := bits.Reverse64(a) >> 55
+			for c := range tileSize {
+				cRev := (bits.Reverse64(c) >> 55) << bShift
+				idx := (a << bShift) | (b << logTileSize) | c
+				idxRev := cRev | bRev | aRev
+				if idx < idxRev {
+					tIdx := (aRev << logTileSize) | c
+					v[idx], t[tIdx] = t[tIdx], v[idx]
+				}
+			}
+		}
+	}
+
 }
