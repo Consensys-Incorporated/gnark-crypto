@@ -51,9 +51,11 @@ const (
 	// it the slice fits in cache and the naive loop is used. One threshold for
 	// all element sizes, measured on amd64 and arm64.
 	bitReverseMinTiledBytes = 128 << 10
-	// bitReverseLargeSliceBytes is the slice size from which 16- to 96-byte
-	// elements use the largest tile (see bitReverseTiling).
-	bitReverseLargeSliceBytes = 64 << 20
+	// From bitReverseLargeSliceBytes, single-task calls on 16-byte and larger
+	// elements size the tile against bitReverseLargeTileBufBytes instead of
+	// the L1 budget (see bitReverseTiling).
+	bitReverseLargeSliceBytes   = 64 << 20
+	bitReverseLargeTileBufBytes = 384 << 10
 )
 
 // bitReverseTileBufBytes is the size budget of one task's B×B tile buffer: a
@@ -85,7 +87,8 @@ func bitReverseSerialInPlace(elemSize uintptr) bool {
 //	slice < 128 KiB                        → naive
 //	q = largest q <= 6 with B²·elemSize <= bitReverseTileBufBytes()
 //	    (16 KiB, or 32 KiB on arm64)
-//	16 <= elemSize <= 96, slice >= 64 MiB  → q = 6
+//	nbTasks = 1, elemSize >= 16, slice >= 64 MiB
+//	    → q = largest with B²·elemSize <= 384 KiB
 //	logN < 2q (no full B×B tile)           → naive
 //	tasks = max(1, min(nbTasks, slice/256 KiB, tiles))
 //	BitReverseCopy                         → COBRA-L1(tasks, q)
@@ -100,17 +103,19 @@ func bitReverseTiling[T any](n, nbTasks int) (tasks, logTile int, ok bool) {
 	if elemSize == 0 || bytes < bitReverseMinTiledBytes {
 		return 1, 0, false
 	}
-	logTile = bitReverseLogTile(elemSize)
 	// On slices far beyond the caches, each far jump costs a DRAM access, and
 	// fewer jumps per element (a bigger tile) pay off more than keeping the
-	// tile in L1. For 16- to 96-byte elements, q = 6 is then 1.1–1.4× faster
-	// on AMD Zen 4 (where the L1 budget's smaller q lost to COBRA-9) and equal
-	// or faster on a Xeon 8488C. The upper bound (the largest size measured)
-	// keeps each q = 6 tile buffer at 384 KiB or less, two of them in place;
-	// larger elements keep the budget's q.
-	if elemSize >= 16 && elemSize <= 96 && bytes >= bitReverseLargeSliceBytes {
-		logTile = bitReverseMaxLogTile
+	// tile in L1. For 16-byte and larger elements on one task, the tile is
+	// then sized against a 384 KiB budget: q = 6 up to 96 bytes, q = 5 up to
+	// 384 bytes. On AMD Zen 4 that is 1.1–1.4× faster than the L1 budget's
+	// q (which lost to COBRA-9 there); on a Xeon 8488C equal or faster. It is
+	// single-task only, as measured, so that many tasks do not each allocate
+	// large buffers.
+	budget := bitReverseTileBufBytes()
+	if nbTasks == 1 && elemSize >= 16 && bytes >= bitReverseLargeSliceBytes {
+		budget = bitReverseLargeTileBufBytes
 	}
+	logTile = bitReverseLogTile(elemSize, budget)
 	logN := bits.TrailingZeros(uint(n))
 	// The slice must hold at least one full B×B tile (logN >= 2q).
 	if logN < 2*logTile {
@@ -121,10 +126,10 @@ func bitReverseTiling[T any](n, nbTasks int) (tasks, logTile int, ok bool) {
 }
 
 // bitReverseLogTile returns the largest q in [1, bitReverseMaxLogTile] such
-// that a 2^q × 2^q tile of elemSize-byte elements fits bitReverseTileBufBytes().
-func bitReverseLogTile(elemSize int) int {
+// that a 2^q × 2^q tile of elemSize-byte elements fits budget bytes.
+func bitReverseLogTile(elemSize, budget int) int {
 	logTile := bitReverseMaxLogTile
-	for logTile > 1 && (1<<(2*logTile))*elemSize > bitReverseTileBufBytes() {
+	for logTile > 1 && (1<<(2*logTile))*elemSize > budget {
 		logTile--
 	}
 	return logTile
