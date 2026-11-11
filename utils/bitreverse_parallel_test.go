@@ -232,3 +232,20 @@ func TestBitReverseNoAlloc(t *testing.T) {
 		}
 	}
 }
+
+// TestBitReverseTilingBounds checks the edges of bitReverseTiling: elements so
+// large that even a 2×2 tile exceeds the L1 budget take the naive path, and a
+// 2 GiB slice is sized correctly (its byte count overflows a 32-bit int; run
+// with GOARCH=386 to exercise that).
+func TestBitReverseTilingBounds(t *testing.T) {
+	type huge [1024]uint64 // 8 KiB: a 2×2 tile is 32 KiB, over every budget
+	if _, _, ok := bitReverseTiling[huge](64, 1); ok {
+		t.Error("8 KiB elements: tiling enabled, want naive")
+	}
+	type fr [4]uint64
+	tasks, logTile, ok := bitReverseTiling[fr](1<<26, 8) // 2 GiB
+	if !ok || logTile != bitReverseLogTile(32) || tasks != 8 {
+		t.Errorf("2 GiB of 32-byte elements: ok=%v logTile=%d tasks=%d, want ok, logTile=%d, 8 tasks",
+			ok, logTile, tasks, bitReverseLogTile(32))
+	}
+}
