@@ -8,6 +8,7 @@ package utils
 const bitReverseTileBufBytes = 32 << 10
 
 // bitReverseSerialInPlaceMaxElemSize: on an Apple M4, single-task in-place
-// tiling was 2–4× faster than naive for 4-byte elements; larger elements are
-// not measured with the current tile sizes, so they keep the naive path.
+// COBRA-L1 beats naive from 128 KiB for 4-byte elements, but larger elements
+// only from 256 KiB (at 128 KiB they are 1.3–2.4× slower than naive). Rather
+// than a second in-place threshold, they keep the naive path on one task.
 const bitReverseSerialInPlaceMaxElemSize = 4

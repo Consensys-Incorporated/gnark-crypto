@@ -55,11 +55,15 @@ const (
 	// bitReverseBytesPerTask is the least data a goroutine is given.
 	bitReverseBytesPerTask = 256 << 10
 	// bitReverseMinTiledBytes is the smallest slice the COBRA-L1 kernels handle;
-	// below it the slice stays in cache and the naive loop is good enough
-	// (see bitReverseTiling). On a Xeon 8488C, 4-byte elements already gain
-	// from tiling at 32 KiB, while 24- and 32-byte elements tie with naive up
-	// to the L2 size; 128 KiB was tuned on an Apple M4, where lower made small
-	// copies slower.
+	// below it the naive loop is used (see bitReverseTiling). It is one
+	// threshold for every element size and both architectures. Measured on
+	// one task:
+	//   - Apple M4 Max: copies switch exactly here for 4-, 8-, 24- and 32-byte
+	//     elements; one power of two smaller, COBRA-L1 is 1.6–4.8× slower.
+	//   - Xeon 8488C: about right for 24- and 32-byte elements (lower is up to
+	//     1.9× slower). 4- and 8-byte elements would also gain at 32–64 KiB,
+	//     by a few µs per call, but a lower byte threshold would slow down the
+	//     larger elements, so it is not used.
 	bitReverseMinTiledBytes = 128 << 10
 )
 
