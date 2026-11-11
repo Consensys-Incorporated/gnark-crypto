@@ -20,7 +20,7 @@ import (
 func BitReverse[T any](v []T, opts ...BitReverseOption) {
 	checkBitReverseLength(len(v))
 	if tasks, logTile, ok := bitReverseTiling[T](len(v), bitReverseNbTasks(opts)); ok &&
-		(tasks > 1 || unsafe.Sizeof(*new(T)) <= bitReverseSerialInPlaceMaxElemSize) {
+		(tasks > 1 || bitReverseSerialInPlace(unsafe.Sizeof(*new(T)))) {
 		bitReverseCobraInPlaceL1(v, tasks, logTile) // tasks may be 1
 		return
 	}

@@ -53,9 +53,25 @@ const (
 	bitReverseMinTiledBytes = 128 << 10
 )
 
-// bitReverseTileBufBytes (bitreverse_tile_*.go) is the size budget of one
-// task's B×B tile buffer: a fraction of the L1d, since the kernels write into
-// the buffer with strided stores.
+// bitReverseTileBufBytes is the size budget of one task's B×B tile buffer: a
+// fraction of the L1d, since the kernels write into the buffer with strided
+// stores. It is half of the L1d of the smallest common cores: 32 KiB on arm64
+// (64 KiB on Neoverse), 16 KiB elsewhere (32 KiB on AMD Zen). runtime.GOARCH
+// is a constant, so the branch is resolved at compile time.
+func bitReverseTileBufBytes() int {
+	if runtime.GOARCH == "arm64" {
+		return 32 << 10
+	}
+	return 16 << 10
+}
+
+// bitReverseSerialInPlace reports whether in-place BitReverse uses COBRA-L1
+// on a single task for elements of elemSize bytes. On arm64 only elements of
+// at most 4 bytes do: larger ones only win from 256 KiB there, so they keep
+// the naive loop. Elsewhere every element size does.
+func bitReverseSerialInPlace(elemSize uintptr) bool {
+	return runtime.GOARCH != "arm64" || elemSize <= 4
+}
 
 // bitReverseTiling reports whether COBRA-L1 applies to n elements of type T,
 // and if so the number of tasks (1 to nbTasks) and log2 of the tile side.
@@ -71,7 +87,7 @@ func bitReverseTiling[T any](n, nbTasks int) (tasks, logTile int, ok bool) {
 	// Elements so large that even a 2×2 tile exceeds the budget (over 4 KiB
 	// on amd64) already fill whole cache lines, so naive wastes nothing and
 	// tiling would only add a copy through an over-budget buffer.
-	if uint64(1)<<(2*logTile)*uint64(elemSize) > bitReverseTileBufBytes {
+	if uint64(1)<<(2*logTile)*uint64(elemSize) > uint64(bitReverseTileBufBytes()) {
 		return 1, 0, false
 	}
 	logN := bits.TrailingZeros(uint(n))
@@ -84,11 +100,11 @@ func bitReverseTiling[T any](n, nbTasks int) (tasks, logTile int, ok bool) {
 }
 
 // bitReverseLogTile returns the largest q in [1, bitReverseMaxLogTile] such
-// that a 2^q × 2^q tile of elemSize-byte elements fits bitReverseTileBufBytes,
+// that a 2^q × 2^q tile of elemSize-byte elements fits bitReverseTileBufBytes(),
 // or 1 if none does (bitReverseTiling then falls back to naive).
 func bitReverseLogTile(elemSize int) int {
 	logTile := bitReverseMaxLogTile
-	for logTile > 1 && (1<<(2*logTile))*elemSize > bitReverseTileBufBytes {
+	for logTile > 1 && (1<<(2*logTile))*elemSize > bitReverseTileBufBytes() {
 		logTile--
 	}
 	return logTile
