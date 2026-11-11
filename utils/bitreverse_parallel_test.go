@@ -167,10 +167,10 @@ type benchE2 struct{ A0, A1 [1]uint32 }
 type benchE6 struct{ B0, B1, B2 benchE2 }
 
 func benchBitReverseCopyKernels[T any](b *testing.B, name string, logNs []int) {
-	logTile := bitReverseLogTile(int(unsafe.Sizeof(*new(T))))
 	for _, logN := range logNs {
 		src := make([]T, 1<<logN)
 		dst := make([]T, 1<<logN)
+		_, logTile, _ := bitReverseTiling[T](1<<logN, 1) // the q BitReverseCopy uses
 		b.Run(fmt.Sprintf("%s/2^%d/naive", name, logN), func(b *testing.B) {
 			for b.Loop() {
 				bitReverseCopyNaive(dst, src)
