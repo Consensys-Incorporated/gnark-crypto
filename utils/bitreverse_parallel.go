@@ -78,6 +78,20 @@ func bitReverseSerialInPlace(elemSize uintptr) bool {
 
 // bitReverseTiling reports whether COBRA-L1 applies to n elements of type T,
 // and if so the number of tasks (1 to nbTasks) and log2 of the tile side.
+//
+// Together with BitReverse and BitReverseCopy, the full dispatch is:
+//
+//	nbTasks = WithNbTasks(n) clamped to [1, 512], 1 by default
+//	slice < 128 KiB                        → naive
+//	q = largest q <= 6 with B²·elemSize <= bitReverseTileBufBytes()
+//	    (16 KiB, or 32 KiB on arm64)
+//	elemSize >= 16 and slice >= 64 MiB     → q = 6
+//	logN < 2q (no full B×B tile)           → naive
+//	tasks = max(1, min(nbTasks, slice/256 KiB, tiles))
+//	BitReverseCopy                         → COBRA-L1(tasks, q)
+//	BitReverse: tasks > 1 or bitReverseSerialInPlace(elemSize)
+//	    (false only on arm64 for elements over 4 bytes)
+//	                                       → COBRA-L1(tasks, q), else naive
 func bitReverseTiling[T any](n, nbTasks int) (tasks, logTile int, ok bool) {
 	elemSize := int(unsafe.Sizeof(*new(T)))
 	// The byte size is computed in uint64: n*elemSize in int overflows for
