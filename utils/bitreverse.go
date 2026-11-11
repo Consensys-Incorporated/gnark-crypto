@@ -60,7 +60,6 @@ func BitReverseCopy[T any](dst, src []T, opts ...BitReverseOption) {
 		bitReverseCopyCobraL1(dst, src, tasks, logTile) // tasks may be 1
 		return
 	}
-	// Below the tiling threshold the slice is cache-resident; naive is fastest.
 	bitReverseCopyNaive(dst, src)
 }
 
