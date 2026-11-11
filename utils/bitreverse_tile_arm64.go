@@ -3,12 +3,10 @@
 
 package utils
 
-// bitReverseTileBufBytes: half of the 64 KiB L1d of Neoverse (Graviton) cores;
-// Apple cores have 128 KiB. Not yet measured on arm64.
+// bitReverseTileBufBytes: half of the 64 KiB L1d of Neoverse cores.
 const bitReverseTileBufBytes = 32 << 10
 
-// bitReverseSerialInPlaceMaxElemSize: on an Apple M4, single-task in-place
-// COBRA-L1 beats naive from 128 KiB for 4-byte elements, but larger elements
-// only from 256 KiB (at 128 KiB they are 1.3–2.4× slower than naive). Rather
-// than a second in-place threshold, they keep the naive path on one task.
+// bitReverseSerialInPlaceMaxElemSize: on one task, in-place BitReverse uses
+// COBRA-L1 only for elements up to this size. Larger elements only win from
+// 256 KiB on arm64, so they keep the naive loop.
 const bitReverseSerialInPlaceMaxElemSize = 4

@@ -11,13 +11,10 @@ import (
 // BitReverse applies the bit-reversal permutation to v.
 // len(v) must be a power of 2.
 //
-// Slices of at least 128 KiB use COBRA with L1-sized tiles (see
-// bitReverseCobraInPlaceL1), also on a single task (on arm64, single-task
-// tiling is limited to elements of at most 4 bytes); smaller slices use naive
-// swaps.
-//
-// By default it runs on the calling goroutine; pass [WithNbTasks] to split
-// large inputs over several goroutines.
+// Slices of at least 128 KiB use COBRA-L1 (see bitReverseCobraInPlaceL1),
+// except for elements over 4 bytes on one task on arm64; smaller slices use
+// the naive loop. It runs on the calling goroutine unless [WithNbTasks] is
+// given.
 func BitReverse[T any](v []T, opts ...BitReverseOption) {
 	checkBitReverseLength(len(v))
 	if tasks, logTile, ok := bitReverseTiling[T](len(v), bitReverseNbTasks(opts)); ok &&
@@ -48,12 +45,9 @@ func BitReverseCobra[T any](v []T) {
 // BitReverseCopy writes dst[bitrev(i)] = src[i]. The slices must have the
 // same power-of-two length and must not overlap.
 //
-// Slices of at least 128 KiB use COBRA with L1-sized tiles (see
-// bitReverseCopyCobraL1), also on a single task; smaller slices use the naive
-// scatter.
-//
-// By default it runs on the calling goroutine; pass [WithNbTasks] to split
-// large inputs over several goroutines.
+// Slices of at least 128 KiB use COBRA-L1 (see bitReverseCopyCobraL1);
+// smaller slices use the naive loop. It runs on the calling goroutine unless
+// [WithNbTasks] is given.
 func BitReverseCopy[T any](dst, src []T, opts ...BitReverseOption) {
 	checkBitReverseCopy(dst, src)
 	if tasks, logTile, ok := bitReverseTiling[T](len(src), bitReverseNbTasks(opts)); ok {
@@ -283,10 +277,9 @@ func deriveLogTileSize(logN uint64) uint64 {
 	return q
 }
 
-// The bitReverseCobraInPlace_9_* functions below were generated once from
-// internal/generator/field/template/fft/bitreverse.go.tmpl, which no
-// generator used any more and has been removed; edit them directly. They are
-// only reachable through BitReverseCobra.
+// The bitReverseCobraInPlace_9_* functions below were generated from a
+// template that has since been removed; edit them directly. They are only
+// used by BitReverseCobra.
 
 // bitReverseCobraInPlace_9_21 applies the bit-reversal permutation to v.
 // len(v) must be 1 << 21.
