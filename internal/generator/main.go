@@ -279,10 +279,11 @@ func main() {
 		assertNoError(eccFieldGen.Generate(config.Curves, "ecc", "", "", entries...))
 	}
 
-	// generate utils/bitreverse.go (generic, not per field)
+	// generate utils/bitreverse.go and utils/bitreverse_parallel.go (generic, not per field)
 	{
 		entries := []bavard.Entry{
 			{File: filepath.Join(baseDir, "utils", "bitreverse.go"), Templates: []string{"bitreverse.go.tmpl"}},
+			{File: filepath.Join(baseDir, "utils", "bitreverse_parallel.go"), Templates: []string{"bitreverse_parallel.go.tmpl"}},
 		}
 		utilsGen := common.NewGenerator(fieldTemplate.FS, copyrightHolder, copyrightYear, "consensys/gnark-crypto")
 		assertNoError(utilsGen.Generate(struct{}{}, "utils", "", "fft", entries...))
