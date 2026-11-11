@@ -45,13 +45,8 @@ func bitReverseNbTasks(opts []BitReverseOption) int {
 }
 
 const (
-	// bitReverseTileRowBytes bounds one row of a tile: the tile side B is the
-	// largest power of two (at most 2^bitReverseMaxLogTile) with
-	// B·sizeof(T) <= bitReverseTileRowBytes, i.e. B = 32 for 4-byte elements
-	// and B = 8 for 32-byte elements. A row then spans a few cache lines and
-	// the B×B tile buffers stay in L1.
-	bitReverseTileRowBytes = 256
-	bitReverseMaxLogTile   = 5
+	// bitReverseMaxLogTile caps the tile side at B = 64.
+	bitReverseMaxLogTile = 6
 	// bitReverseBytesPerTask is the least data a goroutine is given.
 	bitReverseBytesPerTask = 256 << 10
 	// bitReverseMinTiledBytes is the smallest slice the COBRA-L1 kernels handle;
@@ -59,16 +54,29 @@ const (
 	bitReverseMinTiledBytes = 128 << 10
 )
 
+// bitReverseTileBufBytes (bitreverse_tile_*.go) is the L1 budget for the B×B
+// tile buffers of one task. The kernels scatter into the buffer with strided
+// stores, which become expensive as soon as the buffer leaves L1, so the
+// budget is a fraction of a conservative L1d size per architecture.
+//
+// On a Xeon 8488C (48 KiB L1d), single-task copy, the 16 KiB amd64 budget
+// picks q = 6 for 4-byte elements, q = 5 for 8 bytes and q = 4 for 24- and
+// 32-byte ones. Against the previous q = 5 / 5 / 3 this is 4% faster for
+// uint32 at 2^22, 12% for E6 at 2^21, and 6–18% in place for 24- and 32-byte
+// elements at 2^21–2^23. One step past the budget, 4- and 8-byte elements are
+// 3–5× slower.
+
 // bitReverseTiling reports whether the COBRA-L1 kernels apply to n elements of
 // type T (ok), and if so how many goroutines to use (at most nbTasks, possibly
 // 1) and log2 of the tile side. Tiling applies to slices of at least
-// bitReverseMinTiledBytes whose length allows a full tile.
-func bitReverseTiling[T any](n, nbTasks int) (tasks, logTile int, ok bool) {
+// bitReverseMinTiledBytes whose length allows a full tile. nbBufs is the number
+// of B×B buffers a task holds at once (1 for copy, 2 in place).
+func bitReverseTiling[T any](n, nbTasks, nbBufs int) (tasks, logTile int, ok bool) {
 	elemSize := int(unsafe.Sizeof(*new(T)))
 	if elemSize == 0 || n*elemSize < bitReverseMinTiledBytes {
 		return 1, 0, false
 	}
-	logTile = bitReverseLogTile(elemSize)
+	logTile = bitReverseLogTile(elemSize, nbBufs)
 	logN := bits.TrailingZeros(uint(n))
 	if logN < 2*logTile {
 		return 1, 0, false
@@ -78,11 +86,11 @@ func bitReverseTiling[T any](n, nbTasks int) (tasks, logTile int, ok bool) {
 }
 
 // bitReverseLogTile returns log2 of the tile side for elements of elemSize
-// bytes: the largest power of two, at most 2^bitReverseMaxLogTile, with
-// B·elemSize <= bitReverseTileRowBytes.
-func bitReverseLogTile(elemSize int) int {
+// bytes when a task holds nbBufs B×B buffers: the largest q in
+// [1, bitReverseMaxLogTile] with nbBufs·B²·elemSize <= bitReverseTileBufBytes.
+func bitReverseLogTile(elemSize, nbBufs int) int {
 	logTile := bitReverseMaxLogTile
-	for logTile > 1 && (1<<logTile)*elemSize > bitReverseTileRowBytes {
+	for logTile > 1 && nbBufs*(1<<(2*logTile))*elemSize > bitReverseTileBufBytes {
 		logTile--
 	}
 	return logTile
@@ -107,9 +115,9 @@ func bitReverseLogTile(elemSize int) int {
 // a power-of-two stride apart, evict each other.
 //
 // Differences with bitReverseCobra / bitReverseCopyCobra (same algorithm):
-//   - the tile side is 2^q with B·sizeof(T) <= 256 bytes and q <= 5, so the
-//     B×B buffer is a few KiB and stays in L1, where bitReverseCobra uses a
-//     side of up to 2^9 (a buffer of up to 2^18 elements, in L2/L3);
+//   - the tile side is the largest 2^q (q <= 6) whose B×B buffer fits
+//     bitReverseTileBufBytes, so the buffer stays in L1, where bitReverseCobra
+//     uses a side of up to 2^9 (a buffer of up to 2^18 elements, in L2/L3);
 //   - the transpose happens when filling the buffer (strided writes into it,
 //     then contiguous copies out) rather than when emptying it;
 //   - tiles of distinct c are disjoint, so they are split over the tasks; in
@@ -141,8 +149,11 @@ func bitReverseCopyCobraL1[T any](dst, src []T, tasks, logTile int) {
 			for a := range B {
 				run := src[a<<runShift|c<<q:][:B]
 				ra := revQ[a]
-				for b, x := range run {
-					buf[revQ[b]<<q|ra] = x
+				// Index run rather than ranging over its values: for array
+				// element types the range value goes through a stack slot
+				// with overlapping moves, which stalls store forwarding.
+				for b := range run {
+					buf[revQ[b]<<q|ra] = run[b]
 				}
 			}
 			for rb := range B {
@@ -174,8 +185,8 @@ func bitReverseCobraInPlaceL1[T any](v []T, tasks, logTile int) {
 		for a := range B {
 			run := v[a<<runShift|c<<q:][:B]
 			ra := revQ[a]
-			for b, x := range run {
-				buf[revQ[b]<<q|ra] = x
+			for b := range run { // indexed; see bitReverseCopyCobraL1
+				buf[revQ[b]<<q|ra] = run[b]
 			}
 		}
 	}

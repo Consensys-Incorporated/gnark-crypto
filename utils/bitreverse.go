@@ -19,7 +19,7 @@ func BitReverse[T any](v []T, opts ...BitReverseOption) {
 
 	// In place, COBRA-L1 only pays off when it runs on several tasks: on one
 	// core it ties or loses against naive/COBRA (2^9 tiles) for large elements.
-	if tasks, logTile, ok := bitReverseTiling[T](len(v), bitReverseNbTasks(opts)); ok && tasks > 1 {
+	if tasks, logTile, ok := bitReverseTiling[T](len(v), bitReverseNbTasks(opts), 2); ok && tasks > 1 {
 		bitReverseCobraInPlaceL1(v, tasks, logTile)
 		return
 	}
@@ -59,7 +59,7 @@ func BitReverseCobra[T any](v []T) {
 // large inputs over several goroutines.
 func BitReverseCopy[T any](dst, src []T, opts ...BitReverseOption) {
 	checkBitReverseCopy(dst, src)
-	if tasks, logTile, ok := bitReverseTiling[T](len(src), bitReverseNbTasks(opts)); ok {
+	if tasks, logTile, ok := bitReverseTiling[T](len(src), bitReverseNbTasks(opts), 1); ok {
 		bitReverseCopyCobraL1(dst, src, tasks, logTile) // tasks may be 1
 		return
 	}
@@ -76,8 +76,8 @@ func BitReverseCopyNaive[T any](dst, src []T) {
 }
 
 // BitReverseCopyCobra writes dst[bitrev(i)] = src[i] using cache-friendly
-// COBRA tiling with tiles of side up to 2^9. The slices must have the same power-of-two length and must not
-// overlap.
+// COBRA tiling with tiles of side up to 2^9. The slices must have the same
+// power-of-two length and must not overlap.
 func BitReverseCopyCobra[T any](dst, src []T) {
 	checkBitReverseCopy(dst, src)
 	bitReverseCopyCobra(dst, src)
