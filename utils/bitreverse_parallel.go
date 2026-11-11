@@ -1,4 +1,4 @@
-// Copyright 2020-2025 Consensys Software Inc.
+// Copyright 2020-2025 Consensys Incorporated
 // Licensed under the Apache License, Version 2.0. See the LICENSE file for details.
 
 package utils
@@ -12,7 +12,11 @@ import (
 )
 
 // BitReverseOption configures [BitReverse] and [BitReverseCopy].
-type BitReverseOption func(*bitReverseConfig)
+//
+// Options take and return the config by value: passing a pointer to an option
+// the compiler cannot see would move the config to the heap, and add an
+// allocation to every call.
+type BitReverseOption func(bitReverseConfig) bitReverseConfig
 
 type bitReverseConfig struct {
 	nbTasks int
@@ -28,18 +32,19 @@ type bitReverseConfig struct {
 // Fewer tasks than requested are used on small inputs, where spawning a
 // goroutine costs more than it saves (each task gets at least 256 KiB).
 func WithNbTasks(nbTasks int) BitReverseOption {
-	return func(c *bitReverseConfig) {
-		if nbTasks <= 0 {
-			nbTasks = runtime.GOMAXPROCS(0)
-		}
+	return func(c bitReverseConfig) bitReverseConfig {
 		c.nbTasks = nbTasks
+		if c.nbTasks <= 0 {
+			c.nbTasks = runtime.GOMAXPROCS(0)
+		}
+		return c
 	}
 }
 
 func bitReverseNbTasks(opts []BitReverseOption) int {
 	cfg := bitReverseConfig{nbTasks: 1}
 	for _, opt := range opts {
-		opt(&cfg)
+		cfg = opt(cfg)
 	}
 	return cfg.nbTasks
 }
@@ -159,10 +164,8 @@ func bitReverseCopyCobraL1[T any](dst, src []T, tasks, logTile int) {
 	parallel.Execute(1<<mid, func(start, end int) {
 		buf := make([]T, B*B)
 		for c := start; c < end; c++ {
-			rc := 0
-			if mid > 0 {
-				rc = int(bits.Reverse64(uint64(c)) >> (64 - mid))
-			}
+			// For mid = 0 the shift is by 64, which gives 0 for a uint64.
+			rc := int(bits.Reverse64(uint64(c)) >> (64 - mid))
 			for a := range B {
 				run := src[a<<runShift|c<<q:][:B]
 				ra := revQ[a]
@@ -182,8 +185,8 @@ func bitReverseCopyCobraL1[T any](dst, src []T, tasks, logTile int) {
 
 // bitReverseCobraInPlaceL1 applies the bit-reversal permutation to v in place
 // with COBRA-L1, on tasks goroutines. The tiles of c and rev(c) are exchanged
-// by the task that owns min(c, rev(c)); distinct pairs are disjoint, so tasks
-// do not race.
+// together by the one task whose range of c owns the pair (see ownsPair);
+// distinct pairs are disjoint, so tasks do not race.
 func bitReverseCobraInPlaceL1[T any](v []T, tasks, logTile int) {
 	n := len(v)
 	logN := bits.TrailingZeros(uint(n))
@@ -213,19 +216,28 @@ func bitReverseCobraInPlaceL1[T any](v []T, tasks, logTile int) {
 		}
 	}
 
+	// ownsPair reports whether c, rather than rc = rev(c) != c, handles the
+	// pair {c, rc}. Exactly one of the two must. Giving the pair to
+	// min(c, rc) would be enough, but the tasks get contiguous ranges of c and
+	// low c is nearly always the smaller one, so low ranges would do almost
+	// all the work: with 8 tasks over 2^10 tiles, task 0 would do 15× the
+	// work of task 7. XOR-ing with the parity of popcount(c), which c and rc
+	// share, still picks exactly one of the two but spreads the owners evenly
+	// across ranges.
+	ownsPair := func(c, rc int) bool {
+		return (c < rc) != (bits.OnesCount(uint(c))&1 == 1)
+	}
+
 	parallel.Execute(1<<mid, func(start, end int) {
 		buf := make([]T, 2*B*B)
 		bufC, bufRC := buf[:B*B], buf[B*B:]
 		for c := start; c < end; c++ {
-			rc := 0
-			if mid > 0 {
-				rc = int(bits.Reverse64(uint64(c)) >> (64 - mid))
-			}
+			rc := int(bits.Reverse64(uint64(c)) >> (64 - mid))
 			switch {
 			case c == rc:
 				load(bufC, c)
 				store(c, bufC)
-			case c < rc:
+			case ownsPair(c, rc):
 				load(bufC, c)
 				load(bufRC, rc)
 				store(rc, bufC)

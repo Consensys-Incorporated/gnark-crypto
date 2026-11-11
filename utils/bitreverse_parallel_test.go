@@ -1,4 +1,4 @@
-// Copyright 2020-2025 Consensys Software Inc.
+// Copyright 2020-2025 Consensys Incorporated
 // Licensed under the Apache License, Version 2.0. See the LICENSE file for details.
 
 package utils
@@ -140,8 +140,10 @@ func TestBitReverseCopyRouting(t *testing.T) {
 
 // BenchmarkBitReverseCopyKernels compares the serial copy kernels; it documents
 // why BitReverseCopy uses COBRA-L1 on one task. benchE6 mirrors the nested
-// struct of a koalabear/babybear E6; a flat [6]uint32 of the same size
-// compiles to slower element copies and favours COBRA with 2^9 tiles instead. Pin it to a core for stable numbers, e.g.
+// struct of a koalabear/babybear E6, so the numbers match the real type.
+// (Before the COBRA-L1 kernels copied tile elements by index, flat arrays such
+// as [3]uint64 or [6]uint32 hit a store-forwarding stall and favoured COBRA
+// with 2^9 tiles; they no longer do.) Pin it to a core for stable numbers, e.g.
 // taskset -c 2 go test -run '^$' -bench BitReverseCopyKernels -count 5 ./utils/
 func BenchmarkBitReverseCopyKernels(b *testing.B) {
 	logNs := []int{20, 21, 22, 23}
@@ -202,6 +204,24 @@ func benchBitReverseParallel[T any](b *testing.B, name string, logNs []int) {
 					BitReverse(src, WithNbTasks(nbTasks))
 				}
 			})
+		}
+	}
+}
+
+// TestBitReverseNoAlloc checks that the public entry points do not allocate on
+// the naive path, with or without options: an option taking a pointer to the
+// config would move it to the heap on every call.
+func TestBitReverseNoAlloc(t *testing.T) {
+	v := make([]uint64, 16)
+	dst := make([]uint64, 16)
+	for name, f := range map[string]func(){
+		"BitReverse":                 func() { BitReverse(v) },
+		"BitReverse/WithNbTasks":     func() { BitReverse(v, WithNbTasks(4)) },
+		"BitReverseCopy":             func() { BitReverseCopy(dst, v) },
+		"BitReverseCopy/WithNbTasks": func() { BitReverseCopy(dst, v, WithNbTasks(0)) },
+	} {
+		if n := testing.AllocsPerRun(100, f); n != 0 {
+			t.Errorf("%s: %v allocations per call, want 0", name, n)
 		}
 	}
 }
