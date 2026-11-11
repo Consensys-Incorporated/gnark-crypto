@@ -208,9 +208,16 @@ func benchBitReverseParallel[T any](b *testing.B, name string, logNs []int) {
 	}
 }
 
-// TestBitReverseNoAlloc checks that the public entry points do not allocate on
-// the naive path, with or without options: an option taking a pointer to the
-// config would move it to the heap on every call.
+// TestBitReverseNoAlloc checks that option handling adds no allocation: with or
+// without options, the public entry points do not allocate on the naive path
+// (small slices). An option taking a pointer to the config would move it to the
+// heap on every call.
+//
+// The COBRA-L1 path (slices of 128 KiB or more) still allocates on every call,
+// and this test does not cover it: with one task, 3 allocations per
+// BitReverseCopy and 6 per BitReverse (the tile buffers, whose size is not a
+// constant, and the bit-reversal table and closures that capture it), and 3
+// more per extra task for BitReverseCopy (Go 1.26, amd64).
 func TestBitReverseNoAlloc(t *testing.T) {
 	v := make([]uint64, 16)
 	dst := make([]uint64, 16)

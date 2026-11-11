@@ -284,7 +284,10 @@ func deriveLogTileSize(logN uint64) uint64 {
 	return q
 }
 
-// note these are generated from bitreverse.go.tmpl
+// The bitReverseCobraInPlace_9_* functions below were generated once from
+// internal/generator/field/template/fft/bitreverse.go.tmpl, which no
+// generator used any more and has been removed; edit them directly. They are
+// only reachable through BitReverseCobra.
 
 // bitReverseCobraInPlace_9_21 applies the bit-reversal permutation to v.
 // len(v) must be 1 << 21.
