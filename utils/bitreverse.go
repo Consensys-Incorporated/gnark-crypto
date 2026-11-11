@@ -116,6 +116,9 @@ func bitReverseCopyNaive[T any](dst, src []T) {
 	}
 }
 
+// bitReverseCopyCobra is the COBRA copy with fixed 512×512 tiles (q = 9, see
+// deriveLogTileSize). BitReverseCopy uses the COBRA-L1 variant
+// (bitReverseCopyCobraL1) instead.
 func bitReverseCopyCobra[T any](dst, src []T) {
 	if len(src) == 1 {
 		dst[0] = src[0]
@@ -248,6 +251,8 @@ func bitReverseCobraInPlace[T any](v []T) {
 	}
 }
 
+// bitReverseCobra is the in-place COBRA with fixed 512×512 tiles (q = 9).
+// BitReverse uses the COBRA-L1 variant (bitReverseCobraInPlaceL1) instead.
 func bitReverseCobra[T any](v []T) {
 	switch len(v) {
 	case 1 << 21:

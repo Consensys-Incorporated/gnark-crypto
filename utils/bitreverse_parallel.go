@@ -50,7 +50,11 @@ const (
 	// bitReverseBytesPerTask is the least data a goroutine is given.
 	bitReverseBytesPerTask = 256 << 10
 	// bitReverseMinTiledBytes is the smallest slice the COBRA-L1 kernels handle;
-	// below it the naive scatter is cache-resident and faster.
+	// below it the slice stays in cache and the naive loop is good enough
+	// (see bitReverseTiling). On a Xeon 8488C, 4-byte elements already gain
+	// from tiling at 32 KiB, while 24- and 32-byte elements tie with naive up
+	// to the L2 size; 128 KiB was tuned on an Apple M4, where lower made small
+	// copies slower.
 	bitReverseMinTiledBytes = 128 << 10
 )
 
@@ -72,11 +76,23 @@ const (
 // bitReverseMinTiledBytes whose length allows a full tile.
 func bitReverseTiling[T any](n, nbTasks int) (tasks, logTile int, ok bool) {
 	elemSize := int(unsafe.Sizeof(*new(T)))
+	// Size threshold: this is what decides tiled or naive. The naive loop
+	// refetches each destination cache line once per element it holds (up to
+	// 16 times for 4-byte elements). In a small slice that line is still in L1
+	// or L2 when the loop comes back to it, so the revisits are cheap, and
+	// tiling would save little while still paying its per-tile costs (loop
+	// setup, the buffer).
 	if elemSize == 0 || n*elemSize < bitReverseMinTiledBytes {
 		return 1, 0, false
 	}
 	logTile = bitReverseLogTile(elemSize)
 	logN := bits.TrailingZeros(uint(n))
+	// Correctness condition, not a size threshold: the kernels split the index
+	// as a|c|b with q = logTile bits each for a and b, which needs
+	// logN >= 2q, i.e. the slice must hold at least one full B×B tile
+	// (n >= B²). Since a tile is at most bitReverseTileBufBytes, any slice
+	// that passed the size check above holds many tiles; this only rejects
+	// elements larger than a few KiB, where B drops to 2.
 	if logN < 2*logTile {
 		return 1, 0, false
 	}
