@@ -379,13 +379,9 @@ func (vector Vector) ScalarAdd(a Vector, c *Element) {
 // ScalarSub subtracts the scalar c from each element of a and stores the result in self.
 // self may alias a, and c may point into self. It panics if the vectors don't have the same length.
 func (vector Vector) ScalarSub(a Vector, c *Element) {
-	if len(a) != len(vector) {
-		panic("vector.ScalarSub: vectors don't have the same length")
-	}
-	cc := *c
-	for i := range a {
-		vector[i].Sub(&a[i], &cc)
-	}
+	var negC Element
+	negC.Neg(c)
+	vector.ScalarAdd(a, &negC)
 }
 
 // ScalarSubFrom subtracts each element of a from the scalar c and stores the result in self.

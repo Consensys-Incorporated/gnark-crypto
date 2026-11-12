@@ -715,13 +715,9 @@ func (vector VectorE6) ScalarAddElement(a VectorE6, c *fr.Element) {
 
 // ScalarSubElement sets vector[i] = a[i] - c, where c is an element of the base field. vector may alias a, and c may point into vector.
 func (vector VectorE6) ScalarSubElement(a VectorE6, c *fr.Element) {
-	if len(a) != len(vector) {
-		panic("vector.ScalarSubElement: vectors don't have the same length")
-	}
-	cc := *c
-	for i := range vector {
-		vector[i].SubElement(&a[i], &cc)
-	}
+	var negC fr.Element
+	negC.Neg(c)
+	vector.ScalarAddElement(a, &negC)
 }
 
 // ScalarSubFromElement sets vector[i] = c - a[i], where c is an element of the base field. vector may alias a, and c may point into vector.
