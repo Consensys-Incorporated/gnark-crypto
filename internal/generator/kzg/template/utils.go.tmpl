@@ -1,8 +1,8 @@
 import (
+	"fmt"
 	"math/big"
 	"math/bits"
 	"runtime"
-	"fmt"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	curve "github.com/consensys/gnark-crypto/ecc/{{ .Name }}"
@@ -16,54 +16,68 @@ import (
 // fft on the vector consisting of the original SRS.
 // Size of coeffs must be a power of 2.
 func ToLagrangeG1(coeffs []curve.G1Affine) ([]curve.G1Affine, error) {
-	if bits.OnesCount64(uint64(len(coeffs))) != 1 {
-		return nil, fmt.Errorf("len(coeffs) must be a power of 2")
+	return transformG1(coeffs, true)
+}
+
+// ToCanonicalG1 in place transform of evals Lagrange form into canonical coeff form.
+// It applies the forward fft on the vector of G1 evaluations.
+// Size of evals must be a power of 2.
+func ToCanonicalG1(evals []curve.G1Affine) ([]curve.G1Affine, error) {
+	return transformG1(evals, false)
+}
+
+func transformG1(points []curve.G1Affine, inverse bool) ([]curve.G1Affine, error) {
+	if bits.OnesCount64(uint64(len(points))) != 1 {
+		return nil, fmt.Errorf("len(points) must be a power of 2")
 	}
-	size := len(coeffs)
+	size := len(points)
 
 	numCPU := uint64(runtime.NumCPU())
 	maxSplits := bits.TrailingZeros64(ecc.NextPowerOfTwo(numCPU)) << 1
 
-	twiddlesInv, err := computeTwiddlesInv(size)
+	twiddles, err := computeTwiddles(size, inverse)
 	if err != nil {
 		return nil, err
 	}
 
 	// batch convert to Jacobian
-	jCoeffs := make([]curve.G1Jac, len(coeffs))
-	for i := range len(coeffs) {
-		jCoeffs[i].FromAffine(&coeffs[i])
+	jPoints := make([]curve.G1Jac, len(points))
+	for i := range len(points) {
+		jPoints[i].FromAffine(&points[i])
 	}
 
-	difFFTG1(jCoeffs, twiddlesInv, 0, maxSplits, nil)
+	difFFTG1(jPoints, twiddles, 0, maxSplits, nil)
 
 	// TODO @gbotrel generify the cobra bitreverse function, benchmark it and use it everywhere
-	bitReverse(jCoeffs)
+	bitReverse(jPoints)
 
-	var invBigint big.Int
-	var frCardinality fr.Element
-	frCardinality.SetUint64(uint64(size))
-	frCardinality.Inverse(&frCardinality)
-	frCardinality.BigInt(&invBigint)
+	if inverse {
+		var invBigint big.Int
+		var frCardinality fr.Element
+		frCardinality.SetUint64(uint64(size))
+		frCardinality.Inverse(&frCardinality)
+		frCardinality.BigInt(&invBigint)
 
-	parallel.Execute(size, func(start, end int) {
-		for i := start; i < end; i++ {
-			jCoeffs[i].ScalarMultiplication(&jCoeffs[i], &invBigint)
-		}
-	})
+		parallel.Execute(size, func(start, end int) {
+			for i := start; i < end; i++ {
+				jPoints[i].ScalarMultiplication(&jPoints[i], &invBigint)
+			}
+		})
+	}
 
 	// batch convert to affine
-	return curve.BatchJacobianToAffineG1(jCoeffs), nil
+	return curve.BatchJacobianToAffineG1(jPoints), nil
 }
 
-func computeTwiddlesInv(cardinality int) ([]*big.Int, error) {
+func computeTwiddles(cardinality int, inverse bool) ([]*big.Int, error) {
 	generator, err := fr.Generator(uint64(cardinality))
 	if err != nil {
 		return nil, err
 	}
 
-	// inverse the generator
-	generator.Inverse(&generator)
+	if inverse {
+		generator.Inverse(&generator)
+	}
 
 	// nb fft stages
 	nbStages := uint64(bits.TrailingZeros64(uint64(cardinality)))
