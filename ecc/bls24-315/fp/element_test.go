@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"math/big"
 	"math/bits"
+	"slices"
 
 	mrand "math/rand"
 
@@ -97,6 +98,44 @@ func BenchmarkElementInverse(b *testing.B) {
 		benchResElement.Inverse(&x)
 	}
 
+}
+
+func BenchmarkElementBatchInvert(b *testing.B) {
+	for _, n := range []int{1 << 12, 1 << 16} {
+		a := make([]Element, n)
+		for i := range a {
+			a[i].MustSetRandom()
+		}
+		res := make([]Element, n)
+		scratch := make([]Element, n)
+
+		b.Run(fmt.Sprintf("alloc/n=%d", n), func(b *testing.B) {
+			b.ReportAllocs()
+			for range b.N {
+				_ = BatchInvert(a)
+			}
+		})
+		b.Run(fmt.Sprintf("into/n=%d", n), func(b *testing.B) {
+			b.ReportAllocs()
+			for range b.N {
+				BatchInvertInto(res, a)
+			}
+		})
+		b.Run(fmt.Sprintf("into-scratch/n=%d", n), func(b *testing.B) {
+			b.ReportAllocs()
+			for range b.N {
+				BatchInvertIntoScratch(res, a, scratch)
+			}
+		})
+		b.Run(fmt.Sprintf("in-place-scratch/n=%d", n), func(b *testing.B) {
+			b.ReportAllocs()
+			copy(res, a)
+			for range b.N {
+				// the content is meaningless after the first call, but the cost is the same
+				BatchInvertIntoScratch(res, res, scratch)
+			}
+		})
+	}
 }
 
 func BenchmarkElementButterfly(b *testing.B) {
@@ -2255,6 +2294,116 @@ func TestElementBatchInvert(t *testing.T) {
 	))
 
 	properties.TestingRun(t, gopter.ConsoleReporter(false))
+}
+
+func TestElementBatchInvertInto(t *testing.T) {
+	t.Parallel()
+
+	zeroPatterns := map[string]func(i, n int) bool{
+		"none":   func(i, n int) bool { return false },
+		"all":    func(i, n int) bool { return true },
+		"first":  func(i, n int) bool { return i == 0 },
+		"last":   func(i, n int) bool { return i == n-1 },
+		"middle": func(i, n int) bool { return i == n/2 },
+		"edges":  func(i, n int) bool { return i == 0 || i == n-1 },
+		"every3": func(i, n int) bool { return i%3 == 0 },
+		"every7": func(i, n int) bool { return i%7 == 3 },
+	}
+
+	for name, isZero := range zeroPatterns {
+		for _, n := range []int{0, 1, 2, 3, 15, 16, 17, 31, 32, 33, 100, 4099} {
+			t.Run(fmt.Sprintf("%s/%d", name, n), func(t *testing.T) {
+				a := make([]Element, n)
+				expected := make([]Element, n)
+				for i := range a {
+					if isZero(i, n) {
+						continue // expected[i] = 0
+					}
+					a[i].MustSetRandom()
+					if a[i].IsZero() {
+						a[i].SetOne()
+					}
+					expected[i].Inverse(&a[i])
+				}
+				orig := slices.Clone(a)
+
+				// fresh returns a destination holding garbage that must be fully overwritten.
+				fresh := func(size int) []Element {
+					s := make([]Element, size)
+					for i := range s {
+						s[i].MustSetRandom()
+					}
+					return s
+				}
+				inPlace := func() []Element {
+					return slices.Clone(a)
+				}
+				check := func(t *testing.T, got []Element) {
+					t.Helper()
+					require.Equal(t, expected, got)
+				}
+
+				check(t, BatchInvert(a))
+
+				res := fresh(n)
+				BatchInvertInto(res, a)
+				check(t, res)
+
+				res = fresh(n)
+				BatchInvertIntoScratch(res, a, fresh(n))
+				check(t, res)
+
+				// scratch may be longer than needed
+				res = fresh(n)
+				BatchInvertIntoScratch(res, a, fresh(n+5))
+				check(t, res)
+
+				// res may be the very same slice as a
+				res = inPlace()
+				BatchInvertInto(res, res)
+				check(t, res)
+
+				res = inPlace()
+				BatchInvertIntoScratch(res, res, fresh(n))
+				check(t, res)
+
+				// a is left untouched unless it is the destination
+				require.Equal(t, orig, a)
+			})
+		}
+	}
+}
+
+func TestElementBatchInvertIntoPanics(t *testing.T) {
+	t.Parallel()
+
+	a := make([]Element, 4)
+	require.Panics(t, func() { BatchInvertInto(make([]Element, 3), a) })
+	require.Panics(t, func() { BatchInvertIntoScratch(make([]Element, 3), a, make([]Element, 4)) })
+	require.Panics(t, func() { BatchInvertIntoScratch(make([]Element, 4), a, make([]Element, 3)) })
+}
+
+// TestBatchInvertIntoAllocs checks the allocation contract of the Into variants:
+// they allocate nothing besides what the single Inverse call they make allocates
+// (which is not zero for moduli whose Inverse falls back to math/big).
+func TestElementBatchInvertIntoAllocs(t *testing.T) {
+	// not parallel: AllocsPerRun is perturbed by concurrently running tests.
+	const n = 1 << 12
+	a := make([]Element, n)
+	for i := range a {
+		a[i].MustSetRandom()
+	}
+	a[n/3].SetZero()
+	res := make([]Element, n)
+	scratch := make([]Element, n)
+
+	var x, z Element
+	x.MustSetRandom()
+	inverseAllocs := testing.AllocsPerRun(10, func() { z.Inverse(&x) })
+
+	require.LessOrEqual(t, testing.AllocsPerRun(10, func() { BatchInvertInto(res, a) }), inverseAllocs, "BatchInvertInto")
+	require.LessOrEqual(t, testing.AllocsPerRun(10, func() { BatchInvertIntoScratch(res, a, scratch) }), inverseAllocs, "BatchInvertIntoScratch")
+	require.LessOrEqual(t, testing.AllocsPerRun(10, func() { BatchInvertIntoScratch(res, res, scratch) }), inverseAllocs, "BatchInvertIntoScratch in place")
 }
 
 func TestElementFromMont(t *testing.T) {

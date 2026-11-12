@@ -16,7 +16,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/bits-and-blooms/bitset"
 	"github.com/consensys/gnark-crypto/field/hash"
 	"github.com/consensys/gnark-crypto/field/pool"
 )
@@ -433,35 +432,83 @@ func _reduceGeneric(z *Element) {
 
 // BatchInvert returns a new slice with every element inverted.
 // Uses Montgomery batch inversion trick
+//
+// if a[i] == 0, returns result[i] = a[i]
 func BatchInvert(a []Element) []Element {
 	res := make([]Element, len(a))
-	if len(a) == 0 {
-		return res
-	}
+	BatchInvertInto(res, a)
+	return res
+}
 
-	zeroes := bitset.New(uint(len(a)))
+// BatchInvertInto sets res[i] to the inverse of a[i], using Montgomery batch
+// inversion trick; if a[i] == 0, res[i] = 0. res and a must have the same
+// length.
+//
+// res may be the very same slice as a (in place), but must not otherwise
+// overlap it. When res and a are distinct, BatchInvertInto allocates nothing
+// beyond the single Inverse call it makes: res holds the running products.
+// In place, it needs len(a) elements of scratch space and allocates them;
+// use BatchInvertIntoScratch to provide them.
+func BatchInvertInto(res, a []Element) {
+	if len(res) != len(a) {
+		panic("BatchInvertInto: slices don't have the same length")
+	}
+	if len(a) == 0 {
+		return
+	}
+	if &res[0] == &a[0] {
+		batchInvert(res, a, make([]Element, len(a)))
+		return
+	}
+	batchInvert(res, a, res)
+}
+
+// BatchInvertIntoScratch is BatchInvertInto with caller-provided scratch
+// space, so that it allocates nothing beyond the single Inverse call it makes,
+// including in place (res may be the very same slice as a, but must not
+// otherwise overlap it).
+//
+// scratch must have at least len(a) elements and must not overlap res or a;
+// its content on return is unspecified.
+func BatchInvertIntoScratch(res, a, scratch []Element) {
+	if len(res) != len(a) {
+		panic("BatchInvertIntoScratch: slices don't have the same length")
+	}
+	if len(scratch) < len(a) {
+		panic("BatchInvertIntoScratch: scratch is shorter than the input")
+	}
+	if len(a) == 0 {
+		return
+	}
+	batchInvert(res, a, scratch[:len(a)])
+}
+
+// batchInvert is the implementation of BatchInvertInto. The running products
+// are stored in prefix, which is either res itself (then a is distinct from
+// res) or scratch space disjoint from res and a. a[i] is read before res[i]
+// is written, so res may alias a in the latter case. len(a) must be > 0.
+func batchInvert(res, a, prefix []Element) {
 	accumulator := One()
 
-	for i := range len(a) {
+	for i := range a {
 		if a[i].IsZero() {
-			zeroes.Set(uint(i))
 			continue
 		}
-		res[i] = accumulator
+		prefix[i] = accumulator
 		accumulator.Mul(&accumulator, &a[i])
 	}
 
 	accumulator.Inverse(&accumulator)
 
 	for i := len(a) - 1; i >= 0; i-- {
-		if zeroes.Test(uint(i)) {
+		x := a[i]
+		if x.IsZero() {
+			res[i].SetZero()
 			continue
 		}
-		res[i].Mul(&res[i], &accumulator)
-		accumulator.Mul(&accumulator, &a[i])
+		res[i].Mul(&prefix[i], &accumulator)
+		accumulator.Mul(&accumulator, &x)
 	}
-
-	return res
 }
 
 func _butterflyGeneric(a, b *Element) {
