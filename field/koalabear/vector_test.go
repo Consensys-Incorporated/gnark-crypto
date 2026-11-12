@@ -20,6 +20,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// Neg, ScalarAdd, ScalarSub and ScalarSubFrom have value receivers, so they can be called on unaddressable vectors.
+var _ = []any{Vector(nil).Neg, Vector(nil).ScalarAdd, Vector(nil).ScalarSub, Vector(nil).ScalarSubFrom}
+
 func TestVectorNegAndScalarOps(t *testing.T) {
 	const size = 17
 	a := make(Vector, size)
