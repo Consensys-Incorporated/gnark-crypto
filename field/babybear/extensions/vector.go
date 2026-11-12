@@ -31,20 +31,26 @@ type VectorE4 []E4
 // Deprecated: use VectorE4.
 type Vector = VectorE4
 
+// Add sets vector[i] = a[i] + b[i]. vector may be identical to a and/or b;
+// partially overlapping slices are not supported.
 func (vector VectorE4) Add(a, b VectorE4) {
 	N := len(a)
 	if N != len(b) || N != len(vector) {
 		panic("vector.Add: vectors don't have the same length")
 	}
-	vectorAddGeneric(vector, a, b)
+	v := asBaseVector(vector)
+	v.Add(asBaseVector(a), asBaseVector(b))
 }
 
+// Sub sets vector[i] = a[i] - b[i]. vector may be identical to a and/or b;
+// partially overlapping slices are not supported.
 func (vector VectorE4) Sub(a, b VectorE4) {
 	N := len(a)
 	if N != len(b) || N != len(vector) {
 		panic("vector.Sub: vectors don't have the same length")
 	}
-	vectorSubGeneric(vector, a, b)
+	v := asBaseVector(vector)
+	v.Sub(asBaseVector(a), asBaseVector(b))
 }
 
 func (vector VectorE4) Mul(a, b VectorE4) {
@@ -513,17 +519,6 @@ func (vector VectorE4) PrefixProduct(nbTasks ...int) {
 func (vector VectorE4) prefixProductGeneric() {
 	for i := 1; i < len(vector); i++ {
 		vector[i].Mul(&vector[i], &vector[i-1])
-	}
-}
-
-func vectorAddGeneric(res, a, b VectorE4) {
-	for i := range len(res) {
-		res[i].Add(&a[i], &b[i])
-	}
-}
-func vectorSubGeneric(res, a, b VectorE4) {
-	for i := range len(res) {
-		res[i].Sub(&a[i], &b[i])
 	}
 }
 func vectorMulGeneric(res, a, b VectorE4) {

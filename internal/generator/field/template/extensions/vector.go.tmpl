@@ -27,6 +27,8 @@ type VectorE4 []E4
 // Deprecated: use VectorE4.
 type Vector = VectorE4
 
+// Add sets vector[i] = a[i] + b[i]. vector may be identical to a and/or b;
+// partially overlapping slices are not supported.
 func (vector VectorE4) Add(a, b VectorE4) {
 	N := len(a)
 	if N != len(b) || N != len(vector) {
@@ -45,10 +47,13 @@ func (vector VectorE4) Add(a, b VectorE4) {
 			vectorAddGeneric(vector[N-r:], a[N-r:], b[N-r:])
 		}
 	{{- else}}
-		vectorAddGeneric(vector, a, b)
+		v := asBaseVector(vector)
+		v.Add(asBaseVector(a), asBaseVector(b))
 	{{- end}}
 }
 
+// Sub sets vector[i] = a[i] - b[i]. vector may be identical to a and/or b;
+// partially overlapping slices are not supported.
 func (vector VectorE4) Sub(a, b VectorE4) {
 	N := len(a)
 	if N != len(b) || N != len(vector) {
@@ -67,7 +72,8 @@ func (vector VectorE4) Sub(a, b VectorE4) {
 			vectorSubGeneric(vector[N-r:], a[N-r:], b[N-r:])
 		}
 	{{- else}}
-		vectorSubGeneric(vector, a, b)
+		v := asBaseVector(vector)
+		v.Sub(asBaseVector(a), asBaseVector(b))
 	{{- end}}
 }
 
@@ -713,6 +719,7 @@ func (vector VectorE4) prefixProductGeneric() {
 
 
 
+{{- if .IsKoalaBear}}
 func vectorAddGeneric(res, a, b VectorE4) {
 	for i := range len(res) {
 		res[i].Add(&a[i], &b[i])
@@ -723,6 +730,7 @@ func vectorSubGeneric(res, a, b VectorE4) {
 		res[i].Sub(&a[i], &b[i])
 	}
 }
+{{- end}}
 func vectorMulGeneric(res, a, b VectorE4) {
 	for i := range len(res) {
 		res[i].Mul(&a[i], &b[i])

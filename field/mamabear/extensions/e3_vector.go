@@ -90,24 +90,24 @@ func (vector VectorE3) ScalarMul(a VectorE3, b *E3) {
 	}
 }
 
-// Add sets vector[i] = a[i] + b[i]. vector may alias a or b.
+// Add sets vector[i] = a[i] + b[i]. vector may be identical to a and/or b;
+// partially overlapping slices are not supported.
 func (vector VectorE3) Add(a, b VectorE3) {
 	if len(a) != len(vector) || len(b) != len(vector) {
 		panic("vector.Add: vectors don't have the same length")
 	}
-	for i := range vector {
-		vector[i].Add(&a[i], &b[i])
-	}
+	v := asBaseVector(vector)
+	v.Add(asBaseVector(a), asBaseVector(b))
 }
 
-// Sub sets vector[i] = a[i] - b[i]. vector may alias a or b.
+// Sub sets vector[i] = a[i] - b[i]. vector may be identical to a and/or b;
+// partially overlapping slices are not supported.
 func (vector VectorE3) Sub(a, b VectorE3) {
 	if len(a) != len(vector) || len(b) != len(vector) {
 		panic("vector.Sub: vectors don't have the same length")
 	}
-	for i := range vector {
-		vector[i].Sub(&a[i], &b[i])
-	}
+	v := asBaseVector(vector)
+	v.Sub(asBaseVector(a), asBaseVector(b))
 }
 
 // Mul sets vector[i] = a[i] * b[i]. vector may alias a or b.

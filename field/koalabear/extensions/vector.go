@@ -32,6 +32,8 @@ type VectorE4 []E4
 // Deprecated: use VectorE4.
 type Vector = VectorE4
 
+// Add sets vector[i] = a[i] + b[i]. vector may be identical to a and/or b;
+// partially overlapping slices are not supported.
 func (vector VectorE4) Add(a, b VectorE4) {
 	N := len(a)
 	if N != len(b) || N != len(vector) {
@@ -50,6 +52,8 @@ func (vector VectorE4) Add(a, b VectorE4) {
 	}
 }
 
+// Sub sets vector[i] = a[i] - b[i]. vector may be identical to a and/or b;
+// partially overlapping slices are not supported.
 func (vector VectorE4) Sub(a, b VectorE4) {
 	N := len(a)
 	if N != len(b) || N != len(vector) {
@@ -664,7 +668,6 @@ func (vector VectorE4) prefixProductGeneric() {
 		vector[i].Mul(&vector[i], &vector[i-1])
 	}
 }
-
 func vectorAddGeneric(res, a, b VectorE4) {
 	for i := range len(res) {
 		res[i].Add(&a[i], &b[i])
