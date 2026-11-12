@@ -107,7 +107,7 @@ func bitReverseTiling[T any](n, nbTasks int) (tasks, logTile int, ok bool) {
 	// tile in L1. For 16-byte and larger elements on one task, the tile is
 	// then sized against a 384 KiB budget: q = 6 up to 96 bytes, q = 5 up to
 	// 384 bytes. On AMD Zen 4 that is 1.1–1.4× faster than the L1 budget's
-	// q (which lost to COBRA-9 there); on a Xeon 8488C equal or faster. It is
+	// q; on a Xeon 8488C equal or faster. It is
 	// single-task only, as measured, so that many tasks do not each allocate
 	// large buffers.
 	budget := bitReverseTileBufBytes()
@@ -134,8 +134,21 @@ func bitReverseLogTile(elemSize, budget int) int {
 	return logTile
 }
 
-// COBRA-L1 is COBRA (Carter and Gatlin, 1998; see bitReverseCobraInPlace)
-// with tiles small enough for L1, split over goroutines.
+// COBRA-L1 is COBRA with tiles small enough for L1, split over goroutines.
+// COBRA is from:
+//
+//   - Towards an Optimal Bit-Reversal Permutation Program
+//     Larry Carter and Kang Su Gatlin, 1998
+//     https://csaws.cs.technion.ac.il/~itai/Courses/Cache/bit.pdf
+//
+//   - Practically efficient methods for performing bit-reversed
+//     permutation in C++11 on the x86-64 architecture
+//     Knauth, Adas, Whitfield, Wang, Ickler, Conrad, Serang, 2017
+//     https://arxiv.org/pdf/1708.01873.pdf
+//
+//   - and more specifically, constantine implementation:
+//     https://github.com/mratsim/constantine/blob/d51699248db04e29c7b1ad97e0bafa1499db00b5/constantine/math/polynomials/fft.nim#L205
+//     by Mamy Ratsimbazafy (@mratsim).
 //
 // With the index split as i = a|c|b (a and b of q bits),
 //
