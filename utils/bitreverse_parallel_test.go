@@ -151,9 +151,7 @@ func TestBitReverseCopyRouting(t *testing.T) {
 // BenchmarkBitReverseCopyKernels compares the serial copy kernels; it documents
 // why BitReverseCopy uses COBRA-L1 on one task. benchE6 mirrors the nested
 // struct of a koalabear/babybear E6, so the numbers match the real type.
-// (Before the COBRA-L1 kernels copied tile elements by index, flat arrays such
-// as [3]uint64 or [6]uint32 hit a store-forwarding stall and favoured COBRA
-// with 2^9 tiles; they no longer do.) Pin it to a core for stable numbers, e.g.
+// Pin it to a core for stable numbers, e.g.
 // taskset -c 2 go test -run '^$' -bench BitReverseCopyKernels -count 5 ./utils/
 func BenchmarkBitReverseCopyKernels(b *testing.B) {
 	logNs := []int{20, 21, 22, 23}
@@ -174,11 +172,6 @@ func benchBitReverseCopyKernels[T any](b *testing.B, name string, logNs []int) {
 		b.Run(fmt.Sprintf("%s/2^%d/naive", name, logN), func(b *testing.B) {
 			for b.Loop() {
 				bitReverseCopyNaive(dst, src)
-			}
-		})
-		b.Run(fmt.Sprintf("%s/2^%d/cobra9", name, logN), func(b *testing.B) {
-			for b.Loop() {
-				bitReverseCopyCobra(dst, src)
 			}
 		})
 		b.Run(fmt.Sprintf("%s/2^%d/cobraL1", name, logN), func(b *testing.B) {
