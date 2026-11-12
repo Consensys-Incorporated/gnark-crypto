@@ -1795,7 +1795,9 @@ func Test{{toTitle .ElementName}}BatchInvertIntoPanics(t *testing.T) {
 	require.Panics(t, func() { BatchInvertIntoScratch(make([]{{.ElementName}}, 4), a, make([]{{.ElementName}}, 3)) })
 }
 
-// TestBatchInvertIntoAllocs checks the allocation contract of the Into variants.
+// TestBatchInvertIntoAllocs checks the allocation contract of the Into variants:
+// they allocate nothing besides what the single Inverse call they make allocates
+// (which is not zero for moduli whose Inverse falls back to math/big).
 func Test{{toTitle .ElementName}}BatchInvertIntoAllocs(t *testing.T) {
 	// not parallel: AllocsPerRun is perturbed by concurrently running tests.
 	const n = 1 << 12
@@ -1807,9 +1809,13 @@ func Test{{toTitle .ElementName}}BatchInvertIntoAllocs(t *testing.T) {
 	res := make([]{{.ElementName}}, n)
 	scratch := make([]{{.ElementName}}, n)
 
-	require.Zero(t, testing.AllocsPerRun(10, func() { BatchInvertInto(res, a) }), "BatchInvertInto")
-	require.Zero(t, testing.AllocsPerRun(10, func() { BatchInvertIntoScratch(res, a, scratch) }), "BatchInvertIntoScratch")
-	require.Zero(t, testing.AllocsPerRun(10, func() { BatchInvertIntoScratch(res, res, scratch) }), "BatchInvertIntoScratch in place")
+	var x, z {{.ElementName}}
+	x.MustSetRandom()
+	inverseAllocs := testing.AllocsPerRun(10, func() { z.Inverse(&x) })
+
+	require.LessOrEqual(t, testing.AllocsPerRun(10, func() { BatchInvertInto(res, a) }), inverseAllocs, "BatchInvertInto")
+	require.LessOrEqual(t, testing.AllocsPerRun(10, func() { BatchInvertIntoScratch(res, a, scratch) }), inverseAllocs, "BatchInvertIntoScratch")
+	require.LessOrEqual(t, testing.AllocsPerRun(10, func() { BatchInvertIntoScratch(res, res, scratch) }), inverseAllocs, "BatchInvertIntoScratch in place")
 }
 
 func Test{{toTitle .ElementName}}FromMont(t *testing.T) {

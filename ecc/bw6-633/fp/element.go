@@ -1202,10 +1202,10 @@ func BatchInvert(a []Element) []Element {
 // length.
 //
 // res may be the very same slice as a (in place), but must not otherwise
-// overlap it. When res and a are distinct, BatchInvertInto does not allocate:
-// res holds the running products. In place, it needs len(a) elements of
-// scratch space and allocates them; use BatchInvertIntoScratch to provide
-// them.
+// overlap it. When res and a are distinct, BatchInvertInto allocates nothing
+// beyond the single Inverse call it makes: res holds the running products.
+// In place, it needs len(a) elements of scratch space and allocates them;
+// use BatchInvertIntoScratch to provide them.
 func BatchInvertInto(res, a []Element) {
 	if len(res) != len(a) {
 		panic("BatchInvertInto: slices don't have the same length")
@@ -1221,8 +1221,9 @@ func BatchInvertInto(res, a []Element) {
 }
 
 // BatchInvertIntoScratch is BatchInvertInto with caller-provided scratch
-// space, so that it never allocates, including in place (res may be the very
-// same slice as a, but must not otherwise overlap it).
+// space, so that it allocates nothing beyond the single Inverse call it makes,
+// including in place (res may be the very same slice as a, but must not
+// otherwise overlap it).
 //
 // scratch must have at least len(a) elements and must not overlap res or a;
 // its content on return is unspecified.
