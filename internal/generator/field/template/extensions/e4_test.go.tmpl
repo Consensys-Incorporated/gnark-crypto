@@ -1081,6 +1081,26 @@ func BenchmarkPrefixProduct(b *testing.B) {
 }
 
 
+func BenchmarkVectorE4AddSub(b *testing.B) {
+	for _, n := range []int{1, 2, 4, 8, 64, 1024, 1 << 16} {
+		x, y, z := make(VectorE4, n), make(VectorE4, n), make(VectorE4, n)
+		for i := range x {
+			x[i].MustSetRandom()
+			y[i].MustSetRandom()
+		}
+		b.Run(fmt.Sprintf("Add/%d", n), func(b *testing.B) {
+			for range b.N {
+				z.Add(x, y)
+			}
+		})
+		b.Run(fmt.Sprintf("Sub/%d", n), func(b *testing.B) {
+			for range b.N {
+				z.Sub(x, y)
+			}
+		})
+	}
+}
+
 func BenchmarkVectorSerialization(b *testing.B) {
 	const N = 1 << 15
 	a1 := make(VectorE4, N)
