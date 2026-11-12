@@ -664,6 +664,68 @@ func TestPrefixProduct_VariousNbTasks(t *testing.T) {
 	}
 }
 
+func TestVectorE4ElementwiseOps(t *testing.T) {
+	const size = 17
+	a := make(VectorE4, size)
+	for i := range a {
+		a[i].MustSetRandom()
+	}
+	var c fr.Element
+	c.MustSetRandom()
+	b := make(VectorE4, size)
+	for i := range b {
+		b[i].MustSetRandom()
+	}
+	add, sub, mul := make(VectorE4, size), make(VectorE4, size), make(VectorE4, size)
+	add.Add(a, b)
+	sub.Sub(a, b)
+	mul.Mul(a, b)
+
+	neg, scalarAdd, scalarSub, subFrom := make(VectorE4, size), make(VectorE4, size), make(VectorE4, size), make(VectorE4, size)
+	neg.Neg(a)
+	scalarAdd.ScalarAddElement(a, &c)
+	scalarSub.ScalarSubElement(a, &c)
+	subFrom.ScalarSubFromElement(&c, a)
+
+	for i := range a {
+		var e E4
+		require.Equal(t, *e.Add(&a[i], &b[i]), add[i])
+		require.Equal(t, *e.Sub(&a[i], &b[i]), sub[i])
+		require.Equal(t, *e.Mul(&a[i], &b[i]), mul[i])
+		require.Equal(t, *e.Neg(&a[i]), neg[i])
+		require.Equal(t, *e.AddElement(&a[i], &c), scalarAdd[i])
+		require.Equal(t, *e.SubElement(&a[i], &c), scalarSub[i])
+		require.Equal(t, *e.SubFromElement(&c, &a[i]), subFrom[i])
+	}
+
+	// the destination may alias a
+	aliased := make(VectorE4, size)
+	copy(aliased, a)
+	aliased.Neg(aliased)
+	require.Equal(t, neg, aliased)
+
+	// the scalar may alias an element of the destination
+	c0 := a[0].B0.A0
+	v := make(VectorE4, size)
+	for _, op := range []struct {
+		name    string
+		vector  func(v VectorE4, c *fr.Element)
+		element func(z, x *E4, c *fr.Element)
+	}{
+		{"ScalarAddElement", func(v VectorE4, c *fr.Element) { v.ScalarAddElement(v, c) }, func(z, x *E4, c *fr.Element) { z.AddElement(x, c) }},
+		{"ScalarSubElement", func(v VectorE4, c *fr.Element) { v.ScalarSubElement(v, c) }, func(z, x *E4, c *fr.Element) { z.SubElement(x, c) }},
+		{"ScalarSubFromElement", func(v VectorE4, c *fr.Element) { v.ScalarSubFromElement(c, v) }, func(z, x *E4, c *fr.Element) { z.SubFromElement(c, x) }},
+	} {
+		copy(v, a)
+		op.vector(v, &v[0].B0.A0)
+		for i := range a {
+			var e E4
+			op.element(&e, &a[i], &c0)
+			require.Equal(t, e, v[i], op.name)
+		}
+	}
+}
+
 func TestVectorEmptyOps(t *testing.T) {
 	assert := require.New(t)
 
@@ -1041,6 +1103,26 @@ func BenchmarkPrefixProduct(b *testing.B) {
 		}
 	})
 
+}
+
+func BenchmarkVectorE4AddSub(b *testing.B) {
+	for _, n := range []int{1, 2, 4, 8, 64, 1024, 1 << 16} {
+		x, y, z := make(VectorE4, n), make(VectorE4, n), make(VectorE4, n)
+		for i := range x {
+			x[i].MustSetRandom()
+			y[i].MustSetRandom()
+		}
+		b.Run(fmt.Sprintf("Add/%d", n), func(b *testing.B) {
+			for range b.N {
+				z.Add(x, y)
+			}
+		})
+		b.Run(fmt.Sprintf("Sub/%d", n), func(b *testing.B) {
+			for range b.N {
+				z.Sub(x, y)
+			}
+		})
+	}
 }
 
 func BenchmarkVectorSerialization(b *testing.B) {

@@ -1,10 +1,29 @@
 import (
+{{- if .GenerateE2}}
 	"math/big"
 	"sync"
+{{- end}}
+{{- if or .F31 .GenerateE3}}
+	"unsafe"
+
+	fr "{{ .FieldPackagePath }}"
+{{- end}}
 )
+{{- if .GenerateE2}}
 
 var bigIntPool = sync.Pool{
 	New: func() any {
 		return new(big.Int)
 	},
 }
+{{- end}}
+{{- if or .F31 .GenerateE3}}
+
+// asBaseVector returns v as the vector of its coordinates. E must consist only of fr.Element fields.
+func asBaseVector[E any](v []E) fr.Vector {
+	if len(v) == 0 {
+		return nil
+	}
+	return unsafe.Slice((*fr.Element)(unsafe.Pointer(&v[0])), len(v)*int(unsafe.Sizeof(v[0])/unsafe.Sizeof(fr.Element{})))
+}
+{{- end}}

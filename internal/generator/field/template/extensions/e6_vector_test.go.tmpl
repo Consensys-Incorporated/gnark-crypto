@@ -53,6 +53,64 @@ func TestVectorE6Sum(t *testing.T) {
 	}
 }
 
+func TestVectorE6ElementwiseOps(t *testing.T) {
+	const size = 17
+	a := make(VectorE6, size)
+	a.MustSetRandom()
+	var c fr.Element
+	c.MustSetRandom()
+	b := make(VectorE6, size)
+	b.MustSetRandom()
+	add, sub, mul := make(VectorE6, size), make(VectorE6, size), make(VectorE6, size)
+	add.Add(a, b)
+	sub.Sub(a, b)
+	mul.Mul(a, b)
+
+	neg, scalarAdd, scalarSub, subFrom := make(VectorE6, size), make(VectorE6, size), make(VectorE6, size), make(VectorE6, size)
+	neg.Neg(a)
+	scalarAdd.ScalarAddElement(a, &c)
+	scalarSub.ScalarSubElement(a, &c)
+	subFrom.ScalarSubFromElement(&c, a)
+
+	for i := range a {
+		var e E6
+		require.Equal(t, *e.Add(&a[i], &b[i]), add[i])
+		require.Equal(t, *e.Sub(&a[i], &b[i]), sub[i])
+		require.Equal(t, *e.Mul(&a[i], &b[i]), mul[i])
+		require.Equal(t, *e.Neg(&a[i]), neg[i])
+		require.Equal(t, *e.AddElement(&a[i], &c), scalarAdd[i])
+		require.Equal(t, *e.SubElement(&a[i], &c), scalarSub[i])
+		require.Equal(t, *e.SubFromElement(&c, &a[i]), subFrom[i])
+	}
+
+	// the destination may alias a
+	aliased := make(VectorE6, size)
+	copy(aliased, a)
+	aliased.Neg(aliased)
+	require.Equal(t, neg, aliased)
+
+	// the scalar may alias an element of the destination
+	c0 := a[0].B0.A0
+	v := make(VectorE6, size)
+	for _, op := range []struct {
+		name    string
+		vector  func(v VectorE6, c *fr.Element)
+		element func(z, x *E6, c *fr.Element)
+	}{
+		{"ScalarAddElement", func(v VectorE6, c *fr.Element) { v.ScalarAddElement(v, c) }, func(z, x *E6, c *fr.Element) { z.AddElement(x, c) }},
+		{"ScalarSubElement", func(v VectorE6, c *fr.Element) { v.ScalarSubElement(v, c) }, func(z, x *E6, c *fr.Element) { z.SubElement(x, c) }},
+		{"ScalarSubFromElement", func(v VectorE6, c *fr.Element) { v.ScalarSubFromElement(c, v) }, func(z, x *E6, c *fr.Element) { z.SubFromElement(c, x) }},
+	} {
+		copy(v, a)
+		op.vector(v, &v[0].B0.A0)
+		for i := range a {
+			var e E6
+			op.element(&e, &a[i], &c0)
+			require.Equal(t, e, v[i], op.name)
+		}
+	}
+}
+
 func TestVectorE6ButterflyPair(t *testing.T) {
 	for _, size := range []int{2, 4, 8, 16, 18} {
 		t.Run(strconv.Itoa(size), func(t *testing.T) {
@@ -528,6 +586,15 @@ func TestVectorE6InnerProduct(t *testing.T) {
 					expected.Add(&expected, &p)
 				}
 				require.Equal(t, expected, a.InnerProduct(b))
+
+				scalars := make(fr.Vector, size)
+				scalars.MustSetRandom()
+				var expectedByElement E6
+				for i := range a {
+					p.MulByElement(&a[i], &scalars[i])
+					expectedByElement.Add(&expectedByElement, &p)
+				}
+				require.Equal(t, expectedByElement, a.InnerProductByElement(scalars))
 			})
 		}
 	}

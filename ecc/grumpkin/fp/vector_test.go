@@ -23,6 +23,58 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// Neg, ScalarAdd, ScalarSub and ScalarSubFrom have value receivers, so they can be called on unaddressable vectors.
+var _ = []any{Vector(nil).Neg, Vector(nil).ScalarAdd, Vector(nil).ScalarSub, Vector(nil).ScalarSubFrom}
+
+func TestVectorNegAndScalarOps(t *testing.T) {
+	const size = 17
+	a := make(Vector, size)
+	a.MustSetRandom()
+	var c Element
+	c.MustSetRandom()
+
+	neg, scalarAdd, scalarSub, subFrom := make(Vector, size), make(Vector, size), make(Vector, size), make(Vector, size)
+	neg.Neg(a)
+	scalarAdd.ScalarAdd(a, &c)
+	scalarSub.ScalarSub(a, &c)
+	subFrom.ScalarSubFrom(&c, a)
+
+	for i := range a {
+		var e Element
+		require.Equal(t, *e.Neg(&a[i]), neg[i])
+		require.Equal(t, *e.Add(&a[i], &c), scalarAdd[i])
+		require.Equal(t, *e.Sub(&a[i], &c), scalarSub[i])
+		require.Equal(t, *e.Sub(&c, &a[i]), subFrom[i])
+	}
+
+	// the destination may alias a
+	aliased := make(Vector, size)
+	copy(aliased, a)
+	aliased.Neg(aliased)
+	require.Equal(t, neg, aliased)
+
+	// the scalar may alias an element of the destination
+	c0 := a[0]
+	v := make(Vector, size)
+	for _, op := range []struct {
+		name    string
+		vector  func(v Vector, c *Element)
+		element func(z, x *Element, c *Element)
+	}{
+		{"ScalarAdd", func(v Vector, c *Element) { v.ScalarAdd(v, c) }, func(z, x *Element, c *Element) { z.Add(x, c) }},
+		{"ScalarSub", func(v Vector, c *Element) { v.ScalarSub(v, c) }, func(z, x *Element, c *Element) { z.Sub(x, c) }},
+		{"ScalarSubFrom", func(v Vector, c *Element) { v.ScalarSubFrom(c, v) }, func(z, x *Element, c *Element) { z.Sub(c, x) }},
+	} {
+		copy(v, a)
+		op.vector(v, &v[0])
+		for i := range a {
+			var e Element
+			op.element(&e, &a[i], &c0)
+			require.Equal(t, e, v[i], op.name)
+		}
+	}
+}
+
 func TestVectorSort(t *testing.T) {
 	assert := require.New(t)
 
