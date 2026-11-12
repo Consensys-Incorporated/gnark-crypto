@@ -521,6 +521,7 @@ func (vector VectorE4) prefixProductGeneric() {
 		vector[i].Mul(&vector[i], &vector[i-1])
 	}
 }
+
 func vectorMulGeneric(res, a, b VectorE4) {
 	for i := range len(res) {
 		res[i].Mul(&a[i], &b[i])

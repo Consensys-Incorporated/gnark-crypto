@@ -39,17 +39,8 @@ func (vector VectorE4) Add(a, b VectorE4) {
 	if N != len(b) || N != len(vector) {
 		panic("vector.Add: vectors don't have the same length")
 	}
-	const blockSize = 4
-	if !cpu.SupportAVX512 || N < blockSize {
-		vectorAddGeneric(vector, a, b)
-		return
-	}
-	r := N % blockSize
-	nr := uint64(N - r)
-	vectorAdd_avx512(&vector[0], &a[0], &b[0], nr)
-	if r != 0 {
-		vectorAddGeneric(vector[N-r:], a[N-r:], b[N-r:])
-	}
+	v := asBaseVector(vector)
+	v.Add(asBaseVector(a), asBaseVector(b))
 }
 
 // Sub sets vector[i] = a[i] - b[i]. vector may be identical to a and/or b;
@@ -59,17 +50,8 @@ func (vector VectorE4) Sub(a, b VectorE4) {
 	if N != len(b) || N != len(vector) {
 		panic("vector.Sub: vectors don't have the same length")
 	}
-	const blockSize = 4
-	if !cpu.SupportAVX512 || N < blockSize {
-		vectorSubGeneric(vector, a, b)
-		return
-	}
-	r := N % blockSize
-	nr := uint64(N - r)
-	vectorSub_avx512(&vector[0], &a[0], &b[0], nr)
-	if r != 0 {
-		vectorSubGeneric(vector[N-r:], a[N-r:], b[N-r:])
-	}
+	v := asBaseVector(vector)
+	v.Sub(asBaseVector(a), asBaseVector(b))
 }
 
 func (vector VectorE4) Mul(a, b VectorE4) {
@@ -668,16 +650,7 @@ func (vector VectorE4) prefixProductGeneric() {
 		vector[i].Mul(&vector[i], &vector[i-1])
 	}
 }
-func vectorAddGeneric(res, a, b VectorE4) {
-	for i := range len(res) {
-		res[i].Add(&a[i], &b[i])
-	}
-}
-func vectorSubGeneric(res, a, b VectorE4) {
-	for i := range len(res) {
-		res[i].Sub(&a[i], &b[i])
-	}
-}
+
 func vectorMulGeneric(res, a, b VectorE4) {
 	for i := range len(res) {
 		res[i].Mul(&a[i], &b[i])
