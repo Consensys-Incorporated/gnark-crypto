@@ -698,26 +698,6 @@ func (vector VectorE6) MustSetRandom() {
 	}
 }
 
-// Add sets vector[i] = a[i] + b[i]. vector may alias a or b.
-func (vector VectorE6) Add(a, b VectorE6) {
-	if len(a) != len(vector) || len(b) != len(vector) {
-		panic("vector.Add: vectors don't have the same length")
-	}
-	for i := range vector {
-		vector[i].Add(&a[i], &b[i])
-	}
-}
-
-// Sub sets vector[i] = a[i] - b[i]. vector may alias a or b.
-func (vector VectorE6) Sub(a, b VectorE6) {
-	if len(a) != len(vector) || len(b) != len(vector) {
-		panic("vector.Sub: vectors don't have the same length")
-	}
-	for i := range vector {
-		vector[i].Sub(&a[i], &b[i])
-	}
-}
-
 // Neg sets vector[i] = -a[i]. vector may alias a.
 func (vector VectorE6) Neg(a VectorE6) {
 	if len(a) != len(vector) {
