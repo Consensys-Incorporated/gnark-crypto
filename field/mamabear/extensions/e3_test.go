@@ -495,6 +495,58 @@ func TestE3VectorSum(t *testing.T) {
 	}
 }
 
+func TestVectorE3ElementwiseOps(t *testing.T) {
+	const size = 17
+	a := make(VectorE3, size)
+	a.MustSetRandom()
+	var c fr.Element
+	c.MustSetRandom()
+	b := make(VectorE3, size)
+	b.MustSetRandom()
+	add, sub, mul := make(VectorE3, size), make(VectorE3, size), make(VectorE3, size)
+	add.Add(a, b)
+	sub.Sub(a, b)
+	mul.Mul(a, b)
+
+	neg, scalarAdd, scalarSub, subFrom := make(VectorE3, size), make(VectorE3, size), make(VectorE3, size), make(VectorE3, size)
+	neg.Neg(a)
+	scalarAdd.ScalarAddElement(a, &c)
+	scalarSub.ScalarSubElement(a, &c)
+	subFrom.ScalarSubFromElement(&c, a)
+
+	for i := range a {
+		var e E3
+		require.Equal(t, *e.Add(&a[i], &b[i]), add[i])
+		require.Equal(t, *e.Sub(&a[i], &b[i]), sub[i])
+		require.Equal(t, *e.Mul(&a[i], &b[i]), mul[i])
+		require.Equal(t, *e.Neg(&a[i]), neg[i])
+		require.Equal(t, *e.AddElement(&a[i], &c), scalarAdd[i])
+		require.Equal(t, *e.SubElement(&a[i], &c), scalarSub[i])
+		require.Equal(t, *e.SubFromElement(&c, &a[i]), subFrom[i])
+	}
+
+	// the destination may alias a
+	aliased := make(VectorE3, size)
+	copy(aliased, a)
+	aliased.Neg(aliased)
+	require.Equal(t, neg, aliased)
+}
+
+func TestVectorE3InnerProductByElement(t *testing.T) {
+	const size = 17
+	a := make(VectorE3, size)
+	a.MustSetRandom()
+	scalars := make(fr.Vector, size)
+	scalars.MustSetRandom()
+
+	var expected, p E3
+	for i := range a {
+		p.MulByElement(&a[i], &scalars[i])
+		expected.Add(&expected, &p)
+	}
+	require.Equal(t, expected, a.InnerProductByElement(scalars))
+}
+
 func TestE3MarshalSetBytesCanonicalRoundTrip(t *testing.T) {
 	for range 100 {
 		var x E3

@@ -76,12 +76,6 @@ var vInterleaveIndices = []uint64{
 func mulAccByElement_avx512(alpha *E4, scale *fr.Element, res *E4, N uint64)
 
 //go:noescape
-func vectorAdd_avx512(res, a, b *E4, N uint64)
-
-//go:noescape
-func vectorSub_avx512(res, a, b *E4, N uint64)
-
-//go:noescape
 func vectorMul_avx512(res, a, b *E4, N uint64)
 
 //go:noescape
