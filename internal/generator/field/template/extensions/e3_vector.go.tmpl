@@ -123,33 +123,36 @@ func (vector VectorE3) Neg(a VectorE3) {
 	}
 }
 
-// ScalarAddElement sets vector[i] = a[i] + c, where c is an element of the base field. vector may alias a.
+// ScalarAddElement sets vector[i] = a[i] + c, where c is an element of the base field. vector may alias a, and c may point into vector.
 func (vector VectorE3) ScalarAddElement(a VectorE3, c *fr.Element) {
 	if len(a) != len(vector) {
 		panic("vector.ScalarAddElement: vectors don't have the same length")
 	}
+	cc := *c
 	for i := range vector {
-		vector[i].AddElement(&a[i], c)
+		vector[i].AddElement(&a[i], &cc)
 	}
 }
 
-// ScalarSubElement sets vector[i] = a[i] - c, where c is an element of the base field. vector may alias a.
+// ScalarSubElement sets vector[i] = a[i] - c, where c is an element of the base field. vector may alias a, and c may point into vector.
 func (vector VectorE3) ScalarSubElement(a VectorE3, c *fr.Element) {
 	if len(a) != len(vector) {
 		panic("vector.ScalarSubElement: vectors don't have the same length")
 	}
+	cc := *c
 	for i := range vector {
-		vector[i].SubElement(&a[i], c)
+		vector[i].SubElement(&a[i], &cc)
 	}
 }
 
-// ScalarSubFromElement sets vector[i] = c - a[i], where c is an element of the base field. vector may alias a.
+// ScalarSubFromElement sets vector[i] = c - a[i], where c is an element of the base field. vector may alias a, and c may point into vector.
 func (vector VectorE3) ScalarSubFromElement(c *fr.Element, a VectorE3) {
 	if len(a) != len(vector) {
 		panic("vector.ScalarSubFromElement: vectors don't have the same length")
 	}
+	cc := *c
 	for i := range vector {
-		vector[i].SubFromElement(c, &a[i])
+		vector[i].SubFromElement(&cc, &a[i])
 	}
 }
 

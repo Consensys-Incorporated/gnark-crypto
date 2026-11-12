@@ -95,6 +95,27 @@ func TestVectorE6ElementwiseOps(t *testing.T) {
 	copy(aliased, a)
 	aliased.Neg(aliased)
 	require.Equal(t, neg, aliased)
+
+	// the scalar may alias an element of the destination
+	c0 := a[0].B0.A0
+	v := make(VectorE6, size)
+	for _, op := range []struct {
+		name    string
+		vector  func(v VectorE6, c *fr.Element)
+		element func(z, x *E6, c *fr.Element)
+	}{
+		{"ScalarAddElement", func(v VectorE6, c *fr.Element) { v.ScalarAddElement(v, c) }, func(z, x *E6, c *fr.Element) { z.AddElement(x, c) }},
+		{"ScalarSubElement", func(v VectorE6, c *fr.Element) { v.ScalarSubElement(v, c) }, func(z, x *E6, c *fr.Element) { z.SubElement(x, c) }},
+		{"ScalarSubFromElement", func(v VectorE6, c *fr.Element) { v.ScalarSubFromElement(c, v) }, func(z, x *E6, c *fr.Element) { z.SubFromElement(c, x) }},
+	} {
+		copy(v, a)
+		op.vector(v, &v[0].B0.A0)
+		for i := range a {
+			var e E6
+			op.element(&e, &a[i], &c0)
+			require.Equal(t, e, v[i], op.name)
+		}
+	}
 }
 
 func TestVectorE6ButterflyPair(t *testing.T) {

@@ -52,6 +52,27 @@ func TestVectorNegAndScalarOps(t *testing.T) {
 	copy(aliased, a)
 	aliased.Neg(aliased)
 	require.Equal(t, neg, aliased)
+
+	// the scalar may alias an element of the destination
+	c0 := a[0]
+	v := make(Vector, size)
+	for _, op := range []struct {
+		name    string
+		vector  func(v Vector, c *Element)
+		element func(z, x *Element, c *Element)
+	}{
+		{"ScalarAdd", func(v Vector, c *Element) { v.ScalarAdd(v, c) }, func(z, x *Element, c *Element) { z.Add(x, c) }},
+		{"ScalarSub", func(v Vector, c *Element) { v.ScalarSub(v, c) }, func(z, x *Element, c *Element) { z.Sub(x, c) }},
+		{"ScalarSubFrom", func(v Vector, c *Element) { v.ScalarSubFrom(c, v) }, func(z, x *Element, c *Element) { z.Sub(c, x) }},
+	} {
+		copy(v, a)
+		op.vector(v, &v[0])
+		for i := range a {
+			var e Element
+			op.element(&e, &a[i], &c0)
+			require.Equal(t, e, v[i], op.name)
+		}
+	}
 }
 
 func TestVectorSort(t *testing.T) {

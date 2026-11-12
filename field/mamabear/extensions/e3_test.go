@@ -530,6 +530,27 @@ func TestVectorE3ElementwiseOps(t *testing.T) {
 	copy(aliased, a)
 	aliased.Neg(aliased)
 	require.Equal(t, neg, aliased)
+
+	// the scalar may alias an element of the destination
+	c0 := a[0].A0
+	v := make(VectorE3, size)
+	for _, op := range []struct {
+		name    string
+		vector  func(v VectorE3, c *fr.Element)
+		element func(z, x *E3, c *fr.Element)
+	}{
+		{"ScalarAddElement", func(v VectorE3, c *fr.Element) { v.ScalarAddElement(v, c) }, func(z, x *E3, c *fr.Element) { z.AddElement(x, c) }},
+		{"ScalarSubElement", func(v VectorE3, c *fr.Element) { v.ScalarSubElement(v, c) }, func(z, x *E3, c *fr.Element) { z.SubElement(x, c) }},
+		{"ScalarSubFromElement", func(v VectorE3, c *fr.Element) { v.ScalarSubFromElement(c, v) }, func(z, x *E3, c *fr.Element) { z.SubFromElement(c, x) }},
+	} {
+		copy(v, a)
+		op.vector(v, &v[0].A0)
+		for i := range a {
+			var e E3
+			op.element(&e, &a[i], &c0)
+			require.Equal(t, e, v[i], op.name)
+		}
+	}
 }
 
 func TestVectorE3InnerProductByElement(t *testing.T) {
