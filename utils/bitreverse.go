@@ -5,20 +5,24 @@ package utils
 
 import (
 	"math/bits"
-	"runtime"
 	"unsafe" // used for a heuristic on size of generic type, non critical.
 )
 
 // BitReverse applies the bit-reversal permutation to v.
-// len(v) must be a power of 2
-func BitReverse[T any](v []T) {
+// len(v) must be a power of 2.
+//
+// Slices of at least 128 KiB use COBRA-L1 (see bitReverseCobraInPlaceL1),
+// except for elements over 4 bytes on one task on arm64; smaller slices use
+// the naive loop. It runs on the calling goroutine unless [WithBitReverseNbTasks] is
+// given.
+func BitReverse[T any](v []T, opts ...BitReverseOption) {
 	checkBitReverseLength(len(v))
-
-	if runtime.GOARCH == "arm64" || len(v) < (1<<21) || unsafe.Sizeof(v[0]) < 8 {
-		bitReverseNaive(v)
-	} else {
-		bitReverseCobra(v)
+	if tasks, logTile, ok := bitReverseTiling[T](len(v), bitReverseNbTasks(opts)); ok &&
+		(tasks > 1 || bitReverseSerialInPlace(unsafe.Sizeof(*new(T)))) {
+		bitReverseCobraInPlaceL1(v, tasks, logTile) // tasks may be 1
+		return
 	}
+	bitReverseNaive(v)
 }
 
 // BitReverseNaive applies the bit-reversal permutation to v using direct
@@ -39,15 +43,18 @@ func BitReverseCobra[T any](v []T) {
 }
 
 // BitReverseCopy writes dst[bitrev(i)] = src[i]. The slices must have the
-// same power-of-two length and must not overlap. It uses the same architecture,
-// input-size, and element-size heuristic as [BitReverse].
-func BitReverseCopy[T any](dst, src []T) {
+// same power-of-two length and must not overlap.
+//
+// Slices of at least 128 KiB use COBRA-L1 (see bitReverseCopyCobraL1);
+// smaller slices use the naive loop. It runs on the calling goroutine unless
+// [WithBitReverseNbTasks] is given.
+func BitReverseCopy[T any](dst, src []T, opts ...BitReverseOption) {
 	checkBitReverseCopy(dst, src)
-	if runtime.GOARCH == "arm64" || len(src) < (1<<21) || unsafe.Sizeof(src[0]) < 8 {
-		bitReverseCopyNaive(dst, src)
-	} else {
-		bitReverseCopyCobra(dst, src)
+	if tasks, logTile, ok := bitReverseTiling[T](len(src), bitReverseNbTasks(opts)); ok {
+		bitReverseCopyCobraL1(dst, src, tasks, logTile) // tasks may be 1
+		return
 	}
+	bitReverseCopyNaive(dst, src)
 }
 
 // BitReverseCopyNaive writes dst[bitrev(i)] = src[i] using direct indexed
