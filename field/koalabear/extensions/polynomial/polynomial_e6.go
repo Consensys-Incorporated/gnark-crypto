@@ -6,9 +6,8 @@
 package polynomial
 
 import (
-	"sync"
-
 	"github.com/consensys/gnark-crypto/field/koalabear/extensions"
+	basePolynomial "github.com/consensys/gnark-crypto/field/koalabear/polynomial"
 )
 
 // PolynomialE6 represented by coefficients in the field.
@@ -161,92 +160,19 @@ func InterpolateOnRangeE6(v []extensions.E6) PolynomialE6 {
 	if int(nEvals) != len(v) {
 		panic("interpolation method too inefficient for nEvals > 255")
 	}
-	lagrange := getLagrangeBasisE6(nEvals)
-
-	var res PolynomialE6
-	res.Scale(&v[0], lagrange[0])
-
-	temp := make(PolynomialE6, nEvals)
-
-	for i := uint8(1); i < nEvals; i++ {
-		temp.Scale(&v[i], lagrange[i])
-		res.Add(res, temp)
+	if nEvals == 0 {
+		panic("interpolation of an empty vector")
 	}
+	// the Lagrange bases have coefficients in the base field
+	lagrange := basePolynomial.LagrangeBasisOnRange(nEvals)
 
-	return res
-}
-
-// lagrange bases used by InterpolateOnRangeE6
-var lagrangeBasisE6 sync.Map
-
-func getLagrangeBasisE6(domainSize uint8) []PolynomialE6 {
-	if res, ok := lagrangeBasisE6.Load(domainSize); ok {
-		return res.([]PolynomialE6)
-	}
-
-	// not found. compute
-	var res []PolynomialE6
-	if domainSize >= 2 {
-		res = computeLagrangeBasisE6(domainSize)
-	} else if domainSize == 1 {
-		res = []PolynomialE6{make(PolynomialE6, 1)}
-		res[0][0].SetOne()
-	}
-	lagrangeBasisE6.Store(domainSize, res)
-
-	return res
-}
-
-// computeLagrangeBasisE6 precomputes in explicit coefficient form for each 0 ≤ l < domainSize the polynomial
-// pₗ := X (X-1) ... (X-l-1) (X-l+1) ... (X - domainSize + 1) / ( l (l-1) ... 2 (-1) ... (l - domainSize +1) )
-// Note that pₗ(l) = 1 and pₗ(n) = 0 if 0 ≤ l < domainSize, n ≠ l
-func computeLagrangeBasisE6(domainSize uint8) []PolynomialE6 {
-
-	constTerms := make([]extensions.E6, domainSize)
-	for i := range domainSize {
-		constTerms[i].SetInt64(-int64(i))
-	}
-
-	res := make([]PolynomialE6, domainSize)
-	multScratch := make(PolynomialE6, domainSize-1)
-
-	// compute pₗ
-	for l := range domainSize {
-
-		// TODO @Tabaie Optimize this with some trees? O(log(domainSize)) polynomial mults instead of O(domainSize)? Then again it would be fewer big poly mults vs many small poly mults
-		d := uint8(0) //d is the current degree of res
-		for i := range domainSize {
-			if i == l {
-				continue
-			}
-			if d == 0 {
-				res[l] = make(PolynomialE6, domainSize)
-				res[l][domainSize-2] = constTerms[i]
-				res[l][domainSize-1].SetOne()
-			} else {
-				current := res[l][domainSize-d-2:]
-				timesConst := multScratch[domainSize-d-2:]
-
-				timesConst.Scale(&constTerms[i], current[1:]) //TODO: Directly double and add since constTerms are tiny? (even less than 4 bits)
-				nonLeading := current[0 : d+1]
-
-				nonLeading.Add(nonLeading, timesConst)
-
-			}
-			d++
+	res := make(PolynomialE6, nEvals)
+	var term extensions.E6
+	for i := range nEvals {
+		for j := range lagrange[i] {
+			term.MulByElement(&v[i], &lagrange[i][j])
+			res[j].Add(&res[j], &term)
 		}
-
-	}
-
-	// We have pₗ(i≠l)=0. Now scale so that pₗ(l)=1
-	// Replace the constTerms with norms
-	for l := range domainSize {
-		constTerms[l].Neg(&constTerms[l])
-		constTerms[l] = res[l].Eval(&constTerms[l])
-	}
-	constTerms = extensions.BatchInvertE6(constTerms)
-	for l := range domainSize {
-		res[l].ScaleInPlace(&constTerms[l])
 	}
 
 	return res

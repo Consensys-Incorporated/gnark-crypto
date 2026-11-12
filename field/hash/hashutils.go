@@ -11,10 +11,10 @@ import (
 func ExpandMsgXmd(msg, dst []byte, lenInBytes int) ([]byte, error) {
 
 	h := sha256.New()
-	ell := (lenInBytes + h.Size() - 1) / h.Size() // ceil(len_in_bytes / b_in_bytes)
-	if ell > 255 {
+	if lenInBytes < 0 || lenInBytes > 255*h.Size() {
 		return nil, errors.New("invalid lenInBytes")
 	}
+	ell := (lenInBytes + h.Size() - 1) / h.Size() // ceil(len_in_bytes / b_in_bytes)
 	if len(dst) > 255 {
 		return nil, errors.New("invalid domain size (>255 bytes)")
 	}
@@ -59,7 +59,7 @@ func ExpandMsgXmd(msg, dst []byte, lenInBytes int) ([]byte, error) {
 	b1 := h.Sum(nil)
 
 	res := make([]byte, lenInBytes)
-	copy(res[:h.Size()], b1)
+	copy(res, b1)
 
 	for i := 2; i <= ell; i++ {
 		// b_i = H(strxor(b₀, b_(i - 1)) ∥ I2OSP(i, 1) ∥ DST_prime)

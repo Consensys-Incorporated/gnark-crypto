@@ -3,6 +3,8 @@ package hash
 import (
 	"bytes"
 	"encoding/hex"
+	"math"
+	"strconv"
 	"testing"
 )
 
@@ -10,6 +12,33 @@ type expandMsgXmdTestCase struct {
 	msg             string
 	lenInBytes      int
 	uniformBytesHex string
+}
+
+func TestExpandMsgXmdShortOutput(t *testing.T) {
+	for _, test := range []expandMsgXmdTestCase{
+		{"abc", 0, ""},
+		{"abc", 1, "61"},
+		{"abc", 16, "fd45e7bc4e852c0e250109003e5bd547"},
+		{"abc", 31, "28c52e77a98a4b95adb543ad64720ebc6625bf7de0df5bfa7c8ce9c4fe054c"},
+	} {
+		t.Run(strconv.Itoa(test.lenInBytes), func(t *testing.T) {
+			got, err := ExpandMsgXmd([]byte(test.msg), []byte("QUUX-V01-CS02-with-expander-SHA256-128"), test.lenInBytes)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if hex.EncodeToString(got) != test.uniformBytesHex {
+				t.Fatalf("got %x, want %s", got, test.uniformBytesHex)
+			}
+		})
+	}
+}
+
+func TestExpandMsgXmdRejectsInvalidLength(t *testing.T) {
+	for _, length := range []int{-1, 255*32 + 1, math.MaxInt} {
+		if _, err := ExpandMsgXmd(nil, nil, length); err == nil {
+			t.Errorf("length %d: expected an error", length)
+		}
+	}
 }
 
 // Test vectors from https://datatracker.ietf.org/doc/draft-irtf-cfrg-hash-to-curve/14/ Page 148 Section K.1.

@@ -499,6 +499,20 @@ func BenchmarkE2Conjugate(b *testing.B) {
 	}
 }
 
+func TestE2Halve(t *testing.T) {
+	var x E2
+	x.MustSetRandom()
+	y := x
+	y.Halve()
+
+	var twoInv fr.Element
+	twoInv.SetUint64(2)
+	twoInv.Inverse(&twoInv)
+	var expected E2
+	expected.MulByElement(&x, &twoInv)
+	require.Equal(t, expected, y)
+}
+
 func TestE2Div(t *testing.T) {
 
 	parameters := gopter.DefaultTestParameters()

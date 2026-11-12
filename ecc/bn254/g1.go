@@ -9,6 +9,7 @@ import (
 	"crypto/rand"
 	"math/big"
 	"runtime"
+	"sync"
 	"sync/atomic"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -868,79 +869,253 @@ func (p *G1Jac) mulGLV(q *G1Jac, s *big.Int) *G1Jac {
 	return p
 }
 
-// JointScalarMultiplication computes [s1]a1+[s2]a2 using Strauss-Shamir technique
-// where a1 and a2 are affine points.
-func (p *G1Jac) JointScalarMultiplication(a1, a2 *G1Affine, s1, s2 *big.Int) *G1Jac {
+// jointWnafWindow is the wNAF window of the odd-multiple tables that
+// JointScalarMultiplication builds for each base on every call.
+const jointWnafWindow = 5
 
-	var res, p1, p2 G1Jac
+// jointGenWnafWindow is the wNAF window of the generator tables used by
+// JointScalarMultiplicationBase. It is wider than jointWnafWindow because those
+// tables are built once for the lifetime of the process rather than per call.
+//
+// It may not exceed 8: WnafDecomposition emits digits below 2^(window-1) in
+// absolute value and stores them in an int8.
+const jointGenWnafWindow = 8
+
+const (
+	jointTableLen    = 1 << (jointWnafWindow - 2)
+	jointGenTableLen = 1 << (jointGenWnafWindow - 2)
+)
+
+var (
+	// odd multiples of g and of ϕ(g), for window jointGenWnafWindow.
+	// Built on first use rather than in init() so that programs which never
+	// call JointScalarMultiplicationBase do not pay for them.
+	jointGenTable     [2][jointGenTableLen]G1Affine
+	jointGenTableOnce sync.Once
+)
+
+func initJointGenTable() {
+	var bases [2]G1Jac
+	bases[0].Set(&g1Gen)
+	bases[1].phi(&g1Gen)
+
+	var jac [2 * jointGenTableLen]G1Jac
+	oddMultiples(jac[:jointGenTableLen], &bases[0])
+	oddMultiples(jac[jointGenTableLen:], &bases[1])
+
+	var aff [2 * jointGenTableLen]G1Affine
+	batchJacToAffine(aff[:], jac[:])
+	copy(jointGenTable[0][:], aff[:jointGenTableLen])
+	copy(jointGenTable[1][:], aff[jointGenTableLen:])
+}
+
+// oddMultiples fills table with [1]b, [3]b, ..., [2*len(table)-1]b.
+// b must not be the point at infinity.
+func oddMultiples(table []G1Jac, b *G1Jac) {
+	var twice G1Jac
+	twice.Double(b)
+	table[0].Set(b)
+	for i := 1; i < len(table); i++ {
+		table[i].Set(&table[i-1]).AddAssign(&twice)
+	}
+}
+
+// batchJacToAffine converts src to affine coordinates with a single inversion
+// (Montgomery's batch inversion trick). None of the inputs may be the point at
+// infinity. The running products are staged in dst[i].X, so this needs no
+// scratch space of its own.
+func batchJacToAffine(dst []G1Affine, src []G1Jac) {
+	accumulator := fp.One()
+	for i := range src {
+		dst[i].X = accumulator
+		accumulator.Mul(&accumulator, &src[i].Z)
+	}
+
+	var accInverse fp.Element
+	accInverse.Inverse(&accumulator)
+
+	for i := len(src) - 1; i >= 0; i-- {
+		dst[i].X.Mul(&dst[i].X, &accInverse) // dst[i].X = 1/src[i].Z
+		accInverse.Mul(&accInverse, &src[i].Z)
+	}
+
+	for i := range src {
+		var zInv2, zInv3 fp.Element
+		zInv2.Square(&dst[i].X)
+		zInv3.Mul(&zInv2, &dst[i].X)
+		dst[i].X.Mul(&src[i].X, &zInv2)
+		dst[i].Y.Mul(&src[i].Y, &zInv3)
+	}
+}
+
+// glvSplit splits s into two non-negative half-size mini-scalars k[0], k[1]
+// with [s]q = ±[k[0]]q ± [k[1]]ϕ(q), the two signs being returned in neg.
+//
+// The signs are reported rather than applied to the base points so that a
+// caller may use a shared, immutable table of multiples of q.
+func glvSplit(s *big.Int) (k [2]big.Int, neg [2]bool) {
+	// SplitScalar's half-size output bound assumes a canonical scalar, so
+	// reduce into [0,r) first. The points are in the r-torsion subgroup, so
+	// this does not change the result.
+	var t big.Int
+	t.Set(s)
+	if t.Sign() < 0 || t.Cmp(fr.Modulus()) >= 0 {
+		t.Mod(&t, fr.Modulus())
+	}
+
+	k = ecc.SplitScalar(&t, &glvBasis)
+	for i := range k {
+		if k[i].Sign() == -1 {
+			k[i].Neg(&k[i])
+			neg[i] = true
+		}
+	}
+	return k, neg
+}
+
+// jointWnafAccumulate computes p = Σᵢ ±[k[i]]Bᵢ, where table[i] holds the odd
+// multiples [1]Bᵢ, [3]Bᵢ, ... of Bᵢ in affine coordinates, window[i] is the
+// wNAF window those multiples were built for, and neg[i] flips the sign of the
+// i-th term.
+//
+// All the mini-scalars share one chain of doublings (Straus-Shamir).
+func (p *G1Jac) jointWnafAccumulate(table [][]G1Affine, window []uint, k []big.Int, neg []bool) *G1Jac {
+	// a mini-scalar holds about fr.Bits/2 bits, but size the recodings like
+	// mulGLV does: the margin is stack-only and an overrun would panic
+	var naf [4][fr.Bits + 1]int8
+	var nafLen [4]int
+	maxLen := 0
+	for i := range k {
+		nafLen[i] = ecc.WnafDecomposition(&k[i], window[i], naf[i][:])
+		maxLen = max(maxLen, nafLen[i])
+	}
+
+	var res G1Jac
 	res.Set(&g1Infinity)
-	p1.FromAffine(a1)
-	p2.FromAffine(a2)
-
-	var table [15]G1Jac
-
-	var k1, k2 big.Int
-	if s1.Sign() == -1 {
-		k1.Neg(s1)
-		table[0].Neg(&p1)
-	} else {
-		k1.Set(s1)
-		table[0].Set(&p1)
-	}
-	if s2.Sign() == -1 {
-		k2.Neg(s2)
-		table[3].Neg(&p2)
-	} else {
-		k2.Set(s2)
-		table[3].Set(&p2)
-	}
-
-	// precompute table (2 bits sliding window)
-	table[1].Double(&table[0])
-	table[2].Triple(&table[0])
-	table[4].Set(&table[3]).AddAssign(&table[0])
-	table[5].Set(&table[3]).AddAssign(&table[1])
-	table[6].Set(&table[3]).AddAssign(&table[2])
-	table[7].Double(&table[3])
-	table[8].Set(&table[7]).AddAssign(&table[0])
-	table[9].Double(&table[4])
-	table[10].Set(&table[7]).AddAssign(&table[2])
-	table[11].Triple(&table[3])
-	table[12].Set(&table[11]).AddAssign(&table[0])
-	table[13].Set(&table[11]).AddAssign(&table[1])
-	table[14].Triple(&table[4])
-
-	var s [2]fr.Element
-	s[0] = s[0].SetBigInt(&k1).Bits()
-	s[1] = s[1].SetBigInt(&k2).Bits()
-
-	maxBit := max(k1.BitLen(), k2.BitLen())
-	hiWordIndex := (maxBit - 1) / 64
-
-	for i := hiWordIndex; i >= 0; i-- {
-		mask := uint64(3) << 62
-		for j := range 32 {
-			res.Double(&res).Double(&res)
-			b1 := (s[0][i] & mask) >> (62 - 2*j)
-			b2 := (s[1][i] & mask) >> (62 - 2*j)
-			if b1|b2 != 0 {
-				s := (b2<<2 | b1)
-				res.AddAssign(&table[s-1])
+	for i := maxLen - 1; i >= 0; i-- {
+		res.DoubleAssign()
+		for b := range table {
+			if i >= nafLen[b] {
+				continue
 			}
-			mask = mask >> 2
+			d := naf[b][i]
+			if d == 0 {
+				continue
+			}
+			// the tables only hold positive multiples, so a subtraction is a
+			// mixed addition of a negated table entry: a single field negation
+			idx := (d - 1) / 2
+			add := d > 0
+			if !add {
+				idx = (-d - 1) / 2
+			}
+			if neg[b] {
+				add = !add
+			}
+			if add {
+				res.AddMixed(&table[b][idx])
+			} else {
+				var minus G1Affine
+				minus.Neg(&table[b][idx])
+				res.AddMixed(&minus)
+			}
 		}
 	}
 
 	p.Set(&res)
 	return p
-
 }
 
-// JointScalarMultiplicationBase computes [s1]g+[s2]a using Straus-Shamir technique
-// where g is the prime subgroup generator.
-func (p *G1Jac) JointScalarMultiplicationBase(a *G1Affine, s1, s2 *big.Int) *G1Jac {
-	return p.JointScalarMultiplication(&g1GenAff, a, s1, s2)
+// JointScalarMultiplication computes [s1]a1+[s2]a2 where a1 and a2 are affine
+// points.
+//
+// Both scalars are split with the GLV endomorphism and the four resulting
+// half-size mini-scalars share a single chain of doublings (Straus-Shamir), so
+// this costs about half the doublings of a plain two-scalar Straus. The
+// per-base tables are converted to affine with one batch inversion, which makes
+// every accumulation a mixed addition.
+func (p *G1Jac) JointScalarMultiplication(a1, a2 *G1Affine, s1, s2 *big.Int) *G1Jac {
+	var q1, q2 G1Jac
+	q1.FromAffine(a1)
+	q2.FromAffine(a2)
 
+	// The odd-multiple tables are undefined for the point at infinity; the
+	// single-scalar path handles it.
+	if a1.IsInfinity() {
+		return p.mulGLV(&q2, s2)
+	}
+	if a2.IsInfinity() {
+		return p.mulGLV(&q1, s1)
+	}
+
+	k1, neg1 := glvSplit(s1)
+	k2, neg2 := glvSplit(s2)
+	k := [4]big.Int{k1[0], k1[1], k2[0], k2[1]}
+	neg := [4]bool{neg1[0], neg1[1], neg2[0], neg2[1]}
+
+	var bases [4]G1Jac
+	bases[0].Set(&q1)
+	bases[1].phi(&q1)
+	bases[2].Set(&q2)
+	bases[3].phi(&q2)
+
+	var jac [4 * jointTableLen]G1Jac
+	var aff [4 * jointTableLen]G1Affine
+	for b := range bases {
+		oddMultiples(jac[b*jointTableLen:(b+1)*jointTableLen], &bases[b])
+	}
+	batchJacToAffine(aff[:], jac[:])
+
+	var table [4][]G1Affine
+	for b := range table {
+		table[b] = aff[b*jointTableLen : (b+1)*jointTableLen]
+	}
+	window := [4]uint{jointWnafWindow, jointWnafWindow, jointWnafWindow, jointWnafWindow}
+
+	return p.jointWnafAccumulate(table[:], window[:], k[:], neg[:])
+}
+
+// JointScalarMultiplicationBase computes [s1]g+[s2]a where g is the prime
+// subgroup generator.
+//
+// It is JointScalarMultiplication specialized to a fixed first base: the odd
+// multiples of g and ϕ(g) are precomputed once, with a wider window than the
+// per-call tables can afford.
+func (p *G1Jac) JointScalarMultiplicationBase(a *G1Affine, s1, s2 *big.Int) *G1Jac {
+	if a.IsInfinity() {
+		return p.mulGLV(&g1Gen, s1)
+	}
+	jointGenTableOnce.Do(initJointGenTable)
+
+	var q G1Jac
+	q.FromAffine(a)
+
+	k1, neg1 := glvSplit(s1)
+	k2, neg2 := glvSplit(s2)
+	k := [4]big.Int{k1[0], k1[1], k2[0], k2[1]}
+	neg := [4]bool{neg1[0], neg1[1], neg2[0], neg2[1]}
+
+	// jointGenTable is shared and immutable, which is why glvSplit reports the
+	// mini-scalar signs instead of negating the base points
+	var qBases [2]G1Jac
+	qBases[0].Set(&q)
+	qBases[1].phi(&q)
+
+	var jac [2 * jointTableLen]G1Jac
+	var aff [2 * jointTableLen]G1Affine
+	oddMultiples(jac[:jointTableLen], &qBases[0])
+	oddMultiples(jac[jointTableLen:], &qBases[1])
+	batchJacToAffine(aff[:], jac[:])
+
+	table := [4][]G1Affine{
+		jointGenTable[0][:],
+		jointGenTable[1][:],
+		aff[:jointTableLen],
+		aff[jointTableLen:],
+	}
+	window := [4]uint{jointGenWnafWindow, jointGenWnafWindow, jointWnafWindow, jointWnafWindow}
+
+	return p.jointWnafAccumulate(table[:], window[:], k[:], neg[:])
 }
 
 // -------------------------------------------------------------------------------------------------

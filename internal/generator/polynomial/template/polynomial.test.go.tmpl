@@ -207,7 +207,17 @@ func TestPolynomialText{{.ExtensionName}}(t *testing.T) {
 func TestPrecomputeLagrange{{.ExtensionName}}(t *testing.T) {
 
 	testForDomainSize := func(domainSize uint8) bool {
-		polys := computeLagrangeBasis{{.ExtensionName}}(domainSize)
+{{- if .ExtensionDegree}}
+		// the bases are base field polynomials, interpolated from the unit vectors
+		polys := make([]Polynomial{{.ExtensionName}}, domainSize)
+		for l := range domainSize {
+			unit := make([]{{.ElementType}}, domainSize)
+			unit[l].SetOne()
+			polys[l] = InterpolateOnRange{{.ExtensionName}}(unit)
+		}
+{{- else}}
+		polys := computeLagrangeBasis(domainSize)
+{{- end}}
 
 		for l := range domainSize {
 			for i := range domainSize {
@@ -245,9 +255,11 @@ func TestPrecomputeLagrange{{.ExtensionName}}(t *testing.T) {
 	properties.TestingRun(t, gopter.ConsoleReporter(false))
 }
 
-func TestLagrangeCache{{.ExtensionName}}(t *testing.T) {
+{{if not .ExtensionDegree}}
+func TestLagrangeCache(t *testing.T) {
 	for _, i := range []int{5, 2, 8, 4, 6, 3, 0} {
-		b := getLagrangeBasis{{.ExtensionName}}(uint8(i))
-		assert.Equal(t, b, getLagrangeBasis{{.ExtensionName}}(uint8(i))) // second call must yield the same result
+		b := LagrangeBasisOnRange(uint8(i))
+		assert.Equal(t, b, LagrangeBasisOnRange(uint8(i))) // second call must yield the same result
 	}
 }
+{{end}}

@@ -237,6 +237,13 @@ func (z *E3) Double(x *E3) *E3 {
 	return z
 }
 
+// Halve divides z in-place by 2.
+func (z *E3) Halve() {
+	z.A0.Halve()
+	z.A1.Halve()
+	z.A2.Halve()
+}
+
 // MulByElement sets z to x * s where s ∈ F_p.
 func (z *E3) MulByElement(x *E3, s *fr.Element) *E3 {
 	z.A0.Mul(&x.A0, s)
