@@ -404,8 +404,6 @@ func GenerateF31Ext(w io.Writer) error {
 	f.WriteLn("")
 
 	f.generateMulAccByElement()
-	f.generateAddVecE4()
-	f.generateSubVecE4()
 	f.generateMulVecE4(e4VecMul)
 	f.generateMulVecE4(e4VecScalarMul)
 	f.generateMulVecE4(e4VecInnerProd)
