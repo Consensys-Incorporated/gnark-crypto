@@ -701,6 +701,44 @@ func (vector VectorE6) Sum() E6 {
 	return sum
 }
 
+// Add sets vector[i] = a[i] + b[i]. vector may be identical to a and/or b;
+// partially overlapping slices are not supported.
+func (vector VectorE6) Add(a, b VectorE6) {
+	N := len(vector)
+	if len(a) != N || len(b) != N {
+		panic("vectorE6.Add: vectors don't have the same length")
+	}
+	if N == 0 {
+		return
+	}
+	// E6 is laid out as 6 contiguous fr.Element; cast and reuse the optimized
+	// fr.Vector.Add.
+	M := N * 6
+	vRes := fr.Vector(unsafe.Slice((*fr.Element)(unsafe.Pointer(&vector[0])), M))
+	vA := fr.Vector(unsafe.Slice((*fr.Element)(unsafe.Pointer(&a[0])), M))
+	vB := fr.Vector(unsafe.Slice((*fr.Element)(unsafe.Pointer(&b[0])), M))
+	vRes.Add(vA, vB)
+}
+
+// Sub sets vector[i] = a[i] - b[i]. vector may be identical to a and/or b;
+// partially overlapping slices are not supported.
+func (vector VectorE6) Sub(a, b VectorE6) {
+	N := len(vector)
+	if len(a) != N || len(b) != N {
+		panic("vectorE6.Sub: vectors don't have the same length")
+	}
+	if N == 0 {
+		return
+	}
+	// E6 is laid out as 6 contiguous fr.Element; cast and reuse the optimized
+	// fr.Vector.Sub.
+	M := N * 6
+	vRes := fr.Vector(unsafe.Slice((*fr.Element)(unsafe.Pointer(&vector[0])), M))
+	vA := fr.Vector(unsafe.Slice((*fr.Element)(unsafe.Pointer(&a[0])), M))
+	vB := fr.Vector(unsafe.Slice((*fr.Element)(unsafe.Pointer(&b[0])), M))
+	vRes.Sub(vA, vB)
+}
+
 // Mul sets vector[i] = a[i] * b[i]. vector may alias a or b.
 func (vector VectorE6) Mul(a, b VectorE6) {
 	N := len(vector)
