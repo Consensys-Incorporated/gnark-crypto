@@ -70,23 +70,11 @@ func {{$CurveTitle}}IsogenyMap() [4][]{{$CoordType}} {
     }
 }
 
-func {{$CurveName}}IsogenyXNumerator(dst *{{$CoordType}}, x *{{$CoordType}}) {
-    {{$CurveName}}EvalPolynomial(dst, false, {{$CurveName}}IsogenyXNumeratorMap, x)
-}
-
-func {{$CurveName}}IsogenyXDenominator(dst *{{$CoordType}}, x *{{$CoordType}}) {
-    {{$CurveName}}EvalPolynomial(dst, true, {{$CurveName}}IsogenyXDenominatorMap, x)
-}
-
-func {{$CurveName}}IsogenyYNumerator(dst *{{$CoordType}}, x *{{$CoordType}}, y *{{$CoordType}}) {
-    var _dst {{$CoordType}}
-    {{$CurveName}}EvalPolynomial(&_dst, false, {{$CurveName}}IsogenyYNumeratorMap, x)
-    dst.Mul(&_dst, y)
-}
-
-func {{$CurveName}}IsogenyYDenominator(dst *{{$CoordType}}, x *{{$CoordType}}) {
-    {{$CurveName}}EvalPolynomial(dst, true, {{$CurveName}}IsogenyYDenominatorMap, x)
-}
+{{- $chains := .Isogeny.Chains}}
+{{- template "isogeny_poly" (dict "Chain" $chains.XNum "Name" "XNumerator" "Monic" false "MulBy" "" "CurveName" $CurveName "CoordType" $CoordType)}}
+{{- template "isogeny_poly" (dict "Chain" $chains.XDen "Name" "XDenominator" "Monic" true "MulBy" "" "CurveName" $CurveName "CoordType" $CoordType)}}
+{{- template "isogeny_poly" (dict "Chain" $chains.YNum "Name" "YNumerator" "Monic" false "MulBy" "y" "CurveName" $CurveName "CoordType" $CoordType)}}
+{{- template "isogeny_poly" (dict "Chain" $chains.YDen "Name" "YDenominator" "Monic" true "MulBy" "" "CurveName" $CurveName "CoordType" $CoordType)}}
 
 // {{ $CurveTitle }} computes the isogeny map of the curve element, given by its coordinates pX and pY.
 // It mutates the coordinates pX and pY to the new coordinates of the isogeny map.
@@ -496,4 +484,46 @@ func {{$CurveName}}EvalPolynomial(z *{{$CoordType}}, monic bool, coefficients []
     z.Set(&dst)
 }
 
+{{end}}
+
+{{/* one isogeny polynomial: a preprocessed multiplication chain when the curve config has one, Horner otherwise */}}
+{{define "isogeny_poly"}}
+{{- $fn := print .CurveName "Isogeny" .Name}}
+{{- $args := print "dst *" .CoordType ", x *" .CoordType}}
+{{- if .MulBy}}{{$args = print $args ", " .MulBy " *" .CoordType}}{{end}}
+{{- if notNil .Chain}}
+
+// {{$fn}} evaluates the degree-{{.Chain.Degree}} {{.Name}} polynomial of the isogeny
+// with {{.Chain.Multiplications}} field multiplications (Horner: {{.Chain.HornerMultiplications}}){{if .MulBy}}, then multiplies by {{.MulBy}}{{end}}.
+//
+// The multiplication chain was preprocessed offline from the polynomial's
+// coefficients ({{$fn}}Map) by internal/generator/hash_to_curve/gen_isogeny_chains.py,
+// using the decoder of T. D. Ahle, "Fast Evaluation of Polynomials with Rational
+// Preprocessing", https://arxiv.org/abs/2609.06022. The code is straight line:
+// no branches, no divisions.
+func {{$fn}}({{$args}}) {
+{{chainCode .Chain .CoordType (print $fn "ChainConstants") (print $fn "LeadingCoeff") .MulBy}}
+}
+
+var {{$fn}}ChainConstants = [{{len .Chain.Constants}}]{{.CoordType}}{
+	{{- range $c := .Chain.Constants}}
+	{{asElement $c}},
+	{{- end}}
+}
+{{- if .Chain.Leading}}
+
+var {{$fn}}LeadingCoeff = {{.CoordType}} {{asElement .Chain.Leading}}
+{{- end}}
+{{- else}}
+
+func {{$fn}}({{$args}}) {
+	{{- if .MulBy}}
+	var _dst {{.CoordType}}
+	{{.CurveName}}EvalPolynomial(&_dst, {{.Monic}}, {{$fn}}Map, x)
+	dst.Mul(&_dst, {{.MulBy}})
+	{{- else}}
+	{{.CurveName}}EvalPolynomial(dst, {{.Monic}}, {{$fn}}Map, x)
+	{{- end}}
+}
+{{- end}}
 {{end}}
