@@ -15,6 +15,7 @@ import (
 	bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315"
 	"github.com/consensys/gnark-crypto/ecc/bls24-315/fr"
 	"github.com/consensys/gnark-crypto/ecc/bls24-315/kzg"
+	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
 	"github.com/consensys/gnark-crypto/utils/testutils"
 	"github.com/stretchr/testify/require"
 )
@@ -288,4 +289,246 @@ func TestGetIthRootOne(t *testing.T) {
 	orderBigInt.SetUint64(uint64(order))
 	omega.Exp(omega, &orderBigInt)
 	assert.True(omega.IsOne())
+}
+
+// TestFflonkRejectsZeroPoint checks that 0 is rejected as an evaluation point.
+//
+// extendSet(p, t) maps the point 0 to <0, ω·0, .., ωᵗ⁻¹·0> = t copies of 0. The
+// resulting shplonk set has a t-fold duplicate, which makes the Lagrange basis
+// degenerate to the zero polynomial (fr.Element.Inverse(0) returns 0 with no
+// error), so rᵢ ≡ 0 and the claimed values vanish from the shplonk check. The
+// fflonk fold check degenerates at the same time: ωˡ·0 = 0 for every l, so it
+// only pins one of the t claimed values per point instead of t.
+func TestFflonkRejectsZeroPoint(t *testing.T) {
+
+	assert := require.New(t)
+
+	// one pack of two polynomials, all with a zero constant term so that the
+	// folded polynomial is divisible by Xᵗ (which is what an attacker would do)
+	nbPolysInSet := 2
+	p := make([][][]fr.Element, 1)
+	p[0] = make([][]fr.Element, nbPolysInSet)
+	for j := range nbPolysInSet {
+		p[0][j] = make([]fr.Element, 10)
+		for k := 1; k < len(p[0][j]); k++ {
+			p[0][j][k].MustSetRandom()
+		}
+		// p[0][j][0] stays zero
+	}
+
+	digests := make([]kzg.Digest, 1)
+	var err error
+	digests[0], err = FoldAndCommit(p[0], testSrs.Pk)
+	assert.NoError(err)
+
+	hf := sha256.New()
+
+	var zero fr.Element
+	zeroPoints := make([][]fr.Element, 1)
+	zeroPoints[0] = []fr.Element{zero}
+
+	// the prover must refuse to produce such a proof
+	_, err = BatchOpen(p, digests, zeroPoints, hf, testSrs.Pk)
+	assert.ErrorIs(err, ErrZeroPoint)
+
+	// the verifier is what an attacker controls, so pin it too: build an honest
+	// proof at a non zero point and re-present it against the zero point
+	nonZeroPoints := make([][]fr.Element, 1)
+	nonZeroPoints[0] = make([]fr.Element, 1)
+	nonZeroPoints[0][0].MustSetRandom()
+	honest, err := BatchOpen(p, digests, nonZeroPoints, hf, testSrs.Pk)
+	assert.NoError(err)
+	assert.NoError(BatchVerify(honest, digests, nonZeroPoints, hf, testSrs.Vk))
+
+	err = BatchVerify(honest, digests, zeroPoints, hf, testSrs.Vk)
+	assert.ErrorIs(err, ErrZeroPoint)
+}
+
+// TestFflonkZeroPointSoundness is the sharp version of the previous test: it
+// builds the actual forgery. At the point 0 the fold check only constrains
+// ClaimedValues[i][0][j]; the claims for the remaining t-1 polynomials of the
+// pack are completely free, so P₁(0) can be claimed to be anything while the
+// embedded shplonk proof (and hence the whole Fiat-Shamir transcript) stays
+// untouched. Binding the claimed values into the transcript does *not* catch
+// this one, only rejecting the degenerate point does.
+func TestFflonkZeroPointSoundness(t *testing.T) {
+
+	assert := require.New(t)
+
+	nbPolysInSet := 2
+	p := make([][][]fr.Element, 1)
+	p[0] = make([][]fr.Element, nbPolysInSet)
+	for j := range nbPolysInSet {
+		p[0][j] = make([]fr.Element, 10)
+		for k := 1; k < len(p[0][j]); k++ {
+			p[0][j][k].MustSetRandom()
+		}
+	}
+
+	digests := make([]kzg.Digest, 1)
+	var err error
+	digests[0], err = FoldAndCommit(p[0], testSrs.Pk)
+	assert.NoError(err)
+
+	hf := sha256.New()
+	var zero fr.Element
+	points := make([][]fr.Element, 1)
+	points[0] = []fr.Element{zero}
+
+	proof, err := BatchOpen(p, digests, points, hf, testSrs.Pk)
+	if err != nil {
+		// with the fix in place the prover refuses outright, which is enough
+		assert.ErrorIs(err, ErrZeroPoint)
+		return
+	}
+
+	// forge the claim for the second polynomial of the pack; the embedded
+	// shplonk proof and its claimed values are left strictly untouched
+	var forgedClaim fr.Element
+	forgedClaim.SetUint64(777)
+	proof.ClaimedValues[0][1][0].Set(&forgedClaim)
+
+	// the claim is provably false: P₁(0) is the constant term, which is 0
+	assert.True(p[0][1][0].IsZero())
+
+	err = BatchVerify(proof, digests, points, hf, testSrs.Vk)
+	assert.ErrorIs(err, ErrZeroPoint)
+}
+
+// TestFflonkRejectsCancellingClaims verifies the claim that fflonk needs no
+// Fiat-Shamir change of its own, i.e. that binding the *inner* (shplonk)
+// claimed values is enough to bind the *outer* ones.
+//
+// The fold check of BatchVerify pins, for every pack i and every point xⱼ, the t
+// inner claims at <xⱼ, ωxⱼ, .., ωᵗ⁻¹xⱼ> to the evaluations of the degree t-1
+// polynomial whose coefficients are the t outer claims. For xⱼ ≠ 0 those t
+// points are distinct, so the Vandermonde system is invertible and inner claims
+// and outer claims determine each other. Binding the inner ones therefore binds
+// the outer ones.
+//
+// This test builds the forgery that worked before the fix: a shift of the outer
+// claims whose induced shift of the inner claims lies in the kernel of
+// ∑ᵢ γⁱ Z_{T\Sᵢ}(z) rᵢ(z), so the shplonk pairing check is untouched and the
+// honest W, W' are reused verbatim.
+func TestFflonkRejectsCancellingClaims(t *testing.T) {
+
+	assert := require.New(t)
+
+	// 2 packs of 2 polynomials, each pack opened at a single non zero point
+	nbSets := 2
+	nbPolysInSet := 2
+	p := make([][][]fr.Element, nbSets)
+	for i := range nbSets {
+		p[i] = make([][]fr.Element, nbPolysInSet)
+		for j := range nbPolysInSet {
+			p[i][j] = make([]fr.Element, 8)
+			for k := range p[i][j] {
+				p[i][j][k].MustSetRandom()
+			}
+		}
+	}
+
+	digests := make([]kzg.Digest, nbSets)
+	var err error
+	for i := range nbSets {
+		digests[i], err = FoldAndCommit(p[i], testSrs.Pk)
+		assert.NoError(err)
+	}
+
+	x := make([][]fr.Element, nbSets)
+	for i := range nbSets {
+		x[i] = make([]fr.Element, 1)
+		x[i][0].MustSetRandom()
+	}
+
+	hf := sha256.New()
+	proof, err := BatchOpen(p, digests, x, hf, testSrs.Pk)
+	assert.NoError(err)
+	assert.NoError(BatchVerify(proof, digests, x, hf, testSrs.Vk))
+
+	// the sets handed down to shplonk
+	tt := getNextDivisorRMinusOne(nbPolysInSet)
+	assert.Equal(2, tt)
+	extended := make([][]fr.Element, nbSets)
+	for i := range nbSets {
+		extended[i], err = extendSet(x[i], tt)
+		assert.NoError(err)
+	}
+
+	// replicate the pre-fix shplonk challenge derivation inline, so that the γ
+	// and z solved for below are the ones the buggy verifier used
+	fs := fiatshamir.NewTranscript(hf, "gamma", "z")
+	for i := range extended {
+		for j := range extended[i] {
+			assert.NoError(fs.Bind("gamma", extended[i][j].Marshal()))
+		}
+	}
+	for i := range digests {
+		assert.NoError(fs.Bind("gamma", digests[i].Marshal()))
+	}
+	bGamma, err := fs.ComputeChallenge("gamma")
+	assert.NoError(err)
+	var gamma fr.Element
+	gamma.SetBytes(bGamma)
+	assert.NoError(fs.Bind("z", proof.SOpeningProof.W.Marshal()))
+	bZ, err := fs.ComputeChallenge("z")
+	assert.NoError(err)
+	var z fr.Element
+	z.SetBytes(bZ)
+
+	// Aᵢ = γⁱ Z_{T\Sᵢ}(z)
+	a := make([]fr.Element, nbSets)
+	var accGamma, factor fr.Element
+	accGamma.SetOne()
+	for i := range nbSets {
+		a[i].SetOne()
+		for j := range nbSets {
+			if j == i {
+				continue
+			}
+			for k := range extended[j] {
+				factor.Sub(&z, &extended[j][k])
+				a[i].Mul(&a[i], &factor)
+			}
+		}
+		a[i].Mul(&a[i], &accGamma)
+		accGamma.Mul(&accGamma, &gamma)
+	}
+
+	// Shifting the constant term of the outer claims of pack i by dᵢ shifts rᵢ
+	// by the constant dᵢ as well, so the pairing check is untouched as soon as
+	// A₀d₀ + A₁d₁ = 0.
+	var d0, d1 fr.Element
+	d0.MustSetRandom()
+	d1.Div(&a[0], &a[1])
+	d1.Mul(&d1, &d0)
+	d1.Neg(&d1)
+	d := []fr.Element{d0, d1}
+
+	forged := proof
+	forged.ClaimedValues = make([][][]fr.Element, nbSets)
+	forged.SOpeningProof.ClaimedValues = make([][]fr.Element, nbSets)
+	for i := range nbSets {
+		forged.ClaimedValues[i] = make([][]fr.Element, tt)
+		for k := range tt {
+			forged.ClaimedValues[i][k] = append([]fr.Element{}, proof.ClaimedValues[i][k]...)
+		}
+		// shift the claim about the first polynomial of the pack
+		forged.ClaimedValues[i][0][0].Add(&forged.ClaimedValues[i][0][0], &d[i])
+		// and the induced shift on the inner claims (a constant, since only the
+		// constant coefficient of the folded claim polynomial moved)
+		forged.SOpeningProof.ClaimedValues[i] = append([]fr.Element{}, proof.SOpeningProof.ClaimedValues[i]...)
+		for l := range forged.SOpeningProof.ClaimedValues[i] {
+			forged.SOpeningProof.ClaimedValues[i][l].Add(&forged.SOpeningProof.ClaimedValues[i][l], &d[i])
+		}
+	}
+
+	// sanity: the group elements are reused as is, and the claims really moved
+	assert.True(forged.SOpeningProof.W.Equal(&proof.SOpeningProof.W))
+	assert.True(forged.SOpeningProof.WPrime.Equal(&proof.SOpeningProof.WPrime))
+	assert.False(forged.ClaimedValues[0][0][0].Equal(&proof.ClaimedValues[0][0][0]))
+	assert.False(forged.ClaimedValues[1][0][0].Equal(&proof.ClaimedValues[1][0][0]))
+
+	assert.Error(BatchVerify(forged, digests, x, hf, testSrs.Vk),
+		"fflonk BatchVerify accepted forged outer claimed values")
 }

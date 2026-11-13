@@ -23,6 +23,7 @@ var (
 	ErrInvalidNumberOfDigests = errors.New("number of digests should be equal to the number of polynomials")
 	ErrPairingCheck           = errors.New("pairing product is not 1")
 	ErrNotInSubgroup          = errors.New("proof or digest is not in the correct subgroup")
+	ErrDuplicatePoint         = errors.New("a set of points contains a duplicate")
 )
 
 // OpeningProof KZG proof for opening (fᵢ)_{i} at a different points (xᵢ)_{i}.
@@ -53,12 +54,26 @@ func BatchOpen(polynomials [][]fr.Element, digests []kzg.Digest, points [][]fr.E
 	if len(polynomials) != len(digests) {
 		return res, ErrInvalidNumberOfDigests
 	}
+	if err := checkNoDuplicatePoint(points); err != nil {
+		return res, err
+	}
+
+	// compute the claimed values fᵢ(Sᵢ). This has to be done *before* the
+	// transcript is built: the claimed values are absorbed when deriving γ, so
+	// that γ (and therefore z, which is chained after γ) binds them.
+	res.ClaimedValues = make([][]fr.Element, nbPolynomials)
+	for i := range nbPolynomials {
+		res.ClaimedValues[i] = make([]fr.Element, len(points[i]))
+		for j := range len(points[i]) {
+			res.ClaimedValues[i][j] = eval(polynomials[i], points[i][j])
+		}
+	}
 
 	// transcript
 	fs := fiatshamir.NewTranscript(hf, "gamma", "z")
 
 	// derive γ
-	gamma, err := deriveChallenge("gamma", points, digests, fs, dataTranscript...)
+	gamma, err := deriveChallenge("gamma", points, res.ClaimedValues, digests, fs, dataTranscript...)
 	if err != nil {
 		return res, err
 	}
@@ -86,20 +101,12 @@ func BatchOpen(polynomials [][]fr.Element, digests []kzg.Digest, points [][]fr.E
 	bufMaxSizePolynomials := make([]fr.Element, maxSizePolys)
 	bufTotalSize := make([]fr.Element, totalSize)
 	f := make([]fr.Element, totalSize) // cf https://eprint.iacr.org/2020/081.pdf page 11 for notation
-	res.ClaimedValues = make([][]fr.Element, nbPolynomials)
-	for i := range nbPolynomials {
-		res.ClaimedValues[i] = make([]fr.Element, len(points[i]))
-	}
 	var accGamma fr.Element
 	accGamma.SetOne()
 
 	ztMinusSi := make([][]fr.Element, nbPolynomials)
 	ri := make([][]fr.Element, nbPolynomials)
 	for i := range nbPolynomials {
-
-		for j := range len(points[i]) {
-			res.ClaimedValues[i][j] = eval(polynomials[i], points[i][j])
-		}
 
 		ztMinusSi[i] = buildZtMinusSi(points, i)
 
@@ -125,7 +132,7 @@ func BatchOpen(polynomials [][]fr.Element, digests []kzg.Digest, points [][]fr.E
 	}
 
 	// derive z
-	z, err := deriveChallenge("z", nil, []kzg.Digest{res.W}, fs)
+	z, err := deriveChallenge("z", nil, nil, []kzg.Digest{res.W}, fs)
 	if err != nil {
 		return res, err
 	}
@@ -190,6 +197,9 @@ func BatchVerify(proof OpeningProof, digests []kzg.Digest, points [][]fr.Element
 			return ErrInvalidNumberOfPoints
 		}
 	}
+	if err := checkNoDuplicatePoint(points); err != nil {
+		return err
+	}
 
 	pointsToCheck := make([]bls12377.G1Affine, 0, len(digests)+2)
 	pointsToCheck = append(pointsToCheck, digests...)
@@ -201,15 +211,16 @@ func BatchVerify(proof OpeningProof, digests []kzg.Digest, points [][]fr.Element
 	// transcript
 	fs := fiatshamir.NewTranscript(hf, "gamma", "z")
 
-	// derive γ
-	gamma, err := deriveChallenge("gamma", points, digests, fs, dataTranscript...)
+	// derive γ, binded to the points, the claimed values and the digests
+	gamma, err := deriveChallenge("gamma", points, proof.ClaimedValues, digests, fs, dataTranscript...)
 	if err != nil {
 		return err
 	}
 
-	// derive z
-	// TODO seems ok that z depend only on W, need to check that carefully
-	z, err := deriveChallenge("z", nil, []kzg.Digest{proof.W}, fs)
+	// derive z. Binding z to W only is sound: the transcript chains the
+	// challenges, computing H(name ‖ previous_challenge ‖ bindings), so z
+	// inherits everything γ was bound to, in particular the claimed values.
+	z, err := deriveChallenge("z", nil, nil, []kzg.Digest{proof.W}, fs)
 	if err != nil {
 		return err
 	}
@@ -288,12 +299,27 @@ func BatchVerify(proof OpeningProof, digests []kzg.Digest, points [][]fr.Element
 
 // deriveChallenge derives a challenge using Fiat Shamir to polynomials.
 // The arguments are added to the transcript in the order in which they are given.
-func deriveChallenge(name string, points [][]fr.Element, digests []kzg.Digest, t *fiatshamir.Transcript, dataTranscript ...[]byte) (fr.Element, error) {
+func deriveChallenge(name string, points [][]fr.Element, claimedValues [][]fr.Element, digests []kzg.Digest, t *fiatshamir.Transcript, dataTranscript ...[]byte) (fr.Element, error) {
 
-	// derive the challenge gamma, binded to the point and the commitments
+	// derive the challenge, binded to the points, the claimed values and the commitments
 	for i := range points {
 		for j := range points[i] {
 			if err := t.Bind(name, points[i][j].Marshal()); err != nil {
+				return fr.Element{}, err
+			}
+		}
+	}
+	// The claimed values must be bound as well: rᵢ(z) is linear in them and
+	// enters the verification equation only through the single accumulated
+	// scalar ∑ᵢ γⁱ Z_{T\Sᵢ}(z) rᵢ(z). If they are not bound, an attacker who
+	// knows γ and z (both are functions of public data) can shift them by any
+	// vector lying in the kernel of that linear form and reuse the honest proof
+	// verbatim. There is no length prefix ambiguity here: fr.Element.Marshal is
+	// fixed width and the shape of claimedValues is pinned by points, which is
+	// absorbed just above.
+	for i := range claimedValues {
+		for j := range claimedValues[i] {
+			if err := t.Bind(name, claimedValues[i][j].Marshal()); err != nil {
 				return fr.Element{}, err
 			}
 		}
@@ -322,6 +348,34 @@ func deriveChallenge(name string, points [][]fr.Element, digests []kzg.Digest, t
 
 // ------------------------------
 // utils
+
+// checkNoDuplicatePoint returns ErrDuplicatePoint if one of the sets Sᵢ contains
+// the same point twice.
+//
+// A duplicate inside Sᵢ makes the Lagrange basis built by
+// buildLagrangeFromDomain degenerate: its denominator is 0, and
+// fr.Element.Inverse maps 0 to 0 without reporting an error, so the basis
+// silently becomes the zero polynomial. rᵢ is then identically zero and the
+// claimed values disappear from the verification equation altogether.
+//
+// Duplicates *across* two different sets Sᵢ and Sⱼ are perfectly legitimate --
+// opening several polynomials at a shared point is exactly what the batching is
+// for -- and are deliberately not rejected here.
+//
+// fr.Element is a fixed size array of uint64 in canonical Montgomery form, so it
+// is comparable and sound to use as a map key.
+func checkNoDuplicatePoint(points [][]fr.Element) error {
+	for i := range points {
+		seen := make(map[fr.Element]struct{}, len(points[i]))
+		for j := range points[i] {
+			if _, ok := seen[points[i][j]]; ok {
+				return ErrDuplicatePoint
+			}
+			seen[points[i][j]] = struct{}{}
+		}
+	}
+	return nil
+}
 
 func flatten(x [][]fr.Element) []fr.Element {
 	nbPoints := 0

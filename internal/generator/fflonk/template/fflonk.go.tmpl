@@ -14,6 +14,7 @@ var (
 	ErrNbPolynomialsNbPoints          = errors.New("the number of packs of polynomials should be the same as the number of pack of points")
 	ErrInonsistentFolding             = errors.New("the outer claimed values are not consistent with the shplonk proof")
 	ErrInconsistentNumberFoldedPoints = errors.New("the number of outer claimed values is inconsistent with the number of claimed values in the shplonk proof")
+	ErrZeroPoint                      = errors.New("0 is not a valid evaluation point")
 )
 
 // Opening fflonk proof for opening a list of list of polynomials ((fʲᵢ)ᵢ)ⱼ where each
@@ -73,6 +74,9 @@ func BatchOpen(p [][][]fr.Element, digests []kzg.Digest, points [][]fr.Element, 
 
 	if len(p) != len(points) {
 		return res, ErrNbPolynomialsNbPoints
+	}
+	if err := checkNoZeroPoint(points); err != nil {
+		return res, err
 	}
 
 	// step 0: compute the relevant powers of the ((Sʲᵢ)ᵢ)ⱼ)
@@ -151,6 +155,9 @@ func BatchVerify(proof OpeningProof, digests []kzg.Digest, points [][]fr.Element
 		len(digests) != len(proof.SOpeningProof.ClaimedValues) {
 		return ErrNbPolynomialsNbPoints
 	}
+	if err := checkNoZeroPoint(points); err != nil {
+		return err
+	}
 
 	for i := range len(proof.ClaimedValues) {
 		if len(proof.ClaimedValues[i]) == 0 {
@@ -217,6 +224,25 @@ func BatchVerify(proof OpeningProof, digests []kzg.Digest, points [][]fr.Element
 }
 
 // utils
+
+// checkNoZeroPoint returns ErrZeroPoint if one of the sets contains 0.
+//
+// extendSet(p, t) maps a point x to <x, ωx, .., ωᵗ⁻¹x>; for x = 0 that is t
+// copies of 0, so the shplonk set handed down has a t-fold duplicate and the
+// claimed values silently drop out of the shplonk verification equation. The
+// fold check of BatchVerify degenerates at the same time: ωˡ·0 = 0 for every l,
+// so instead of pinning the t claimed values of a pack it only pins one of them,
+// leaving the other t-1 free.
+func checkNoZeroPoint(points [][]fr.Element) error {
+	for i := range points {
+		for j := range points[i] {
+			if points[i][j].IsZero() {
+				return ErrZeroPoint
+			}
+		}
+	}
+	return nil
+}
 
 // getIthRootOne returns a generator of Z/iZ
 func getIthRootOne(i int) (fr.Element, error) {

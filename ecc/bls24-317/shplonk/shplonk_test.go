@@ -16,6 +16,7 @@ import (
 	bls24317 "github.com/consensys/gnark-crypto/ecc/bls24-317"
 	"github.com/consensys/gnark-crypto/ecc/bls24-317/fr"
 	"github.com/consensys/gnark-crypto/ecc/bls24-317/kzg"
+	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
 	"github.com/consensys/gnark-crypto/utils/testutils"
 	"github.com/stretchr/testify/require"
 )
@@ -328,3 +329,161 @@ func TestDiv(t *testing.T) {
 	}
 
 }
+
+// setupTwoPolys returns two random polynomials, their commitments, and a
+// hasher, to be used by the soundness regression tests below.
+func setupTwoPolys(t *testing.T) ([][]fr.Element, []kzg.Digest) {
+	t.Helper()
+	polys := make([][]fr.Element, 2)
+	digests := make([]kzg.Digest, 2)
+	for i := range polys {
+		polys[i] = make([]fr.Element, 10)
+		fr.Vector(polys[i]).MustSetRandom()
+		var err error
+		digests[i], err = kzg.Commit(polys[i], testSrs.Pk)
+		require.NoError(t, err)
+	}
+	return polys, digests
+}
+
+// TestShplonkRejectsCancellingClaims is a regression test for a soundness bug:
+// the claimed values were not absorbed into the Fiat-Shamir transcript.
+//
+// rᵢ(z) is linear in the claimed values, and it enters the verification
+// equation only through the single accumulated scalar ∑ᵢ γⁱ Z_{T\Sᵢ}(z) rᵢ(z).
+// Shifting the claimed values by any δ with ∑ᵢ γⁱ Z_{T\Sᵢ}(z) δᵢ = 0 therefore
+// left F bit-for-bit identical, so the honest W and W' could be reused
+// verbatim. Both γ and z are functions of public data only, so the attacker
+// learns them before choosing what to claim.
+func TestShplonkRejectsCancellingClaims(t *testing.T) {
+
+	assert := require.New(t)
+
+	polys, digests := setupTwoPolys(t)
+
+	// each polynomial is opened at a single (distinct) point, so rᵢ is the
+	// constant ClaimedValues[i][0]
+	points := make([][]fr.Element, 2)
+	for i := range points {
+		points[i] = make([]fr.Element, 1)
+		points[i][0].MustSetRandom()
+	}
+
+	hf := sha256.New()
+	proof, err := BatchOpen(polys, digests, points, hf, testSrs.Pk)
+	assert.NoError(err)
+	assert.NoError(BatchVerify(proof, digests, points, hf, testSrs.Vk))
+
+	// Replicate the *pre-fix* challenge derivation inline (points ‖ digests for
+	// γ, then W for z). It is done inline rather than through deriveChallenge
+	// so that the γ and z solved for below stay the ones the buggy verifier
+	// used, independently of any later change to deriveChallenge's signature.
+	fs := fiatshamir.NewTranscript(hf, "gamma", "z")
+	for i := range points {
+		for j := range points[i] {
+			assert.NoError(fs.Bind("gamma", points[i][j].Marshal()))
+		}
+	}
+	for i := range digests {
+		assert.NoError(fs.Bind("gamma", digests[i].Marshal()))
+	}
+	bGamma, err := fs.ComputeChallenge("gamma")
+	assert.NoError(err)
+	var gamma fr.Element
+	gamma.SetBytes(bGamma)
+	assert.NoError(fs.Bind("z", proof.W.Marshal()))
+	bZ, err := fs.ComputeChallenge("z")
+	assert.NoError(err)
+	var z fr.Element
+	z.SetBytes(bZ)
+
+	// |Sᵢ|=1, so Z_{T\S₀}(z) = z-x₁ and Z_{T\S₁}(z) = z-x₀. Pick δ₀ freely and
+	// solve (z-x₁)δ₀ + γ(z-x₀)δ₁ = 0, i.e. δ₁ = -(z-x₁)δ₀ / (γ(z-x₀)).
+	var delta0, delta1, num, den fr.Element
+	delta0.MustSetRandom()
+	num.Sub(&z, &points[1][0])
+	den.Sub(&z, &points[0][0])
+	den.Mul(&den, &gamma)
+	delta1.Div(&num, &den)
+	delta1.Mul(&delta1, &delta0)
+	delta1.Neg(&delta1)
+
+	// the group elements of the honest proof are reused verbatim
+	forged := proof
+	forged.ClaimedValues = [][]fr.Element{make([]fr.Element, 1), make([]fr.Element, 1)}
+	forged.ClaimedValues[0][0].Add(&proof.ClaimedValues[0][0], &delta0)
+	forged.ClaimedValues[1][0].Add(&proof.ClaimedValues[1][0], &delta1)
+
+	// sanity: both claims really are wrong
+	assert.False(forged.ClaimedValues[0][0].Equal(&proof.ClaimedValues[0][0]))
+	assert.False(forged.ClaimedValues[1][0].Equal(&proof.ClaimedValues[1][0]))
+	assert.True(forged.W.Equal(&proof.W))
+	assert.True(forged.WPrime.Equal(&proof.WPrime))
+
+	assert.Error(BatchVerify(forged, digests, points, hf, testSrs.Vk),
+		"BatchVerify accepted a proof whose claimed values are both wrong")
+}
+
+// TestShplonkRejectsDuplicatePoints checks that a set Sᵢ containing the same
+// point twice is rejected. With a duplicate inside Sᵢ, buildLagrangeFromDomain
+// divides by zero; fr.Element.Inverse(0) returns 0 without an error, so the
+// Lagrange basis silently becomes the zero polynomial, rᵢ ≡ 0 and the claimed
+// values drop out of the verification equation entirely.
+func TestShplonkRejectsDuplicatePoints(t *testing.T) {
+
+	assert := require.New(t)
+
+	polys, digests := setupTwoPolys(t)
+
+	var x, y fr.Element
+	x.MustSetRandom()
+	y.MustSetRandom()
+	points := make([][]fr.Element, 2)
+	points[0] = []fr.Element{x, x}
+	points[1] = []fr.Element{y}
+
+	hf := sha256.New()
+
+	_, err := BatchOpen(polys, digests, points, hf, testSrs.Pk)
+	assert.ErrorIs(err, ErrDuplicatePoint)
+
+	// the verifier path is the one an attacker controls, pin it separately with
+	// an arbitrary attacker supplied proof of the right shape
+	var proof OpeningProof
+	proof.ClaimedValues = [][]fr.Element{make([]fr.Element, 2), make([]fr.Element, 1)}
+	for i := range proof.ClaimedValues {
+		fr.Vector(proof.ClaimedValues[i]).MustSetRandom()
+	}
+	err = BatchVerify(proof, digests, points, hf, testSrs.Vk)
+	assert.ErrorIs(err, ErrDuplicatePoint)
+}
+
+// TestShplonkAcceptsCrossSetDuplicatePoints is the companion positive test of
+// TestShplonkRejectsDuplicatePoints: the same point appearing in two *different*
+// sets Sᵢ is perfectly legitimate (it is the multi-point batching the scheme
+// exists for) and must keep working.
+func TestShplonkAcceptsCrossSetDuplicatePoints(t *testing.T) {
+
+	assert := require.New(t)
+
+	polys, digests := setupTwoPolys(t)
+
+	var x, y fr.Element
+	x.MustSetRandom()
+	y.MustSetRandom()
+	points := make([][]fr.Element, 2)
+	points[0] = []fr.Element{x}
+	points[1] = []fr.Element{x, y}
+
+	hf := sha256.New()
+	proof, err := BatchOpen(polys, digests, points, hf, testSrs.Pk)
+	assert.NoError(err)
+	assert.NoError(BatchVerify(proof, digests, points, hf, testSrs.Vk))
+
+	// the claimed values are the real evaluations
+	assert.True(proof.ClaimedValues[0][0].Equal(ptr(eval(polys[0], x))))
+	assert.True(proof.ClaimedValues[1][0].Equal(ptr(eval(polys[1], x))))
+	assert.True(proof.ClaimedValues[1][1].Equal(ptr(eval(polys[1], y))))
+}
+
+func ptr(x fr.Element) *fr.Element { return &x }
