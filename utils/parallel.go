@@ -44,7 +44,14 @@ func (wp *WorkerPool) Stop() {
 	close(wp.chJobs)
 }
 
+// Submit splits [0, n) into blocks of minBlock items and queues work for each block.
+// The final block may be smaller. The returned WaitGroup tracks completion of all work.
+// Submit panics if minBlock is not positive, even when n <= 0.
 func (wp *WorkerPool) Submit(n int, work func(int, int), minBlock int) *sync.WaitGroup {
+	if minBlock <= 0 {
+		panic("minBlock must be positive")
+	}
+
 	var wg sync.WaitGroup
 
 	// we have an interval [0,n)
