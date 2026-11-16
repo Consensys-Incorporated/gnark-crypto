@@ -1028,6 +1028,13 @@ func (vector VectorE6) MulAcc(a, b VectorE6) {
 	if len(a) != N || len(b) != N {
 		panic("vectorE6.MulAcc: vectors don't have the same length")
 	}
+	const blockSize = 16
+	if cpu.SupportAVX512 && N >= blockSize {
+		r := N % blockSize
+		nr := N - r
+		vectorMulAcc_E6_avx512(&vector[0], &a[0], &b[0], uint64(nr))
+		vector, a, b = vector[nr:], a[nr:], b[nr:]
+	}
 	var t E6
 	for i := range vector {
 		t.Mul(&a[i], &b[i])
@@ -1045,6 +1052,14 @@ func (vector VectorE6) ScalarMulBase(a fr.Vector, c *E6) {
 		panic("vectorE6.ScalarMulBase: vectors don't have the same length")
 	}
 	cc := *c
+	const blockSize = 8
+	if cpu.SupportAVX512 && N >= blockSize {
+		r := N % blockSize
+		nr := N - r
+		sTiled := tileE6Scalar(&cc)
+		vectorScalarMulBase_E6_avx512(&vector[0], &a[0], &sTiled[0], uint64(nr))
+		vector, a = vector[nr:], a[nr:]
+	}
 	for i := range vector {
 		vector[i].MulByElement(&cc, &a[i])
 	}
@@ -1061,6 +1076,14 @@ func (vector VectorE6) ScalarMulAdd(b VectorE6, c *E6) {
 		panic("vectorE6.ScalarMulAdd: vectors don't have the same length")
 	}
 	cc := *c
+	const blockSize = 8
+	if cpu.SupportAVX512 && N >= blockSize {
+		r := N % blockSize
+		nr := N - r
+		Kcol := e6ScalarMulKcol(&cc)
+		vectorScalarMulAdd_E6_avx512(&vector[0], &b[0], &Kcol[0], uint64(nr))
+		vector, b = vector[nr:], b[nr:]
+	}
 	// compute into t first: b may alias vector.
 	var t E6
 	for i := range vector {
@@ -1085,6 +1108,14 @@ func (vector VectorE6) ScalarMulAddBase(b fr.Vector, c *E6) {
 		panic("vectorE6.ScalarMulAddBase: vectors don't have the same length")
 	}
 	cc := *c
+	const blockSize = 8
+	if cpu.SupportAVX512 && N >= blockSize {
+		r := N % blockSize
+		nr := N - r
+		Kcol := e6ScalarMulKcol(&cc)
+		vectorScalarMulAddBase_E6_avx512(&vector[0], &b[0], &Kcol[0], uint64(nr))
+		vector, b = vector[nr:], b[nr:]
+	}
 	for i := range vector {
 		vector[i].Mul(&vector[i], &cc)
 		vector[i].B0.A0.Add(&vector[i].B0.A0, &b[i])

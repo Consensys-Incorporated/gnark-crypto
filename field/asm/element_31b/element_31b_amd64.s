@@ -268,3 +268,125 @@ done_12:
 	VPADDQ    Z11, Z10, Z11 // acc1 += acc0
 	VMOVDQU64 Z11, 0(CX)    // res = acc1
 	RET
+
+// mulAccVec(res, a, b *Element, n uint64) res[0...n] += a[0...n] * b[0...n]
+// n is the number of blocks of 16 elements to process
+TEXT ·mulAccVec(SB), NOSPLIT, $0-32
+	MOVD         $const_q, AX
+	VPBROADCASTD AX, Z0
+	MOVD         $const_qInvNeg, AX
+	VPBROADCASTD AX, Z1
+	MOVQ         $0x0000000000005555, AX
+	KMOVD        AX, K3
+	MOVQ         res+0(FP), R13
+	MOVQ         a+8(FP), R14
+	MOVQ         b+16(FP), CX
+	MOVQ         n+24(FP), BX
+
+loop_13:
+	TESTQ     BX, BX
+	JEQ       done_14
+	DECQ      BX
+	VMOVDQU32 0(R14), Z2
+	VMOVDQU32 0(CX), Z3
+
+#define MUL_5W(in0, in1, in2, in3, in4, in5, in6, in7, in8, in9) \
+	VMOVSHDUP in0, in2      \
+	VMOVSHDUP in1, in3      \
+	VPMULUDQ  in0, in1, in4 \
+	VPMULUDQ  in2, in3, in5 \
+	VPMULUDQ  in4, in9, in6 \
+	VPMULUDQ  in5, in9, in3 \
+	VPMULUDQ  in6, in8, in6 \
+	VPADDQ    in4, in6, in4 \
+	VPMULUDQ  in3, in8, in3 \
+	VPADDQ    in5, in3, in7 \
+	VMOVSHDUP in4, K3, in7  \
+
+	MUL_5W(Z2, Z3, Z5, Z6, Z7, Z8, Z9, Z2, Z0, Z1)
+
+#define REDUCE1Q(in0, in1, in2) \
+	VPSUBD  in0, in1, in2 \
+	VPMINUD in1, in2, in1 \
+
+	REDUCE1Q(Z0, Z2, Z10)
+	VMOVDQU32 0(R13), Z4
+
+#define ADD(in0, in1, in2, in3, in4) \
+	VPADDD  in1, in0, in4 \
+	VPSUBD  in2, in4, in3 \
+	VPMINUD in4, in3, in4 \
+
+	ADD(Z4, Z2, Z0, Z11, Z4)
+	VMOVDQU32 Z4, 0(R13)
+	ADDQ      $64, R14
+	ADDQ      $64, CX
+	ADDQ      $64, R13
+	JMP       loop_13
+
+done_14:
+	RET
+
+// scalarMulAccVec(res, a, c *Element, n uint64) res[0...n] += a[0...n] * c
+// n is the number of blocks of 16 elements to process
+TEXT ·scalarMulAccVec(SB), NOSPLIT, $0-32
+	MOVD         $const_q, AX
+	VPBROADCASTD AX, Z0
+	MOVD         $const_qInvNeg, AX
+	VPBROADCASTD AX, Z1
+	MOVQ         $0x0000000000005555, AX
+	KMOVD        AX, K3
+	MOVQ         res+0(FP), R13
+	MOVQ         a+8(FP), R14
+	MOVQ         b+16(FP), CX
+	MOVQ         n+24(FP), BX
+	VPBROADCASTD 0(CX), Z3
+
+loop_15:
+	TESTQ     BX, BX
+	JEQ       done_16
+	DECQ      BX
+	VMOVDQU32 0(R14), Z2
+	MUL_5W(Z2, Z3, Z5, Z6, Z7, Z8, Z9, Z2, Z0, Z1)
+	REDUCE1Q(Z0, Z2, Z10)
+	VMOVDQU32 0(R13), Z4
+	ADD(Z4, Z2, Z0, Z11, Z4)
+	VMOVDQU32 Z4, 0(R13)
+	ADDQ      $64, R14
+	ADDQ      $64, R13
+	JMP       loop_15
+
+done_16:
+	RET
+
+// scalarMulAddVec(res, b, c *Element, n uint64) res[0...n] = res[0...n] * c + b[0...n]
+// n is the number of blocks of 16 elements to process
+TEXT ·scalarMulAddVec(SB), NOSPLIT, $0-32
+	MOVD         $const_q, AX
+	VPBROADCASTD AX, Z0
+	MOVD         $const_qInvNeg, AX
+	VPBROADCASTD AX, Z1
+	MOVQ         $0x0000000000005555, AX
+	KMOVD        AX, K3
+	MOVQ         res+0(FP), R13
+	MOVQ         a+8(FP), R14
+	MOVQ         b+16(FP), CX
+	MOVQ         n+24(FP), BX
+	VPBROADCASTD 0(CX), Z3
+
+loop_17:
+	TESTQ     BX, BX
+	JEQ       done_18
+	DECQ      BX
+	VMOVDQU32 0(R14), Z2
+	VMOVDQU32 0(R13), Z4
+	MUL_5W(Z4, Z3, Z5, Z6, Z7, Z8, Z9, Z4, Z0, Z1)
+	REDUCE1Q(Z0, Z4, Z10)
+	ADD(Z4, Z2, Z0, Z11, Z4)
+	VMOVDQU32 Z4, 0(R13)
+	ADDQ      $64, R14
+	ADDQ      $64, R13
+	JMP       loop_17
+
+done_18:
+	RET

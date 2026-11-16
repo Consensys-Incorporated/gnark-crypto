@@ -206,14 +206,52 @@ func (vector *Vector) Mul(a, b Vector) {
 	}
 }
 
+//go:noescape
+func mulAccVec(res, a, b *{{.ElementName}}, n uint64)
+
+//go:noescape
+func scalarMulAccVec(res, a, c *{{.ElementName}}, n uint64)
+
+//go:noescape
+func scalarMulAddVec(res, b, c *{{.ElementName}}, n uint64)
+
+// vectorMulAcc sets res[i] += a[i] * b[i]; lengths are checked by the caller.
 func vectorMulAcc(res, a, b Vector) {
-	mulAccVecGeneric(res, a, b)
+	const blockSize = 16
+	n := len(res)
+	if !cpu.SupportAVX512 || n < blockSize {
+		mulAccVecGeneric(res, a, b)
+		return
+	}
+	nr := n - n%blockSize
+	mulAccVec(&res[0], &a[0], &b[0], uint64(nr/blockSize))
+	mulAccVecGeneric(res[nr:], a[nr:], b[nr:])
 }
 
+// vectorScalarMulAcc sets res[i] += a[i] * c; lengths are checked and c is
+// copied by the caller.
 func vectorScalarMulAcc(res, a Vector, c *{{.ElementName}}) {
-	scalarMulAccVecGeneric(res, a, c)
+	const blockSize = 16
+	n := len(res)
+	if !cpu.SupportAVX512 || n < blockSize {
+		scalarMulAccVecGeneric(res, a, c)
+		return
+	}
+	nr := n - n%blockSize
+	scalarMulAccVec(&res[0], &a[0], c, uint64(nr/blockSize))
+	scalarMulAccVecGeneric(res[nr:], a[nr:], c)
 }
 
+// vectorScalarMulAdd sets res[i] = res[i] * c + b[i]; lengths are checked and
+// c is copied by the caller.
 func vectorScalarMulAdd(res, b Vector, c *{{.ElementName}}) {
-	scalarMulAddVecGeneric(res, b, c)
+	const blockSize = 16
+	n := len(res)
+	if !cpu.SupportAVX512 || n < blockSize {
+		scalarMulAddVecGeneric(res, b, c)
+		return
+	}
+	nr := n - n%blockSize
+	scalarMulAddVec(&res[0], &b[0], c, uint64(nr/blockSize))
+	scalarMulAddVecGeneric(res[nr:], b[nr:], c)
 }

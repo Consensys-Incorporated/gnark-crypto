@@ -415,15 +415,24 @@ func GenerateF31Ext(w io.Writer) error {
 	f.generateMulVecE6(e6VecMul)
 	f.generateMulVecE6(e6VecInnerProd)
 	f.generateMulAccVecElementE6()
-	f.generateScalarMulAccByElementE6()
-	f.generateScalarMulVecE6(false)
-	f.generateScalarMulVecE6(true)
+	f.generateScalarMulAccByElementE6(true)
+	f.generateScalarMulVecE6(e6ScalarMul)
+	f.generateScalarMulVecE6(e6ScalarMulAcc)
 	f.generateButterflyVecE4()
 	f.generateButterflyPairVecE4()
 	f.generateButterflyPairVecE6()
 	f.generateInnerProdByElementE4()
 	f.generateDITWithTwiddlesVecE6()
 	f.generateDIFWithTwiddlesVecE6()
+	f.generateScalarMulAccByElementE6(false)
+	f.generateScalarMulVecE6(e6ScalarMulAdd)
+	f.generateScalarMulVecE6(e6ScalarMulAddBase)
+	f.generateMulVecE6(e6VecMulAcc)
+	f.generateMulVecE4(e4VecMulAcc)
+	f.generateMulVecE4(e4VecScalarMulAcc)
+	f.generateMulVecE4(e4VecScalarMulAdd)
+	f.generateMulVecE4(e4VecScalarMulAddBase)
+	f.generateScalarMulBaseE4()
 
 	return nil
 
@@ -504,6 +513,9 @@ func GenerateF31ASM(f *FFAmd64, hasVector bool) error {
 	f.generateMulVecF31()
 	f.generateScalarMulVecF31()
 	f.generateInnerProdVecF31()
+	f.generateMulAccVecF31(mulAccVecOp)
+	f.generateMulAccVecF31(scalarMulAccVecOp)
+	f.generateMulAccVecF31(scalarMulAddVecOp)
 
 	return nil
 }

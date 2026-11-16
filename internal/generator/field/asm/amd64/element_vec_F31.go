@@ -1011,10 +1011,11 @@ func (_f *FFAmd64) generateMulAccVecElementE6() {
 	f.RET()
 }
 
-func (_f *FFAmd64) generateScalarMulAccByElementE6() {
+func (_f *FFAmd64) generateScalarMulAccByElementE6(acc bool) {
 	// func vectorScalarMulAccByElement_E6_avx512(vector *E6, a *fr.Element, sTiled *fr.Element, N uint64)
+	// func vectorScalarMulBase_E6_avx512(vector *E6, a *fr.Element, sTiled *fr.Element, N uint64)
 	//
-	// vector[i] += a[i] * s, where a[i] is a base field scalar and s a fixed E6
+	// vector[i] += a[i] * s (acc) or vector[i] = a[i] * s (!acc), where a[i] is a base field scalar and s a fixed E6
 	// scalar. Each output E6 is (broadcast a[i]) × the fixed scalar s, so we
 	// broadcast the 8 base scalars across the 6 fr lanes of each E6 (via the same
 	// three VPERMD index tables used by the ByElement kernels) and multiply by
@@ -1024,7 +1025,11 @@ func (_f *FFAmd64) generateScalarMulAccByElementE6() {
 	const argSize = 4 * 8
 	stackSize := _f.StackSize(_f.NbWords*4+2, 0, 0)
 
-	registers := _f.FnHeader("vectorScalarMulAccByElement_E6_avx512", stackSize, argSize, amd64.DX, amd64.AX)
+	name := "vectorScalarMulBase_E6_avx512"
+	if acc {
+		name = "vectorScalarMulAccByElement_E6_avx512"
+	}
+	registers := _f.FnHeader(name, stackSize, argSize, amd64.DX, amd64.AX)
 	defer _f.AssertCleanStack(stackSize, 0)
 	f := &fieldHelper{FFAmd64: _f, registers: &registers}
 
@@ -1057,8 +1062,10 @@ func (_f *FFAmd64) generateScalarMulAccByElementE6() {
 	process := func(offset int, mask, vS amd64.VectorRegister) {
 		f.VPERMD(vBase, mask, vExp)
 		f.mul(vS, vExp, vRes, true)
-		f.VMOVDQU32(addrVec.At(offset), vAcc)
-		f.add(vAcc, vRes, vRes)
+		if acc {
+			f.VMOVDQU32(addrVec.At(offset), vAcc)
+			f.add(vAcc, vRes, vRes)
+		}
 		f.VMOVDQU32(vRes, addrVec.At(offset))
 	}
 
@@ -1171,11 +1178,41 @@ func E6ReplicationTables() (A, B []uint32) {
 // with VPERMI2D) and multiply by K column i tiled with period 6 (Kcol,
 // runtime-built by the caller from s), accumulating directly in AoS order — so
 // no transpose, gather or scatter is needed. Precondition: N % 8 == 0.
-func (_f *FFAmd64) generateScalarMulVecE6(acc bool) {
-	name := "vectorScalarMul_E6_avx512"
-	if acc {
-		name = "vectorScalarMulAcc_E6_avx512"
+// e6ScalarMulMode selects the variant emitted by generateScalarMulVecE6.
+type e6ScalarMulMode int
+
+const (
+	e6ScalarMul        e6ScalarMulMode = iota // res = a·s
+	e6ScalarMulAcc                            // res += a·s
+	e6ScalarMulAdd                            // res = res·s + b,  b *E6 (Horner)
+	e6ScalarMulAddBase                        // res = res·s + b,  b *fr.Element (Horner)
+)
+
+// generateScalarMulVecE6 emits the E6 scalar-mul kernels, which all share
+//
+//	func name(res, x *E6 or *fr.Element, Kcol *fr.Element, N uint64)
+//
+// For ScalarMul / ScalarMulAcc, x is the vector a being scaled. For the Horner
+// variants ScalarMulAdd / ScalarMulAddBase, the vector being scaled is res
+// itself and x is the addend b: an E6 vector, or a base vector whose element
+// b[i] lands in coordinate B0.A0 of E6 i (VPEXPANDD with masks 0x1041, 0x4104,
+// 0x0410 spreads 8 base elements over the 48-lane window, zeroing the other
+// coordinates). Precondition: N % 8 == 0.
+func (_f *FFAmd64) generateScalarMulVecE6(mode e6ScalarMulMode) {
+	var name, xArg string
+	switch mode {
+	case e6ScalarMul:
+		name, xArg = "vectorScalarMul_E6_avx512", "a"
+	case e6ScalarMulAcc:
+		name, xArg = "vectorScalarMulAcc_E6_avx512", "a"
+	case e6ScalarMulAdd:
+		name, xArg = "vectorScalarMulAdd_E6_avx512", "b"
+	case e6ScalarMulAddBase:
+		name, xArg = "vectorScalarMulAddBase_E6_avx512", "b"
+	default:
+		panic("invalid e6ScalarMulMode")
 	}
+	horner := mode == e6ScalarMulAdd || mode == e6ScalarMulAddBase
 
 	const argSize = 4 * 8
 	stackSize := _f.StackSize(_f.NbWords*4+2, 0, 0)
@@ -1197,8 +1234,18 @@ func (_f *FFAmd64) generateScalarMulVecE6(acc bool) {
 	f.KMOVD(amd64.AX, amd64.K3)
 
 	f.MOVQ("res+0(FP)", addrRes)
-	f.MOVQ("a+8(FP)", addrA)
+	f.MOVQ(xArg+"+8(FP)", addrA)
 	f.MOVQ("Kcol+16(FP)", addrKcol)
+
+	if mode == e6ScalarMulAddBase {
+		// expand masks: b[i] goes to lane 6i of the 48-lane window
+		f.MOVQ(uint64(0x1041), amd64.AX)
+		f.KMOVD(amd64.AX, amd64.K2)
+		f.MOVQ(uint64(0x4104), amd64.AX)
+		f.KMOVD(amd64.AX, amd64.K4)
+		f.MOVQ(uint64(0x0410), amd64.AX)
+		f.KMOVD(amd64.AX, amd64.K5)
+	}
 	f.MOVQ("N+24(FP)", N)
 
 	// The VPERMI2D index tables live in Go (·e6replA / ·e6replB, see
@@ -1222,10 +1269,16 @@ func (_f *FFAmd64) generateScalarMulVecE6(acc bool) {
 	tmp := registers.PopV()
 
 	f.SHRQ("$3", N) // 8 E6 per iteration
+	// the vector being scaled: a, or res itself for the Horner variants
+	addrIn := addrA
+	if horner {
+		addrIn = addrRes
+	}
+
 	f.Loop(N, func() {
-		f.VMOVDQU32(addrA.At(0), v[0])
-		f.VMOVDQU32(addrA.At(8), v[1])
-		f.VMOVDQU32(addrA.At(16), v[2])
+		f.VMOVDQU32(addrIn.At(0), v[0])
+		f.VMOVDQU32(addrIn.At(8), v[1])
+		f.VMOVDQU32(addrIn.At(16), v[2])
 
 		bIdx := 0 // running index into the packed cross tables ·e6replB
 		for i := range 6 {
@@ -1251,20 +1304,35 @@ func (_f *FFAmd64) generateScalarMulVecE6(acc bool) {
 			}
 		}
 
-		if acc {
-			f.VMOVDQU32(addrRes.At(0), tmp)
-			f.add(acc0[0], tmp, acc0[0])
-			f.VMOVDQU32(addrRes.At(8), tmp)
-			f.add(acc0[1], tmp, acc0[1])
-			f.VMOVDQU32(addrRes.At(16), tmp)
-			f.add(acc0[2], tmp, acc0[2])
+		switch mode {
+		case e6ScalarMulAcc, e6ScalarMulAdd:
+			// addend: res (Acc) or b (Horner), 8 E6 = 3 zmm
+			addrAdd := addrRes
+			if mode == e6ScalarMulAdd {
+				addrAdd = addrA
+			}
+			for g := range 3 {
+				f.VMOVDQU32(addrAdd.At(8*g), tmp)
+				f.add(acc0[g], tmp, acc0[g])
+			}
+		case e6ScalarMulAddBase:
+			// addend: 8 base elements b[0..7] expanded to lanes 0, 6, ..., 42
+			for g, k := range []amd64.MaskRegister{amd64.K2, amd64.K4, amd64.K5} {
+				// b[0..2] -> zmm0, b[3..5] -> zmm1, b[6..7] -> zmm2
+				f.WriteLn(fmt.Sprintf("\tVPEXPANDD.Z %d(%s), %s, %s", 12*g, addrA, k, tmp))
+				f.add(acc0[g], tmp, acc0[g])
+			}
 		}
 
 		f.VMOVDQU32(acc0[0], addrRes.At(0))
 		f.VMOVDQU32(acc0[1], addrRes.At(8))
 		f.VMOVDQU32(acc0[2], addrRes.At(16))
 
-		f.ADDQ("$192", addrA)   // 8 * E6 (24 bytes)
+		if mode == e6ScalarMulAddBase {
+			f.ADDQ("$32", addrA) // 8 * fr.Element
+		} else if !horner || mode == e6ScalarMulAdd {
+			f.ADDQ("$192", addrA) // 8 * E6 (24 bytes)
+		}
 		f.ADDQ("$192", addrRes) // 8 * E6 (24 bytes)
 	})
 
@@ -1462,7 +1530,21 @@ const (
 	e4VecMul e4VecOp = iota
 	e4VecScalarMul
 	e4VecInnerProd
+	e4VecMulAcc           // res += a·b
+	e4VecScalarMulAcc     // res += a·c
+	e4VecScalarMulAdd     // res = res·c + b, b *E4 (Horner)
+	e4VecScalarMulAddBase // res = res·c + b, b *fr.Element (Horner)
 )
+
+// scalar reports whether the second factor is a broadcast E4 scalar.
+func (op e4VecOp) scalar() bool {
+	return op == e4VecScalarMul || op == e4VecScalarMulAcc || op == e4VecScalarMulAdd || op == e4VecScalarMulAddBase
+}
+
+// horner reports whether the vector being scaled is res itself.
+func (op e4VecOp) horner() bool {
+	return op == e4VecScalarMulAdd || op == e4VecScalarMulAddBase
+}
 
 func (_f *FFAmd64) generateMulVecE4(op e4VecOp) {
 	// the code for Mul, ScalarMul and InnerProduct are very similar;
@@ -1473,7 +1555,10 @@ func (_f *FFAmd64) generateMulVecE4(op e4VecOp) {
 	// to return the sum.
 	const argSize = 4 * 8
 	stackSize := _f.StackSize(_f.NbWords*4+2, 0, 0)
+	// the kernels share func name(res, x, y *E4 or *fr.Element, N uint64);
+	// xArg / yArg are the Go parameter names of x and y.
 	var name string
+	xArg, yArg := "a", "b"
 	switch op {
 	case e4VecMul:
 		name = "vectorMul_avx512"
@@ -1481,6 +1566,14 @@ func (_f *FFAmd64) generateMulVecE4(op e4VecOp) {
 		name = "vectorScalarMul_avx512"
 	case e4VecInnerProd:
 		name = "vectorInnerProduct_avx512"
+	case e4VecMulAcc:
+		name = "vectorMulAcc_avx512"
+	case e4VecScalarMulAcc:
+		name, yArg = "vectorScalarMulAcc_avx512", "c"
+	case e4VecScalarMulAdd:
+		name, xArg, yArg = "vectorScalarMulAdd_avx512", "b", "c"
+	case e4VecScalarMulAddBase:
+		name, xArg, yArg = "vectorScalarMulAddBase_avx512", "b", "c"
 	default:
 		panic("invalid E4VecOp")
 	}
@@ -1500,8 +1593,8 @@ func (_f *FFAmd64) generateMulVecE4(op e4VecOp) {
 	f.KMOVD(amd64.AX, amd64.K3)
 
 	f.MOVQ("res+0(FP)", addrRes)
-	f.MOVQ("a+8(FP)", addrA)
-	f.MOVQ("b+16(FP)", addrB)
+	f.MOVQ(xArg+"+8(FP)", addrA)
+	f.MOVQ(yArg+"+16(FP)", addrB)
 	f.MOVQ("N+24(FP)", N)
 
 	// transpose stuff
@@ -1523,7 +1616,7 @@ func (_f *FFAmd64) generateMulVecE4(op e4VecOp) {
 		}
 	}
 
-	if op == e4VecScalarMul {
+	if op.scalar() {
 		// we load b only once.
 		for i := 4; i < 8; i++ {
 			f.MOVD(addrB.AtD(i-4), amd64.AX)
@@ -1535,8 +1628,13 @@ func (_f *FFAmd64) generateMulVecE4(op e4VecOp) {
 	// divide N by 16
 	f.SHRQ("$4", N)
 	f.Loop(N, func() {
-		switch op {
-		case e4VecMul, e4VecInnerProd:
+		// the vector being scaled: a, or res itself for the Horner variants
+		addrIn := addrA
+		if op.horner() {
+			addrIn = addrRes
+		}
+		switch {
+		case !op.scalar():
 			// first we fetch 16 E4 values from a and from b, and then we transpose them
 			// into 2*4 vectors of 16 dwords
 			// such that z0 == [a[0].B0.A0, a[1].B0.A0, ...]
@@ -1547,12 +1645,12 @@ func (_f *FFAmd64) generateMulVecE4(op e4VecOp) {
 				f.VPGATHERDD(i*4, addrA, vIndexGather, 4, amd64.K1, z[i])
 				f.VPGATHERDD(i*4, addrB, vIndexGather, 4, amd64.K2, z[i+4])
 			}
-		case e4VecScalarMul:
+		default:
 			// for scalar mul, we don't need to fetch b.
 			for i := range 4 {
 				// interleave ops for better throughput
 				f.KMOVD(maskFFFF, amd64.K1)
-				f.VPGATHERDD(i*4, addrA, vIndexGather, 4, amd64.K1, z[i])
+				f.VPGATHERDD(i*4, addrIn, vIndexGather, 4, amd64.K1, z[i])
 			}
 		}
 
@@ -1666,17 +1764,47 @@ func (_f *FFAmd64) generateMulVecE4(op e4VecOp) {
 		f.add(a0, dA0, z[0]) // 3x
 
 		switch op {
-		case e4VecMul, e4VecScalarMul:
-			// transpose result back
+		case e4VecMul, e4VecScalarMul, e4VecMulAcc, e4VecScalarMulAcc, e4VecScalarMulAdd, e4VecScalarMulAddBase:
+			var addend amd64.VectorRegister
+			switch op {
+			case e4VecMulAcc, e4VecScalarMulAcc, e4VecScalarMulAdd:
+				addend = registers.PopV()
+			case e4VecScalarMulAddBase:
+				// coordinate B0.A0 of the 16 E4 gets b[0..15]; the others
+				// are unchanged.
+				addend = registers.PopV()
+				f.VMOVDQU32(addrA.At(0), addend)
+				f.add(z[0], addend, z[0])
+			}
+			// transpose result back, adding the gathered addend for the
+			// Acc (res) and Horner (b) variants
 			for i := range z[:4] {
+				switch op {
+				case e4VecMulAcc, e4VecScalarMulAcc, e4VecScalarMulAdd:
+					addrAdd := addrRes
+					if op == e4VecScalarMulAdd {
+						addrAdd = addrA
+					}
+					f.KMOVD(maskFFFF, amd64.K1)
+					f.VPGATHERDD(i*4, addrAdd, vIndexGather, 4, amd64.K1, addend)
+					f.add(z[i], addend, z[i])
+				}
 				f.KMOVD(maskFFFF, amd64.K1)
 				f.VPSCATTERDD(i*4, addrRes, vIndexGather, 4, amd64.K1, z[i])
+			}
+			if addend != "" {
+				registers.PushV(addend)
 			}
 
 			// increment result by 16*4uint32 (16*E4)
 			f.ADDQ("$256", addrRes)
-			f.ADDQ("$256", addrA)
-			if op == e4VecMul {
+			switch {
+			case op == e4VecScalarMulAddBase:
+				f.ADDQ("$64", addrA) // 16 fr.Element
+			case !op.horner() || op == e4VecScalarMulAdd:
+				f.ADDQ("$256", addrA)
+			}
+			if !op.scalar() {
 				f.ADDQ("$256", addrB)
 			}
 		case e4VecInnerProd:
@@ -1717,6 +1845,7 @@ type e6VecOp int
 const (
 	e6VecMul e6VecOp = iota
 	e6VecInnerProd
+	e6VecMulAcc
 )
 
 // generateMulVecE6 emits the element-wise E6 product (vectorMul_E6_avx512) and
@@ -1734,7 +1863,9 @@ const (
 // that is 6 E2 products of 3 base products each. Every intermediate is fully
 // reduced, so the results are the canonical ones of E6.Mul.
 //
-// Mul scatters the 6 result coordinates back to res. InnerProduct instead folds
+// Mul scatters the 6 result coordinates back to res; MulAcc
+// (vectorMulAcc_E6_avx512) gathers each coordinate of res, adds the product
+// and scatters it back. InnerProduct instead folds
 // each result coordinate into 4 uint64 lanes added to res (a *[24]uint64,
 // coordinate k at res[4k:4k+4]) and lets the caller reduce mod q; the
 // accumulators live in memory as the product uses nearly all 32 zmm. The fold
@@ -1751,6 +1882,8 @@ func (_f *FFAmd64) generateMulVecE6(op e6VecOp) {
 		name = "vectorMul_E6_avx512"
 	case e6VecInnerProd:
 		name = "vectorInnerProduct_E6_avx512"
+	case e6VecMulAcc:
+		name = "vectorMulAcc_E6_avx512"
 	default:
 		panic("invalid e6VecOp")
 	}
@@ -1851,6 +1984,15 @@ func (_f *FFAmd64) generateMulVecE6(op e6VecOp) {
 		case e6VecMul:
 			f.KMOVD(maskFFFF, amd64.K1)
 			f.VPSCATTERDD(k*4, addrRes, vIndexGather, 4, amd64.K1, v)
+		case e6VecMulAcc:
+			// res[k] += v: gather the old coordinate, add, scatter back.
+			old := registers.PopV()
+			f.KMOVD(maskFFFF, amd64.K1)
+			f.VPGATHERDD(k*4, addrRes, vIndexGather, 4, amd64.K1, old)
+			f.add(v, old, v)
+			f.KMOVD(maskFFFF, amd64.K1)
+			f.VPSCATTERDD(k*4, addrRes, vIndexGather, 4, amd64.K1, v)
+			registers.PushV(old)
 		case e6VecInnerProd:
 			// fold the 16 lanes into 4 (< 2q) and add them, zero-extended,
 			// to the uint64 accumulators res[4k:4k+4].
@@ -1913,7 +2055,7 @@ func (_f *FFAmd64) generateMulVecE6(op e6VecOp) {
 		registers.PushV(mr, mi)
 
 		// 16 E6 = 384 bytes
-		if op == e6VecMul {
+		if op != e6VecInnerProd {
 			f.ADDQ("$384", addrRes)
 		}
 		f.ADDQ("$384", addrA)

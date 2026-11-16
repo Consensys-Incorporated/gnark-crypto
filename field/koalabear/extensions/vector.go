@@ -350,6 +350,13 @@ func (vector VectorE4) ScalarMulAcc(a VectorE4, c *E4) {
 		panic("vector.ScalarMulAcc: vectors don't have the same length")
 	}
 	cc := *c
+	const blockSize = 16
+	if cpu.SupportAVX512 && N >= blockSize {
+		r := N % blockSize
+		nr := N - r
+		vectorScalarMulAcc_avx512(&vector[0], &a[0], &cc, uint64(nr))
+		vector, a = vector[nr:], a[nr:]
+	}
 	var t E4
 	for i := range vector {
 		t.Mul(&a[i], &cc)
@@ -365,6 +372,13 @@ func (vector VectorE4) MulAcc(a, b VectorE4) {
 	N := len(vector)
 	if len(a) != N || len(b) != N {
 		panic("vector.MulAcc: vectors don't have the same length")
+	}
+	const blockSize = 16
+	if cpu.SupportAVX512 && N >= blockSize {
+		r := N % blockSize
+		nr := N - r
+		vectorMulAcc_avx512(&vector[0], &a[0], &b[0], uint64(nr))
+		vector, a, b = vector[nr:], a[nr:], b[nr:]
 	}
 	var t E4
 	for i := range vector {
@@ -383,6 +397,13 @@ func (vector VectorE4) ScalarMulBase(a fr.Vector, c *E4) {
 		panic("vector.ScalarMulBase: vectors don't have the same length")
 	}
 	cc := *c
+	const blockSize = 16
+	if cpu.SupportAVX512 && N >= blockSize {
+		r := N % blockSize
+		nr := N - r
+		vectorScalarMulBase_avx512(&vector[0], &a[0], &cc, uint64(nr))
+		vector, a = vector[nr:], a[nr:]
+	}
 	for i := range vector {
 		vector[i].MulByElement(&cc, &a[i])
 	}
@@ -399,6 +420,13 @@ func (vector VectorE4) ScalarMulAdd(b VectorE4, c *E4) {
 		panic("vector.ScalarMulAdd: vectors don't have the same length")
 	}
 	cc := *c
+	const blockSize = 16
+	if cpu.SupportAVX512 && N >= blockSize {
+		r := N % blockSize
+		nr := N - r
+		vectorScalarMulAdd_avx512(&vector[0], &b[0], &cc, uint64(nr))
+		vector, b = vector[nr:], b[nr:]
+	}
 	// compute into t first: b may alias vector.
 	var t E4
 	for i := range vector {
@@ -423,6 +451,13 @@ func (vector VectorE4) ScalarMulAddBase(b fr.Vector, c *E4) {
 		panic("vector.ScalarMulAddBase: vectors don't have the same length")
 	}
 	cc := *c
+	const blockSize = 16
+	if cpu.SupportAVX512 && N >= blockSize {
+		r := N % blockSize
+		nr := N - r
+		vectorScalarMulAddBase_avx512(&vector[0], &b[0], &cc, uint64(nr))
+		vector, b = vector[nr:], b[nr:]
+	}
 	for i := range vector {
 		vector[i].Mul(&vector[i], &cc)
 		vector[i].B0.A0.Add(&vector[i].B0.A0, &b[i])
