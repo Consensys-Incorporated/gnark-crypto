@@ -111,6 +111,25 @@ func TestVectorE6ElementwiseOps(t *testing.T) {
 	}
 }
 
+func TestVectorE6ZeroAllocs(t *testing.T) {
+	const n = 17
+	v, a := make(VectorE6, n), make(VectorE6, n)
+	base := make(fr.Vector, n)
+	var c fr.Element
+	for _, op := range []struct {
+		name string
+		call func()
+	}{
+		{"Neg", func() { v.Neg(a) }},
+		{"ScalarAddElement", func() { v.ScalarAddElement(a, &c) }},
+		{"ScalarSubElement", func() { v.ScalarSubElement(a, &c) }},
+		{"ScalarSubFromElement", func() { v.ScalarSubFromElement(&c, a) }},
+		{"InnerProductByElement", func() { _ = v.InnerProductByElement(base) }},
+	} {
+		require.Zero(t, testing.AllocsPerRun(10, op.call), op.name)
+	}
+}
+
 func TestVectorE6ButterflyPair(t *testing.T) {
 	for _, size := range []int{2, 4, 8, 16, 18} {
 		t.Run(strconv.Itoa(size), func(t *testing.T) {

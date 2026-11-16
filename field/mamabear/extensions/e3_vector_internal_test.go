@@ -13,7 +13,7 @@ import (
 
 // TestMulAccByElementBatchedMatchesGeneric verifies the batched tiling
 // implementation independently of cpu.SupportAVX512IFMA, since on hardware
-// without AVX-512IFMA (e.g. arm64), ScalarMulAccByElement's dispatch never
+// without AVX-512IFMA (e.g. arm64), ScalarMulAccBase's dispatch never
 // exercises mulAccByElementBatched.
 func TestMulAccByElementBatchedMatchesGeneric(t *testing.T) {
 	for _, n := range []int{1, 7, 8, 64, 65, 100, 1000} {

@@ -188,12 +188,12 @@ func (vector VectorE3) InnerProductByElement(a fr.Vector) E3 {
 }
 
 // mulAccByElementThreshold is the minimum vector length above which
-// ScalarMulAccByElement batches through fr.Vector's Mul/Add kernels. Below it, the
+// ScalarMulAccBase batches through fr.Vector's Mul/Add kernels. Below it, the
 // tiling overhead outweighs the win even when those kernels are accelerated.
 const mulAccByElementThreshold = 64
 
-// ScalarMulAccByElement accumulates vector[i] += a[i] * s, where a is a
-// base-field vector and s a fixed E3 scalar.
+// ScalarMulAccBase accumulates vector[i] += a[i] * c, where a is a
+// base-field vector and c a fixed E3 scalar. c may point into vector.
 //
 // On AVX-512IFMA hardware, and for large enough vectors, the interleaved E3
 // layout (A0, A1, A2 per element) is reinterpreted as a flat fr.Vector and
@@ -201,53 +201,67 @@ const mulAccByElementThreshold = 64
 // kernels. Without AVX-512IFMA, fr.Vector.Mul/Add fall back to the same
 // per-element scalar loop this batching wraps around, so the extra tiling
 // work is pure overhead — in that case we use the plain scalar loop instead.
-func (vector VectorE3) ScalarMulAccByElement(a fr.Vector, s *E3) {
+func (vector VectorE3) ScalarMulAccBase(a fr.Vector, c *E3) {
 	n := len(vector)
 	if n != len(a) {
-		panic("vector.ScalarMulAccByElement: length mismatch")
+		panic("vector.ScalarMulAccBase: length mismatch")
 	}
 	if n == 0 {
 		return
 	}
 	if !cpu.SupportAVX512IFMA || n < mulAccByElementThreshold {
-		mulAccByElementGeneric(vector, a, s)
+		mulAccByElementGeneric(vector, a, c)
 		return
 	}
-	mulAccByElementBatched(vector, a, s)
+	mulAccByElementBatched(vector, a, c)
 }
 
-// mulAccByElementBatched implements ScalarMulAccByElement by reinterpreting the
+// MulAccByElement is deprecated.
+//
+// Deprecated: use [VectorE3.ScalarMulAccBase].
+//
+//go:fix inline
+func (vector VectorE3) MulAccByElement(scale []fr.Element, alpha *E3) {
+	vector.ScalarMulAccBase(scale, alpha)
+}
+
+// mulAccChunk is the number of E3 elements mulAccByElementBatched processes per
+// call of fr.Vector's kernels. It bounds the size of the stack buffers.
+const mulAccChunk = 128
+
+// mulAccByElementBatched implements ScalarMulAccBase by reinterpreting the
 // interleaved E3 layout (A0, A1, A2 per element) as a flat fr.Vector and
 // processing it with fr.Vector's Mul/Add, which dispatch to the AVX-512IFMA
-// kernels on amd64. Split out from ScalarMulAccByElement so its correctness can be
+// kernels on amd64, in chunks of mulAccChunk elements. alpha is copied before
+// vector is written. Split out from ScalarMulAccBase so its correctness can be
 // tested independently of cpu.SupportAVX512IFMA.
 func mulAccByElementBatched(vector VectorE3, scale []fr.Element, alpha *E3) {
-	n := len(vector)
-
-	// E3 = {A0, A1, A2} with no padding — safe to reinterpret as 3×fr.Element.
-	M := n * 3
-	flatVector := fr.Vector(unsafe.Slice((*fr.Element)(unsafe.Pointer(&vector[0])), M))
-
-	tiledScale := make(fr.Vector, M)
-	tiledAlpha := make(fr.Vector, M)
-	for i := range scale {
-		tiledScale[3*i] = scale[i]
-		tiledScale[3*i+1] = scale[i]
-		tiledScale[3*i+2] = scale[i]
+	var tiledScale, tiledAlpha, tmp [3 * mulAccChunk]fr.Element
+	for i := range min(len(vector), mulAccChunk) {
 		tiledAlpha[3*i] = alpha.A0
 		tiledAlpha[3*i+1] = alpha.A1
 		tiledAlpha[3*i+2] = alpha.A2
 	}
-
-	tmp := make(fr.Vector, M)
-	tmp.Mul(tiledScale, tiledAlpha)
-	flatVector.Add(flatVector, tmp)
+	for len(vector) > 0 {
+		m := min(len(vector), mulAccChunk)
+		for i, s := range scale[:m] {
+			tiledScale[3*i] = s
+			tiledScale[3*i+1] = s
+			tiledScale[3*i+2] = s
+		}
+		flatVector := asBaseVector(vector[:m])
+		flatTmp := fr.Vector(tmp[:3*m])
+		flatTmp.Mul(tiledScale[:3*m], tiledAlpha[:3*m])
+		flatVector.Add(flatVector, flatTmp)
+		vector, scale = vector[m:], scale[m:]
+	}
 }
 
 func mulAccByElementGeneric(vector VectorE3, scale []fr.Element, alpha *E3) {
 	var tmp E3
+	cc := *alpha
 	for i := range vector {
-		tmp.MulByElement(alpha, &scale[i])
+		tmp.MulByElement(&cc, &scale[i])
 		vector[i].Add(&vector[i], &tmp)
 	}
 }

@@ -71,6 +71,23 @@ func TestVectorNegAndScalarOps(t *testing.T) {
 	}
 }
 
+func TestVectorNegAndScalarOpsZeroAllocs(t *testing.T) {
+	const n = 17
+	v, a := make(Vector, n), make(Vector, n)
+	var c {{.ElementName}}
+	for _, op := range []struct {
+		name string
+		call func()
+	}{
+		{"Neg", func() { v.Neg(a) }},
+		{"ScalarAdd", func() { v.ScalarAdd(a, &c) }},
+		{"ScalarSub", func() { v.ScalarSub(a, &c) }},
+		{"ScalarSubFrom", func() { v.ScalarSubFrom(&c, a) }},
+	} {
+		require.Zero(t, testing.AllocsPerRun(10, op.call), op.name)
+	}
+}
+
 func TestVectorSort(t *testing.T) {
 	assert := require.New(t)
 

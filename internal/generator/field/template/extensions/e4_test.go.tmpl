@@ -719,6 +719,23 @@ func TestVectorE4ElementwiseOps(t *testing.T) {
 	}
 }
 
+func TestVectorE4ZeroAllocs(t *testing.T) {
+	const n = 17
+	v, a := make(VectorE4, n), make(VectorE4, n)
+	var c fr.Element
+	for _, op := range []struct {
+		name string
+		call func()
+	}{
+		{"Neg", func() { v.Neg(a) }},
+		{"ScalarAddElement", func() { v.ScalarAddElement(a, &c) }},
+		{"ScalarSubElement", func() { v.ScalarSubElement(a, &c) }},
+		{"ScalarSubFromElement", func() { v.ScalarSubFromElement(&c, a) }},
+	} {
+		require.Zero(t, testing.AllocsPerRun(10, op.call), op.name)
+	}
+}
+
 func TestVectorEmptyOps(t *testing.T) {
 	assert := require.New(t)
 

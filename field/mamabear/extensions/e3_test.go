@@ -354,7 +354,7 @@ func TestE3VectorScalarMulByElement(t *testing.T) {
 	}
 }
 
-func TestE3VectorScalarMulAccByElement(t *testing.T) {
+func TestE3VectorScalarMulAccBase(t *testing.T) {
 	for _, n := range []int{0, 1, 7, 8, 16, 63, 64, 65, 100, 1000} {
 		dst := make(VectorE3, n)
 		scale := make([]fr.Element, n)
@@ -372,10 +372,10 @@ func TestE3VectorScalarMulAccByElement(t *testing.T) {
 			expected[i].Add(&expected[i], &tmp)
 		}
 
-		dst.ScalarMulAccByElement(scale, &alpha)
+		dst.ScalarMulAccBase(scale, &alpha)
 		for i := range n {
 			if !dst[i].Equal(&expected[i]) {
-				t.Fatalf("n=%d: ScalarMulAccByElement[%d] wrong", n, i)
+				t.Fatalf("n=%d: ScalarMulAccBase[%d] wrong", n, i)
 			}
 		}
 	}
@@ -432,7 +432,7 @@ func BenchmarkE3Exp(b *testing.B) {
 	}
 }
 
-func BenchmarkE3VectorScalarMulAccByElement(b *testing.B) {
+func BenchmarkE3VectorScalarMulAccBase(b *testing.B) {
 	const n = 1 << 16
 	dst := make(VectorE3, n)
 	scale := make([]fr.Element, n)
@@ -444,7 +444,7 @@ func BenchmarkE3VectorScalarMulAccByElement(b *testing.B) {
 	alpha.MustSetRandom()
 	b.ResetTimer()
 	for range b.N {
-		dst.ScalarMulAccByElement(scale, &alpha)
+		dst.ScalarMulAccBase(scale, &alpha)
 	}
 }
 
@@ -531,25 +531,71 @@ func TestVectorE3ElementwiseOps(t *testing.T) {
 	aliased.Neg(aliased)
 	require.Equal(t, neg, aliased)
 
+	// the destination may alias either input
+	for _, op := range []struct {
+		name string
+		f    func(z, x, y VectorE3)
+		want VectorE3
+	}{
+		{"Add", VectorE3.Add, add},
+		{"Sub", VectorE3.Sub, sub},
+		{"Mul", VectorE3.Mul, mul},
+	} {
+		copy(aliased, a)
+		op.f(aliased, aliased, b)
+		require.Equal(t, op.want, aliased, op.name)
+		copy(aliased, b)
+		op.f(aliased, a, aliased)
+		require.Equal(t, op.want, aliased, op.name)
+	}
+
 	// the scalar may alias an element of the destination
-	c0 := a[0].A0
+	c0, e0 := a[0].A0, a[0]
+	base := make(fr.Vector, size)
+	base.MustSetRandom()
 	v := make(VectorE3, size)
 	for _, op := range []struct {
 		name    string
 		vector  func(v VectorE3, c *fr.Element)
-		element func(z, x *E3, c *fr.Element)
+		element func(z, x *E3, c *fr.Element, i int)
 	}{
-		{"ScalarAddElement", func(v VectorE3, c *fr.Element) { v.ScalarAddElement(v, c) }, func(z, x *E3, c *fr.Element) { z.AddElement(x, c) }},
-		{"ScalarSubElement", func(v VectorE3, c *fr.Element) { v.ScalarSubElement(v, c) }, func(z, x *E3, c *fr.Element) { z.SubElement(x, c) }},
-		{"ScalarSubFromElement", func(v VectorE3, c *fr.Element) { v.ScalarSubFromElement(c, v) }, func(z, x *E3, c *fr.Element) { z.SubFromElement(c, x) }},
+		{"ScalarAddElement", func(v VectorE3, c *fr.Element) { v.ScalarAddElement(v, c) }, func(z, x *E3, c *fr.Element, _ int) { z.AddElement(x, c) }},
+		{"ScalarSubElement", func(v VectorE3, c *fr.Element) { v.ScalarSubElement(v, c) }, func(z, x *E3, c *fr.Element, _ int) { z.SubElement(x, c) }},
+		{"ScalarSubFromElement", func(v VectorE3, c *fr.Element) { v.ScalarSubFromElement(c, v) }, func(z, x *E3, c *fr.Element, _ int) { z.SubFromElement(c, x) }},
+		{"ScalarMulAccBase", func(v VectorE3, _ *fr.Element) { v.ScalarMulAccBase(base, &v[0]) }, func(z, x *E3, _ *fr.Element, i int) { z.MulByElement(&e0, &base[i]); z.Add(z, x) }},
 	} {
 		copy(v, a)
 		op.vector(v, &v[0].A0)
 		for i := range a {
 			var e E3
-			op.element(&e, &a[i], &c0)
+			op.element(&e, &a[i], &c0, i)
 			require.Equal(t, e, v[i], op.name)
 		}
+	}
+}
+
+func TestVectorE3ZeroAllocs(t *testing.T) {
+	const n = mulAccChunk + 1
+	v, a, b := make(VectorE3, n), make(VectorE3, n), make(VectorE3, n)
+	base := make(fr.Vector, n)
+	var c fr.Element
+	var e E3
+	for _, op := range []struct {
+		name string
+		call func()
+	}{
+		{"Add", func() { v.Add(a, b) }},
+		{"Sub", func() { v.Sub(a, b) }},
+		{"Mul", func() { v.Mul(a, b) }},
+		{"Neg", func() { v.Neg(a) }},
+		{"ScalarAddElement", func() { v.ScalarAddElement(a, &c) }},
+		{"ScalarSubElement", func() { v.ScalarSubElement(a, &c) }},
+		{"ScalarSubFromElement", func() { v.ScalarSubFromElement(&c, a) }},
+		{"ScalarMulAccBase", func() { v.ScalarMulAccBase(base, &e) }},
+		{"MulAccByElement", func() { v.MulAccByElement(base, &e) }},
+		{"mulAccByElementBatched", func() { mulAccByElementBatched(v, base, &e) }},
+	} {
+		require.Zero(t, testing.AllocsPerRun(10, op.call), op.name)
 	}
 }
 
