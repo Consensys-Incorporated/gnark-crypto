@@ -69,7 +69,7 @@ func (vector VectorE4) ScalarMul(a VectorE4, b *E4) {
 	vectorScalarMulGeneric(vector, a, b)
 }
 
-// Neg sets vector[i] = -a[i]. vector may alias a.
+// Neg sets vector[i] = -a[i]. vector may be identical to a; partially overlapping slices are not supported.
 func (vector VectorE4) Neg(a VectorE4) {
 	if len(a) != len(vector) {
 		panic("vector.Neg: vectors don't have the same length")
@@ -79,7 +79,7 @@ func (vector VectorE4) Neg(a VectorE4) {
 	}
 }
 
-// ScalarAddElement sets vector[i] = a[i] + c, where c is an element of the base field. vector may alias a, and c may point into vector.
+// ScalarAddElement sets vector[i] = a[i] + c, where c is an element of the base field. vector may be identical to a, and c may point into vector; partially overlapping slices are not supported.
 func (vector VectorE4) ScalarAddElement(a VectorE4, c *fr.Element) {
 	if len(a) != len(vector) {
 		panic("vector.ScalarAddElement: vectors don't have the same length")
@@ -90,14 +90,14 @@ func (vector VectorE4) ScalarAddElement(a VectorE4, c *fr.Element) {
 	}
 }
 
-// ScalarSubElement sets vector[i] = a[i] - c, where c is an element of the base field. vector may alias a, and c may point into vector.
+// ScalarSubElement sets vector[i] = a[i] - c, where c is an element of the base field. vector may be identical to a, and c may point into vector; partially overlapping slices are not supported.
 func (vector VectorE4) ScalarSubElement(a VectorE4, c *fr.Element) {
 	var negC fr.Element
 	negC.Neg(c)
 	vector.ScalarAddElement(a, &negC)
 }
 
-// ScalarSubFromElement sets vector[i] = c - a[i], where c is an element of the base field. vector may alias a, and c may point into vector.
+// ScalarSubFromElement sets vector[i] = c - a[i], where c is an element of the base field. vector may be identical to a, and c may point into vector; partially overlapping slices are not supported.
 func (vector VectorE4) ScalarSubFromElement(c *fr.Element, a VectorE4) {
 	if len(a) != len(vector) {
 		panic("vector.ScalarSubFromElement: vectors don't have the same length")

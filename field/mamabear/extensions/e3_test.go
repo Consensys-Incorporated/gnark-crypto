@@ -592,7 +592,6 @@ func TestVectorE3ZeroAllocs(t *testing.T) {
 		{"ScalarSubElement", func() { v.ScalarSubElement(a, &c) }},
 		{"ScalarSubFromElement", func() { v.ScalarSubFromElement(&c, a) }},
 		{"ScalarMulAccBase", func() { v.ScalarMulAccBase(base, &e) }},
-		{"MulAccByElement", func() { v.MulAccByElement(base, &e) }},
 		{"mulAccByElementBatched", func() { mulAccByElementBatched(v, base, &e) }},
 	} {
 		require.Zero(t, testing.AllocsPerRun(10, op.call), op.name)

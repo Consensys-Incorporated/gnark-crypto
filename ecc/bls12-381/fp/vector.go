@@ -353,7 +353,7 @@ func (vector Vector) Equal(other Vector) bool {
 	return slices.Equal(vector, other)
 }
 
-// Neg sets self to -a, element-wise. self may alias a.
+// Neg sets self to -a, element-wise. self may be identical to a; partially overlapping slices are not supported.
 // It panics if the vectors don't have the same length.
 func (vector Vector) Neg(a Vector) {
 	if len(a) != len(vector) {
@@ -365,7 +365,7 @@ func (vector Vector) Neg(a Vector) {
 }
 
 // ScalarAdd adds the scalar c to each element of a and stores the result in self.
-// self may alias a, and c may point into self. It panics if the vectors don't have the same length.
+// self may be identical to a, and c may point into self; partially overlapping slices are not supported. It panics if the vectors don't have the same length.
 func (vector Vector) ScalarAdd(a Vector, c *Element) {
 	if len(a) != len(vector) {
 		panic("vector.ScalarAdd: vectors don't have the same length")
@@ -377,7 +377,7 @@ func (vector Vector) ScalarAdd(a Vector, c *Element) {
 }
 
 // ScalarSub subtracts the scalar c from each element of a and stores the result in self.
-// self may alias a, and c may point into self. It panics if the vectors don't have the same length.
+// self may be identical to a, and c may point into self; partially overlapping slices are not supported. It panics if the vectors don't have the same length.
 func (vector Vector) ScalarSub(a Vector, c *Element) {
 	var negC Element
 	negC.Neg(c)
@@ -385,7 +385,7 @@ func (vector Vector) ScalarSub(a Vector, c *Element) {
 }
 
 // ScalarSubFrom subtracts each element of a from the scalar c and stores the result in self.
-// self may alias a, and c may point into self. It panics if the vectors don't have the same length.
+// self may be identical to a, and c may point into self; partially overlapping slices are not supported. It panics if the vectors don't have the same length.
 func (vector Vector) ScalarSubFrom(c *Element, a Vector) {
 	if len(a) != len(vector) {
 		panic("vector.ScalarSubFrom: vectors don't have the same length")

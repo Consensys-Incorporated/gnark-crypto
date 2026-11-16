@@ -110,7 +110,8 @@ func (vector VectorE3) Sub(a, b VectorE3) {
 	v.Sub(asBaseVector(a), asBaseVector(b))
 }
 
-// Mul sets vector[i] = a[i] * b[i]. vector may alias a or b.
+// Mul sets vector[i] = a[i] * b[i]. vector may be identical to a and/or b;
+// partially overlapping slices are not supported.
 func (vector VectorE3) Mul(a, b VectorE3) {
 	if len(a) != len(vector) || len(b) != len(vector) {
 		panic("vector.Mul: vectors don't have the same length")
@@ -120,7 +121,7 @@ func (vector VectorE3) Mul(a, b VectorE3) {
 	}
 }
 
-// Neg sets vector[i] = -a[i]. vector may alias a.
+// Neg sets vector[i] = -a[i]. vector may be identical to a; partially overlapping slices are not supported.
 func (vector VectorE3) Neg(a VectorE3) {
 	if len(a) != len(vector) {
 		panic("vector.Neg: vectors don't have the same length")
@@ -130,7 +131,7 @@ func (vector VectorE3) Neg(a VectorE3) {
 	}
 }
 
-// ScalarAddElement sets vector[i] = a[i] + c, where c is an element of the base field. vector may alias a, and c may point into vector.
+// ScalarAddElement sets vector[i] = a[i] + c, where c is an element of the base field. vector may be identical to a, and c may point into vector; partially overlapping slices are not supported.
 func (vector VectorE3) ScalarAddElement(a VectorE3, c *fr.Element) {
 	if len(a) != len(vector) {
 		panic("vector.ScalarAddElement: vectors don't have the same length")
@@ -141,14 +142,14 @@ func (vector VectorE3) ScalarAddElement(a VectorE3, c *fr.Element) {
 	}
 }
 
-// ScalarSubElement sets vector[i] = a[i] - c, where c is an element of the base field. vector may alias a, and c may point into vector.
+// ScalarSubElement sets vector[i] = a[i] - c, where c is an element of the base field. vector may be identical to a, and c may point into vector; partially overlapping slices are not supported.
 func (vector VectorE3) ScalarSubElement(a VectorE3, c *fr.Element) {
 	var negC fr.Element
 	negC.Neg(c)
 	vector.ScalarAddElement(a, &negC)
 }
 
-// ScalarSubFromElement sets vector[i] = c - a[i], where c is an element of the base field. vector may alias a, and c may point into vector.
+// ScalarSubFromElement sets vector[i] = c - a[i], where c is an element of the base field. vector may be identical to a, and c may point into vector; partially overlapping slices are not supported.
 func (vector VectorE3) ScalarSubFromElement(c *fr.Element, a VectorE3) {
 	if len(a) != len(vector) {
 		panic("vector.ScalarSubFromElement: vectors don't have the same length")
@@ -200,7 +201,7 @@ func (vector VectorE3) InnerProductByElement(a fr.Vector) E3 {
 const mulAccByElementThreshold = 64
 
 // ScalarMulAccBase accumulates vector[i] += a[i] * c, where a is a
-// base-field vector and c a fixed E3 scalar. c may point into vector.
+// base-field vector and c a fixed E3 scalar. c may point into vector; partially overlapping slices are not supported.
 //
 // On AVX-512IFMA hardware, and for large enough vectors, the interleaved E3
 // layout (A0, A1, A2 per element) is reinterpreted as a flat fr.Vector and
