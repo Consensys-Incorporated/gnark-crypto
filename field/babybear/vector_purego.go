@@ -43,3 +43,15 @@ func (vector *Vector) InnerProduct(other Vector) (res Element) {
 func (vector *Vector) Mul(a, b Vector) {
 	mulVecGeneric(*vector, a, b)
 }
+
+func vectorMulAcc(res, a, b Vector) {
+	mulAccVecGeneric(res, a, b)
+}
+
+func vectorScalarMulAcc(res, a Vector, c *Element) {
+	scalarMulAccVecGeneric(res, a, c)
+}
+
+func vectorScalarMulAdd(res, b Vector, c *Element) {
+	scalarMulAddVecGeneric(res, b, c)
+}

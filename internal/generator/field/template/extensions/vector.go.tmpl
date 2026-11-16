@@ -353,23 +353,122 @@ func (vector VectorE4) Exp(a VectorE4, k int64) {
 	}
 }
  
-// MulAccByElement multiplies each element of the vector v by the E4 element alpha,
-// accumulating the result in the same vector.
-func (vector VectorE4) MulAccByElement(scale []fr.Element, alpha *E4)  {
+// MulAccByElement sets vector[i] += scale[i] * alpha for all i.
+//
+// It is equivalent to vector.ScalarMulAccBase(scale, alpha).
+func (vector VectorE4) MulAccByElement(scale []fr.Element, alpha *E4) {
+	vector.ScalarMulAccBase(scale, alpha)
+}
+
+// ScalarMulAccBase sets vector[i] += a[i] * c for all i, where a is a
+// base-field vector and c an extension scalar.
+//
+// c may point into vector.
+func (vector VectorE4) ScalarMulAccBase(a fr.Vector, c *E4) {
 	N := len(vector)
-	if N != len(scale) {
-		panic("MulAccByElement: len(vector) != len(scale)")
+	if N != len(a) {
+		panic("vector.ScalarMulAccBase: vectors don't have the same length")
 	}
+	cc := *c
 	{{- if .IsKoalaBear}}
 		const blockSize = 4
-		if !cpu.SupportAVX512 || N%blockSize != 0 {
-			vectorMulAccByElementGeneric(vector, scale, alpha)
-			return
+		if cpu.SupportAVX512 && N >= blockSize {
+			r := N % blockSize
+			nr := N - r
+			mulAccByElement_avx512(&cc, &a[0], &vector[0], uint64(nr))
+			vector, a = vector[nr:], a[nr:]
 		}
-		mulAccByElement_avx512(alpha, &scale[0], &vector[0], uint64(N))
-	{{- else}}
-		vectorMulAccByElementGeneric(vector, scale, alpha)
 	{{- end}}
+	vectorMulAccByElementGeneric(vector, a, &cc)
+}
+
+// ScalarMulAcc sets vector[i] += a[i] * c for all i.
+//
+// vector may be identical to a, and c may point into vector or a; partially
+// overlapping slices are not supported.
+func (vector VectorE4) ScalarMulAcc(a VectorE4, c *E4) {
+	N := len(vector)
+	if len(a) != N {
+		panic("vector.ScalarMulAcc: vectors don't have the same length")
+	}
+	cc := *c
+	var t E4
+	for i := range vector {
+		t.Mul(&a[i], &cc)
+		vector[i].Add(&vector[i], &t)
+	}
+}
+
+// MulAcc sets vector[i] += a[i] * b[i] for all i.
+//
+// vector may be identical to a and/or b; partially overlapping slices are not
+// supported.
+func (vector VectorE4) MulAcc(a, b VectorE4) {
+	N := len(vector)
+	if len(a) != N || len(b) != N {
+		panic("vector.MulAcc: vectors don't have the same length")
+	}
+	var t E4
+	for i := range vector {
+		t.Mul(&a[i], &b[i])
+		vector[i].Add(&vector[i], &t)
+	}
+}
+
+// ScalarMulBase sets vector[i] = a[i] * c for all i, where a is a base-field
+// vector and c an extension scalar.
+//
+// c may point into vector.
+func (vector VectorE4) ScalarMulBase(a fr.Vector, c *E4) {
+	N := len(vector)
+	if len(a) != N {
+		panic("vector.ScalarMulBase: vectors don't have the same length")
+	}
+	cc := *c
+	for i := range vector {
+		vector[i].MulByElement(&cc, &a[i])
+	}
+}
+
+// ScalarMulAdd sets vector[i] = vector[i] * c + b[i] for all i: one Horner step
+// applied across the vector.
+//
+// vector may be identical to b, and c may point into vector or b; partially
+// overlapping slices are not supported.
+func (vector VectorE4) ScalarMulAdd(b VectorE4, c *E4) {
+	N := len(vector)
+	if len(b) != N {
+		panic("vector.ScalarMulAdd: vectors don't have the same length")
+	}
+	cc := *c
+	// compute into t first: b may alias vector.
+	var t E4
+	for i := range vector {
+		t.Mul(&vector[i], &cc)
+		vector[i].Add(&t, &b[i])
+	}
+}
+
+// ScalarMulAddBase sets vector[i] = vector[i] * c + b[i] for all i, where b is
+// a base-field vector: one Horner step applied across the vector.
+//
+// To compute a random linear combination ∑ cᵏ·colₖ of base-field columns
+// whose powers of c are known, prefer ScalarMulAccBase with each power: it
+// costs one extension-by-base product per element, whereas this method costs
+// a full extension product. Use ScalarMulAddBase for streaming Horner
+// evaluation when the powers of c are not precomputed.
+//
+// c may point into vector.
+func (vector VectorE4) ScalarMulAddBase(b fr.Vector, c *E4) {
+	N := len(vector)
+	if len(b) != N {
+		panic("vector.ScalarMulAddBase: vectors don't have the same length")
+	}
+	cc := *c
+	for i := range vector {
+		vector[i].Mul(&vector[i], &cc)
+		vector[i].B0.A0.Add(&vector[i].B0.A0, &b[i])
+	}
 }
 
 

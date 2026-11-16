@@ -1,6 +1,7 @@
 import (
 	"github.com/stretchr/testify/require"
 	"math/big"
+	"fmt"
 	"strconv"
 	"testing"
 
@@ -344,7 +345,7 @@ func TestE3VectorScalarMulByElement(t *testing.T) {
 	}
 }
 
-func TestE3VectorMulAccByElement(t *testing.T) {
+func TestE3VectorScalarMulAccBase(t *testing.T) {
 	for _, n := range []int{0, 1, 7, 8, 16, 63, 64, 65, 100, 1000} {
 		dst := make(VectorE3, n)
 		scale := make([]fr.Element, n)
@@ -362,10 +363,10 @@ func TestE3VectorMulAccByElement(t *testing.T) {
 			expected[i].Add(&expected[i], &tmp)
 		}
 
-		dst.MulAccByElement(scale, &alpha)
+		dst.ScalarMulAccBase(scale, &alpha)
 		for i := range n {
 			if !dst[i].Equal(&expected[i]) {
-				t.Fatalf("n=%d: MulAccByElement[%d] wrong", n, i)
+				t.Fatalf("n=%d: ScalarMulAccBase[%d] wrong", n, i)
 			}
 		}
 	}
@@ -422,7 +423,7 @@ func BenchmarkE3Exp(b *testing.B) {
 	}
 }
 
-func BenchmarkE3VectorMulAccByElement(b *testing.B) {
+func BenchmarkE3VectorScalarMulAccBase(b *testing.B) {
 	const n = 1 << 16
 	dst := make(VectorE3, n)
 	scale := make([]fr.Element, n)
@@ -434,7 +435,7 @@ func BenchmarkE3VectorMulAccByElement(b *testing.B) {
 	alpha.MustSetRandom()
 	b.ResetTimer()
 	for range b.N {
-		dst.MulAccByElement(scale, &alpha)
+		dst.ScalarMulAccBase(scale, &alpha)
 	}
 }
 
@@ -679,4 +680,117 @@ func TestE3ValueReceivers(t *testing.T) {
 	c.SetZero()
 	require.False(t, x.IsZero())
 	require.False(t, m["k"].IsZero())
+}
+
+func TestVectorE3MulAccHorner(t *testing.T) {
+	// sizes straddle the AVX-512 block sizes and include non-aligned tails
+	for _, size := range []int{0, 1, 3, 4, 5, 7, 8, 9, 15, 16, 17, 33, 65, 200} {
+		t.Run(strconv.Itoa(size), func(t *testing.T) {
+			a, b, v0 := randVectorE3(size), randVectorE3(size), randVectorE3(size)
+			base, base2 := make(fr.Vector, size), make(fr.Vector, size)
+			base.MustSetRandom()
+			base2.MustSetRandom()
+			var c E3
+			c.MustSetRandom()
+
+			clone := func(x VectorE3) VectorE3 { return append(make(VectorE3, 0, size), x...) }
+			check := func(name string, want VectorE3, run func(v VectorE3)) {
+				t.Helper()
+				v := clone(v0)
+				run(v)
+				require.Equal(t, want, v, name)
+			}
+			want := func(f func(i int, z *E3)) VectorE3 {
+				w := clone(v0)
+				for i := range w {
+					f(i, &w[i])
+				}
+				return w
+			}
+			var tmp E3
+
+			check("MulAcc", want(func(i int, z *E3) { z.Add(z, tmp.Mul(&a[i], &b[i])) }),
+				func(v VectorE3) { v.MulAcc(a, b) })
+			check("ScalarMulAcc", want(func(i int, z *E3) { z.Add(z, tmp.Mul(&a[i], &c)) }),
+				func(v VectorE3) { v.ScalarMulAcc(a, &c) })
+			check("ScalarMulBase", want(func(i int, z *E3) { z.MulByElement(&c, &base[i]) }),
+				func(v VectorE3) { v.ScalarMulBase(base, &c) })
+			check("ScalarMulAccBase", want(func(i int, z *E3) { z.Add(z, tmp.MulByElement(&c, &base[i])) }),
+				func(v VectorE3) { v.ScalarMulAccBase(base, &c) })
+			check("ScalarMulAdd", want(func(i int, z *E3) { z.Mul(z, &c).Add(z, &b[i]) }),
+				func(v VectorE3) { v.ScalarMulAdd(b, &c) })
+			check("ScalarMulAddBase", want(func(i int, z *E3) { z.Mul(z, &c); z.A0.Add(&z.A0, &base2[i]) }),
+				func(v VectorE3) { v.ScalarMulAddBase(base2, &c) })
+			check("MulAccByElement", want(func(i int, z *E3) { z.Add(z, tmp.MulByElement(&a[i], &base[i])) }),
+				func(v VectorE3) { v.MulAccByElement(a, base) })
+
+			// vector aliases the inputs
+			check("MulAcc alias", want(func(i int, z *E3) { z.Add(z, tmp.Mul(z, z)) }),
+				func(v VectorE3) { v.MulAcc(v, v) })
+			check("ScalarMulAcc alias", want(func(i int, z *E3) { z.Add(z, tmp.Mul(z, &c)) }),
+				func(v VectorE3) { v.ScalarMulAcc(v, &c) })
+			check("ScalarMulAdd alias", want(func(i int, z *E3) { tmp.Set(z); z.Mul(z, &c).Add(z, &tmp) }),
+				func(v VectorE3) { v.ScalarMulAdd(v, &c) })
+
+			if size == 0 {
+				return
+			}
+			// the scalar points into the vector being overwritten
+			c0 := v0[0]
+			check("ScalarMulAcc scalar alias", want(func(i int, z *E3) { z.Add(z, tmp.Mul(&a[i], &c0)) }),
+				func(v VectorE3) { v.ScalarMulAcc(a, &v[0]) })
+			check("ScalarMulAcc full alias", want(func(i int, z *E3) { z.Add(z, tmp.Mul(z, &c0)) }),
+				func(v VectorE3) { v.ScalarMulAcc(v, &v[0]) })
+			check("ScalarMulBase scalar alias", want(func(i int, z *E3) { z.MulByElement(&c0, &base[i]) }),
+				func(v VectorE3) { v.ScalarMulBase(base, &v[0]) })
+			check("ScalarMulAccBase scalar alias", want(func(i int, z *E3) { z.Add(z, tmp.MulByElement(&c0, &base[i])) }),
+				func(v VectorE3) { v.ScalarMulAccBase(base, &v[0]) })
+			check("ScalarMulAdd scalar alias", want(func(i int, z *E3) { z.Mul(z, &c0).Add(z, &b[i]) }),
+				func(v VectorE3) { v.ScalarMulAdd(b, &v[0]) })
+			check("ScalarMulAddBase scalar alias", want(func(i int, z *E3) { z.Mul(z, &c0); z.A0.Add(&z.A0, &base2[i]) }),
+				func(v VectorE3) { v.ScalarMulAddBase(base2, &v[0]) })
+		})
+	}
+}
+
+func TestVectorE3MulAccHornerLengthMismatch(t *testing.T) {
+	var c E3
+	v, a := make(VectorE3, 3), make(VectorE3, 4)
+	base := make(fr.Vector, 4)
+	require.Panics(t, func() { v.MulAcc(a, v) })
+	require.Panics(t, func() { v.MulAcc(v, a) })
+	require.Panics(t, func() { v.ScalarMulAcc(a, &c) })
+	require.Panics(t, func() { v.ScalarMulBase(base, &c) })
+	require.Panics(t, func() { v.ScalarMulAccBase(base, &c) })
+	require.Panics(t, func() { v.ScalarMulAdd(a, &c) })
+	require.Panics(t, func() { v.ScalarMulAddBase(base, &c) })
+}
+
+func BenchmarkVectorE3MulAccHorner(b *testing.B) {
+	for _, N := range []int{1 << 12, 1 << 16} {
+		x, y, v := randVectorE3(N), randVectorE3(N), randVectorE3(N)
+		base := make(fr.Vector, N)
+		base.MustSetRandom()
+		var c E3
+		c.MustSetRandom()
+		run := func(name string, f func()) {
+			b.Run(fmt.Sprintf("%s/N=%d", name, N), func(b *testing.B) {
+				for b.Loop() {
+					f()
+				}
+			})
+		}
+		run("MulAcc", func() { v.MulAcc(x, y) })
+		run("ScalarMulAcc", func() { v.ScalarMulAcc(x, &c) })
+		run("ScalarMulBase", func() { v.ScalarMulBase(base, &c) })
+		run("ScalarMulAccBase", func() { v.ScalarMulAccBase(base, &c) })
+		run("ScalarMulAdd", func() { v.ScalarMulAdd(y, &c) })
+		run("ScalarMulAddBase", func() { v.ScalarMulAddBase(base, &c) })
+	}
+}
+
+func randVectorE3(n int) VectorE3 {
+	v := make(VectorE3, n)
+	v.MustSetRandom()
+	return v
 }

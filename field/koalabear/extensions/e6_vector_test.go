@@ -6,6 +6,7 @@
 package extensions
 
 import (
+	"fmt"
 	"strconv"
 	"testing"
 	"unsafe"
@@ -606,4 +607,117 @@ func BenchmarkBatchInvertE6(b *testing.B) {
 	for b.Loop() {
 		BatchInvertE6Into(res, x)
 	}
+}
+
+func TestVectorE6MulAccHorner(t *testing.T) {
+	// sizes straddle the AVX-512 block sizes and include non-aligned tails
+	for _, size := range []int{0, 1, 3, 4, 5, 7, 8, 9, 15, 16, 17, 33, 65, 200} {
+		t.Run(strconv.Itoa(size), func(t *testing.T) {
+			a, b, v0 := randVectorE6(size), randVectorE6(size), randVectorE6(size)
+			base, base2 := make(fr.Vector, size), make(fr.Vector, size)
+			base.MustSetRandom()
+			base2.MustSetRandom()
+			var c E6
+			c.MustSetRandom()
+
+			clone := func(x VectorE6) VectorE6 { return append(make(VectorE6, 0, size), x...) }
+			check := func(name string, want VectorE6, run func(v VectorE6)) {
+				t.Helper()
+				v := clone(v0)
+				run(v)
+				require.Equal(t, want, v, name)
+			}
+			want := func(f func(i int, z *E6)) VectorE6 {
+				w := clone(v0)
+				for i := range w {
+					f(i, &w[i])
+				}
+				return w
+			}
+			var tmp E6
+
+			check("MulAcc", want(func(i int, z *E6) { z.Add(z, tmp.Mul(&a[i], &b[i])) }),
+				func(v VectorE6) { v.MulAcc(a, b) })
+			check("ScalarMulAcc", want(func(i int, z *E6) { z.Add(z, tmp.Mul(&a[i], &c)) }),
+				func(v VectorE6) { v.ScalarMulAcc(a, &c) })
+			check("ScalarMulBase", want(func(i int, z *E6) { z.MulByElement(&c, &base[i]) }),
+				func(v VectorE6) { v.ScalarMulBase(base, &c) })
+			check("ScalarMulAccBase", want(func(i int, z *E6) { z.Add(z, tmp.MulByElement(&c, &base[i])) }),
+				func(v VectorE6) { v.ScalarMulAccBase(base, &c) })
+			check("ScalarMulAdd", want(func(i int, z *E6) { z.Mul(z, &c).Add(z, &b[i]) }),
+				func(v VectorE6) { v.ScalarMulAdd(b, &c) })
+			check("ScalarMulAddBase", want(func(i int, z *E6) { z.Mul(z, &c); z.B0.A0.Add(&z.B0.A0, &base2[i]) }),
+				func(v VectorE6) { v.ScalarMulAddBase(base2, &c) })
+			check("MulAccByElement", want(func(i int, z *E6) { z.Add(z, tmp.MulByElement(&a[i], &base[i])) }),
+				func(v VectorE6) { v.MulAccByElement(a, base) })
+
+			// vector aliases the inputs
+			check("MulAcc alias", want(func(i int, z *E6) { z.Add(z, tmp.Mul(z, z)) }),
+				func(v VectorE6) { v.MulAcc(v, v) })
+			check("ScalarMulAcc alias", want(func(i int, z *E6) { z.Add(z, tmp.Mul(z, &c)) }),
+				func(v VectorE6) { v.ScalarMulAcc(v, &c) })
+			check("ScalarMulAdd alias", want(func(i int, z *E6) { tmp.Set(z); z.Mul(z, &c).Add(z, &tmp) }),
+				func(v VectorE6) { v.ScalarMulAdd(v, &c) })
+
+			if size == 0 {
+				return
+			}
+			// the scalar points into the vector being overwritten
+			c0 := v0[0]
+			check("ScalarMulAcc scalar alias", want(func(i int, z *E6) { z.Add(z, tmp.Mul(&a[i], &c0)) }),
+				func(v VectorE6) { v.ScalarMulAcc(a, &v[0]) })
+			check("ScalarMulAcc full alias", want(func(i int, z *E6) { z.Add(z, tmp.Mul(z, &c0)) }),
+				func(v VectorE6) { v.ScalarMulAcc(v, &v[0]) })
+			check("ScalarMulBase scalar alias", want(func(i int, z *E6) { z.MulByElement(&c0, &base[i]) }),
+				func(v VectorE6) { v.ScalarMulBase(base, &v[0]) })
+			check("ScalarMulAccBase scalar alias", want(func(i int, z *E6) { z.Add(z, tmp.MulByElement(&c0, &base[i])) }),
+				func(v VectorE6) { v.ScalarMulAccBase(base, &v[0]) })
+			check("ScalarMulAdd scalar alias", want(func(i int, z *E6) { z.Mul(z, &c0).Add(z, &b[i]) }),
+				func(v VectorE6) { v.ScalarMulAdd(b, &v[0]) })
+			check("ScalarMulAddBase scalar alias", want(func(i int, z *E6) { z.Mul(z, &c0); z.B0.A0.Add(&z.B0.A0, &base2[i]) }),
+				func(v VectorE6) { v.ScalarMulAddBase(base2, &v[0]) })
+		})
+	}
+}
+
+func TestVectorE6MulAccHornerLengthMismatch(t *testing.T) {
+	var c E6
+	v, a := make(VectorE6, 3), make(VectorE6, 4)
+	base := make(fr.Vector, 4)
+	require.Panics(t, func() { v.MulAcc(a, v) })
+	require.Panics(t, func() { v.MulAcc(v, a) })
+	require.Panics(t, func() { v.ScalarMulAcc(a, &c) })
+	require.Panics(t, func() { v.ScalarMulBase(base, &c) })
+	require.Panics(t, func() { v.ScalarMulAccBase(base, &c) })
+	require.Panics(t, func() { v.ScalarMulAdd(a, &c) })
+	require.Panics(t, func() { v.ScalarMulAddBase(base, &c) })
+}
+
+func BenchmarkVectorE6MulAccHorner(b *testing.B) {
+	for _, N := range []int{1 << 12, 1 << 16} {
+		x, y, v := randVectorE6(N), randVectorE6(N), randVectorE6(N)
+		base := make(fr.Vector, N)
+		base.MustSetRandom()
+		var c E6
+		c.MustSetRandom()
+		run := func(name string, f func()) {
+			b.Run(fmt.Sprintf("%s/N=%d", name, N), func(b *testing.B) {
+				for b.Loop() {
+					f()
+				}
+			})
+		}
+		run("MulAcc", func() { v.MulAcc(x, y) })
+		run("ScalarMulAcc", func() { v.ScalarMulAcc(x, &c) })
+		run("ScalarMulBase", func() { v.ScalarMulBase(base, &c) })
+		run("ScalarMulAccBase", func() { v.ScalarMulAccBase(base, &c) })
+		run("ScalarMulAdd", func() { v.ScalarMulAdd(y, &c) })
+		run("ScalarMulAddBase", func() { v.ScalarMulAddBase(base, &c) })
+	}
+}
+
+func randVectorE6(n int) VectorE6 {
+	v := make(VectorE6, n)
+	v.MustSetRandom()
+	return v
 }

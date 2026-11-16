@@ -878,14 +878,25 @@ func (vector VectorE6) ScalarMulByElement(a VectorE6, b *fr.Element) {
 	vRes.ScalarMul(vBase, b)
 }
 
-// ScalarMulAccByElement accumulates vector[i] += a[i] * s, where a is a
-// base-field vector and s a fixed E6 scalar.
+// ScalarMulAccByElement sets vector[i] += a[i] * s for all i, where a is a
+// base-field vector and s an E6 scalar.
+//
+// It is equivalent to vector.ScalarMulAccBase(a, s).
 func (vector VectorE6) ScalarMulAccByElement(a fr.Vector, s *E6) {
+	vector.ScalarMulAccBase(a, s)
+}
+
+// ScalarMulAccBase sets vector[i] += a[i] * c for all i, where a is a
+// base-field vector and c an extension scalar.
+//
+// c may point into vector.
+func (vector VectorE6) ScalarMulAccBase(a fr.Vector, c *E6) {
 	N := len(vector)
 	if len(a) != N {
-		panic("vectorE6.ScalarMulAccByElement: vectors don't have the same length")
+		panic("vectorE6.ScalarMulAccBase: vectors don't have the same length")
 	}
-	scalarMulAccByElementE6Generic(vector, a, s)
+	cc := *c
+	scalarMulAccByElementE6Generic(vector, a, &cc)
 }
 
 func scalarMulAccByElementE6Generic(vector VectorE6, a fr.Vector, s *E6) {
@@ -896,13 +907,88 @@ func scalarMulAccByElementE6Generic(vector VectorE6, a fr.Vector, s *E6) {
 	}
 }
 
+// MulAcc sets vector[i] += a[i] * b[i] for all i.
+//
+// vector may be identical to a and/or b; partially overlapping slices are not
+// supported.
+func (vector VectorE6) MulAcc(a, b VectorE6) {
+	N := len(vector)
+	if len(a) != N || len(b) != N {
+		panic("vectorE6.MulAcc: vectors don't have the same length")
+	}
+	var t E6
+	for i := range vector {
+		t.Mul(&a[i], &b[i])
+		vector[i].Add(&vector[i], &t)
+	}
+}
+
+// ScalarMulBase sets vector[i] = a[i] * c for all i, where a is a base-field
+// vector and c an extension scalar.
+//
+// c may point into vector.
+func (vector VectorE6) ScalarMulBase(a fr.Vector, c *E6) {
+	N := len(vector)
+	if len(a) != N {
+		panic("vectorE6.ScalarMulBase: vectors don't have the same length")
+	}
+	cc := *c
+	for i := range vector {
+		vector[i].MulByElement(&cc, &a[i])
+	}
+}
+
+// ScalarMulAdd sets vector[i] = vector[i] * c + b[i] for all i: one Horner step
+// applied across the vector.
+//
+// vector may be identical to b, and c may point into vector or b; partially
+// overlapping slices are not supported.
+func (vector VectorE6) ScalarMulAdd(b VectorE6, c *E6) {
+	N := len(vector)
+	if len(b) != N {
+		panic("vectorE6.ScalarMulAdd: vectors don't have the same length")
+	}
+	cc := *c
+	// compute into t first: b may alias vector.
+	var t E6
+	for i := range vector {
+		t.Mul(&vector[i], &cc)
+		vector[i].Add(&t, &b[i])
+	}
+}
+
+// ScalarMulAddBase sets vector[i] = vector[i] * c + b[i] for all i, where b is
+// a base-field vector: one Horner step applied across the vector.
+//
+// To compute a random linear combination ∑ cᵏ·colₖ of base-field columns
+// whose powers of c are known, prefer ScalarMulAccBase with each power: it
+// costs one extension-by-base product per element, whereas this method costs
+// a full extension product. Use ScalarMulAddBase for streaming Horner
+// evaluation when the powers of c are not precomputed.
+//
+// c may point into vector.
+func (vector VectorE6) ScalarMulAddBase(b fr.Vector, c *E6) {
+	N := len(vector)
+	if len(b) != N {
+		panic("vectorE6.ScalarMulAddBase: vectors don't have the same length")
+	}
+	cc := *c
+	for i := range vector {
+		vector[i].Mul(&vector[i], &cc)
+		vector[i].B0.A0.Add(&vector[i].B0.A0, &b[i])
+	}
+}
+
 // ScalarMulAcc accumulates vector[i] += a[i] * s, where s is a fixed E6 scalar.
+// vector may be identical to a, and s may point into vector or a.
 func (vector VectorE6) ScalarMulAcc(a VectorE6, s *E6) {
 	N := len(vector)
 	if len(a) != N {
 		panic("vectorE6.ScalarMulAcc: vectors don't have the same length")
 	}
-	scalarMulAccE6Generic(vector, a, s)
+	// copy s: it may point into vector, which the loop overwrites.
+	ss := *s
+	scalarMulAccE6Generic(vector, a, &ss)
 }
 
 func scalarMulAccE6Generic(vector, a VectorE6, s *E6) {
@@ -919,7 +1005,9 @@ func (vector VectorE6) ScalarMul(a VectorE6, s *E6) {
 	if len(a) != N {
 		panic("vectorE6.ScalarMul: vectors don't have the same length")
 	}
-	scalarMulE6Generic(vector, a, s)
+	// copy s: it may point into vector, which the loop overwrites.
+	ss := *s
+	scalarMulE6Generic(vector, a, &ss)
 }
 
 func scalarMulE6Generic(vector, a VectorE6, s *E6) {

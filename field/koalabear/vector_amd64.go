@@ -214,3 +214,15 @@ func (vector *Vector) Mul(a, b Vector) {
 		mulVecGeneric((*vector)[start:], a[start:], b[start:])
 	}
 }
+
+func vectorMulAcc(res, a, b Vector) {
+	mulAccVecGeneric(res, a, b)
+}
+
+func vectorScalarMulAcc(res, a Vector, c *Element) {
+	scalarMulAccVecGeneric(res, a, c)
+}
+
+func vectorScalarMulAdd(res, b Vector, c *Element) {
+	scalarMulAddVecGeneric(res, b, c)
+}
