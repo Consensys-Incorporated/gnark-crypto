@@ -721,3 +721,51 @@ func randVectorE6(n int) VectorE6 {
 	v.MustSetRandom()
 	return v
 }
+
+func TestVectorE6InnerProductByElement(t *testing.T) {
+	for _, size := range []int{0, 1, 7, 8, 9, 15, 16, 17, 33, 65, 1 << 12} {
+		t.Run(strconv.Itoa(size), func(t *testing.T) {
+			v := randVectorE6(size)
+			a := make(fr.Vector, size)
+			a.MustSetRandom()
+			var want, tmp E6
+			for i := range v {
+				tmp.MulByElement(&v[i], &a[i])
+				want.Add(&want, &tmp)
+			}
+			require.Equal(t, want, v.InnerProductByElement(a))
+		})
+	}
+	// every lane at the largest canonical raw value q-1, the largest lane products
+	t.Run("max", func(t *testing.T) {
+		const size = 1 << 10
+		v := make(VectorE6, size)
+		a := make(fr.Vector, size)
+		var m fr.Element
+		m[0] = uint32(fr.Modulus().Uint64() - 1)
+		for i := range v {
+			v[i].B0.A0, v[i].B0.A1, v[i].B1.A0, v[i].B1.A1, v[i].B2.A0, v[i].B2.A1 = m, m, m, m, m, m
+			a[i] = m
+		}
+		var want, tmp E6
+		for i := range v {
+			tmp.MulByElement(&v[i], &a[i])
+			want.Add(&want, &tmp)
+		}
+		require.Equal(t, want, v.InnerProductByElement(a))
+	})
+	require.Panics(t, func() { make(VectorE6, 2).InnerProductByElement(make(fr.Vector, 3)) })
+}
+
+func BenchmarkVectorE6InnerProductByElement(b *testing.B) {
+	for _, N := range []int{1 << 12, 1 << 16} {
+		v := randVectorE6(N)
+		a := make(fr.Vector, N)
+		a.MustSetRandom()
+		b.Run(fmt.Sprintf("N=%d", N), func(b *testing.B) {
+			for b.Loop() {
+				_ = v.InnerProductByElement(a)
+			}
+		})
+	}
+}

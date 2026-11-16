@@ -797,6 +797,45 @@ func (vector VectorE6) InnerProduct(a VectorE6) E6 {
 	return res
 }
 
+// InnerProductByElement returns the sum of vector[i] * a[i], where a[i] ∈ F_p.
+func (vector VectorE6) InnerProductByElement(a fr.Vector) E6 {
+	if len(vector) != len(a) {
+		panic("vector.InnerProductByElement: vectors don't have the same length")
+	}
+	var res, tmp E6
+	const blockSize = 8
+	N := len(vector)
+	if cpu.SupportAVX512 && N >= blockSize {
+		r := N % blockSize
+		nr := N - r
+		// t[16g + 8h + j] is a partial (unreduced) sum of lane 16g + 2j + h of
+		// the 48-lane window, i.e. of coordinate (16g + 2j + h) % 6; reduce each
+		// lane mod q before folding so the fold cannot overflow.
+		var t [48]uint64
+		vectorInnerProductByElement_E6_avx512(&t, &vector[0], &a[0], uint64(nr))
+		var c [6]uint64
+		for g := range 3 {
+			for h := range 2 {
+				for j := range 8 {
+					c[(16*g+2*j+h)%6] += t[16*g+8*h+j] % q
+				}
+			}
+		}
+		res.B0.A0[0] = uint32(c[0] % q)
+		res.B0.A1[0] = uint32(c[1] % q)
+		res.B1.A0[0] = uint32(c[2] % q)
+		res.B1.A1[0] = uint32(c[3] % q)
+		res.B2.A0[0] = uint32(c[4] % q)
+		res.B2.A1[0] = uint32(c[5] % q)
+		vector, a = vector[nr:], a[nr:]
+	}
+	for i := range vector {
+		tmp.MulByElement(&vector[i], &a[i])
+		res.Add(&res, &tmp)
+	}
+	return res
+}
+
 // Butterfly computes the in-place butterfly operation on two vectors of E6 elements.
 // If other overlaps with vector, the result is undefined; the caller should use a temp vector.
 func (vector VectorE6) Butterfly(other VectorE6) {

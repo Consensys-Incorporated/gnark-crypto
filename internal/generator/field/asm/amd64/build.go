@@ -433,6 +433,7 @@ func GenerateF31Ext(w io.Writer) error {
 	f.generateMulVecE4(e4VecScalarMulAdd)
 	f.generateMulVecE4(e4VecScalarMulAddBase)
 	f.generateScalarMulBaseE4()
+	f.generateInnerProdByElementE6()
 
 	return nil
 
