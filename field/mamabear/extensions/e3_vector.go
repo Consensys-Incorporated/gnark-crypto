@@ -195,11 +195,12 @@ func (vector VectorE3) InnerProductByElement(a fr.Vector) E3 {
 }
 
 // mulAccByElementThreshold is the minimum vector length above which
-// MulAccByElement batches through fr.Vector's Mul/Add kernels. Below it, the
+// ScalarMulAccByElement batches through fr.Vector's Mul/Add kernels. Below it, the
 // tiling overhead outweighs the win even when those kernels are accelerated.
 const mulAccByElementThreshold = 64
 
-// MulAccByElement adds scale[i] * alpha to vector[i] for all i.
+// ScalarMulAccByElement accumulates vector[i] += a[i] * s, where a is a
+// base-field vector and s a fixed E3 scalar.
 //
 // On AVX-512IFMA hardware, and for large enough vectors, the interleaved E3
 // layout (A0, A1, A2 per element) is reinterpreted as a flat fr.Vector and
@@ -207,25 +208,25 @@ const mulAccByElementThreshold = 64
 // kernels. Without AVX-512IFMA, fr.Vector.Mul/Add fall back to the same
 // per-element scalar loop this batching wraps around, so the extra tiling
 // work is pure overhead — in that case we use the plain scalar loop instead.
-func (vector VectorE3) MulAccByElement(scale []fr.Element, alpha *E3) {
+func (vector VectorE3) ScalarMulAccByElement(a fr.Vector, s *E3) {
 	n := len(vector)
-	if n != len(scale) {
-		panic("vector.MulAccByElement: length mismatch")
+	if n != len(a) {
+		panic("vector.ScalarMulAccByElement: length mismatch")
 	}
 	if n == 0 {
 		return
 	}
 	if !cpu.SupportAVX512IFMA || n < mulAccByElementThreshold {
-		mulAccByElementGeneric(vector, scale, alpha)
+		mulAccByElementGeneric(vector, a, s)
 		return
 	}
-	mulAccByElementBatched(vector, scale, alpha)
+	mulAccByElementBatched(vector, a, s)
 }
 
-// mulAccByElementBatched implements MulAccByElement by reinterpreting the
+// mulAccByElementBatched implements ScalarMulAccByElement by reinterpreting the
 // interleaved E3 layout (A0, A1, A2 per element) as a flat fr.Vector and
 // processing it with fr.Vector's Mul/Add, which dispatch to the AVX-512IFMA
-// kernels on amd64. Split out from MulAccByElement so its correctness can be
+// kernels on amd64. Split out from ScalarMulAccByElement so its correctness can be
 // tested independently of cpu.SupportAVX512IFMA.
 func mulAccByElementBatched(vector VectorE3, scale []fr.Element, alpha *E3) {
 	n := len(vector)
