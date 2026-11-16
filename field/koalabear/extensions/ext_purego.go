@@ -94,3 +94,11 @@ func vectorDITWithTwiddles_E6_avx512(a0, a1 *E6, twiddles *fr.Element, N uint64)
 func vectorDIFWithTwiddles_E6_avx512(a0, a1 *E6, twiddles *fr.Element, N uint64) {
 	panic("vectorDIFWithTwiddles_E6_avx512 is not implemented")
 }
+
+func vectorFoldPairs_avx512(res, layer *E4, twiddles *fr.Element, K *fr.Element, N uint64) {
+	panic("vectorFoldPairs_avx512 is not implemented")
+}
+
+func vectorFoldPairs_E6_avx512(res, layer *E6, twiddles *fr.Element, K *fr.Element, N uint64) {
+	panic("vectorFoldPairs_E6_avx512 is not implemented")
+}

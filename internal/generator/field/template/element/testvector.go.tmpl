@@ -969,3 +969,75 @@ func BenchmarkVectorAsyncReadFrom(b *testing.B) {
 		})
 	}
 }
+{{- if .F31}}
+
+func TestVectorFoldPairs(t *testing.T) {
+	for _, size := range []int{0, 1, 7, 8, 9, 15, 16, 17, 33, 65, 1 << 10} {
+		t.Run(fmt.Sprintf("size=%d", size), func(t *testing.T) {
+			// FRI identity: for p = e + x·o and q = e − x·o, folding with the
+			// twiddle (2x)⁻¹ gives e + alpha·o.
+			e, o := randVectorFold(size), randVectorFold(size)
+			layer := make(Vector, 2*size)
+			w := make(Vector, size)
+			want := make(Vector, size)
+			var alpha {{.ElementName}}
+			alpha.MustSetRandom()
+			for j := range size {
+				var x, two {{.ElementName}}
+				for x.IsZero() { // x = 0 has no twiddle (2x)⁻¹
+					x.MustSetRandom()
+				}
+				var xo {{.ElementName}}
+				xo.Mul(&o[j], &x)
+				layer[2*j].Add(&e[j], &xo)
+				layer[2*j+1].Sub(&e[j], &xo)
+				two.SetUint64(2)
+				w[j].Mul(&x, &two).Inverse(&w[j])
+				want[j].Mul(&alpha, &o[j]).Add(&want[j], &e[j])
+			}
+
+			got := make(Vector, size)
+			got.FoldPairs(layer, w, &alpha)
+			require.Equal(t, want, got, "FoldPairs")
+
+			if size == 0 {
+				return
+			}
+			// in place, with alpha pointing into the layer being overwritten
+			in := append(make(Vector, 0, 2*size), layer...)
+			alpha0 := in[0]
+			for j := range size {
+				want[j].Mul(&alpha0, &o[j]).Add(&want[j], &e[j])
+			}
+			in[:size].FoldPairs(in, w, &in[0])
+			require.Equal(t, want, in[:size], "FoldPairs in place")
+		})
+	}
+
+	var alpha {{.ElementName}}
+	require.Panics(t, func() { make(Vector, 2).FoldPairs(make(Vector, 3), make(Vector, 2), &alpha) })
+	require.Panics(t, func() { make(Vector, 2).FoldPairs(make(Vector, 4), make(Vector, 3), &alpha) })
+}
+
+func BenchmarkVectorFoldPairs(b *testing.B) {
+	for _, n := range []int{1 << 12, 1 << 16} {
+		layer := randVectorFold(2 * n)
+		w := make(Vector, n)
+		w.MustSetRandom()
+		res := make(Vector, n)
+		var alpha {{.ElementName}}
+		alpha.MustSetRandom()
+		b.Run(fmt.Sprintf("N=%d", n), func(b *testing.B) {
+			for b.Loop() {
+				res.FoldPairs(layer, w, &alpha)
+			}
+		})
+	}
+}
+
+func randVectorFold(n int) Vector {
+	v := make(Vector, n)
+	v.MustSetRandom()
+	return v
+}
+{{- end}}

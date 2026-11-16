@@ -424,6 +424,8 @@ func GenerateF31Ext(w io.Writer) error {
 	f.generateInnerProdByElementE4()
 	f.generateDITWithTwiddlesVecE6()
 	f.generateDIFWithTwiddlesVecE6()
+	f.generateFoldPairsVecExt("vectorFoldPairs_avx512", 4, "indexGather8", "indexGather4")
+	f.generateFoldPairsVecExt("vectorFoldPairs_E6_avx512", 6, "indexGather12", "indexGather6")
 
 	return nil
 
@@ -504,6 +506,7 @@ func GenerateF31ASM(f *FFAmd64, hasVector bool) error {
 	f.generateMulVecF31()
 	f.generateScalarMulVecF31()
 	f.generateInnerProdVecF31()
+	f.generateFoldPairsVecF31()
 
 	return nil
 }
