@@ -157,3 +157,18 @@ func vectorDITWithTwiddles_E6_avx512(a0, a1 *E6, twiddles *fr.Element, N uint64)
 
 //go:noescape
 func vectorDIFWithTwiddles_E6_avx512(a0, a1 *E6, twiddles *fr.Element, N uint64)
+
+//go:noescape
+func vectorScalarAdd_avx512(res, a *E4, cTiled *fr.Element, N uint64)
+
+//go:noescape
+func vectorScalarSubFrom_avx512(res, a *E4, cTiled *fr.Element, N uint64)
+
+//go:noescape
+func vectorScalarAdd_E6_avx512(res, a *E6, cTiled *fr.Element, N uint64)
+
+//go:noescape
+func vectorScalarSubFrom_E6_avx512(res, a *E6, cTiled *fr.Element, N uint64)
+
+//go:noescape
+func vectorSum_E6_avx512(res *[24]uint64, a *E6, N uint64)
