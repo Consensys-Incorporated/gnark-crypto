@@ -40,3 +40,17 @@ func vectorFoldPairs(res, layer, halfInvTwiddles Vector, alpha *{{.ElementName}}
 	foldPairsVecGeneric(res, layer, halfInvTwiddles, alpha)
 }
 {{- end}}
+{{- if .F31}}
+
+func vectorMulAcc(res, a, b Vector) {
+	mulAccVecGeneric(res, a, b)
+}
+
+func vectorScalarMulAcc(res, a Vector, c *{{.ElementName}}) {
+	scalarMulAccVecGeneric(res, a, c)
+}
+
+func vectorScalarMulAdd(res, b Vector, c *{{.ElementName}}) {
+	scalarMulAddVecGeneric(res, b, c)
+}
+{{- end}}

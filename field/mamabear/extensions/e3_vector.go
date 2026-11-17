@@ -81,12 +81,19 @@ func (vector VectorE3) ScalarMulByElement(a VectorE3, b *fr.Element) {
 }
 
 // ScalarMul sets vector[i] = a[i] * b for all i, where b ∈ E3.
+//
+// vector may be identical to a, and b may point into vector or a.
 func (vector VectorE3) ScalarMul(a VectorE3, b *E3) {
 	if len(vector) != len(a) {
 		panic("vector.ScalarMul: length mismatch")
 	}
+	if len(vector) == 0 {
+		return
+	}
+	// copy b: it may point into vector, which the loop overwrites.
+	bb := *b
 	for i := range vector {
-		vector[i].Mul(&a[i], b)
+		vector[i].Mul(&a[i], &bb)
 	}
 }
 
@@ -97,6 +104,9 @@ func (vector VectorE3) ScalarMul(a VectorE3, b *E3) {
 func (vector VectorE3) ScalarAdd(a VectorE3, c *E3) {
 	if len(vector) != len(a) {
 		panic("vector.ScalarAdd: length mismatch")
+	}
+	if len(vector) == 0 {
+		return
 	}
 	cc := *c
 	for i := range vector {
@@ -109,6 +119,12 @@ func (vector VectorE3) ScalarAdd(a VectorE3, c *E3) {
 // vector may be identical to a, and c may point into vector or a; partially
 // overlapping slices are not supported.
 func (vector VectorE3) ScalarSub(a VectorE3, c *E3) {
+	if len(vector) != len(a) {
+		panic("vector.ScalarSub: length mismatch")
+	}
+	if len(vector) == 0 {
+		return
+	}
 	var negC E3
 	negC.Neg(c)
 	vector.ScalarAdd(a, &negC)
@@ -121,6 +137,9 @@ func (vector VectorE3) ScalarSub(a VectorE3, c *E3) {
 func (vector VectorE3) ScalarSubFrom(c *E3, a VectorE3) {
 	if len(vector) != len(a) {
 		panic("vector.ScalarSubFrom: length mismatch")
+	}
+	if len(vector) == 0 {
+		return
 	}
 	cc := *c
 	for i := range vector {
@@ -164,11 +183,47 @@ func (vector VectorE3) InnerProductByElement(a fr.Vector) E3 {
 }
 
 // mulAccByElementThreshold is the minimum vector length above which
-// MulAccByElement batches through fr.Vector's Mul/Add kernels. Below it, the
+// ScalarMulAccBase batches through fr.Vector's Mul/Add kernels. Below it, the
 // tiling overhead outweighs the win even when those kernels are accelerated.
 const mulAccByElementThreshold = 64
 
-// MulAccByElement adds scale[i] * alpha to vector[i] for all i.
+// MulAccByElement sets vector[i] += a[i] * b[i] for all i, where b is a
+// base-field vector.
+//
+// vector may be identical to a; partially overlapping slices are not
+// supported.
+func (vector VectorE3) MulAccByElement(a VectorE3, b fr.Vector) {
+	if len(a) != len(vector) || len(b) != len(vector) {
+		panic("vector.MulAccByElement: length mismatch")
+	}
+	var t E3
+	for i := range vector {
+		t.MulByElement(&a[i], &b[i])
+		vector[i].Add(&vector[i], &t)
+	}
+}
+
+// ScalarMulAcc sets vector[i] += a[i] * c for all i.
+//
+// vector may be identical to a, and c may point into vector or a; partially
+// overlapping slices are not supported.
+func (vector VectorE3) ScalarMulAcc(a VectorE3, c *E3) {
+	if len(a) != len(vector) {
+		panic("vector.ScalarMulAcc: length mismatch")
+	}
+	if len(vector) == 0 {
+		return
+	}
+	cc := *c
+	var t E3
+	for i := range vector {
+		t.Mul(&a[i], &cc)
+		vector[i].Add(&vector[i], &t)
+	}
+}
+
+// ScalarMulAccBase sets vector[i] += a[i] * c for all i, where a is a
+// base-field vector and c an extension scalar.
 //
 // On AVX-512IFMA hardware, and for large enough vectors, the interleaved E3
 // layout (A0, A1, A2 per element) is reinterpreted as a flat fr.Vector and
@@ -176,25 +231,28 @@ const mulAccByElementThreshold = 64
 // kernels. Without AVX-512IFMA, fr.Vector.Mul/Add fall back to the same
 // per-element scalar loop this batching wraps around, so the extra tiling
 // work is pure overhead — in that case we use the plain scalar loop instead.
-func (vector VectorE3) MulAccByElement(scale []fr.Element, alpha *E3) {
+//
+// c may point into vector.
+func (vector VectorE3) ScalarMulAccBase(a fr.Vector, c *E3) {
 	n := len(vector)
-	if n != len(scale) {
-		panic("vector.MulAccByElement: length mismatch")
+	if n != len(a) {
+		panic("vector.ScalarMulAccBase: length mismatch")
 	}
 	if n == 0 {
 		return
 	}
+	cc := *c
 	if !cpu.SupportAVX512IFMA || n < mulAccByElementThreshold {
-		mulAccByElementGeneric(vector, scale, alpha)
+		mulAccByElementGeneric(vector, a, &cc)
 		return
 	}
-	mulAccByElementBatched(vector, scale, alpha)
+	mulAccByElementBatched(vector, a, &cc)
 }
 
 // mulAccByElementBatched implements MulAccByElement by reinterpreting the
 // interleaved E3 layout (A0, A1, A2 per element) as a flat fr.Vector and
 // processing it with fr.Vector's Mul/Add, which dispatch to the AVX-512IFMA
-// kernels on amd64. Split out from MulAccByElement so its correctness can be
+// kernels on amd64. Split out from ScalarMulAccBase so its correctness can be
 // tested independently of cpu.SupportAVX512IFMA.
 func mulAccByElementBatched(vector VectorE3, scale []fr.Element, alpha *E3) {
 	n := len(vector)
@@ -262,6 +320,87 @@ func foldPairsE3Generic(vector, layer VectorE3, halfInvTwiddles fr.Vector, alpha
 		d.MulByElement(&d, &halfInvTwiddles[j])
 		d.Mul(&d, alpha)
 		vector[j].Add(&s, &d)
+	}
+}
+
+// MulAcc sets vector[i] += a[i] * b[i] for all i.
+//
+// vector may be identical to a and/or b; partially overlapping slices are not
+// supported.
+func (vector VectorE3) MulAcc(a, b VectorE3) {
+	N := len(vector)
+	if len(a) != N || len(b) != N {
+		panic("vector.MulAcc: vectors don't have the same length")
+	}
+	var t E3
+	for i := range vector {
+		t.Mul(&a[i], &b[i])
+		vector[i].Add(&vector[i], &t)
+	}
+}
+
+// ScalarMulBase sets vector[i] = a[i] * c for all i, where a is a base-field
+// vector and c an extension scalar.
+//
+// c may point into vector.
+func (vector VectorE3) ScalarMulBase(a fr.Vector, c *E3) {
+	N := len(vector)
+	if len(a) != N {
+		panic("vector.ScalarMulBase: vectors don't have the same length")
+	}
+	if len(vector) == 0 {
+		return
+	}
+	cc := *c
+	for i := range vector {
+		vector[i].MulByElement(&cc, &a[i])
+	}
+}
+
+// ScalarMulAdd sets vector[i] = vector[i] * c + b[i] for all i: one Horner step
+// applied across the vector.
+//
+// vector may be identical to b, and c may point into vector or b; partially
+// overlapping slices are not supported.
+func (vector VectorE3) ScalarMulAdd(b VectorE3, c *E3) {
+	N := len(vector)
+	if len(b) != N {
+		panic("vector.ScalarMulAdd: vectors don't have the same length")
+	}
+	if len(vector) == 0 {
+		return
+	}
+	cc := *c
+	// compute into t first: b may alias vector.
+	var t E3
+	for i := range vector {
+		t.Mul(&vector[i], &cc)
+		vector[i].Add(&t, &b[i])
+	}
+}
+
+// ScalarMulAddBase sets vector[i] = vector[i] * c + b[i] for all i, where b is
+// a base-field vector: one Horner step applied across the vector.
+//
+// To compute a random linear combination ∑ cᵏ·colₖ of base-field columns
+// whose powers of c are known, prefer ScalarMulAccBase with each power: it
+// costs one extension-by-base product per element, whereas this method costs
+// a full extension product. Use ScalarMulAddBase for streaming Horner
+// evaluation when the powers of c are not precomputed.
+//
+// c may point into vector.
+func (vector VectorE3) ScalarMulAddBase(b fr.Vector, c *E3) {
+	N := len(vector)
+	if len(b) != N {
+		panic("vector.ScalarMulAddBase: vectors don't have the same length")
+	}
+	if len(vector) == 0 {
+		return
+	}
+	cc := *c
+	for i := range vector {
+		vector[i].Mul(&vector[i], &cc)
+		vector[i].A0.Add(&vector[i].A0, &b[i])
 	}
 }
 

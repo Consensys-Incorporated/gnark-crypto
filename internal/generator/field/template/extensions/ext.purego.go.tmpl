@@ -113,3 +113,43 @@ func vectorFoldPairs_avx512(res, layer *E4, twiddles *fr.Element, K *fr.Element,
 func vectorFoldPairs_E6_avx512(res, layer *E6, twiddles *fr.Element, K *fr.Element, N uint64) {
 	panic("vectorFoldPairs_E6_avx512 is not implemented")
 }
+
+func vectorMulAcc_E6_avx512(res, a, b *E6, N uint64) {
+	panic("vectorMulAcc_E6_avx512 is not implemented")
+}
+
+func vectorScalarMulBase_E6_avx512(vector *E6, a *fr.Element, sTiled *fr.Element, N uint64) {
+	panic("vectorScalarMulBase_E6_avx512 is not implemented")
+}
+
+func vectorScalarMulAdd_E6_avx512(res, b *E6, Kcol *fr.Element, N uint64) {
+	panic("vectorScalarMulAdd_E6_avx512 is not implemented")
+}
+
+func vectorScalarMulAddBase_E6_avx512(res *E6, b *fr.Element, Kcol *fr.Element, N uint64) {
+	panic("vectorScalarMulAddBase_E6_avx512 is not implemented")
+}
+
+func vectorMulAcc_avx512(res, a, b *E4, N uint64) {
+	panic("vectorMulAcc_avx512 is not implemented")
+}
+
+func vectorScalarMulAcc_avx512(res, a, c *E4, N uint64) {
+	panic("vectorScalarMulAcc_avx512 is not implemented")
+}
+
+func vectorScalarMulAdd_avx512(res, b, c *E4, N uint64) {
+	panic("vectorScalarMulAdd_avx512 is not implemented")
+}
+
+func vectorScalarMulAddBase_avx512(res *E4, b *fr.Element, c *E4, N uint64) {
+	panic("vectorScalarMulAddBase_avx512 is not implemented")
+}
+
+func mulByElement_avx512(alpha *E4, scale *fr.Element, res *E4, N uint64) {
+	panic("mulByElement_avx512 is not implemented")
+}
+
+func vectorInnerProductByElement_E6_avx512(res *[48]uint64, a *E6, b *fr.Element, N uint64) {
+	panic("vectorInnerProductByElement_E6_avx512 is not implemented")
+}

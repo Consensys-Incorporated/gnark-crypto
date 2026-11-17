@@ -357,6 +357,75 @@ func (vector Vector) Equal(other Vector) bool {
 	return slices.Equal(vector, other)
 }
 
+// MulAcc sets vector[i] += a[i] * b[i] for all i.
+//
+// vector may be identical to a and/or b; partially overlapping slices are not
+// supported. It panics if the vectors don't have the same length.
+func (vector Vector) MulAcc(a, b Vector) {
+	if len(a) != len(vector) || len(b) != len(vector) {
+		panic("vector.MulAcc: vectors don't have the same length")
+	}
+	mulAccVecGeneric(vector, a, b)
+}
+
+// ScalarMulAcc sets vector[i] += a[i] * c for all i.
+//
+// vector may be identical to a, and c may point into vector or a; partially
+// overlapping slices are not supported. It panics if the vectors don't have
+// the same length.
+func (vector Vector) ScalarMulAcc(a Vector, c *Element) {
+	if len(a) != len(vector) {
+		panic("vector.ScalarMulAcc: vectors don't have the same length")
+	}
+	if len(vector) == 0 {
+		return
+	}
+	cc := *c
+	scalarMulAccVecGeneric(vector, a, &cc)
+}
+
+// ScalarMulAdd sets vector[i] = vector[i] * c + b[i] for all i: one Horner
+// step applied across the vector.
+//
+// vector may be identical to b, and c may point into vector or b; partially
+// overlapping slices are not supported. It panics if the vectors don't have
+// the same length.
+func (vector Vector) ScalarMulAdd(b Vector, c *Element) {
+	if len(b) != len(vector) {
+		panic("vector.ScalarMulAdd: vectors don't have the same length")
+	}
+	if len(vector) == 0 {
+		return
+	}
+	cc := *c
+	scalarMulAddVecGeneric(vector, b, &cc)
+}
+
+func mulAccVecGeneric(res, a, b Vector) {
+	var t Element
+	for i := range res {
+		t.Mul(&a[i], &b[i])
+		res[i].Add(&res[i], &t)
+	}
+}
+
+func scalarMulAccVecGeneric(res, a Vector, c *Element) {
+	var t Element
+	for i := range res {
+		t.Mul(&a[i], c)
+		res[i].Add(&res[i], &t)
+	}
+}
+
+func scalarMulAddVecGeneric(res, b Vector, c *Element) {
+	// compute into t first: b may alias res.
+	var t Element
+	for i := range res {
+		t.Mul(&res[i], c)
+		res[i].Add(&t, &b[i])
+	}
+}
+
 func addVecGeneric(res, a, b Vector) {
 	if len(a) != len(b) || len(a) != len(res) {
 		panic("vector.Add: vectors don't have the same length")

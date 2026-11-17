@@ -403,7 +403,7 @@ func GenerateF31Ext(w io.Writer) error {
 	f.WriteLn("#include \"go_asm.h\"")
 	f.WriteLn("")
 
-	f.generateMulAccByElement()
+	f.generateMulAccByElement(true)
 	f.generateAddVecE4()
 	f.generateSubVecE4()
 	f.generateMulVecE4(e4VecMul)
@@ -415,9 +415,9 @@ func GenerateF31Ext(w io.Writer) error {
 	f.generateMulVecE6(e6VecMul)
 	f.generateMulVecE6(e6VecInnerProd)
 	f.generateMulAccVecElementE6()
-	f.generateScalarMulAccByElementE6()
-	f.generateScalarMulVecE6(false)
-	f.generateScalarMulVecE6(true)
+	f.generateScalarMulAccByElementE6(true)
+	f.generateScalarMulVecE6(e6ScalarMul)
+	f.generateScalarMulVecE6(e6ScalarMulAcc)
 	f.generateButterflyVecE4()
 	f.generateButterflyPairVecE4()
 	f.generateButterflyPairVecE6()
@@ -431,6 +431,16 @@ func GenerateF31Ext(w io.Writer) error {
 	f.generateSumVecE6()
 	f.generateFoldPairsVecExt("vectorFoldPairs_avx512", 4, "indexGather8", "indexGather4")
 	f.generateFoldPairsVecExt("vectorFoldPairs_E6_avx512", 6, "indexGather12", "indexGather6")
+	f.generateScalarMulAccByElementE6(false)
+	f.generateScalarMulVecE6(e6ScalarMulAdd)
+	f.generateScalarMulVecE6(e6ScalarMulAddBase)
+	f.generateMulVecE6(e6VecMulAcc)
+	f.generateMulVecE4(e4VecMulAcc)
+	f.generateMulVecE4(e4VecScalarMulAcc)
+	f.generateMulVecE4(e4VecScalarMulAdd)
+	f.generateMulVecE4(e4VecScalarMulAddBase)
+	f.generateMulAccByElement(false)
+	f.generateInnerProdByElementE6()
 
 	return nil
 
@@ -512,6 +522,9 @@ func GenerateF31ASM(f *FFAmd64, hasVector bool) error {
 	f.generateScalarMulVecF31()
 	f.generateInnerProdVecF31()
 	f.generateFoldPairsVecF31()
+	f.generateMulAccVecF31(mulAccVecOp)
+	f.generateMulAccVecF31(scalarMulAccVecOp)
+	f.generateMulAccVecF31(scalarMulAddVecOp)
 
 	return nil
 }

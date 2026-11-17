@@ -1376,6 +1376,122 @@ func TestE4ValueReceivers(t *testing.T) {
 	require.Equal(t, x, m["k"])
 }
 
+func TestVectorE4MulAccHorner(t *testing.T) {
+	// sizes straddle the AVX-512 block sizes and include non-aligned tails
+	for _, size := range []int{0, 1, 3, 4, 5, 7, 8, 9, 15, 16, 17, 33, 65, 200} {
+		t.Run(strconv.Itoa(size), func(t *testing.T) {
+			a, b, v0 := randomVector(size), randomVector(size), randomVector(size)
+			base, base2 := make(fr.Vector, size), make(fr.Vector, size)
+			base.MustSetRandom()
+			base2.MustSetRandom()
+			var c E4
+			c.MustSetRandom()
+
+			clone := func(x VectorE4) VectorE4 { return append(make(VectorE4, 0, size), x...) }
+			check := func(name string, want VectorE4, run func(v VectorE4)) {
+				t.Helper()
+				v := clone(v0)
+				run(v)
+				require.Equal(t, want, v, name)
+			}
+			want := func(f func(i int, z *E4)) VectorE4 {
+				w := clone(v0)
+				for i := range w {
+					f(i, &w[i])
+				}
+				return w
+			}
+			var tmp E4
+
+			check("MulAcc", want(func(i int, z *E4) { z.Add(z, tmp.Mul(&a[i], &b[i])) }),
+				func(v VectorE4) { v.MulAcc(a, b) })
+			check("ScalarMulAcc", want(func(i int, z *E4) { z.Add(z, tmp.Mul(&a[i], &c)) }),
+				func(v VectorE4) { v.ScalarMulAcc(a, &c) })
+			check("ScalarMulBase", want(func(i int, z *E4) { z.MulByElement(&c, &base[i]) }),
+				func(v VectorE4) { v.ScalarMulBase(base, &c) })
+			check("ScalarMulAccBase", want(func(i int, z *E4) { z.Add(z, tmp.MulByElement(&c, &base[i])) }),
+				func(v VectorE4) { v.ScalarMulAccBase(base, &c) })
+			check("ScalarMulAdd", want(func(i int, z *E4) { z.Mul(z, &c).Add(z, &b[i]) }),
+				func(v VectorE4) { v.ScalarMulAdd(b, &c) })
+			check("ScalarMulAddBase", want(func(i int, z *E4) { z.Mul(z, &c); z.B0.A0.Add(&z.B0.A0, &base2[i]) }),
+				func(v VectorE4) { v.ScalarMulAddBase(base2, &c) })
+
+			// vector aliases the inputs
+			check("MulAcc alias", want(func(i int, z *E4) { z.Add(z, tmp.Mul(z, z)) }),
+				func(v VectorE4) { v.MulAcc(v, v) })
+			check("ScalarMulAcc alias", want(func(i int, z *E4) { z.Add(z, tmp.Mul(z, &c)) }),
+				func(v VectorE4) { v.ScalarMulAcc(v, &c) })
+			check("ScalarMulAdd alias", want(func(i int, z *E4) { tmp.Set(z); z.Mul(z, &c).Add(z, &tmp) }),
+				func(v VectorE4) { v.ScalarMulAdd(v, &c) })
+
+			if size == 0 {
+				// the scalar is not read when the vectors are empty
+				require.NotPanics(t, func() { v0.ScalarMul(a, nil) }, "ScalarMul on empty vectors")
+				require.NotPanics(t, func() { v0.ScalarMulAcc(a, nil) }, "ScalarMulAcc on empty vectors")
+				require.NotPanics(t, func() { v0.ScalarMulBase(base, nil) }, "ScalarMulBase on empty vectors")
+				require.NotPanics(t, func() { v0.ScalarMulAccBase(base, nil) }, "ScalarMulAccBase on empty vectors")
+				require.NotPanics(t, func() { v0.ScalarMulAdd(b, nil) }, "ScalarMulAdd on empty vectors")
+				require.NotPanics(t, func() { v0.ScalarMulAddBase(base2, nil) }, "ScalarMulAddBase on empty vectors")
+				return
+			}
+			// the scalar points into the vector being overwritten
+			c0 := v0[0]
+			check("ScalarMul scalar alias", want(func(i int, z *E4) { z.Mul(&a[i], &c0) }),
+				func(v VectorE4) { v.ScalarMul(a, &v[0]) })
+			check("ScalarMul full alias", want(func(i int, z *E4) { z.Mul(z, &c0) }),
+				func(v VectorE4) { v.ScalarMul(v, &v[0]) })
+			check("ScalarMulAcc scalar alias", want(func(i int, z *E4) { z.Add(z, tmp.Mul(&a[i], &c0)) }),
+				func(v VectorE4) { v.ScalarMulAcc(a, &v[0]) })
+			check("ScalarMulAcc full alias", want(func(i int, z *E4) { z.Add(z, tmp.Mul(z, &c0)) }),
+				func(v VectorE4) { v.ScalarMulAcc(v, &v[0]) })
+			check("ScalarMulBase scalar alias", want(func(i int, z *E4) { z.MulByElement(&c0, &base[i]) }),
+				func(v VectorE4) { v.ScalarMulBase(base, &v[0]) })
+			check("ScalarMulAccBase scalar alias", want(func(i int, z *E4) { z.Add(z, tmp.MulByElement(&c0, &base[i])) }),
+				func(v VectorE4) { v.ScalarMulAccBase(base, &v[0]) })
+			check("ScalarMulAdd scalar alias", want(func(i int, z *E4) { z.Mul(z, &c0).Add(z, &b[i]) }),
+				func(v VectorE4) { v.ScalarMulAdd(b, &v[0]) })
+			check("ScalarMulAddBase scalar alias", want(func(i int, z *E4) { z.Mul(z, &c0); z.B0.A0.Add(&z.B0.A0, &base2[i]) }),
+				func(v VectorE4) { v.ScalarMulAddBase(base2, &v[0]) })
+		})
+	}
+}
+
+func TestVectorE4MulAccHornerLengthMismatch(t *testing.T) {
+	var c E4
+	v, a := make(VectorE4, 3), make(VectorE4, 4)
+	base := make(fr.Vector, 4)
+	require.Panics(t, func() { v.MulAcc(a, v) })
+	require.Panics(t, func() { v.MulAcc(v, a) })
+	require.Panics(t, func() { v.ScalarMulAcc(a, &c) })
+	require.Panics(t, func() { v.ScalarMulBase(base, &c) })
+	require.Panics(t, func() { v.ScalarMulAccBase(base, &c) })
+	require.Panics(t, func() { v.ScalarMulAdd(a, &c) })
+	require.Panics(t, func() { v.ScalarMulAddBase(base, &c) })
+}
+
+func BenchmarkVectorE4MulAccHorner(b *testing.B) {
+	for _, N := range []int{1 << 12, 1 << 16} {
+		x, y, v := randomVector(N), randomVector(N), randomVector(N)
+		base := make(fr.Vector, N)
+		base.MustSetRandom()
+		var c E4
+		c.MustSetRandom()
+		run := func(name string, f func()) {
+			b.Run(fmt.Sprintf("%s/N=%d", name, N), func(b *testing.B) {
+				for b.Loop() {
+					f()
+				}
+			})
+		}
+		run("MulAcc", func() { v.MulAcc(x, y) })
+		run("ScalarMulAcc", func() { v.ScalarMulAcc(x, &c) })
+		run("ScalarMulBase", func() { v.ScalarMulBase(base, &c) })
+		run("ScalarMulAccBase", func() { v.ScalarMulAccBase(base, &c) })
+		run("ScalarMulAdd", func() { v.ScalarMulAdd(y, &c) })
+		run("ScalarMulAddBase", func() { v.ScalarMulAddBase(base, &c) })
+	}
+}
+
 func TestVectorE4ScalarAddSub(t *testing.T) {
 	// sizes straddle the AVX-512 block sizes (4 E4, 8 E6) and include empty and
 	// non-block-aligned tails.
@@ -1384,6 +1500,13 @@ func TestVectorE4ScalarAddSub(t *testing.T) {
 			a := randomVector(size)
 			var c E4
 			c.MustSetRandom()
+			if size == 0 {
+				// the scalar is not read when the vectors are empty
+				var v VectorE4
+				require.NotPanics(t, func() { v.ScalarAdd(a, nil) }, "ScalarAdd on empty vectors")
+				require.NotPanics(t, func() { v.ScalarSub(a, nil) }, "ScalarSub on empty vectors")
+				require.NotPanics(t, func() { v.ScalarSubFrom(nil, a) }, "ScalarSubFrom on empty vectors")
+			}
 			if size > 2 {
 				// exercise the a[i] == c (zero difference) and zero edges
 				a[1] = c
@@ -1454,6 +1577,11 @@ func TestVectorE4ScalarAddSubLengthMismatch(t *testing.T) {
 	require.Panics(t, func() { v.ScalarAdd(a, &c) })
 	require.Panics(t, func() { v.ScalarSub(a, &c) })
 	require.Panics(t, func() { v.ScalarSubFrom(&c, a) })
+	// an empty receiver still checks the length before returning early
+	var empty VectorE4
+	require.Panics(t, func() { empty.ScalarAdd(a, &c) })
+	require.Panics(t, func() { empty.ScalarSub(a, &c) })
+	require.Panics(t, func() { empty.ScalarSubFrom(&c, a) })
 }
 
 func BenchmarkVectorE4ScalarAdd(b *testing.B) {

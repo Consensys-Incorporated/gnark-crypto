@@ -190,3 +190,33 @@ func vectorFoldPairs_avx512(res, layer *E4, twiddles *fr.Element, K *fr.Element,
 
 //go:noescape
 func vectorFoldPairs_E6_avx512(res, layer *E6, twiddles *fr.Element, K *fr.Element, N uint64)
+
+//go:noescape
+func vectorMulAcc_E6_avx512(res, a, b *E6, N uint64)
+
+//go:noescape
+func vectorScalarMulBase_E6_avx512(vector *E6, a *fr.Element, sTiled *fr.Element, N uint64)
+
+//go:noescape
+func vectorScalarMulAdd_E6_avx512(res, b *E6, Kcol *fr.Element, N uint64)
+
+//go:noescape
+func vectorScalarMulAddBase_E6_avx512(res *E6, b *fr.Element, Kcol *fr.Element, N uint64)
+
+//go:noescape
+func vectorMulAcc_avx512(res, a, b *E4, N uint64)
+
+//go:noescape
+func vectorScalarMulAcc_avx512(res, a, c *E4, N uint64)
+
+//go:noescape
+func vectorScalarMulAdd_avx512(res, b, c *E4, N uint64)
+
+//go:noescape
+func vectorScalarMulAddBase_avx512(res *E4, b *fr.Element, c *E4, N uint64)
+
+//go:noescape
+func mulByElement_avx512(alpha *E4, scale *fr.Element, res *E4, N uint64)
+
+//go:noescape
+func vectorInnerProductByElement_E6_avx512(res *[48]uint64, a *E6, b *fr.Element, N uint64)
