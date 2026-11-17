@@ -186,3 +186,7 @@ func (vector *Vector) Mul(a, b Vector) {
 		mulVecGeneric((*vector)[start:], a[start:], b[start:])
 	}
 }
+
+func vectorFoldPairs(res, layer, halfInvTwiddles Vector, alpha *Element) {
+	foldPairsVecGeneric(res, layer, halfInvTwiddles, alpha)
+}

@@ -6,6 +6,7 @@
 package extensions
 
 import (
+	"fmt"
 	"strconv"
 	"testing"
 	"unsafe"
@@ -739,4 +740,74 @@ func BenchmarkVectorE6Sum(b *testing.B) {
 			_ = s
 		}
 	})
+}
+
+func TestVectorE6FoldPairs(t *testing.T) {
+	for _, size := range []int{0, 1, 7, 8, 9, 15, 16, 17, 33, 65, 1 << 10} {
+		t.Run(fmt.Sprintf("size=%d", size), func(t *testing.T) {
+			// FRI identity: for p = e + x·o and q = e − x·o, folding with the
+			// twiddle (2x)⁻¹ gives e + alpha·o.
+			e, o := randVectorFoldE6(size), randVectorFoldE6(size)
+			layer := make(VectorE6, 2*size)
+			w := make(fr.Vector, size)
+			want := make(VectorE6, size)
+			var alpha E6
+			alpha.MustSetRandom()
+			for j := range size {
+				var x, two fr.Element
+				for x.IsZero() { // x = 0 has no twiddle (2x)⁻¹
+					x.MustSetRandom()
+				}
+				var xo E6
+				xo.MulByElement(&o[j], &x)
+				layer[2*j].Add(&e[j], &xo)
+				layer[2*j+1].Sub(&e[j], &xo)
+				two.SetUint64(2)
+				w[j].Mul(&x, &two).Inverse(&w[j])
+				want[j].Mul(&alpha, &o[j]).Add(&want[j], &e[j])
+			}
+
+			got := make(VectorE6, size)
+			got.FoldPairs(layer, w, &alpha)
+			require.Equal(t, want, got, "FoldPairs")
+
+			if size == 0 {
+				return
+			}
+			// in place, with alpha pointing into the layer being overwritten
+			in := append(make(VectorE6, 0, 2*size), layer...)
+			alpha0 := in[0]
+			for j := range size {
+				want[j].Mul(&alpha0, &o[j]).Add(&want[j], &e[j])
+			}
+			in[:size].FoldPairs(in, w, &in[0])
+			require.Equal(t, want, in[:size], "FoldPairs in place")
+		})
+	}
+
+	var alpha E6
+	require.Panics(t, func() { make(VectorE6, 2).FoldPairs(make(VectorE6, 3), make(fr.Vector, 2), &alpha) })
+	require.Panics(t, func() { make(VectorE6, 2).FoldPairs(make(VectorE6, 4), make(fr.Vector, 3), &alpha) })
+}
+
+func BenchmarkVectorE6FoldPairs(b *testing.B) {
+	for _, n := range []int{1 << 12, 1 << 16} {
+		layer := randVectorFoldE6(2 * n)
+		w := make(fr.Vector, n)
+		w.MustSetRandom()
+		res := make(VectorE6, n)
+		var alpha E6
+		alpha.MustSetRandom()
+		b.Run(fmt.Sprintf("N=%d", n), func(b *testing.B) {
+			for b.Loop() {
+				res.FoldPairs(layer, w, &alpha)
+			}
+		})
+	}
+}
+
+func randVectorFoldE6(n int) VectorE6 {
+	v := make(VectorE6, n)
+	v.MustSetRandom()
+	return v
 }

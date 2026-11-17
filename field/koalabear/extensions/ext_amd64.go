@@ -14,6 +14,12 @@ import (
 // indices used for gather (transpose) operation
 var indexGather4 []uint32
 var indexGather6 []uint32
+
+// stride-8 and stride-12 dword indices: lane i of these tables addresses the
+// first coordinate of layer[2i] in vectorFoldPairs_avx512 (E4) and
+// vectorFoldPairs_E6_avx512 (E6).
+var indexGather8 []uint32
+var indexGather12 []uint32
 var maskPermD []uint32
 
 // E6 broadcast index tables for vectorMulByElement_E6_avx512.
@@ -82,6 +88,12 @@ func init() {
 	indexGather6 = make([]uint32, 16)
 	for i := range 16 {
 		indexGather6[i] = uint32(i * 6)
+	}
+	indexGather8 = make([]uint32, 16)
+	indexGather12 = make([]uint32, 16)
+	for i := range 16 {
+		indexGather8[i] = uint32(i * 8)
+		indexGather12[i] = uint32(i * 12)
 	}
 	maskPermD = make([]uint32, 16)
 	// we want [0,0,0,0, 1,1,1,1, 2,2,2,2, 3,3,3,3]
@@ -172,3 +184,9 @@ func vectorScalarSubFrom_E6_avx512(res, a *E6, cTiled *fr.Element, N uint64)
 
 //go:noescape
 func vectorSum_E6_avx512(res *[24]uint64, a *E6, N uint64)
+
+//go:noescape
+func vectorFoldPairs_avx512(res, layer *E4, twiddles *fr.Element, K *fr.Element, N uint64)
+
+//go:noescape
+func vectorFoldPairs_E6_avx512(res, layer *E6, twiddles *fr.Element, K *fr.Element, N uint64)

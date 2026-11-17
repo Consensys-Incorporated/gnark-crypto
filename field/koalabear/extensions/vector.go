@@ -342,6 +342,81 @@ func tileE4Scalar(c *E4) [16]fr.Element {
 	return out
 }
 
+// FoldPairs folds layer in pairs, as in one FRI folding round:
+//
+//	vector[j] = (layer[2j] + layer[2j+1]) / 2 + alpha · halfInvTwiddles[j] · (layer[2j] − layer[2j+1])
+//
+// FoldPairs halves the even part (p + q) itself, but multiplies the odd part
+// (p − q) by halfInvTwiddles[j] as given: callers pass (2·x_j)⁻¹, where x_j is
+// the evaluation point of the pair. Callers holding x_j⁻¹ must halve it first,
+// or the odd term is off by a factor of 2.
+//
+// It panics unless len(layer) == 2·len(vector) and
+// len(halfInvTwiddles) == len(vector). vector may be layer[:len(vector)]
+// (folding in place); alpha may point into vector or layer. Other overlaps are
+// not supported.
+func (vector VectorE4) FoldPairs(layer VectorE4, halfInvTwiddles fr.Vector, alpha *E4) {
+	n := len(vector)
+	if len(layer) != 2*n || len(halfInvTwiddles) != n {
+		panic("vector.FoldPairs: len(layer) must be 2·len(vector) and len(halfInvTwiddles) len(vector)")
+	}
+	if n == 0 {
+		return
+	}
+	aa := *alpha
+	const blockSize = 16
+	if cpu.SupportAVX512 && n >= blockSize {
+		nr := n - n%blockSize
+		K := scalarMulMatrixE4(&aa)
+		vectorFoldPairs_avx512(&vector[0], &layer[0], &halfInvTwiddles[0], &K[0], uint64(nr))
+		vector, layer, halfInvTwiddles = vector[nr:], layer[2*nr:], halfInvTwiddles[nr:]
+	}
+	foldPairsE4Generic(vector, layer, halfInvTwiddles, &aa)
+}
+
+func foldPairsE4Generic(vector, layer VectorE4, halfInvTwiddles fr.Vector, alpha *E4) {
+	var s, d E4
+	for j := range vector {
+		p, q := &layer[2*j], &layer[2*j+1]
+		s.Add(p, q)
+		s.Halve()
+		d.Sub(p, q)
+		d.MulByElement(&d, &halfInvTwiddles[j])
+		d.Mul(&d, alpha)
+		vector[j].Add(&s, &d)
+	}
+}
+
+// scalarMulMatrixE4 returns the 4×4 matrix K (row-major) of x ↦ c·x over the
+// fr coordinates (B0.A0, B0.A1, B1.A0, B1.A1): column i holds the coordinates
+// of c·eᵢ. Since x ↦ c·x is fr-linear, K·x equals E4.Mul(c, x) exactly.
+func scalarMulMatrixE4(c *E4) [16]fr.Element {
+	var K [16]fr.Element
+	for i := range 4 {
+		var e, r E4
+		*e.coord(i) = fr.One()
+		r.Mul(c, &e)
+		for k := range 4 {
+			K[k*4+i] = *r.coord(k)
+		}
+	}
+	return K
+}
+
+// coord returns a pointer to fr coordinate k of z, in memory order.
+func (z *E4) coord(k int) *fr.Element {
+	switch k {
+	case 0:
+		return &z.B0.A0
+	case 1:
+		return &z.B0.A1
+	case 2:
+		return &z.B1.A0
+	default:
+		return &z.B1.A1
+	}
+}
+
 // Exp sets vector[i] = a[i]ᵏ for all i
 func (vector VectorE4) Exp(a VectorE4, k int64) {
 	N := len(a)

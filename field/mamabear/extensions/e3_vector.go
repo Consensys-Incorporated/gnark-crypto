@@ -227,6 +227,44 @@ func mulAccByElementGeneric(vector VectorE3, scale []fr.Element, alpha *E3) {
 	}
 }
 
+// FoldPairs folds layer in pairs, as in one FRI folding round:
+//
+//	vector[j] = (layer[2j] + layer[2j+1]) / 2 + alpha · halfInvTwiddles[j] · (layer[2j] − layer[2j+1])
+//
+// FoldPairs halves the even part (p + q) itself, but multiplies the odd part
+// (p − q) by halfInvTwiddles[j] as given: callers pass (2·x_j)⁻¹, where x_j is
+// the evaluation point of the pair. Callers holding x_j⁻¹ must halve it first,
+// or the odd term is off by a factor of 2.
+//
+// It panics unless len(layer) == 2·len(vector) and
+// len(halfInvTwiddles) == len(vector). vector may be layer[:len(vector)]
+// (folding in place); alpha may point into vector or layer. Other overlaps are
+// not supported.
+func (vector VectorE3) FoldPairs(layer VectorE3, halfInvTwiddles fr.Vector, alpha *E3) {
+	n := len(vector)
+	if len(layer) != 2*n || len(halfInvTwiddles) != n {
+		panic("vector.FoldPairs: len(layer) must be 2·len(vector) and len(halfInvTwiddles) len(vector)")
+	}
+	if n == 0 {
+		return
+	}
+	aa := *alpha
+	foldPairsE3Generic(vector, layer, halfInvTwiddles, &aa)
+}
+
+func foldPairsE3Generic(vector, layer VectorE3, halfInvTwiddles fr.Vector, alpha *E3) {
+	var s, d E3
+	for j := range vector {
+		p, q := &layer[2*j], &layer[2*j+1]
+		s.Add(p, q)
+		s.Halve()
+		d.Sub(p, q)
+		d.MulByElement(&d, &halfInvTwiddles[j])
+		d.Mul(&d, alpha)
+		vector[j].Add(&s, &d)
+	}
+}
+
 // SetRandom sets all elements of vector to random values, returning the first error encountered, if any.
 func (vector VectorE3) SetRandom() error {
 	for i := range vector {

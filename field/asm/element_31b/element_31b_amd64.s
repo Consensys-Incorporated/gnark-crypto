@@ -268,3 +268,91 @@ done_12:
 	VPADDQ    Z11, Z10, Z11 // acc1 += acc0
 	VMOVDQU64 Z11, 0(CX)    // res = acc1
 	RET
+
+// foldPairsVec(res, layer, twiddles, alpha *Element, n uint64)
+// res[j] = (layer[2j] + layer[2j+1])/2 + alpha * twiddles[j] * (layer[2j] - layer[2j+1])
+// n is the number of blocks of 16 outputs to process
+TEXT ·foldPairsVec(SB), NOSPLIT, $0-40
+	MOVD         $const_q, AX
+	VPBROADCASTD AX, Z0
+	MOVD         $const_qInvNeg, AX
+	VPBROADCASTD AX, Z1
+	MOVQ         $0x0000000000005555, AX
+	KMOVD        AX, K3
+	MOVQ         res+0(FP), R13
+	MOVQ         layer+8(FP), R14
+	MOVQ         twiddles+16(FP), CX
+	MOVQ         alpha+24(FP), BX
+	MOVQ         n+32(FP), SI
+	VPBROADCASTD 0(BX), Z2
+
+loop_13:
+	TESTQ        SI, SI
+	JEQ          done_14
+	DECQ         SI
+	VMOVDQU32    0(R14), Z3
+	VMOVDQU32    64(R14), Z4
+	VPMOVQD      Z3, Y5
+	VPMOVQD      Z4, Y7
+	VINSERTI64X4 $1, Y7, Z5, Z5
+	VPSRLQ       $32, Z3, Z3
+	VPSRLQ       $32, Z4, Z4
+	VPMOVQD      Z3, Y6
+	VPMOVQD      Z4, Y7
+	VINSERTI64X4 $1, Y7, Z6, Z6
+
+#define SUB(in0, in1, in2, in3, in4) \
+	VPSUBD  in1, in0, in4 \
+	VPADDD  in2, in4, in3 \
+	VPMINUD in4, in3, in4 \
+
+	SUB(Z5, Z6, Z0, Z9, Z7)
+
+#define ADD(in0, in1, in2, in3, in4) \
+	VPADDD  in1, in0, in4 \
+	VPSUBD  in2, in4, in3 \
+	VPMINUD in4, in3, in4 \
+
+	ADD(Z5, Z6, Z0, Z10, Z5)
+
+#define HALVE(in0, in1, in2) \
+	MOVD         $1, AX            \
+	VPBROADCASTD AX, in1           \
+	VPTESTMD     in0, in1, K4      \
+	VPADDD       in0, in2, K4, in0 \
+	VPSRLD       $1, in0, in0      \
+
+	HALVE(Z5, Z11, Z0)
+	VMOVDQU32 0(CX), Z8
+
+#define MUL_5W(in0, in1, in2, in3, in4, in5, in6, in7, in8, in9) \
+	VMOVSHDUP in0, in2      \
+	VMOVSHDUP in1, in3      \
+	VPMULUDQ  in0, in1, in4 \
+	VPMULUDQ  in2, in3, in5 \
+	VPMULUDQ  in4, in9, in6 \
+	VPMULUDQ  in5, in9, in3 \
+	VPMULUDQ  in6, in8, in6 \
+	VPADDQ    in4, in6, in4 \
+	VPMULUDQ  in3, in8, in3 \
+	VPADDQ    in5, in3, in7 \
+	VMOVSHDUP in4, K3, in7  \
+
+	MUL_5W(Z7, Z8, Z12, Z13, Z14, Z15, Z16, Z7, Z0, Z1)
+
+#define REDUCE1Q(in0, in1, in2) \
+	VPSUBD  in0, in1, in2 \
+	VPMINUD in1, in2, in1 \
+
+	REDUCE1Q(Z0, Z7, Z17)
+	MUL_5W(Z7, Z2, Z18, Z19, Z20, Z21, Z22, Z7, Z0, Z1)
+	REDUCE1Q(Z0, Z7, Z23)
+	ADD(Z5, Z7, Z0, Z24, Z5)
+	VMOVDQU32 Z5, 0(R13)
+	ADDQ      $128, R14
+	ADDQ      $64, CX
+	ADDQ      $64, R13
+	JMP       loop_13
+
+done_14:
+	RET
