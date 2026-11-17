@@ -6,127 +6,13 @@ package utils
 import (
 	"encoding/json"
 	"fmt"
+	"math/bits"
 	"runtime"
-	"sort"
 	"sync"
 	"unsafe"
 )
 
-// Memory management for polynomials
-// WARNING: This is not thread safe TODO: Make sure that is not a problem
-// TODO: There is a lot of "unsafe" memory management here and needs to be vetted thoroughly
-
-type sizedPool[T any] struct {
-	maxN  int
-	pool  sync.Pool
-	stats poolStats
-}
-
-type inUseData[T any] struct {
-	allocatedFor []uintptr
-	pool         *sizedPool[T]
-}
-
-// Pool is a pool of slices of T, grouped by maximum length.
-type Pool[T any] struct {
-	//lock     sync.Mutex
-	inUse    sync.Map
-	subPools []sizedPool[T]
-}
-
-func (p *sizedPool[T]) get(n int) *T {
-	p.stats.make(n)
-	return p.pool.Get().(*T)
-}
-
-func (p *sizedPool[T]) put(ptr *T) {
-	p.stats.dump()
-	p.pool.Put(ptr)
-}
-
-// NewPool returns a Pool whose sub-pools hold slices of capacity up to each of maxN.
-func NewPool[T any](maxN ...int) (pool Pool[T]) {
-
-	sort.Ints(maxN)
-	pool = Pool[T]{
-		subPools: make([]sizedPool[T], len(maxN)),
-	}
-
-	for i := range pool.subPools {
-		subPool := &pool.subPools[i]
-		subPool.maxN = maxN[i]
-		subPool.pool = sync.Pool{
-			New: func() any {
-				subPool.stats.Allocated++
-				return getDataPointer(make([]T, 0, subPool.maxN))
-			},
-		}
-	}
-	return
-}
-
-func (p *Pool[T]) findCorrespondingPool(n int) *sizedPool[T] {
-	poolI := 0
-	for poolI < len(p.subPools) && n > p.subPools[poolI].maxN {
-		poolI++
-	}
-	return &p.subPools[poolI] // out of bounds error here would mean that n is too large
-}
-
-func (p *Pool[T]) Make(n int) []T {
-	pool := p.findCorrespondingPool(n)
-	ptr := pool.get(n)
-	p.addInUse(ptr, pool)
-	return unsafe.Slice(ptr, n)
-}
-
-// Dump dumps a set of polynomials into the pool
-func (p *Pool[T]) Dump(slices ...[]T) {
-	for _, slice := range slices {
-		ptr := getDataPointer(slice)
-		if metadata, ok := p.inUse.Load(ptr); ok {
-			p.inUse.Delete(ptr)
-			metadata.(inUseData[T]).pool.put(ptr)
-		} else {
-			panic("attempting to dump a slice not created by the pool")
-		}
-	}
-}
-
-func (p *Pool[T]) addInUse(ptr *T, pool *sizedPool[T]) {
-	pcs := make([]uintptr, 2)
-	n := runtime.Callers(3, pcs)
-
-	if prevPcs, ok := p.inUse.Load(ptr); ok { // TODO: remove if unnecessary for security
-		panic(fmt.Errorf("re-allocated non-dumped slice, previously allocated at %v", runtime.CallersFrames(prevPcs.(inUseData[T]).allocatedFor)))
-	}
-	p.inUse.Store(ptr, inUseData[T]{
-		allocatedFor: pcs[:n],
-		pool:         pool,
-	})
-}
-
-func printFrame(frame runtime.Frame) {
-	fmt.Printf("\t%s line %d, function %s\n", frame.File, frame.Line, frame.Function)
-}
-
-func (p *Pool[T]) printInUse() {
-	fmt.Println("slices never dumped allocated at:")
-	p.inUse.Range(func(_, pcs any) bool {
-		fmt.Println("-------------------------")
-
-		var frame runtime.Frame
-		frames := runtime.CallersFrames(pcs.(inUseData[T]).allocatedFor)
-		more := true
-		for more {
-			frame, more = frames.Next()
-			printFrame(frame)
-		}
-		return true
-	})
-}
-
-type poolStats struct {
+type sizedPoolStats struct {
 	Used          int
 	Allocated     int
 	ReuseRate     float64
@@ -135,54 +21,180 @@ type poolStats struct {
 	SmallestNUsed int
 }
 
-type poolsStats struct {
-	SubPools []poolStats
-	InUse    int
+type poolStats[T any] struct {
+	recording    bool
+	subPools     []sizedPoolStats
+	allocatedFor map[*T][]uintptr
 }
 
-func (s *poolStats) make(n int) {
-	s.Used++
-	s.InUse++
-	if n > s.GreatestNUsed {
-		s.GreatestNUsed = n
+// Pool is a pool of slices of T, grouped by maximum length. Its copies share the same slices.
+type Pool[T any] struct {
+	*pool[T]
+}
+
+type pool[T any] struct {
+	lock     sync.Mutex
+	subPools []map[*T]struct{}
+	stats    *poolStats[T]
+}
+
+// StartStats enables the recording of allocations, reuse and other statistics.
+func (p *pool[T]) StartStats() {
+	p.lock.Lock()
+	defer p.lock.Unlock()
+	p.stats.recording = true
+}
+
+// PauseStats disables the recording of allocations, reuse and other statistics.
+func (p *pool[T]) PauseStats() {
+	p.lock.Lock()
+	defer p.lock.Unlock()
+	p.stats.recording = false
+}
+
+// NewPool returns a pool with capacity up to the next power of 2 to the greatest maxN.
+func NewPool[T any](maxN ...int) Pool[T] {
+	var maxSize int
+	for _, n := range maxN {
+		maxSize = max(maxSize, ceilLog2(n))
 	}
-	if s.SmallestNUsed == 0 || s.SmallestNUsed > n {
-		s.SmallestNUsed = n
+
+	p := new(pool[T])
+
+	p.subPools = make([]map[*T]struct{}, maxSize+1)
+	p.stats = new(poolStats[T])
+	p.stats.subPools = make([]sizedPoolStats, maxSize+1)
+	p.stats.allocatedFor = make(map[*T][]uintptr)
+
+	for poolI := range p.subPools {
+		p.subPools[poolI] = make(map[*T]struct{})
+	}
+
+	return Pool[T]{p}
+}
+
+// Make a new slice of size n, reusing a free existing one if possible.
+func (p *pool[T]) Make(n int) []T {
+	if n <= 0 {
+		return nil
+	}
+
+	p.lock.Lock()
+	defer p.lock.Unlock()
+
+	poolI := ceilLog2(n)
+	var ptr *T
+	for k := range p.subPools[poolI] {
+		ptr = k
+		delete(p.subPools[poolI], k)
+		break
+	}
+	if ptr == nil {
+		if p.stats.recording {
+			p.stats.subPools[poolI].Allocated++
+		}
+		p.lock.Unlock()
+		ptr = getDataPointer(make([]T, 0, 1<<poolI))
+		p.lock.Lock()
+	}
+
+	if p.stats.recording {
+		s := &p.stats.subPools[poolI]
+
+		s.Used++
+		s.InUse++
+		if n > s.GreatestNUsed {
+			s.GreatestNUsed = n
+		}
+		if s.SmallestNUsed == 0 || s.SmallestNUsed > n {
+			s.SmallestNUsed = n
+		}
+
+		pcs := make([]uintptr, 2)
+		p.stats.allocatedFor[ptr] = pcs[:runtime.Callers(2, pcs)]
+	}
+
+	return unsafe.Slice(ptr, 1<<poolI)[:n]
+}
+
+// Dump a set of slices into the pool. It doesn't need to have been created by the pool, but it must similarly
+// have a power of 2 as its capacity.
+func (p *pool[T]) Dump(slices ...[]T) {
+	p.lock.Lock()
+	defer p.lock.Unlock()
+
+	for _, slice := range slices {
+		if cap(slice) == 0 {
+			continue
+		}
+		ptr := getDataPointer(slice)
+		poolI := ceilLog2(cap(slice))
+
+		if cap(slice) != 1<<poolI {
+			panic("pool slice capacity must be a power of 2")
+		}
+
+		if _, ok := p.subPools[poolI][ptr]; ok {
+			panic("slice double-dumped")
+		}
+		p.subPools[poolI][ptr] = struct{}{}
+
+		if p.stats.recording {
+			p.stats.subPools[poolI].InUse--
+			delete(p.stats.allocatedFor, ptr)
+		}
 	}
 }
 
-func (s *poolStats) dump() {
-	s.InUse--
+func printFrame(frame runtime.Frame) {
+	fmt.Printf("\t%s line %d, function %s\n", frame.File, frame.Line, frame.Function)
 }
 
-func (s *poolStats) finalize() {
-	s.ReuseRate = float64(s.Used) / float64(s.Allocated)
+func (p *pool[T]) printInUse() {
+	fmt.Println("slices never dumped allocated at:")
+	for _, pcs := range p.stats.allocatedFor {
+		fmt.Println("-------------------------")
+
+		var frame runtime.Frame
+		frames := runtime.CallersFrames(pcs)
+		more := true
+		for more {
+			frame, more = frames.Next()
+			printFrame(frame)
+		}
+	}
+}
+
+// ceilLog2 returns the smallest k such that 1<<k >= n. It requires n >= 1.
+func ceilLog2(n int) int {
+	return bits.Len(uint(n - 1))
 }
 
 func getDataPointer[T any](slice []T) *T {
 	return unsafe.SliceData(slice)
 }
 
-func (p *Pool[T]) PrintPoolStats() {
+func (p *pool[T]) PrintPoolStats() {
+	p.lock.Lock()
+	defer p.lock.Unlock()
+
 	InUse := 0
-	subStats := make([]poolStats, len(p.subPools))
+	subStats := p.stats.subPools
 	for i := range p.subPools {
-		subPool := &p.subPools[i]
-		subPool.stats.finalize()
-		subStats[i] = subPool.stats
-		InUse += subPool.stats.InUse
+		subStats[i].ReuseRate = float64(subStats[i].Used) / float64(max(1, subStats[i].Allocated))
+		InUse += subStats[i].InUse
 	}
 
-	stats := poolsStats{
-		SubPools: subStats,
-		InUse:    InUse,
-	}
+	stats := struct {
+		SubPools []sizedPoolStats
+		InUse    int
+	}{subStats, InUse}
 	serialized, _ := json.MarshalIndent(stats, "", "  ")
 	fmt.Println(string(serialized))
 	p.printInUse()
 }
 
-func (p *Pool[T]) Clone(slice []T) []T {
+func (p *pool[T]) Clone(slice []T) []T {
 	res := p.Make(len(slice))
 	copy(res, slice)
 	return res
