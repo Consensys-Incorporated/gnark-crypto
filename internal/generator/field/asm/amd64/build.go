@@ -424,6 +424,11 @@ func GenerateF31Ext(w io.Writer) error {
 	f.generateInnerProdByElementE4()
 	f.generateDITWithTwiddlesVecE6()
 	f.generateDIFWithTwiddlesVecE6()
+	f.generateScalarAddTiledVec("vectorScalarAdd_avx512", 4, 1, extScalarAdd)
+	f.generateScalarAddTiledVec("vectorScalarSubFrom_avx512", 4, 1, extScalarSubFrom)
+	f.generateScalarAddTiledVec("vectorScalarAdd_E6_avx512", 6, 3, extScalarAdd)
+	f.generateScalarAddTiledVec("vectorScalarSubFrom_E6_avx512", 6, 3, extScalarSubFrom)
+	f.generateSumVecE6()
 	f.generateFoldPairsVecExt("vectorFoldPairs_avx512", 4, "indexGather8", "indexGather4")
 	f.generateFoldPairsVecExt("vectorFoldPairs_E6_avx512", 6, "indexGather12", "indexGather6")
 

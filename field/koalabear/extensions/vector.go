@@ -274,6 +274,74 @@ func (vector VectorE4) ScalarMulByElement(a VectorE4, b *fr.Element) {
 	vRes.ScalarMul(vBase, b)
 }
 
+// ScalarAdd sets vector[i] = a[i] + c for all i.
+//
+// vector may be identical to a, and c may point into vector or a; partially
+// overlapping slices are not supported.
+func (vector VectorE4) ScalarAdd(a VectorE4, c *E4) {
+	N := len(vector)
+	if len(a) != N {
+		panic("vector.ScalarAdd: vectors don't have the same length")
+	}
+	cc := *c
+	const blockSize = 4
+	if cpu.SupportAVX512 && N >= blockSize {
+		r := N % blockSize
+		nr := N - r
+		cTiled := tileE4Scalar(&cc)
+		vectorScalarAdd_avx512(&vector[0], &a[0], &cTiled[0], uint64(nr))
+		vector, a = vector[nr:], a[nr:]
+	}
+	for i := range vector {
+		vector[i].Add(&a[i], &cc)
+	}
+}
+
+// ScalarSub sets vector[i] = a[i] - c for all i.
+//
+// vector may be identical to a, and c may point into vector or a; partially
+// overlapping slices are not supported.
+func (vector VectorE4) ScalarSub(a VectorE4, c *E4) {
+	var negC E4
+	negC.Neg(c)
+	vector.ScalarAdd(a, &negC)
+}
+
+// ScalarSubFrom sets vector[i] = c - a[i] for all i.
+//
+// vector may be identical to a, and c may point into vector or a; partially
+// overlapping slices are not supported.
+func (vector VectorE4) ScalarSubFrom(c *E4, a VectorE4) {
+	N := len(vector)
+	if len(a) != N {
+		panic("vector.ScalarSubFrom: vectors don't have the same length")
+	}
+	cc := *c
+	const blockSize = 4
+	if cpu.SupportAVX512 && N >= blockSize {
+		r := N % blockSize
+		nr := N - r
+		cTiled := tileE4Scalar(&cc)
+		vectorScalarSubFrom_avx512(&vector[0], &a[0], &cTiled[0], uint64(nr))
+		vector, a = vector[nr:], a[nr:]
+	}
+	for i := range vector {
+		vector[i].Sub(&cc, &a[i])
+	}
+}
+
+// tileE4Scalar tiles the four fr coordinates of c across 16 lanes (period 4,
+// the 4-E4 = 1-zmm window consumed by vectorScalarAdd_avx512 and
+// vectorScalarSubFrom_avx512).
+func tileE4Scalar(c *E4) [16]fr.Element {
+	t := [4]fr.Element{c.B0.A0, c.B0.A1, c.B1.A0, c.B1.A1}
+	var out [16]fr.Element
+	for p := range out {
+		out[p] = t[p%4]
+	}
+	return out
+}
+
 // FoldPairs folds layer in pairs, as in one FRI folding round:
 //
 //	vector[j] = (layer[2j] + layer[2j+1]) / 2 + alpha · halfInvTwiddles[j] · (layer[2j] − layer[2j+1])

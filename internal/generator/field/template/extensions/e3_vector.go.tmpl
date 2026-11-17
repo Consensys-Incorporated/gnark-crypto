@@ -83,6 +83,44 @@ func (vector VectorE3) ScalarMul(a VectorE3, b *E3) {
 	}
 }
 
+// ScalarAdd sets vector[i] = a[i] + c for all i.
+//
+// vector may be identical to a, and c may point into vector or a; partially
+// overlapping slices are not supported.
+func (vector VectorE3) ScalarAdd(a VectorE3, c *E3) {
+	if len(vector) != len(a) {
+		panic("vector.ScalarAdd: length mismatch")
+	}
+	cc := *c
+	for i := range vector {
+		vector[i].Add(&a[i], &cc)
+	}
+}
+
+// ScalarSub sets vector[i] = a[i] - c for all i.
+//
+// vector may be identical to a, and c may point into vector or a; partially
+// overlapping slices are not supported.
+func (vector VectorE3) ScalarSub(a VectorE3, c *E3) {
+	var negC E3
+	negC.Neg(c)
+	vector.ScalarAdd(a, &negC)
+}
+
+// ScalarSubFrom sets vector[i] = c - a[i] for all i.
+//
+// vector may be identical to a, and c may point into vector or a; partially
+// overlapping slices are not supported.
+func (vector VectorE3) ScalarSubFrom(c *E3, a VectorE3) {
+	if len(vector) != len(a) {
+		panic("vector.ScalarSubFrom: length mismatch")
+	}
+	cc := *c
+	for i := range vector {
+		vector[i].Sub(&cc, &a[i])
+	}
+}
+
 // Sum returns the sum of all elements in the vector.
 func (vector VectorE3) Sum() E3 {
 	var sum E3

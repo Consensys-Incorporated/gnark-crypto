@@ -1609,6 +1609,156 @@ loop_41:
 done_42:
 	RET
 
+TEXT ·vectorScalarAdd_avx512(SB), NOSPLIT, $0-32
+	// res[i] = a[i] + c, 4 elements of degree 4 per iteration
+	MOVD         $const_q, AX
+	VPBROADCASTD AX, Z0
+	MOVQ         res+0(FP), R13
+	MOVQ         a+8(FP), R14
+	MOVQ         cTiled+16(FP), CX
+	MOVQ         N+24(FP), BX
+	SHRQ         $2, BX
+	VMOVDQU32    0(CX), Z1
+
+loop_43:
+	TESTQ     BX, BX
+	JEQ       done_44
+	DECQ      BX
+	VMOVDQU32 0(R14), Z2
+	ADD(Z2, Z1, Z0, Z4, Z3)
+	VMOVDQU32 Z3, 0(R13)
+	ADDQ      $64, R14
+	ADDQ      $64, R13
+	JMP       loop_43
+
+done_44:
+	RET
+
+TEXT ·vectorScalarSubFrom_avx512(SB), NOSPLIT, $0-32
+	// res[i] = c - a[i], 4 elements of degree 4 per iteration
+	MOVD         $const_q, AX
+	VPBROADCASTD AX, Z0
+	MOVQ         res+0(FP), R13
+	MOVQ         a+8(FP), R14
+	MOVQ         cTiled+16(FP), CX
+	MOVQ         N+24(FP), BX
+	SHRQ         $2, BX
+	VMOVDQU32    0(CX), Z1
+
+loop_45:
+	TESTQ     BX, BX
+	JEQ       done_46
+	DECQ      BX
+	VMOVDQU32 0(R14), Z2
+	SUB(Z1, Z2, Z0, Z4, Z3)
+	VMOVDQU32 Z3, 0(R13)
+	ADDQ      $64, R14
+	ADDQ      $64, R13
+	JMP       loop_45
+
+done_46:
+	RET
+
+TEXT ·vectorScalarAdd_E6_avx512(SB), NOSPLIT, $0-32
+	// res[i] = a[i] + c, 8 elements of degree 6 per iteration
+	MOVD         $const_q, AX
+	VPBROADCASTD AX, Z0
+	MOVQ         res+0(FP), R13
+	MOVQ         a+8(FP), R14
+	MOVQ         cTiled+16(FP), CX
+	MOVQ         N+24(FP), BX
+	SHRQ         $3, BX
+	VMOVDQU32    0(CX), Z1
+	VMOVDQU32    64(CX), Z2
+	VMOVDQU32    128(CX), Z3
+
+loop_47:
+	TESTQ     BX, BX
+	JEQ       done_48
+	DECQ      BX
+	VMOVDQU32 0(R14), Z4
+	ADD(Z4, Z1, Z0, Z6, Z5)
+	VMOVDQU32 Z5, 0(R13)
+	VMOVDQU32 64(R14), Z4
+	ADD(Z4, Z2, Z0, Z7, Z5)
+	VMOVDQU32 Z5, 64(R13)
+	VMOVDQU32 128(R14), Z4
+	ADD(Z4, Z3, Z0, Z8, Z5)
+	VMOVDQU32 Z5, 128(R13)
+	ADDQ      $192, R14
+	ADDQ      $192, R13
+	JMP       loop_47
+
+done_48:
+	RET
+
+TEXT ·vectorScalarSubFrom_E6_avx512(SB), NOSPLIT, $0-32
+	// res[i] = c - a[i], 8 elements of degree 6 per iteration
+	MOVD         $const_q, AX
+	VPBROADCASTD AX, Z0
+	MOVQ         res+0(FP), R13
+	MOVQ         a+8(FP), R14
+	MOVQ         cTiled+16(FP), CX
+	MOVQ         N+24(FP), BX
+	SHRQ         $3, BX
+	VMOVDQU32    0(CX), Z1
+	VMOVDQU32    64(CX), Z2
+	VMOVDQU32    128(CX), Z3
+
+loop_49:
+	TESTQ     BX, BX
+	JEQ       done_50
+	DECQ      BX
+	VMOVDQU32 0(R14), Z4
+	SUB(Z1, Z4, Z0, Z6, Z5)
+	VMOVDQU32 Z5, 0(R13)
+	VMOVDQU32 64(R14), Z4
+	SUB(Z2, Z4, Z0, Z7, Z5)
+	VMOVDQU32 Z5, 64(R13)
+	VMOVDQU32 128(R14), Z4
+	SUB(Z3, Z4, Z0, Z8, Z5)
+	VMOVDQU32 Z5, 128(R13)
+	ADDQ      $192, R14
+	ADDQ      $192, R13
+	JMP       loop_49
+
+done_50:
+	RET
+
+TEXT ·vectorSum_E6_avx512(SB), NOSPLIT, $0-24
+	MOVQ   res+0(FP), R13
+	MOVQ   a+8(FP), R14
+	MOVQ   N+16(FP), CX
+	SHRQ   $3, CX
+	VPXORQ Z0, Z0, Z0
+	VPXORQ Z1, Z1, Z1
+	VPXORQ Z2, Z2, Z2
+
+loop_51:
+	TESTQ     CX, CX
+	JEQ       done_52
+	DECQ      CX
+	VPMOVZXDQ 0(R14), Z3
+	VPADDQ    Z3, Z0, Z0
+	VPMOVZXDQ 32(R14), Z3
+	VPADDQ    Z3, Z1, Z1
+	VPMOVZXDQ 64(R14), Z3
+	VPADDQ    Z3, Z2, Z2
+	VPMOVZXDQ 96(R14), Z3
+	VPADDQ    Z3, Z0, Z0
+	VPMOVZXDQ 128(R14), Z3
+	VPADDQ    Z3, Z1, Z1
+	VPMOVZXDQ 160(R14), Z3
+	VPADDQ    Z3, Z2, Z2
+	ADDQ      $192, R14
+	JMP       loop_51
+
+done_52:
+	VMOVDQU64 Z0, 0(R13)
+	VMOVDQU64 Z1, 64(R13)
+	VMOVDQU64 Z2, 128(R13)
+	RET
+
 TEXT ·vectorFoldPairs_avx512(SB), NOSPLIT, $0-40
 	// FRI pair folding over a degree-4 extension, 16 outputs per iteration
 	MOVD         $const_q, AX
@@ -1629,9 +1779,9 @@ TEXT ·vectorFoldPairs_avx512(SB), NOSPLIT, $0-40
 	VMOVDQU32    0(R8), Z3
 	SHRQ         $4, SI
 
-loop_43:
+loop_53:
 	TESTQ      SI, SI
-	JEQ        done_44
+	JEQ        done_54
 	DECQ       SI
 	KMOVD      DI, K1
 	KMOVD      DI, K2
@@ -1753,9 +1903,9 @@ loop_43:
 	ADDQ         $512, R14
 	ADDQ         $64, CX
 	ADDQ         $256, R13
-	JMP          loop_43
+	JMP          loop_53
 
-done_44:
+done_54:
 	RET
 
 TEXT ·vectorFoldPairs_E6_avx512(SB), NOSPLIT, $0-40
@@ -1778,9 +1928,9 @@ TEXT ·vectorFoldPairs_E6_avx512(SB), NOSPLIT, $0-40
 	VMOVDQU32    0(R8), Z3
 	SHRQ         $4, SI
 
-loop_45:
+loop_55:
 	TESTQ        SI, SI
-	JEQ          done_46
+	JEQ          done_56
 	DECQ         SI
 	KMOVD        DI, K1
 	KMOVD        DI, K2
@@ -1996,7 +2146,7 @@ loop_45:
 	ADDQ         $768, R14
 	ADDQ         $64, CX
 	ADDQ         $384, R13
-	JMP          loop_45
+	JMP          loop_55
 
-done_46:
+done_56:
 	RET
