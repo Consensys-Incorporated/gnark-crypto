@@ -44,6 +44,10 @@ func (vector *Vector) Mul(a, b Vector) {
 	mulVecGeneric(*vector, a, b)
 }
 
+func vectorFoldPairs(res, layer, halfInvTwiddles Vector, alpha *Element) {
+	foldPairsVecGeneric(res, layer, halfInvTwiddles, alpha)
+}
+
 func vectorMulAcc(res, a, b Vector) {
 	mulAccVecGeneric(res, a, b)
 }

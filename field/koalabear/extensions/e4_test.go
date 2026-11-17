@@ -1596,3 +1596,67 @@ func BenchmarkVectorE4ScalarAdd(b *testing.B) {
 		}
 	})
 }
+
+func TestVectorE4FoldPairs(t *testing.T) {
+	for _, size := range []int{0, 1, 7, 8, 9, 15, 16, 17, 33, 65, 1 << 10} {
+		t.Run(fmt.Sprintf("size=%d", size), func(t *testing.T) {
+			// FRI identity: for p = e + x·o and q = e − x·o, folding with the
+			// twiddle (2x)⁻¹ gives e + alpha·o.
+			e, o := randomVector(size), randomVector(size)
+			layer := make(VectorE4, 2*size)
+			w := make(fr.Vector, size)
+			want := make(VectorE4, size)
+			var alpha E4
+			alpha.MustSetRandom()
+			for j := range size {
+				var x, two fr.Element
+				for x.IsZero() { // x = 0 has no twiddle (2x)⁻¹
+					x.MustSetRandom()
+				}
+				var xo E4
+				xo.MulByElement(&o[j], &x)
+				layer[2*j].Add(&e[j], &xo)
+				layer[2*j+1].Sub(&e[j], &xo)
+				two.SetUint64(2)
+				w[j].Mul(&x, &two).Inverse(&w[j])
+				want[j].Mul(&alpha, &o[j]).Add(&want[j], &e[j])
+			}
+
+			got := make(VectorE4, size)
+			got.FoldPairs(layer, w, &alpha)
+			require.Equal(t, want, got, "FoldPairs")
+
+			if size == 0 {
+				return
+			}
+			// in place, with alpha pointing into the layer being overwritten
+			in := append(make(VectorE4, 0, 2*size), layer...)
+			alpha0 := in[0]
+			for j := range size {
+				want[j].Mul(&alpha0, &o[j]).Add(&want[j], &e[j])
+			}
+			in[:size].FoldPairs(in, w, &in[0])
+			require.Equal(t, want, in[:size], "FoldPairs in place")
+		})
+	}
+
+	var alpha E4
+	require.Panics(t, func() { make(VectorE4, 2).FoldPairs(make(VectorE4, 3), make(fr.Vector, 2), &alpha) })
+	require.Panics(t, func() { make(VectorE4, 2).FoldPairs(make(VectorE4, 4), make(fr.Vector, 3), &alpha) })
+}
+
+func BenchmarkVectorE4FoldPairs(b *testing.B) {
+	for _, n := range []int{1 << 12, 1 << 16} {
+		layer := randomVector(2 * n)
+		w := make(fr.Vector, n)
+		w.MustSetRandom()
+		res := make(VectorE4, n)
+		var alpha E4
+		alpha.MustSetRandom()
+		b.Run(fmt.Sprintf("N=%d", n), func(b *testing.B) {
+			for b.Loop() {
+				res.FoldPairs(layer, w, &alpha)
+			}
+		})
+	}
+}

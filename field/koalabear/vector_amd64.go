@@ -216,6 +216,23 @@ func (vector *Vector) Mul(a, b Vector) {
 }
 
 //go:noescape
+func foldPairsVec(res, layer, twiddles, alpha *Element, n uint64)
+
+// vectorFoldPairs implements Vector.FoldPairs; lengths are checked and alpha
+// is copied by the caller.
+func vectorFoldPairs(res, layer, halfInvTwiddles Vector, alpha *Element) {
+	const blockSize = 16
+	n := len(res)
+	if !cpu.SupportAVX512 || n < blockSize {
+		foldPairsVecGeneric(res, layer, halfInvTwiddles, alpha)
+		return
+	}
+	nr := n - n%blockSize
+	foldPairsVec(&res[0], &layer[0], &halfInvTwiddles[0], alpha, uint64(nr/blockSize))
+	foldPairsVecGeneric(res[nr:], layer[2*nr:], halfInvTwiddles[nr:], alpha)
+}
+
+//go:noescape
 func mulAccVec(res, a, b *Element, n uint64)
 
 //go:noescape
