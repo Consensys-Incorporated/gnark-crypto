@@ -1375,3 +1375,108 @@ func TestE4ValueReceivers(t *testing.T) {
 	require.Nil(t, m["k"].BigInt(new(big.Int)))
 	require.Equal(t, x, m["k"])
 }
+
+func TestVectorE4ScalarAddSub(t *testing.T) {
+	// sizes straddle the AVX-512 block sizes (4 E4, 8 E6) and include empty and
+	// non-block-aligned tails.
+	for _, size := range []int{0, 1, 3, 4, 5, 7, 8, 9, 15, 16, 17, 33, 65, 1 << 10} {
+		t.Run(strconv.Itoa(size), func(t *testing.T) {
+			a := randomVector(size)
+			var c E4
+			c.MustSetRandom()
+			if size > 2 {
+				// exercise the a[i] == c (zero difference) and zero edges
+				a[1] = c
+				a[2].SetZero()
+			}
+
+			wantAdd := make(VectorE4, size)
+			wantSub := make(VectorE4, size)
+			wantSubFrom := make(VectorE4, size)
+			for i := range a {
+				wantAdd[i].Add(&a[i], &c)
+				wantSub[i].Sub(&a[i], &c)
+				wantSubFrom[i].Sub(&c, &a[i])
+			}
+
+			got := make(VectorE4, size)
+			got.ScalarAdd(a, &c)
+			require.Equal(t, wantAdd, got, "ScalarAdd")
+			got.ScalarSub(a, &c)
+			require.Equal(t, wantSub, got, "ScalarSub")
+			got.ScalarSubFrom(&c, a)
+			require.Equal(t, wantSubFrom, got, "ScalarSubFrom")
+
+			// c = 0 is the identity for ScalarAdd / ScalarSub
+			var zero E4
+			got.ScalarAdd(a, &zero)
+			require.Equal(t, a, got, "ScalarAdd zero")
+			got.ScalarSub(a, &zero)
+			require.Equal(t, a, got, "ScalarSub zero")
+
+			// in place: vector == a
+			got = append(make(VectorE4, 0, size), a...)
+			got.ScalarAdd(got, &c)
+			require.Equal(t, wantAdd, got, "ScalarAdd in place")
+			got = append(make(VectorE4, 0, size), a...)
+			got.ScalarSub(got, &c)
+			require.Equal(t, wantSub, got, "ScalarSub in place")
+			got = append(make(VectorE4, 0, size), a...)
+			got.ScalarSubFrom(&c, got)
+			require.Equal(t, wantSubFrom, got, "ScalarSubFrom in place")
+
+			if size == 0 {
+				return
+			}
+			// scalar aliasing: c points into the vector being overwritten
+			c0 := a[0]
+			for i := range a {
+				wantAdd[i].Add(&a[i], &c0)
+				wantSub[i].Sub(&a[i], &c0)
+				wantSubFrom[i].Sub(&c0, &a[i])
+			}
+			got = append(make(VectorE4, 0, size), a...)
+			got.ScalarAdd(got, &got[0])
+			require.Equal(t, wantAdd, got, "ScalarAdd scalar alias")
+			got = append(make(VectorE4, 0, size), a...)
+			got.ScalarSub(got, &got[0])
+			require.Equal(t, wantSub, got, "ScalarSub scalar alias")
+			got = append(make(VectorE4, 0, size), a...)
+			got.ScalarSubFrom(&got[0], got)
+			require.Equal(t, wantSubFrom, got, "ScalarSubFrom scalar alias")
+		})
+	}
+}
+
+func TestVectorE4ScalarAddSubLengthMismatch(t *testing.T) {
+	var c E4
+	v, a := make(VectorE4, 3), make(VectorE4, 4)
+	require.Panics(t, func() { v.ScalarAdd(a, &c) })
+	require.Panics(t, func() { v.ScalarSub(a, &c) })
+	require.Panics(t, func() { v.ScalarSubFrom(&c, a) })
+}
+
+func BenchmarkVectorE4ScalarAdd(b *testing.B) {
+	const N = 1 << 12
+	a := randomVector(N)
+	var c E4
+	c.MustSetRandom()
+	res := make(VectorE4, N)
+	b.Run("ScalarAdd", func(b *testing.B) {
+		for b.Loop() {
+			res.ScalarAdd(a, &c)
+		}
+	})
+	b.Run("ScalarSubFrom", func(b *testing.B) {
+		for b.Loop() {
+			res.ScalarSubFrom(&c, a)
+		}
+	})
+	b.Run("generic", func(b *testing.B) {
+		for b.Loop() {
+			for i := range res {
+				res[i].Add(&a[i], &c)
+			}
+		}
+	})
+}

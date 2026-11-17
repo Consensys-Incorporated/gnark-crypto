@@ -130,6 +130,46 @@ func (vector VectorE4) ScalarMulByElement(a VectorE4, b *fr.Element) {
 	vRes.ScalarMul(vBase, b)
 }
 
+// ScalarAdd sets vector[i] = a[i] + c for all i.
+//
+// vector may be identical to a, and c may point into vector or a; partially
+// overlapping slices are not supported.
+func (vector VectorE4) ScalarAdd(a VectorE4, c *E4) {
+	N := len(vector)
+	if len(a) != N {
+		panic("vector.ScalarAdd: vectors don't have the same length")
+	}
+	cc := *c
+	for i := range vector {
+		vector[i].Add(&a[i], &cc)
+	}
+}
+
+// ScalarSub sets vector[i] = a[i] - c for all i.
+//
+// vector may be identical to a, and c may point into vector or a; partially
+// overlapping slices are not supported.
+func (vector VectorE4) ScalarSub(a VectorE4, c *E4) {
+	var negC E4
+	negC.Neg(c)
+	vector.ScalarAdd(a, &negC)
+}
+
+// ScalarSubFrom sets vector[i] = c - a[i] for all i.
+//
+// vector may be identical to a, and c may point into vector or a; partially
+// overlapping slices are not supported.
+func (vector VectorE4) ScalarSubFrom(c *E4, a VectorE4) {
+	N := len(vector)
+	if len(a) != N {
+		panic("vector.ScalarSubFrom: vectors don't have the same length")
+	}
+	cc := *c
+	for i := range vector {
+		vector[i].Sub(&cc, &a[i])
+	}
+}
+
 // Exp sets vector[i] = a[i]ᵏ for all i
 func (vector VectorE4) Exp(a VectorE4, k int64) {
 	N := len(a)
