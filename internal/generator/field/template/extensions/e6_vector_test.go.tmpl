@@ -789,6 +789,13 @@ func TestVectorE6ScalarAddSub(t *testing.T) {
 			a.MustSetRandom()
 			var c E6
 			c.MustSetRandom()
+			if size == 0 {
+				// the scalar is not read when the vectors are empty
+				var v VectorE6
+				require.NotPanics(t, func() { v.ScalarAdd(a, nil) }, "ScalarAdd on empty vectors")
+				require.NotPanics(t, func() { v.ScalarSub(a, nil) }, "ScalarSub on empty vectors")
+				require.NotPanics(t, func() { v.ScalarSubFrom(nil, a) }, "ScalarSubFrom on empty vectors")
+			}
 			if size > 2 {
 				// exercise the a[i] == c (zero difference) and zero edges
 				a[1] = c
@@ -859,6 +866,11 @@ func TestVectorE6ScalarAddSubLengthMismatch(t *testing.T) {
 	require.Panics(t, func() { v.ScalarAdd(a, &c) })
 	require.Panics(t, func() { v.ScalarSub(a, &c) })
 	require.Panics(t, func() { v.ScalarSubFrom(&c, a) })
+	// an empty receiver still checks the length before returning early
+	var empty VectorE6
+	require.Panics(t, func() { empty.ScalarAdd(a, &c) })
+	require.Panics(t, func() { empty.ScalarSub(a, &c) })
+	require.Panics(t, func() { empty.ScalarSubFrom(&c, a) })
 }
 
 func BenchmarkVectorE6ScalarAdd(b *testing.B) {

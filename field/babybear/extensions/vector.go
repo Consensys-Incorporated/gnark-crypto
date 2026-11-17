@@ -147,6 +147,9 @@ func (vector VectorE4) ScalarAdd(a VectorE4, c *E4) {
 	if len(a) != N {
 		panic("vector.ScalarAdd: vectors don't have the same length")
 	}
+	if len(vector) == 0 {
+		return
+	}
 	cc := *c
 	for i := range vector {
 		vector[i].Add(&a[i], &cc)
@@ -158,6 +161,12 @@ func (vector VectorE4) ScalarAdd(a VectorE4, c *E4) {
 // vector may be identical to a, and c may point into vector or a; partially
 // overlapping slices are not supported.
 func (vector VectorE4) ScalarSub(a VectorE4, c *E4) {
+	if len(vector) != len(a) {
+		panic("vector.ScalarSub: vectors don't have the same length")
+	}
+	if len(vector) == 0 {
+		return
+	}
 	var negC E4
 	negC.Neg(c)
 	vector.ScalarAdd(a, &negC)
@@ -171,6 +180,9 @@ func (vector VectorE4) ScalarSubFrom(c *E4, a VectorE4) {
 	N := len(vector)
 	if len(a) != N {
 		panic("vector.ScalarSubFrom: vectors don't have the same length")
+	}
+	if len(vector) == 0 {
+		return
 	}
 	cc := *c
 	for i := range vector {
