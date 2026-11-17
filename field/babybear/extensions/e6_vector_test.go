@@ -6,8 +6,10 @@
 package extensions
 
 import (
+	"fmt"
 	"strconv"
 	"testing"
+	"unsafe"
 
 	fr "github.com/consensys/gnark-crypto/field/babybear"
 	"github.com/stretchr/testify/require"
@@ -42,6 +44,12 @@ func TestVectorE6Sum(t *testing.T) {
 				ones[i].SetOne()
 			}
 			require.Equal(t, v.InnerProduct(ones), v.Sum())
+
+			var want E6
+			for i := range v {
+				want.Add(&want, &v[i])
+			}
+			require.Equal(t, want, v.Sum())
 
 			// size copies of x sum to x multiplied by size, as an element of the base field
 			var x E6
@@ -396,6 +404,133 @@ func TestVectorE6Mul(t *testing.T) {
 	}
 }
 
+// makeE6AddSubTestInputs returns two vectors whose coordinates are random,
+// except every third one of a (resp. b) which cycles through 0, 1, q-1 so the
+// conditional reduction of Add and Sub is exercised in both branches.
+func makeE6AddSubTestInputs(size int) (VectorE6, VectorE6) {
+	a, b := make(VectorE6, size), make(VectorE6, size)
+	a.MustSetRandom()
+	b.MustSetRandom()
+	var edges [3]fr.Element
+	edges[1].SetOne()
+	edges[2].SetInt64(-1)
+	for i := range size {
+		za := fr.Vector(unsafe.Slice((*fr.Element)(unsafe.Pointer(&a[i])), 6))
+		zb := fr.Vector(unsafe.Slice((*fr.Element)(unsafe.Pointer(&b[i])), 6))
+		for j := range 6 {
+			if (i+j)%3 == 0 {
+				za[j] = edges[(i/3+j)%3]
+				zb[j] = edges[(i/3+2*j+1)%3]
+			}
+		}
+	}
+	return a, b
+}
+
+func cloneE6Vector(v VectorE6) VectorE6 {
+	return append(make(VectorE6, 0, len(v)), v...)
+}
+
+func TestVectorE6AddSub(t *testing.T) {
+	sizes := []int{1 << 10, 1<<10 + 7, 1 << 14}
+	for i := range 71 {
+		sizes = append(sizes, i)
+	}
+	for _, size := range sizes {
+		t.Run(strconv.Itoa(size), func(t *testing.T) {
+			a, b := makeE6AddSubTestInputs(size)
+			expectedAdd, expectedSub := make(VectorE6, size), make(VectorE6, size)
+			for i := range expectedAdd {
+				expectedAdd[i].Add(&a[i], &b[i])
+				expectedSub[i].Sub(&a[i], &b[i])
+			}
+			aCopy := cloneE6Vector(a)
+			bCopy := cloneE6Vector(b)
+
+			res := make(VectorE6, size)
+			res.MustSetRandom() // must be fully overwritten
+			res.Add(a, b)
+			require.Equal(t, expectedAdd, res)
+			res.MustSetRandom()
+			res.Sub(a, b)
+			require.Equal(t, expectedSub, res)
+			require.Equal(t, aCopy, a, "inputs must not be modified")
+			require.Equal(t, bCopy, b, "inputs must not be modified")
+
+			// res may be identical to a, to b, or to both
+			for _, op := range []struct {
+				name     string
+				f        func(res, a, b VectorE6)
+				expected VectorE6
+			}{
+				{"Add", func(res, a, b VectorE6) { res.Add(a, b) }, expectedAdd},
+				{"Sub", func(res, a, b VectorE6) { res.Sub(a, b) }, expectedSub},
+			} {
+				aa := cloneE6Vector(a)
+				op.f(aa, aa, b)
+				require.Equal(t, op.expected, aa, "%s: res == a", op.name)
+
+				bb := cloneE6Vector(b)
+				op.f(bb, a, bb)
+				require.Equal(t, op.expected, bb, "%s: res == b", op.name)
+
+				vv := cloneE6Vector(a)
+				op.f(vv, vv, vv)
+				for i := range vv {
+					var e E6
+					if op.name == "Add" {
+						e.Add(&a[i], &a[i])
+					} else {
+						e.Sub(&a[i], &a[i])
+					}
+					require.True(t, e.Equal(&vv[i]), "%s: res == a == b at %d", op.name, i)
+				}
+			}
+		})
+	}
+}
+
+func TestVectorE6AddSubLengthMismatch(t *testing.T) {
+	a, b, c := make(VectorE6, 4), make(VectorE6, 4), make(VectorE6, 5)
+	require.Panics(t, func() { a.Add(b, c) })
+	require.Panics(t, func() { a.Add(c, b) })
+	require.Panics(t, func() { c.Add(a, b) })
+	require.Panics(t, func() { a.Sub(b, c) })
+	require.Panics(t, func() { a.Sub(c, b) })
+	require.Panics(t, func() { c.Sub(a, b) })
+}
+
+func BenchmarkVectorE6AddSub(b *testing.B) {
+	for _, size := range []int{64, 1024, 16384, 262144} {
+		x, y := makeE6AddSubTestInputs(size)
+		res := make(VectorE6, size)
+		b.Run("Add/"+strconv.Itoa(size), func(b *testing.B) {
+			for b.Loop() {
+				res.Add(x, y)
+			}
+		})
+		b.Run("Sub/"+strconv.Itoa(size), func(b *testing.B) {
+			for b.Loop() {
+				res.Sub(x, y)
+			}
+		})
+		b.Run("AddGeneric/"+strconv.Itoa(size), func(b *testing.B) {
+			for b.Loop() {
+				for i := range res {
+					res[i].Add(&x[i], &y[i])
+				}
+			}
+		})
+		b.Run("SubGeneric/"+strconv.Itoa(size), func(b *testing.B) {
+			for b.Loop() {
+				for i := range res {
+					res[i].Sub(&x[i], &y[i])
+				}
+			}
+		})
+	}
+}
+
 func TestVectorE6InnerProduct(t *testing.T) {
 	for _, maxed := range []bool{false, true} {
 		for _, size := range []int{0, 1, 15, 16, 17, 33, 100, 1 << 12} {
@@ -478,4 +613,385 @@ func BenchmarkBatchInvertE6(b *testing.B) {
 	for b.Loop() {
 		BatchInvertE6Into(res, x)
 	}
+}
+
+func TestVectorE6MulAccHorner(t *testing.T) {
+	// sizes straddle the AVX-512 block sizes and include non-aligned tails
+	for _, size := range []int{0, 1, 3, 4, 5, 7, 8, 9, 15, 16, 17, 33, 65, 200} {
+		t.Run(strconv.Itoa(size), func(t *testing.T) {
+			a, b, v0 := randVectorE6(size), randVectorE6(size), randVectorE6(size)
+			base, base2 := make(fr.Vector, size), make(fr.Vector, size)
+			base.MustSetRandom()
+			base2.MustSetRandom()
+			var c E6
+			c.MustSetRandom()
+
+			clone := func(x VectorE6) VectorE6 { return append(make(VectorE6, 0, size), x...) }
+			check := func(name string, want VectorE6, run func(v VectorE6)) {
+				t.Helper()
+				v := clone(v0)
+				run(v)
+				require.Equal(t, want, v, name)
+			}
+			want := func(f func(i int, z *E6)) VectorE6 {
+				w := clone(v0)
+				for i := range w {
+					f(i, &w[i])
+				}
+				return w
+			}
+			var tmp E6
+
+			check("MulAcc", want(func(i int, z *E6) { z.Add(z, tmp.Mul(&a[i], &b[i])) }),
+				func(v VectorE6) { v.MulAcc(a, b) })
+			check("ScalarMulAcc", want(func(i int, z *E6) { z.Add(z, tmp.Mul(&a[i], &c)) }),
+				func(v VectorE6) { v.ScalarMulAcc(a, &c) })
+			check("ScalarMulBase", want(func(i int, z *E6) { z.MulByElement(&c, &base[i]) }),
+				func(v VectorE6) { v.ScalarMulBase(base, &c) })
+			check("ScalarMulAccBase", want(func(i int, z *E6) { z.Add(z, tmp.MulByElement(&c, &base[i])) }),
+				func(v VectorE6) { v.ScalarMulAccBase(base, &c) })
+			check("ScalarMulAdd", want(func(i int, z *E6) { z.Mul(z, &c).Add(z, &b[i]) }),
+				func(v VectorE6) { v.ScalarMulAdd(b, &c) })
+			check("ScalarMulAddBase", want(func(i int, z *E6) { z.Mul(z, &c); z.B0.A0.Add(&z.B0.A0, &base2[i]) }),
+				func(v VectorE6) { v.ScalarMulAddBase(base2, &c) })
+			check("MulAccByElement", want(func(i int, z *E6) { z.Add(z, tmp.MulByElement(&a[i], &base[i])) }),
+				func(v VectorE6) { v.MulAccByElement(a, base) })
+
+			// vector aliases the inputs
+			check("MulAcc alias", want(func(i int, z *E6) { z.Add(z, tmp.Mul(z, z)) }),
+				func(v VectorE6) { v.MulAcc(v, v) })
+			check("ScalarMulAcc alias", want(func(i int, z *E6) { z.Add(z, tmp.Mul(z, &c)) }),
+				func(v VectorE6) { v.ScalarMulAcc(v, &c) })
+			check("ScalarMulAdd alias", want(func(i int, z *E6) { tmp.Set(z); z.Mul(z, &c).Add(z, &tmp) }),
+				func(v VectorE6) { v.ScalarMulAdd(v, &c) })
+
+			if size == 0 {
+				// the scalar is not read when the vectors are empty
+				require.NotPanics(t, func() { v0.ScalarMul(a, nil) }, "ScalarMul on empty vectors")
+				require.NotPanics(t, func() { v0.ScalarMulAcc(a, nil) }, "ScalarMulAcc on empty vectors")
+				require.NotPanics(t, func() { v0.ScalarMulBase(base, nil) }, "ScalarMulBase on empty vectors")
+				require.NotPanics(t, func() { v0.ScalarMulAccBase(base, nil) }, "ScalarMulAccBase on empty vectors")
+				require.NotPanics(t, func() { v0.ScalarMulAdd(b, nil) }, "ScalarMulAdd on empty vectors")
+				require.NotPanics(t, func() { v0.ScalarMulAddBase(base2, nil) }, "ScalarMulAddBase on empty vectors")
+				return
+			}
+			// the scalar points into the vector being overwritten
+			c0 := v0[0]
+			check("ScalarMul scalar alias", want(func(i int, z *E6) { z.Mul(&a[i], &c0) }),
+				func(v VectorE6) { v.ScalarMul(a, &v[0]) })
+			check("ScalarMul full alias", want(func(i int, z *E6) { z.Mul(z, &c0) }),
+				func(v VectorE6) { v.ScalarMul(v, &v[0]) })
+			check("ScalarMulAcc scalar alias", want(func(i int, z *E6) { z.Add(z, tmp.Mul(&a[i], &c0)) }),
+				func(v VectorE6) { v.ScalarMulAcc(a, &v[0]) })
+			check("ScalarMulAcc full alias", want(func(i int, z *E6) { z.Add(z, tmp.Mul(z, &c0)) }),
+				func(v VectorE6) { v.ScalarMulAcc(v, &v[0]) })
+			check("ScalarMulBase scalar alias", want(func(i int, z *E6) { z.MulByElement(&c0, &base[i]) }),
+				func(v VectorE6) { v.ScalarMulBase(base, &v[0]) })
+			check("ScalarMulAccBase scalar alias", want(func(i int, z *E6) { z.Add(z, tmp.MulByElement(&c0, &base[i])) }),
+				func(v VectorE6) { v.ScalarMulAccBase(base, &v[0]) })
+			check("ScalarMulAdd scalar alias", want(func(i int, z *E6) { z.Mul(z, &c0).Add(z, &b[i]) }),
+				func(v VectorE6) { v.ScalarMulAdd(b, &v[0]) })
+			check("ScalarMulAddBase scalar alias", want(func(i int, z *E6) { z.Mul(z, &c0); z.B0.A0.Add(&z.B0.A0, &base2[i]) }),
+				func(v VectorE6) { v.ScalarMulAddBase(base2, &v[0]) })
+		})
+	}
+}
+
+func TestVectorE6MulAccHornerLengthMismatch(t *testing.T) {
+	var c E6
+	v, a := make(VectorE6, 3), make(VectorE6, 4)
+	base := make(fr.Vector, 4)
+	require.Panics(t, func() { v.MulAcc(a, v) })
+	require.Panics(t, func() { v.MulAcc(v, a) })
+	require.Panics(t, func() { v.ScalarMulAcc(a, &c) })
+	require.Panics(t, func() { v.ScalarMulBase(base, &c) })
+	require.Panics(t, func() { v.ScalarMulAccBase(base, &c) })
+	require.Panics(t, func() { v.ScalarMulAdd(a, &c) })
+	require.Panics(t, func() { v.ScalarMulAddBase(base, &c) })
+}
+
+func BenchmarkVectorE6MulAccHorner(b *testing.B) {
+	for _, N := range []int{1 << 12, 1 << 16} {
+		x, y, v := randVectorE6(N), randVectorE6(N), randVectorE6(N)
+		base := make(fr.Vector, N)
+		base.MustSetRandom()
+		var c E6
+		c.MustSetRandom()
+		run := func(name string, f func()) {
+			b.Run(fmt.Sprintf("%s/N=%d", name, N), func(b *testing.B) {
+				for b.Loop() {
+					f()
+				}
+			})
+		}
+		run("MulAcc", func() { v.MulAcc(x, y) })
+		run("ScalarMulAcc", func() { v.ScalarMulAcc(x, &c) })
+		run("ScalarMulBase", func() { v.ScalarMulBase(base, &c) })
+		run("ScalarMulAccBase", func() { v.ScalarMulAccBase(base, &c) })
+		run("ScalarMulAdd", func() { v.ScalarMulAdd(y, &c) })
+		run("ScalarMulAddBase", func() { v.ScalarMulAddBase(base, &c) })
+	}
+}
+
+func randVectorE6(n int) VectorE6 {
+	v := make(VectorE6, n)
+	v.MustSetRandom()
+	return v
+}
+
+func TestVectorE6InnerProductByElement(t *testing.T) {
+	for _, size := range []int{0, 1, 7, 8, 9, 15, 16, 17, 33, 65, 1 << 12} {
+		t.Run(strconv.Itoa(size), func(t *testing.T) {
+			v := randVectorE6(size)
+			a := make(fr.Vector, size)
+			a.MustSetRandom()
+			var want, tmp E6
+			for i := range v {
+				tmp.MulByElement(&v[i], &a[i])
+				want.Add(&want, &tmp)
+			}
+			require.Equal(t, want, v.InnerProductByElement(a))
+		})
+	}
+	// every lane at the largest canonical raw value q-1, the largest lane products
+	t.Run("max", func(t *testing.T) {
+		const size = 1 << 10
+		v := make(VectorE6, size)
+		a := make(fr.Vector, size)
+		var m fr.Element
+		m[0] = uint32(fr.Modulus().Uint64() - 1)
+		for i := range v {
+			v[i].B0.A0, v[i].B0.A1, v[i].B1.A0, v[i].B1.A1, v[i].B2.A0, v[i].B2.A1 = m, m, m, m, m, m
+			a[i] = m
+		}
+		var want, tmp E6
+		for i := range v {
+			tmp.MulByElement(&v[i], &a[i])
+			want.Add(&want, &tmp)
+		}
+		require.Equal(t, want, v.InnerProductByElement(a))
+	})
+	require.Panics(t, func() { make(VectorE6, 2).InnerProductByElement(make(fr.Vector, 3)) })
+}
+
+func BenchmarkVectorE6InnerProductByElement(b *testing.B) {
+	for _, N := range []int{1 << 12, 1 << 16} {
+		v := randVectorE6(N)
+		a := make(fr.Vector, N)
+		a.MustSetRandom()
+		b.Run(fmt.Sprintf("N=%d", N), func(b *testing.B) {
+			for b.Loop() {
+				_ = v.InnerProductByElement(a)
+			}
+		})
+	}
+}
+
+func TestVectorE6ScalarAddSub(t *testing.T) {
+	// sizes straddle the AVX-512 block sizes (4 E4, 8 E6) and include empty and
+	// non-block-aligned tails.
+	for _, size := range []int{0, 1, 3, 4, 5, 7, 8, 9, 15, 16, 17, 33, 65, 1 << 10} {
+		t.Run(strconv.Itoa(size), func(t *testing.T) {
+			a := make(VectorE6, size)
+			a.MustSetRandom()
+			var c E6
+			c.MustSetRandom()
+			if size == 0 {
+				// the scalar is not read when the vectors are empty
+				var v VectorE6
+				require.NotPanics(t, func() { v.ScalarAdd(a, nil) }, "ScalarAdd on empty vectors")
+				require.NotPanics(t, func() { v.ScalarSub(a, nil) }, "ScalarSub on empty vectors")
+				require.NotPanics(t, func() { v.ScalarSubFrom(nil, a) }, "ScalarSubFrom on empty vectors")
+			}
+			if size > 2 {
+				// exercise the a[i] == c (zero difference) and zero edges
+				a[1] = c
+				a[2].SetZero()
+			}
+
+			wantAdd := make(VectorE6, size)
+			wantSub := make(VectorE6, size)
+			wantSubFrom := make(VectorE6, size)
+			for i := range a {
+				wantAdd[i].Add(&a[i], &c)
+				wantSub[i].Sub(&a[i], &c)
+				wantSubFrom[i].Sub(&c, &a[i])
+			}
+
+			got := make(VectorE6, size)
+			got.ScalarAdd(a, &c)
+			require.Equal(t, wantAdd, got, "ScalarAdd")
+			got.ScalarSub(a, &c)
+			require.Equal(t, wantSub, got, "ScalarSub")
+			got.ScalarSubFrom(&c, a)
+			require.Equal(t, wantSubFrom, got, "ScalarSubFrom")
+
+			// c = 0 is the identity for ScalarAdd / ScalarSub
+			var zero E6
+			got.ScalarAdd(a, &zero)
+			require.Equal(t, a, got, "ScalarAdd zero")
+			got.ScalarSub(a, &zero)
+			require.Equal(t, a, got, "ScalarSub zero")
+
+			// in place: vector == a
+			got = append(make(VectorE6, 0, size), a...)
+			got.ScalarAdd(got, &c)
+			require.Equal(t, wantAdd, got, "ScalarAdd in place")
+			got = append(make(VectorE6, 0, size), a...)
+			got.ScalarSub(got, &c)
+			require.Equal(t, wantSub, got, "ScalarSub in place")
+			got = append(make(VectorE6, 0, size), a...)
+			got.ScalarSubFrom(&c, got)
+			require.Equal(t, wantSubFrom, got, "ScalarSubFrom in place")
+
+			if size == 0 {
+				return
+			}
+			// scalar aliasing: c points into the vector being overwritten
+			c0 := a[0]
+			for i := range a {
+				wantAdd[i].Add(&a[i], &c0)
+				wantSub[i].Sub(&a[i], &c0)
+				wantSubFrom[i].Sub(&c0, &a[i])
+			}
+			got = append(make(VectorE6, 0, size), a...)
+			got.ScalarAdd(got, &got[0])
+			require.Equal(t, wantAdd, got, "ScalarAdd scalar alias")
+			got = append(make(VectorE6, 0, size), a...)
+			got.ScalarSub(got, &got[0])
+			require.Equal(t, wantSub, got, "ScalarSub scalar alias")
+			got = append(make(VectorE6, 0, size), a...)
+			got.ScalarSubFrom(&got[0], got)
+			require.Equal(t, wantSubFrom, got, "ScalarSubFrom scalar alias")
+		})
+	}
+}
+
+func TestVectorE6ScalarAddSubLengthMismatch(t *testing.T) {
+	var c E6
+	v, a := make(VectorE6, 3), make(VectorE6, 4)
+	require.Panics(t, func() { v.ScalarAdd(a, &c) })
+	require.Panics(t, func() { v.ScalarSub(a, &c) })
+	require.Panics(t, func() { v.ScalarSubFrom(&c, a) })
+	// an empty receiver still checks the length before returning early
+	var empty VectorE6
+	require.Panics(t, func() { empty.ScalarAdd(a, &c) })
+	require.Panics(t, func() { empty.ScalarSub(a, &c) })
+	require.Panics(t, func() { empty.ScalarSubFrom(&c, a) })
+}
+
+func BenchmarkVectorE6ScalarAdd(b *testing.B) {
+	const N = 1 << 12
+	a := make(VectorE6, N)
+	a.MustSetRandom()
+	var c E6
+	c.MustSetRandom()
+	res := make(VectorE6, N)
+	b.Run("ScalarAdd", func(b *testing.B) {
+		for b.Loop() {
+			res.ScalarAdd(a, &c)
+		}
+	})
+	b.Run("ScalarSubFrom", func(b *testing.B) {
+		for b.Loop() {
+			res.ScalarSubFrom(&c, a)
+		}
+	})
+	b.Run("generic", func(b *testing.B) {
+		for b.Loop() {
+			for i := range res {
+				res[i].Add(&a[i], &c)
+			}
+		}
+	})
+}
+
+func BenchmarkVectorE6Sum(b *testing.B) {
+	const N = 1 << 12
+	a := make(VectorE6, N)
+	a.MustSetRandom()
+	b.Run("Sum", func(b *testing.B) {
+		for b.Loop() {
+			_ = a.Sum()
+		}
+	})
+	b.Run("generic", func(b *testing.B) {
+		for b.Loop() {
+			var s E6
+			for i := range a {
+				s.Add(&s, &a[i])
+			}
+			_ = s
+		}
+	})
+}
+
+func TestVectorE6FoldPairs(t *testing.T) {
+	for _, size := range []int{0, 1, 7, 8, 9, 15, 16, 17, 33, 65, 1 << 10} {
+		t.Run(fmt.Sprintf("size=%d", size), func(t *testing.T) {
+			// FRI identity: for p = e + x·o and q = e − x·o, folding with the
+			// twiddle (2x)⁻¹ gives e + alpha·o.
+			e, o := randVectorFoldE6(size), randVectorFoldE6(size)
+			layer := make(VectorE6, 2*size)
+			w := make(fr.Vector, size)
+			want := make(VectorE6, size)
+			var alpha E6
+			alpha.MustSetRandom()
+			for j := range size {
+				var x, two fr.Element
+				for x.IsZero() { // x = 0 has no twiddle (2x)⁻¹
+					x.MustSetRandom()
+				}
+				var xo E6
+				xo.MulByElement(&o[j], &x)
+				layer[2*j].Add(&e[j], &xo)
+				layer[2*j+1].Sub(&e[j], &xo)
+				two.SetUint64(2)
+				w[j].Mul(&x, &two).Inverse(&w[j])
+				want[j].Mul(&alpha, &o[j]).Add(&want[j], &e[j])
+			}
+
+			got := make(VectorE6, size)
+			got.FoldPairs(layer, w, &alpha)
+			require.Equal(t, want, got, "FoldPairs")
+
+			if size == 0 {
+				return
+			}
+			// in place, with alpha pointing into the layer being overwritten
+			in := append(make(VectorE6, 0, 2*size), layer...)
+			alpha0 := in[0]
+			for j := range size {
+				want[j].Mul(&alpha0, &o[j]).Add(&want[j], &e[j])
+			}
+			in[:size].FoldPairs(in, w, &in[0])
+			require.Equal(t, want, in[:size], "FoldPairs in place")
+		})
+	}
+
+	var alpha E6
+	require.Panics(t, func() { make(VectorE6, 2).FoldPairs(make(VectorE6, 3), make(fr.Vector, 2), &alpha) })
+	require.Panics(t, func() { make(VectorE6, 2).FoldPairs(make(VectorE6, 4), make(fr.Vector, 3), &alpha) })
+}
+
+func BenchmarkVectorE6FoldPairs(b *testing.B) {
+	for _, n := range []int{1 << 12, 1 << 16} {
+		layer := randVectorFoldE6(2 * n)
+		w := make(fr.Vector, n)
+		w.MustSetRandom()
+		res := make(VectorE6, n)
+		var alpha E6
+		alpha.MustSetRandom()
+		b.Run(fmt.Sprintf("N=%d", n), func(b *testing.B) {
+			for b.Loop() {
+				res.FoldPairs(layer, w, &alpha)
+			}
+		})
+	}
+}
+
+func randVectorFoldE6(n int) VectorE6 {
+	v := make(VectorE6, n)
+	v.MustSetRandom()
+	return v
 }

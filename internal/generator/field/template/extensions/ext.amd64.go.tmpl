@@ -5,6 +5,12 @@ import (
 // indices used for gather (transpose) operation
 var indexGather4 []uint32
 var indexGather6 []uint32
+
+// stride-8 and stride-12 dword indices: lane i of these tables addresses the
+// first coordinate of layer[2i] in vectorFoldPairs_avx512 (E4) and
+// vectorFoldPairs_E6_avx512 (E6).
+var indexGather8 []uint32
+var indexGather12 []uint32
 var maskPermD []uint32
 
 // E6 broadcast index tables for vectorMulByElement_E6_avx512.
@@ -59,6 +65,12 @@ func init() {
 	indexGather6 = make([]uint32, 16)
 	for i := range 16 {
 		indexGather6[i] = uint32(i * 6)
+	}
+	indexGather8 = make([]uint32, 16)
+	indexGather12 = make([]uint32, 16)
+	for i := range 16 {
+		indexGather8[i] = uint32(i * 8)
+		indexGather12[i] = uint32(i * 12)
 	}
 	maskPermD = make([]uint32, 16)
 	// we want [0,0,0,0, 1,1,1,1, 2,2,2,2, 3,3,3,3]
@@ -134,3 +146,54 @@ func vectorDITWithTwiddles_E6_avx512(a0, a1 *E6, twiddles *fr.Element, N uint64)
 
 //go:noescape
 func vectorDIFWithTwiddles_E6_avx512(a0, a1 *E6, twiddles *fr.Element, N uint64)
+
+//go:noescape
+func vectorScalarAdd_avx512(res, a *E4, cTiled *fr.Element, N uint64)
+
+//go:noescape
+func vectorScalarSubFrom_avx512(res, a *E4, cTiled *fr.Element, N uint64)
+
+//go:noescape
+func vectorScalarAdd_E6_avx512(res, a *E6, cTiled *fr.Element, N uint64)
+
+//go:noescape
+func vectorScalarSubFrom_E6_avx512(res, a *E6, cTiled *fr.Element, N uint64)
+
+//go:noescape
+func vectorSum_E6_avx512(res *[24]uint64, a *E6, N uint64)
+
+//go:noescape
+func vectorFoldPairs_avx512(res, layer *E4, twiddles *fr.Element, K *fr.Element, N uint64)
+
+//go:noescape
+func vectorFoldPairs_E6_avx512(res, layer *E6, twiddles *fr.Element, K *fr.Element, N uint64)
+
+//go:noescape
+func vectorMulAcc_E6_avx512(res, a, b *E6, N uint64)
+
+//go:noescape
+func vectorScalarMulBase_E6_avx512(vector *E6, a *fr.Element, sTiled *fr.Element, N uint64)
+
+//go:noescape
+func vectorScalarMulAdd_E6_avx512(res, b *E6, Kcol *fr.Element, N uint64)
+
+//go:noescape
+func vectorScalarMulAddBase_E6_avx512(res *E6, b *fr.Element, Kcol *fr.Element, N uint64)
+
+//go:noescape
+func vectorMulAcc_avx512(res, a, b *E4, N uint64)
+
+//go:noescape
+func vectorScalarMulAcc_avx512(res, a, c *E4, N uint64)
+
+//go:noescape
+func vectorScalarMulAdd_avx512(res, b, c *E4, N uint64)
+
+//go:noescape
+func vectorScalarMulAddBase_avx512(res *E4, b *fr.Element, c *E4, N uint64)
+
+//go:noescape
+func mulByElement_avx512(alpha *E4, scale *fr.Element, res *E4, N uint64)
+
+//go:noescape
+func vectorInnerProductByElement_E6_avx512(res *[48]uint64, a *E6, b *fr.Element, N uint64)
