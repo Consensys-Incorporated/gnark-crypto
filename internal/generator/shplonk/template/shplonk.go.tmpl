@@ -1,4 +1,5 @@
 import (
+	"encoding/binary"
 	"errors"
 	"hash"
 	"math/big"
@@ -204,7 +205,7 @@ func BatchVerify(proof OpeningProof, digests []kzg.Digest, points [][]fr.Element
 	// transcript
 	fs := fiatshamir.NewTranscript(hf, "gamma", "z")
 
-	// derive γ, binded to the points, the claimed values and the digests
+	// derive γ, bound to the points, the claimed values and the digests
 	gamma, err := deriveChallenge("gamma", points, proof.ClaimedValues, digests, fs, dataTranscript...)
 	if err != nil {
 		return err
@@ -294,8 +295,25 @@ func BatchVerify(proof OpeningProof, digests []kzg.Digest, points [][]fr.Element
 // The arguments are added to the transcript in the order in which they are given.
 func deriveChallenge(name string, points [][]fr.Element, claimedValues [][]fr.Element, digests []kzg.Digest, t *fiatshamir.Transcript, dataTranscript ...[]byte) (fr.Element, error) {
 
-	// derive the challenge, binded to the points, the claimed values and the commitments
+	// derive the challenge, bound to the shape of the statement, the points, the
+	// claimed values and the commitments
+
+	// The points are absorbed as a flat concatenation, so without the prefixes
+	// below neither the number of sets nor their individual sizes would be
+	// bound, and two different partitions of the same flat list of points (say
+	// [[a,b],[c]] and [[a],[b,c]]) would yield the very same γ and z. Bind the
+	// shape first so that the absorbed bytes determine the partition uniquely.
+	// Nothing is absorbed when points is nil (the chained derivation of z passes
+	// no points at all).
+	if points != nil {
+		if err := t.Bind(name, binary.BigEndian.AppendUint64(nil, uint64(len(points)))); err != nil {
+			return fr.Element{}, err
+		}
+	}
 	for i := range points {
+		if err := t.Bind(name, binary.BigEndian.AppendUint64(nil, uint64(len(points[i])))); err != nil {
+			return fr.Element{}, err
+		}
 		for j := range points[i] {
 			if err := t.Bind(name, points[i][j].Marshal()); err != nil {
 				return fr.Element{}, err
@@ -308,8 +326,8 @@ func deriveChallenge(name string, points [][]fr.Element, claimedValues [][]fr.El
 	// knows γ and z (both are functions of public data) can shift them by any
 	// vector lying in the kernel of that linear form and reuse the honest proof
 	// verbatim. There is no length prefix ambiguity here: fr.Element.Marshal is
-	// fixed width and the shape of claimedValues is pinned by points, which is
-	// absorbed just above.
+	// fixed width, and claimedValues has the same shape as points -- both
+	// BatchOpen and BatchVerify enforce that -- which the prefixes above pin.
 	for i := range claimedValues {
 		for j := range claimedValues[i] {
 			if err := t.Bind(name, claimedValues[i][j].Marshal()); err != nil {

@@ -15,6 +15,7 @@ import (
 	bw6633 "github.com/consensys/gnark-crypto/ecc/bw6-633"
 	"github.com/consensys/gnark-crypto/ecc/bw6-633/fr"
 	"github.com/consensys/gnark-crypto/ecc/bw6-633/kzg"
+	"github.com/consensys/gnark-crypto/ecc/bw6-633/shplonk"
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
 	"github.com/consensys/gnark-crypto/utils/testutils"
 	"github.com/stretchr/testify/require"
@@ -291,7 +292,8 @@ func TestGetIthRootOne(t *testing.T) {
 	assert.True(omega.IsOne())
 }
 
-// TestFflonkRejectsZeroPoint checks that 0 is rejected as an evaluation point.
+// TestFflonkRejectsZeroPoint checks that 0 is rejected as an evaluation point
+// for a pack holding more than one polynomial.
 //
 // extendSet(p, t) maps the point 0 to <0, ω·0, .., ωᵗ⁻¹·0> = t copies of 0. The
 // resulting shplonk set has a t-fold duplicate, which makes the Lagrange basis
@@ -299,6 +301,15 @@ func TestGetIthRootOne(t *testing.T) {
 // error), so rᵢ ≡ 0 and the claimed values vanish from the shplonk check. The
 // fflonk fold check degenerates at the same time: ωˡ·0 = 0 for every l, so it
 // only pins one of the t claimed values per point instead of t.
+//
+// That is a real forgery and not only a theoretical degeneracy: at the point 0
+// the fold check constrains ClaimedValues[i][0][j] alone, so the claims about
+// the remaining t-1 polynomials of the pack are completely free and P₁(0) can
+// be announced to be anything while the embedded shplonk proof -- and hence the
+// whole Fiat-Shamir transcript -- stays untouched. Binding the claimed values
+// into the transcript does *not* catch it; rejecting the degenerate point (or,
+// one layer down, the duplicated extended set) does. The last subtest below
+// pins that second, independent line of defence.
 func TestFflonkRejectsZeroPoint(t *testing.T) {
 
 	assert := require.New(t)
@@ -342,27 +353,49 @@ func TestFflonkRejectsZeroPoint(t *testing.T) {
 
 	err = BatchVerify(honest, digests, zeroPoints, hf, testSrs.Vk)
 	assert.ErrorIs(err, ErrZeroPoint)
+
+	// the guard above is the first of two independent lines of defence: even if
+	// it were removed, the set handed down to shplonk is extendSet(<0>, t) = t
+	// copies of 0, which shplonk rejects on its own. Exercise that layer
+	// directly, since fflonk short circuits before reaching it.
+	tt := getNextDivisorRMinusOne(nbPolysInSet)
+	assert.Equal(2, tt)
+	extended, err := extendSet(zeroPoints[0], tt)
+	assert.NoError(err)
+	assert.Len(extended, tt)
+	for i := range extended {
+		assert.True(extended[i].IsZero())
+	}
+	foldedPoints := make([][]fr.Element, 1)
+	foldedPoints[0] = extended
+	foldedPolys := make([][]fr.Element, 1)
+	foldedPolys[0] = Fold(p[0])
+	_, err = shplonk.BatchOpen(foldedPolys, digests, foldedPoints, sha256.New(), testSrs.Pk)
+	assert.ErrorIs(err, shplonk.ErrDuplicatePoint)
+
+	var sProof shplonk.OpeningProof
+	sProof.ClaimedValues = make([][]fr.Element, 1)
+	sProof.ClaimedValues[0] = make([]fr.Element, tt)
+	err = shplonk.BatchVerify(sProof, digests, foldedPoints, sha256.New(), testSrs.Vk)
+	assert.ErrorIs(err, shplonk.ErrDuplicatePoint)
 }
 
-// TestFflonkZeroPointSoundness is the sharp version of the previous test: it
-// builds the actual forgery. At the point 0 the fold check only constrains
-// ClaimedValues[i][0][j]; the claims for the remaining t-1 polynomials of the
-// pack are completely free, so P₁(0) can be claimed to be anything while the
-// embedded shplonk proof (and hence the whole Fiat-Shamir transcript) stays
-// untouched. Binding the claimed values into the transcript does *not* catch
-// this one, only rejecting the degenerate point does.
-func TestFflonkZeroPointSoundness(t *testing.T) {
+// TestFflonkAcceptsZeroPointSinglePoly is the companion positive test of
+// TestFflonkRejectsZeroPoint: a pack holding a single polynomial folds with
+// t = 1, so extendSet is the identity, the shplonk set <0> has no duplicate and
+// the fold check pins the single claimed value exactly. Opening at 0 is then a
+// perfectly valid statement and must keep working.
+func TestFflonkAcceptsZeroPointSinglePoly(t *testing.T) {
 
 	assert := require.New(t)
 
-	nbPolysInSet := 2
+	assert.Equal(1, getNextDivisorRMinusOne(1))
+
 	p := make([][][]fr.Element, 1)
-	p[0] = make([][]fr.Element, nbPolysInSet)
-	for j := range nbPolysInSet {
-		p[0][j] = make([]fr.Element, 10)
-		for k := 1; k < len(p[0][j]); k++ {
-			p[0][j][k].MustSetRandom()
-		}
+	p[0] = make([][]fr.Element, 1)
+	p[0][0] = make([]fr.Element, 10)
+	for k := range p[0][0] {
+		p[0][0][k].MustSetRandom()
 	}
 
 	digests := make([]kzg.Digest, 1)
@@ -370,29 +403,21 @@ func TestFflonkZeroPointSoundness(t *testing.T) {
 	digests[0], err = FoldAndCommit(p[0], testSrs.Pk)
 	assert.NoError(err)
 
-	hf := sha256.New()
 	var zero fr.Element
 	points := make([][]fr.Element, 1)
 	points[0] = []fr.Element{zero}
 
+	hf := sha256.New()
 	proof, err := BatchOpen(p, digests, points, hf, testSrs.Pk)
-	if err != nil {
-		// with the fix in place the prover refuses outright, which is enough
-		assert.ErrorIs(err, ErrZeroPoint)
-		return
-	}
+	assert.NoError(err)
+	assert.NoError(BatchVerify(proof, digests, points, hf, testSrs.Vk))
 
-	// forge the claim for the second polynomial of the pack; the embedded
-	// shplonk proof and its claimed values are left strictly untouched
-	var forgedClaim fr.Element
-	forgedClaim.SetUint64(777)
-	proof.ClaimedValues[0][1][0].Set(&forgedClaim)
+	// the claimed value is the real one, P(0), i.e. the constant coefficient
+	assert.True(proof.ClaimedValues[0][0][0].Equal(&p[0][0][0]))
 
-	// the claim is provably false: P₁(0) is the constant term, which is 0
-	assert.True(p[0][1][0].IsZero())
-
-	err = BatchVerify(proof, digests, points, hf, testSrs.Vk)
-	assert.ErrorIs(err, ErrZeroPoint)
+	// and a wrong claim is still rejected
+	proof.ClaimedValues[0][0][0].MustSetRandom()
+	assert.Error(BatchVerify(proof, digests, points, hf, testSrs.Vk))
 }
 
 // TestFflonkRejectsCancellingClaims verifies the claim that fflonk needs no

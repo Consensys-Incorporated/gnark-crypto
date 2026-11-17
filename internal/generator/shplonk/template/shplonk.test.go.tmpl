@@ -324,8 +324,8 @@ func TestDiv(t *testing.T) {
 
 }
 
-// setupTwoPolys returns two random polynomials, their commitments, and a
-// hasher, to be used by the soundness regression tests below.
+// setupTwoPolys returns two random polynomials and their commitments, to be
+// used by the soundness regression tests below.
 func setupTwoPolys(t *testing.T) ([][]fr.Element, []kzg.Digest) {
 	t.Helper()
 	polys := make([][]fr.Element, 2)
@@ -478,6 +478,72 @@ func TestShplonkAcceptsCrossSetDuplicatePoints(t *testing.T) {
 	assert.True(proof.ClaimedValues[0][0].Equal(ptr(eval(polys[0], x))))
 	assert.True(proof.ClaimedValues[1][0].Equal(ptr(eval(polys[1], x))))
 	assert.True(proof.ClaimedValues[1][1].Equal(ptr(eval(polys[1], y))))
+}
+
+// TestShplonkTranscriptBindsSetShape pins that the Fiat-Shamir transcript binds
+// the *shape* of the statement, not only the flat list of points and claimed
+// values.
+//
+// The points and the claimed values are absorbed as flat concatenations of
+// fixed width elements. Without an explicit length prefix per set, two
+// different partitions of the same flat data -- here [[a,b],[c]] and
+// [[a],[b,c]] -- are absorbed as exactly the same byte string and therefore
+// produce the same γ, and hence the same z. That makes the union bound over
+// partitions vacuous when the number of points is large, so the shape is bound
+// explicitly.
+func TestShplonkTranscriptBindsSetShape(t *testing.T) {
+
+	assert := require.New(t)
+
+	_, digests := setupTwoPolys(t)
+
+	// the same three points and the same three claimed values, partitioned in
+	// two different ways
+	flatPoints := make([]fr.Element, 3)
+	fr.Vector(flatPoints).MustSetRandom()
+	flatValues := make([]fr.Element, 3)
+	fr.Vector(flatValues).MustSetRandom()
+
+	pointsA := make([][]fr.Element, 2)
+	pointsA[0] = flatPoints[:2]
+	pointsA[1] = flatPoints[2:]
+	valuesA := make([][]fr.Element, 2)
+	valuesA[0] = flatValues[:2]
+	valuesA[1] = flatValues[2:]
+
+	pointsB := make([][]fr.Element, 2)
+	pointsB[0] = flatPoints[:1]
+	pointsB[1] = flatPoints[1:]
+	valuesB := make([][]fr.Element, 2)
+	valuesB[0] = flatValues[:1]
+	valuesB[1] = flatValues[1:]
+
+	deriveGamma := func(points, values [][]fr.Element) fr.Element {
+		fs := fiatshamir.NewTranscript(sha256.New(), "gamma", "z")
+		gamma, err := deriveChallenge("gamma", points, values, digests, fs)
+		assert.NoError(err)
+		return gamma
+	}
+
+	gammaA := deriveGamma(pointsA, valuesA)
+	gammaB := deriveGamma(pointsB, valuesB)
+
+	assert.False(gammaA.Equal(&gammaB),
+		"two different partitions of the same points and claimed values collide on γ")
+
+	// a change of the number of sets alone must move γ too
+	pointsC := make([][]fr.Element, 3)
+	pointsC[0] = flatPoints[:1]
+	pointsC[1] = flatPoints[1:2]
+	pointsC[2] = flatPoints[2:]
+	valuesC := make([][]fr.Element, 3)
+	valuesC[0] = flatValues[:1]
+	valuesC[1] = flatValues[1:2]
+	valuesC[2] = flatValues[2:]
+
+	gammaC := deriveGamma(pointsC, valuesC)
+	assert.False(gammaA.Equal(&gammaC))
+	assert.False(gammaB.Equal(&gammaC))
 }
 
 func ptr(x fr.Element) *fr.Element { return &x }

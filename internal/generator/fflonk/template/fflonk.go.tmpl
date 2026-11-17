@@ -75,9 +75,6 @@ func BatchOpen(p [][][]fr.Element, digests []kzg.Digest, points [][]fr.Element, 
 	if len(p) != len(points) {
 		return res, ErrNbPolynomialsNbPoints
 	}
-	if err := checkNoZeroPoint(points); err != nil {
-		return res, err
-	}
 
 	// step 0: compute the relevant powers of the ((Sʲᵢ)ᵢ)ⱼ)
 	nbPolysPerPack := make([]int, len(p))
@@ -85,6 +82,9 @@ func BatchOpen(p [][][]fr.Element, digests []kzg.Digest, points [][]fr.Element, 
 	for i := range len(p) {
 		nbPolysPerPack[i] = len(p[i])
 		nextDivisorRminusOnePerPack[i] = getNextDivisorRMinusOne(len(p[i]))
+	}
+	if err := checkNoZeroPoint(points, nextDivisorRminusOnePerPack); err != nil {
+		return res, err
 	}
 	pointsPowerM := make([][]fr.Element, len(points))
 	var tmpBigInt big.Int
@@ -155,7 +155,13 @@ func BatchVerify(proof OpeningProof, digests []kzg.Digest, points [][]fr.Element
 		len(digests) != len(proof.SOpeningProof.ClaimedValues) {
 		return ErrNbPolynomialsNbPoints
 	}
-	if err := checkNoZeroPoint(points); err != nil {
+
+	// the number of polynomials per pack, as claimed by the proof
+	nbPolysPerPack := make([]int, len(proof.ClaimedValues))
+	for i := range len(proof.ClaimedValues) {
+		nbPolysPerPack[i] = len(proof.ClaimedValues[i])
+	}
+	if err := checkNoZeroPoint(points, nbPolysPerPack); err != nil {
 		return err
 	}
 
@@ -225,7 +231,9 @@ func BatchVerify(proof OpeningProof, digests []kzg.Digest, points [][]fr.Element
 
 // utils
 
-// checkNoZeroPoint returns ErrZeroPoint if one of the sets contains 0.
+// checkNoZeroPoint returns ErrZeroPoint if the set of the i-th pack contains 0
+// while that pack holds more than one polynomial. nbPolysPerPack[i] is the
+// number of polynomials folded together in the i-th pack.
 //
 // extendSet(p, t) maps a point x to <x, ωx, .., ωᵗ⁻¹x>; for x = 0 that is t
 // copies of 0, so the shplonk set handed down has a t-fold duplicate and the
@@ -233,8 +241,21 @@ func BatchVerify(proof OpeningProof, digests []kzg.Digest, points [][]fr.Element
 // fold check of BatchVerify degenerates at the same time: ωˡ·0 = 0 for every l,
 // so instead of pinning the t claimed values of a pack it only pins one of them,
 // leaving the other t-1 free.
-func checkNoZeroPoint(points [][]fr.Element) error {
+//
+// None of that happens for a pack of a single polynomial: t = 1, extendSet is
+// the identity, the extended set has no duplicate and the fold check pins the
+// one claimed value exactly. Opening such a pack at 0 is a legitimate statement
+// and is deliberately still accepted.
+//
+// For t > 1 the check is in fact redundant with shplonk.ErrDuplicatePoint,
+// which catches the same degenerate set one layer down; it is kept because it
+// reports the actual cause and because it lets the prover fail before doing any
+// work.
+func checkNoZeroPoint(points [][]fr.Element, nbPolysPerPack []int) error {
 	for i := range points {
+		if i >= len(nbPolysPerPack) || nbPolysPerPack[i] < 2 {
+			continue
+		}
 		for j := range points[i] {
 			if points[i][j].IsZero() {
 				return ErrZeroPoint
