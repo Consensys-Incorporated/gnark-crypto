@@ -744,6 +744,46 @@ func (vector VectorE6) Sub(a, b VectorE6) {
 	vRes.Sub(vA, vB)
 }
 
+// ScalarAdd sets vector[i] = a[i] + c for all i.
+//
+// vector may be identical to a, and c may point into vector or a; partially
+// overlapping slices are not supported.
+func (vector VectorE6) ScalarAdd(a VectorE6, c *E6) {
+	N := len(vector)
+	if len(a) != N {
+		panic("vectorE6.ScalarAdd: vectors don't have the same length")
+	}
+	cc := *c
+	for i := range vector {
+		vector[i].Add(&a[i], &cc)
+	}
+}
+
+// ScalarSub sets vector[i] = a[i] - c for all i.
+//
+// vector may be identical to a, and c may point into vector or a; partially
+// overlapping slices are not supported.
+func (vector VectorE6) ScalarSub(a VectorE6, c *E6) {
+	var negC E6
+	negC.Neg(c)
+	vector.ScalarAdd(a, &negC)
+}
+
+// ScalarSubFrom sets vector[i] = c - a[i] for all i.
+//
+// vector may be identical to a, and c may point into vector or a; partially
+// overlapping slices are not supported.
+func (vector VectorE6) ScalarSubFrom(c *E6, a VectorE6) {
+	N := len(vector)
+	if len(a) != N {
+		panic("vectorE6.ScalarSubFrom: vectors don't have the same length")
+	}
+	cc := *c
+	for i := range vector {
+		vector[i].Sub(&cc, &a[i])
+	}
+}
+
 // Mul sets vector[i] = a[i] * b[i]. vector may alias a or b.
 func (vector VectorE6) Mul(a, b VectorE6) {
 	N := len(vector)

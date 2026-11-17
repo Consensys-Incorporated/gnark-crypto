@@ -695,6 +695,30 @@ func (vector VectorE6) MustSetRandom() {
 // Sum returns the sum of all elements in the vector.
 func (vector VectorE6) Sum() E6 {
 	var sum E6
+{{- if .IsKoalaBear }}
+	const blockSize = 8
+	N := len(vector)
+	if cpu.SupportAVX512 && N >= blockSize {
+		r := N % blockSize
+		nr := N - r
+		// lane p of the accumulator holds a partial (unreduced) sum of
+		// coordinate p%6; reduce each lane mod q before folding so the fold
+		// cannot overflow.
+		var t [24]uint64
+		vectorSum_E6_avx512(&t, &vector[0], uint64(nr))
+		var c [6]uint64
+		for p := range t {
+			c[p%6] += t[p] % q
+		}
+		sum.B0.A0[0] = uint32(c[0] % q)
+		sum.B0.A1[0] = uint32(c[1] % q)
+		sum.B1.A0[0] = uint32(c[2] % q)
+		sum.B1.A1[0] = uint32(c[3] % q)
+		sum.B2.A0[0] = uint32(c[4] % q)
+		sum.B2.A1[0] = uint32(c[5] % q)
+		vector = vector[nr:]
+	}
+{{- end }}
 	for i := range vector {
 		sum.Add(&sum, &vector[i])
 	}
@@ -737,6 +761,66 @@ func (vector VectorE6) Sub(a, b VectorE6) {
 	vA := fr.Vector(unsafe.Slice((*fr.Element)(unsafe.Pointer(&a[0])), M))
 	vB := fr.Vector(unsafe.Slice((*fr.Element)(unsafe.Pointer(&b[0])), M))
 	vRes.Sub(vA, vB)
+}
+
+// ScalarAdd sets vector[i] = a[i] + c for all i.
+//
+// vector may be identical to a, and c may point into vector or a; partially
+// overlapping slices are not supported.
+func (vector VectorE6) ScalarAdd(a VectorE6, c *E6) {
+	N := len(vector)
+	if len(a) != N {
+		panic("vectorE6.ScalarAdd: vectors don't have the same length")
+	}
+	cc := *c
+{{- if .IsKoalaBear }}
+	const blockSize = 8
+	if cpu.SupportAVX512 && N >= blockSize {
+		r := N % blockSize
+		nr := N - r
+		cTiled := tileE6Scalar(&cc)
+		vectorScalarAdd_E6_avx512(&vector[0], &a[0], &cTiled[0], uint64(nr))
+		vector, a = vector[nr:], a[nr:]
+	}
+{{- end }}
+	for i := range vector {
+		vector[i].Add(&a[i], &cc)
+	}
+}
+
+// ScalarSub sets vector[i] = a[i] - c for all i.
+//
+// vector may be identical to a, and c may point into vector or a; partially
+// overlapping slices are not supported.
+func (vector VectorE6) ScalarSub(a VectorE6, c *E6) {
+	var negC E6
+	negC.Neg(c)
+	vector.ScalarAdd(a, &negC)
+}
+
+// ScalarSubFrom sets vector[i] = c - a[i] for all i.
+//
+// vector may be identical to a, and c may point into vector or a; partially
+// overlapping slices are not supported.
+func (vector VectorE6) ScalarSubFrom(c *E6, a VectorE6) {
+	N := len(vector)
+	if len(a) != N {
+		panic("vectorE6.ScalarSubFrom: vectors don't have the same length")
+	}
+	cc := *c
+{{- if .IsKoalaBear }}
+	const blockSize = 8
+	if cpu.SupportAVX512 && N >= blockSize {
+		r := N % blockSize
+		nr := N - r
+		cTiled := tileE6Scalar(&cc)
+		vectorScalarSubFrom_E6_avx512(&vector[0], &a[0], &cTiled[0], uint64(nr))
+		vector, a = vector[nr:], a[nr:]
+	}
+{{- end }}
+	for i := range vector {
+		vector[i].Sub(&cc, &a[i])
+	}
 }
 
 // Mul sets vector[i] = a[i] * b[i]. vector may alias a or b.
@@ -1257,7 +1341,8 @@ func scalarMulE6Generic(vector, a VectorE6, s *E6) {
 {{- if .IsKoalaBear }}
 
 // tileE6Scalar tiles the six fr coordinates of s across 48 lanes (period 6, the
-// 8-E6 = 3-zmm broadcast window consumed by vectorScalarMulAccByElement_E6_avx512).
+// 8-E6 = 3-zmm broadcast window consumed by vectorScalarMulAccByElement_E6_avx512,
+// vectorScalarAdd_E6_avx512 and vectorScalarSubFrom_E6_avx512).
 func tileE6Scalar(s *E6) [48]fr.Element {
 	c := [6]fr.Element{s.B0.A0, s.B0.A1, s.B1.A0, s.B1.A1, s.B2.A0, s.B2.A1}
 	var out [48]fr.Element
