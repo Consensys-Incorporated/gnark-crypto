@@ -112,65 +112,6 @@ func (_f *FFAmd64) generateMulAccVecF31(op mulAccOp) {
 	f.RET()
 }
 
-// generateScalarMulBaseE4 emits
-//
-//	func vectorScalarMulBase_avx512(res *E4, a *fr.Element, c *E4, N uint64)
-//
-// which sets res[i] = a[i] * c for a base-field vector a and a fixed E4 scalar
-// c. Each coordinate of the result is a base product, so 16 base elements are
-// loaded contiguously, multiplied by each broadcast coordinate of c, and the
-// four results scattered back with stride 4. Precondition: N % 16 == 0.
-func (_f *FFAmd64) generateScalarMulBaseE4() {
-	const argSize = 4 * 8
-	stackSize := _f.StackSize(_f.NbWords*4+2, 0, 0)
-	registers := _f.FnHeader("vectorScalarMulBase_avx512", stackSize, argSize, amd64.DX, amd64.AX)
-	defer _f.AssertCleanStack(stackSize, 0)
-	f := &fieldHelper{FFAmd64: _f, registers: &registers}
-
-	addrRes := registers.Pop()
-	addrA := registers.Pop()
-	addrC := registers.Pop()
-	N := registers.Pop()
-
-	f.loadQ()
-	f.loadQInvNeg()
-	f.MOVQ(uint64(0b0101010101010101), amd64.AX)
-	f.KMOVD(amd64.AX, amd64.K3)
-
-	f.MOVQ("res+0(FP)", addrRes)
-	f.MOVQ("a+8(FP)", addrA)
-	f.MOVQ("c+16(FP)", addrC)
-	f.MOVQ("N+24(FP)", N)
-
-	maskFFFF := registers.Pop()
-	addrIndexGather4 := registers.Pop()
-	vIndexGather := registers.PopV()
-	f.MOVQ("$0xffffffffffffffff", maskFFFF)
-	f.MOVQ("·indexGather4+0(SB)", addrIndexGather4)
-	f.VMOVDQU32(addrIndexGather4.At(0), vIndexGather)
-
-	vC := registers.PopVN(4)
-	for k := range vC {
-		f.VPBROADCASTD(addrC.AtD(k), vC[k])
-	}
-	vA := registers.PopV()
-	vR := registers.PopV()
-
-	f.SHRQ("$4", N)
-	f.Loop(N, func() {
-		f.VMOVDQU32(addrA.At(0), vA)
-		for k := range 4 {
-			f.mul(vA, vC[k], vR, true)
-			f.KMOVD(maskFFFF, amd64.K1)
-			f.VPSCATTERDD(k*4, addrRes, vIndexGather, 4, amd64.K1, vR)
-		}
-		f.ADDQ("$64", addrA)    // 16 fr.Element
-		f.ADDQ("$256", addrRes) // 16 E4
-	})
-
-	f.RET()
-}
-
 // generateInnerProdByElementE6 emits
 //
 //	func vectorInnerProductByElement_E6_avx512(res *[48]uint64, a *E6, b *fr.Element, N uint64)

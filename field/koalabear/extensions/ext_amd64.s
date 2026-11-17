@@ -2568,50 +2568,40 @@ loop_57:
 done_58:
 	RET
 
-TEXT ·vectorScalarMulBase_avx512(SB), NOSPLIT, $0-32
+TEXT ·mulByElement_avx512(SB), NOSPLIT, $0-32
 	MOVD         $const_q, AX
 	VPBROADCASTD AX, Z0
 	MOVD         $const_qInvNeg, AX
 	VPBROADCASTD AX, Z1
 	MOVQ         $0x0000000000005555, AX
 	KMOVD        AX, K3
-	MOVQ         res+0(FP), R13
-	MOVQ         a+8(FP), R14
-	MOVQ         c+16(FP), CX
+	MOVQ         alpha+0(FP), R13
+	MOVQ         scale+8(FP), R14
+	MOVQ         res+16(FP), CX
 	MOVQ         N+24(FP), BX
-	MOVQ         $0xffffffffffffffff, SI
-	MOVQ         ·indexGather4+0(SB), DI
-	VMOVDQU32    0(DI), Z2
-	VPBROADCASTD 0(CX), Z3
-	VPBROADCASTD 4(CX), Z4
-	VPBROADCASTD 8(CX), Z5
-	VPBROADCASTD 12(CX), Z6
-	SHRQ         $4, BX
+	VMOVDQU32    0(R13), X2
+	VINSERTI64X2 $1, X2, Y2, Y2
+	VINSERTI64X4 $1, Y2, Z2, Z2
+	VPSRLQ       $32, Z2, Z3
+	SHRQ         $2, BX
 
 loop_59:
-	TESTQ       BX, BX
-	JEQ         done_60
-	DECQ        BX
-	VMOVDQU32   0(R14), Z7
-	MUL_5W(Z7, Z3, Z9, Z10, Z11, Z12, Z13, Z8, Z0, Z1)
-	REDUCE1Q(Z0, Z8, Z14)
-	KMOVD       SI, K1
-	VPSCATTERDD Z8, K1, 0(R13)(Z2*4)
-	MUL_5W(Z7, Z4, Z15, Z16, Z17, Z18, Z19, Z8, Z0, Z1)
-	REDUCE1Q(Z0, Z8, Z20)
-	KMOVD       SI, K1
-	VPSCATTERDD Z8, K1, 4(R13)(Z2*4)
-	MUL_5W(Z7, Z5, Z21, Z22, Z23, Z24, Z25, Z8, Z0, Z1)
-	REDUCE1Q(Z0, Z8, Z26)
-	KMOVD       SI, K1
-	VPSCATTERDD Z8, K1, 8(R13)(Z2*4)
-	MUL_5W(Z7, Z6, Z27, Z28, Z29, Z30, Z31, Z8, Z0, Z1)
-	REDUCE1Q(Z0, Z8, Z9)
-	KMOVD       SI, K1
-	VPSCATTERDD Z8, K1, 12(R13)(Z2*4)
-	ADDQ        $64, R14
-	ADDQ        $256, R13
-	JMP         loop_59
+	TESTQ        BX, BX
+	JEQ          done_60
+	DECQ         BX
+	VPBROADCASTD 0(R14), X5
+	VPBROADCASTD 4(R14), X6
+	VPBROADCASTD 8(R14), X7
+	VPBROADCASTD 12(R14), X8
+	VINSERTI64X2 $1, X6, Y5, Y5
+	VINSERTI64X2 $1, X8, Y7, Y7
+	VINSERTI64X4 $1, Y7, Z5, Z5
+	MUL_5W(Z5, Z2, Z10, Z11, Z12, Z13, Z14, Z4, Z0, Z1)
+	REDUCE1Q(Z0, Z4, Z15)
+	VMOVDQU32    Z4, 0(CX)
+	ADDQ         $64, CX
+	ADDQ         $16, R14
+	JMP          loop_59
 
 done_60:
 	RET

@@ -81,12 +81,19 @@ func (vector VectorE3) ScalarMulByElement(a VectorE3, b *fr.Element) {
 }
 
 // ScalarMul sets vector[i] = a[i] * b for all i, where b ∈ E3.
+//
+// vector may be identical to a, and b may point into vector or a.
 func (vector VectorE3) ScalarMul(a VectorE3, b *E3) {
 	if len(vector) != len(a) {
 		panic("vector.ScalarMul: length mismatch")
 	}
+	if len(vector) == 0 {
+		return
+	}
+	// copy b: it may point into vector, which the loop overwrites.
+	bb := *b
 	for i := range vector {
-		vector[i].Mul(&a[i], b)
+		vector[i].Mul(&a[i], &bb)
 	}
 }
 
@@ -153,6 +160,9 @@ func (vector VectorE3) MulAccByElement(a VectorE3, b fr.Vector) {
 func (vector VectorE3) ScalarMulAcc(a VectorE3, c *E3) {
 	if len(a) != len(vector) {
 		panic("vector.ScalarMulAcc: length mismatch")
+	}
+	if len(vector) == 0 {
+		return
 	}
 	cc := *c
 	var t E3
@@ -250,6 +260,9 @@ func (vector VectorE3) ScalarMulBase(a fr.Vector, c *E3) {
 	if len(a) != N {
 		panic("vector.ScalarMulBase: vectors don't have the same length")
 	}
+	if len(vector) == 0 {
+		return
+	}
 	cc := *c
 	for i := range vector {
 		vector[i].MulByElement(&cc, &a[i])
@@ -265,6 +278,9 @@ func (vector VectorE3) ScalarMulAdd(b VectorE3, c *E3) {
 	N := len(vector)
 	if len(b) != N {
 		panic("vector.ScalarMulAdd: vectors don't have the same length")
+	}
+	if len(vector) == 0 {
+		return
 	}
 	cc := *c
 	// compute into t first: b may alias vector.
@@ -289,6 +305,9 @@ func (vector VectorE3) ScalarMulAddBase(b fr.Vector, c *E3) {
 	N := len(vector)
 	if len(b) != N {
 		panic("vector.ScalarMulAddBase: vectors don't have the same length")
+	}
+	if len(vector) == 0 {
+		return
 	}
 	cc := *c
 	for i := range vector {

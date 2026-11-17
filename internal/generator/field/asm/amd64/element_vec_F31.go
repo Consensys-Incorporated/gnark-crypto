@@ -2147,12 +2147,23 @@ func (_f *FFAmd64) generateInnerProdByElementE4() {
 
 }
 
-func (_f *FFAmd64) generateMulAccByElement() {
-	// func mulAccByElement_avx512(alpha *E4, scale *fr.Element, res *E4, N uint64)
-
+// generateMulAccByElement emits
+//
+//	func mulAccByElement_avx512(alpha *E4, scale *fr.Element, res *E4, N uint64) // acc
+//	func mulByElement_avx512(alpha *E4, scale *fr.Element, res *E4, N uint64)    // !acc
+//
+// which sets res[i] += scale[i] * alpha (acc) or res[i] = scale[i] * alpha
+// (!acc), for a base-field vector scale and a fixed E4 alpha. alpha is tiled 4×
+// in one zmm and each scale[i] broadcast over the 4 lanes of its E4, so the
+// result is computed and stored in AoS order. Precondition: N % 4 == 0.
+func (_f *FFAmd64) generateMulAccByElement(acc bool) {
 	const argSize = 4 * 8
 	stackSize := _f.StackSize(_f.NbWords*4+2, 0, 0)
-	registers := _f.FnHeader("mulAccByElement_avx512", stackSize, argSize, amd64.DX, amd64.AX)
+	name := "mulByElement_avx512"
+	if acc {
+		name = "mulAccByElement_avx512"
+	}
+	registers := _f.FnHeader(name, stackSize, argSize, amd64.DX, amd64.AX)
 	defer _f.AssertCleanStack(stackSize, 0)
 
 	f := &fieldHelper{FFAmd64: _f, registers: &registers}
@@ -2189,7 +2200,7 @@ func (_f *FFAmd64) generateMulAccByElement() {
 	s1 := registers.PopV()
 	s2 := registers.PopV()
 	s3 := registers.PopV()
-	acc := registers.PopV()
+	prod := registers.PopV()
 
 	f.VMOVDQU32(addrAlpha.At(0), alpha.X())
 	f.VINSERTI64X2(1, alpha.X(), alpha.Y(), alpha.Y())
@@ -2203,8 +2214,10 @@ func (_f *FFAmd64) generateMulAccByElement() {
 
 	f.Loop(N, func() {
 
-		// load result
-		f.VMOVDQU32(addrRes.At(0), result)
+		if acc {
+			// load result
+			f.VMOVDQU32(addrRes.At(0), result)
+		}
 
 		// load scale
 		f.VPBROADCASTD(addrScale.AtD(0), s0.X())
@@ -2218,12 +2231,14 @@ func (_f *FFAmd64) generateMulAccByElement() {
 
 		// computes c = a * b mod q
 		// a and b can be in [0, 2q)
-		f.mul(s0, alpha, acc, true)
-
-		f.add(result, acc, result)
-
-		// save result
-		f.VMOVDQU32(result, addrRes.At(0))
+		if acc {
+			f.mul(s0, alpha, prod, true)
+			f.add(result, prod, result)
+			f.VMOVDQU32(result, addrRes.At(0))
+		} else {
+			f.mul(s0, alpha, result, true)
+			f.VMOVDQU32(result, addrRes.At(0))
+		}
 
 		// increment result by 16uint32
 		f.ADDQ("$64", addrRes)

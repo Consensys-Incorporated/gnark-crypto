@@ -908,6 +908,9 @@ func (vector VectorE6) ScalarMulAccBase(a fr.Vector, c *E6) {
 	if len(a) != N {
 		panic("vectorE6.ScalarMulAccBase: vectors don't have the same length")
 	}
+	if len(vector) == 0 {
+		return
+	}
 	cc := *c
 	scalarMulAccByElementE6Generic(vector, a, &cc)
 }
@@ -945,6 +948,9 @@ func (vector VectorE6) ScalarMulBase(a fr.Vector, c *E6) {
 	if len(a) != N {
 		panic("vectorE6.ScalarMulBase: vectors don't have the same length")
 	}
+	if len(vector) == 0 {
+		return
+	}
 	cc := *c
 	for i := range vector {
 		vector[i].MulByElement(&cc, &a[i])
@@ -960,6 +966,9 @@ func (vector VectorE6) ScalarMulAdd(b VectorE6, c *E6) {
 	N := len(vector)
 	if len(b) != N {
 		panic("vectorE6.ScalarMulAdd: vectors don't have the same length")
+	}
+	if len(vector) == 0 {
+		return
 	}
 	cc := *c
 	// compute into t first: b may alias vector.
@@ -985,6 +994,9 @@ func (vector VectorE6) ScalarMulAddBase(b fr.Vector, c *E6) {
 	if len(b) != N {
 		panic("vectorE6.ScalarMulAddBase: vectors don't have the same length")
 	}
+	if len(vector) == 0 {
+		return
+	}
 	cc := *c
 	for i := range vector {
 		vector[i].Mul(&vector[i], &cc)
@@ -998,6 +1010,9 @@ func (vector VectorE6) ScalarMulAcc(a VectorE6, s *E6) {
 	N := len(vector)
 	if len(a) != N {
 		panic("vectorE6.ScalarMulAcc: vectors don't have the same length")
+	}
+	if len(vector) == 0 {
+		return
 	}
 	// copy s: it may point into vector, which the loop overwrites.
 	ss := *s
@@ -1013,10 +1028,14 @@ func scalarMulAccE6Generic(vector, a VectorE6, s *E6) {
 }
 
 // ScalarMul sets vector[i] = a[i] * s, where s is a fixed E6 scalar.
+// vector may be identical to a, and s may point into vector or a.
 func (vector VectorE6) ScalarMul(a VectorE6, s *E6) {
 	N := len(vector)
 	if len(a) != N {
 		panic("vectorE6.ScalarMul: vectors don't have the same length")
+	}
+	if len(vector) == 0 {
+		return
 	}
 	// copy s: it may point into vector, which the loop overwrites.
 	ss := *s

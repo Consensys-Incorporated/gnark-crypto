@@ -403,7 +403,7 @@ func GenerateF31Ext(w io.Writer) error {
 	f.WriteLn("#include \"go_asm.h\"")
 	f.WriteLn("")
 
-	f.generateMulAccByElement()
+	f.generateMulAccByElement(true)
 	f.generateAddVecE4()
 	f.generateSubVecE4()
 	f.generateMulVecE4(e4VecMul)
@@ -432,7 +432,7 @@ func GenerateF31Ext(w io.Writer) error {
 	f.generateMulVecE4(e4VecScalarMulAcc)
 	f.generateMulVecE4(e4VecScalarMulAdd)
 	f.generateMulVecE4(e4VecScalarMulAddBase)
-	f.generateScalarMulBaseE4()
+	f.generateMulAccByElement(false)
 	f.generateInnerProdByElementE6()
 
 	return nil

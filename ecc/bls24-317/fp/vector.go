@@ -372,6 +372,9 @@ func (vector Vector) ScalarMulAcc(a Vector, c *Element) {
 	if len(a) != len(vector) {
 		panic("vector.ScalarMulAcc: vectors don't have the same length")
 	}
+	if len(vector) == 0 {
+		return
+	}
 	cc := *c
 	scalarMulAccVecGeneric(vector, a, &cc)
 }
@@ -385,6 +388,9 @@ func (vector Vector) ScalarMulAcc(a Vector, c *Element) {
 func (vector Vector) ScalarMulAdd(b Vector, c *Element) {
 	if len(b) != len(vector) {
 		panic("vector.ScalarMulAdd: vectors don't have the same length")
+	}
+	if len(vector) == 0 {
+		return
 	}
 	cc := *c
 	scalarMulAddVecGeneric(vector, b, &cc)

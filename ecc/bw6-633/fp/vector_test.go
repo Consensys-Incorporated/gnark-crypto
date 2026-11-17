@@ -753,6 +753,9 @@ func TestVectorMulAccHorner(t *testing.T) {
 				func(v Vector) { v.ScalarMulAdd(v, &c) })
 
 			if size == 0 {
+				// the scalar is not read when the vectors are empty
+				require.NotPanics(t, func() { v0.ScalarMulAcc(a, nil) }, "ScalarMulAcc on empty vectors")
+				require.NotPanics(t, func() { v0.ScalarMulAdd(b, nil) }, "ScalarMulAdd on empty vectors")
 				return
 			}
 			// the scalar points into the vector being overwritten

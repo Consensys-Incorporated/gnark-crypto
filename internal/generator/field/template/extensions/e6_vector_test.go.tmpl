@@ -653,10 +653,21 @@ func TestVectorE6MulAccHorner(t *testing.T) {
 				func(v VectorE6) { v.ScalarMulAdd(v, &c) })
 
 			if size == 0 {
+				// the scalar is not read when the vectors are empty
+				require.NotPanics(t, func() { v0.ScalarMul(a, nil) }, "ScalarMul on empty vectors")
+				require.NotPanics(t, func() { v0.ScalarMulAcc(a, nil) }, "ScalarMulAcc on empty vectors")
+				require.NotPanics(t, func() { v0.ScalarMulBase(base, nil) }, "ScalarMulBase on empty vectors")
+				require.NotPanics(t, func() { v0.ScalarMulAccBase(base, nil) }, "ScalarMulAccBase on empty vectors")
+				require.NotPanics(t, func() { v0.ScalarMulAdd(b, nil) }, "ScalarMulAdd on empty vectors")
+				require.NotPanics(t, func() { v0.ScalarMulAddBase(base2, nil) }, "ScalarMulAddBase on empty vectors")
 				return
 			}
 			// the scalar points into the vector being overwritten
 			c0 := v0[0]
+			check("ScalarMul scalar alias", want(func(i int, z *E6) { z.Mul(&a[i], &c0) }),
+				func(v VectorE6) { v.ScalarMul(a, &v[0]) })
+			check("ScalarMul full alias", want(func(i int, z *E6) { z.Mul(z, &c0) }),
+				func(v VectorE6) { v.ScalarMul(v, &v[0]) })
 			check("ScalarMulAcc scalar alias", want(func(i int, z *E6) { z.Add(z, tmp.Mul(&a[i], &c0)) }),
 				func(v VectorE6) { v.ScalarMulAcc(a, &v[0]) })
 			check("ScalarMulAcc full alias", want(func(i int, z *E6) { z.Add(z, tmp.Mul(z, &c0)) }),

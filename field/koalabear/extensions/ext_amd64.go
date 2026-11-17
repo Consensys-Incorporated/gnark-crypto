@@ -183,7 +183,7 @@ func vectorScalarMulAdd_avx512(res, b, c *E4, N uint64)
 func vectorScalarMulAddBase_avx512(res *E4, b *fr.Element, c *E4, N uint64)
 
 //go:noescape
-func vectorScalarMulBase_avx512(res *E4, a *fr.Element, c *E4, N uint64)
+func mulByElement_avx512(alpha *E4, scale *fr.Element, res *E4, N uint64)
 
 //go:noescape
 func vectorInnerProductByElement_E6_avx512(res *[48]uint64, a *E6, b *fr.Element, N uint64)

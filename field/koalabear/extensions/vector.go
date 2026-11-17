@@ -86,21 +86,29 @@ func (vector VectorE4) Mul(a, b VectorE4) {
 	}
 }
 
+// ScalarMul sets vector[i] = a[i] * b for all i, where b ∈ E4.
+//
+// vector may be identical to a, and b may point into vector or a.
 func (vector VectorE4) ScalarMul(a VectorE4, b *E4) {
 	N := len(a)
 	if N != len(vector) {
 		panic("vector.ScalarMul: vectors don't have the same length")
 	}
+	if N == 0 {
+		return
+	}
+	// copy b: it may point into vector, which the loop overwrites.
+	bb := *b
 	const blockSize = 16
 	if !cpu.SupportAVX512 || N < blockSize {
-		vectorScalarMulGeneric(vector, a, b)
+		vectorScalarMulGeneric(vector, a, &bb)
 		return
 	}
 	r := N % blockSize
 	nr := uint64(N - r)
-	vectorScalarMul_avx512(&vector[0], &a[0], b, nr)
+	vectorScalarMul_avx512(&vector[0], &a[0], &bb, nr)
 	if r != 0 {
-		vectorScalarMulGeneric(vector[N-r:], a[N-r:], b)
+		vectorScalarMulGeneric(vector[N-r:], a[N-r:], &bb)
 	}
 }
 
@@ -329,6 +337,9 @@ func (vector VectorE4) ScalarMulAccBase(a fr.Vector, c *E4) {
 	if N != len(a) {
 		panic("vector.ScalarMulAccBase: vectors don't have the same length")
 	}
+	if len(vector) == 0 {
+		return
+	}
 	cc := *c
 	const blockSize = 4
 	if cpu.SupportAVX512 && N >= blockSize {
@@ -348,6 +359,9 @@ func (vector VectorE4) ScalarMulAcc(a VectorE4, c *E4) {
 	N := len(vector)
 	if len(a) != N {
 		panic("vector.ScalarMulAcc: vectors don't have the same length")
+	}
+	if len(vector) == 0 {
+		return
 	}
 	cc := *c
 	const blockSize = 16
@@ -396,12 +410,15 @@ func (vector VectorE4) ScalarMulBase(a fr.Vector, c *E4) {
 	if len(a) != N {
 		panic("vector.ScalarMulBase: vectors don't have the same length")
 	}
+	if len(vector) == 0 {
+		return
+	}
 	cc := *c
-	const blockSize = 16
+	const blockSize = 4
 	if cpu.SupportAVX512 && N >= blockSize {
 		r := N % blockSize
 		nr := N - r
-		vectorScalarMulBase_avx512(&vector[0], &a[0], &cc, uint64(nr))
+		mulByElement_avx512(&cc, &a[0], &vector[0], uint64(nr))
 		vector, a = vector[nr:], a[nr:]
 	}
 	for i := range vector {
@@ -418,6 +435,9 @@ func (vector VectorE4) ScalarMulAdd(b VectorE4, c *E4) {
 	N := len(vector)
 	if len(b) != N {
 		panic("vector.ScalarMulAdd: vectors don't have the same length")
+	}
+	if len(vector) == 0 {
+		return
 	}
 	cc := *c
 	const blockSize = 16
@@ -449,6 +469,9 @@ func (vector VectorE4) ScalarMulAddBase(b fr.Vector, c *E4) {
 	N := len(vector)
 	if len(b) != N {
 		panic("vector.ScalarMulAddBase: vectors don't have the same length")
+	}
+	if len(vector) == 0 {
+		return
 	}
 	cc := *c
 	const blockSize = 16
