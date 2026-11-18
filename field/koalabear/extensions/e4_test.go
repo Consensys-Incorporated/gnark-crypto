@@ -13,6 +13,7 @@ import (
 	"os"
 	"reflect"
 	"runtime"
+	"slices"
 	"sort"
 	"strconv"
 	"testing"
@@ -1671,4 +1672,196 @@ func BenchmarkVectorE4FoldPairs(b *testing.B) {
 			}
 		})
 	}
+}
+
+func TestBatchInvertE4Into(t *testing.T) {
+	zeroPatterns := map[string]func(i, n int) bool{
+		"none":   func(i, n int) bool { return false },
+		"all":    func(i, n int) bool { return true },
+		"first":  func(i, n int) bool { return i == 0 },
+		"last":   func(i, n int) bool { return i == n-1 },
+		"middle": func(i, n int) bool { return i == n/2 },
+		"edges":  func(i, n int) bool { return i == 0 || i == n-1 },
+		"every3": func(i, n int) bool { return i%3 == 0 },
+		"every7": func(i, n int) bool { return i%7 == 3 },
+	}
+
+	for name, isZero := range zeroPatterns {
+		for _, size := range []int{0, 1, 2, 3, 15, 16, 17, 31, 32, 33, 100, 4099} {
+			t.Run(name+"/"+strconv.Itoa(size), func(t *testing.T) {
+				a := randomBatchInvE4(size)
+				expected := make(VectorE4, size)
+				for i := range a {
+					if isZero(i, size) {
+						a[i].SetZero()
+					}
+					expected[i].Inverse(&a[i]) // Inverse(0) = 0
+				}
+				orig := slices.Clone(a)
+
+				// fresh returns a destination holding garbage that must be fully overwritten.
+				fresh := func(n int) VectorE4 {
+					v := randomBatchInvE4(n)
+					return v
+				}
+
+				require.Equal(t, expected, VectorE4(BatchInvertE4(a)))
+
+				res := fresh(size)
+				BatchInvertE4Into(res, a)
+				require.Equal(t, expected, res)
+
+				res = fresh(size)
+				BatchInvertE4IntoScratch(res, a, fresh(size))
+				require.Equal(t, expected, res)
+
+				// scratch may be longer than needed
+				res = fresh(size)
+				BatchInvertE4IntoScratch(res, a, fresh(size+5))
+				require.Equal(t, expected, res)
+
+				// a is left untouched unless it is the destination
+				require.Equal(t, orig, a)
+
+				// res may be the very same slice as a
+				res = slices.Clone(a)
+				BatchInvertE4Into(res, res)
+				require.Equal(t, expected, res)
+
+				res = slices.Clone(a)
+				BatchInvertE4IntoScratch(res, res, fresh(size))
+				require.Equal(t, expected, res)
+			})
+		}
+	}
+}
+
+func TestBatchInvertE4IntoPanics(t *testing.T) {
+	a := make(VectorE4, 4)
+	require.Panics(t, func() { BatchInvertE4Into(make(VectorE4, 3), a) })
+	require.Panics(t, func() { BatchInvertE4IntoScratch(make(VectorE4, 3), a, make(VectorE4, 4)) })
+	require.Panics(t, func() { BatchInvertE4IntoScratch(make(VectorE4, 4), a, make(VectorE4, 3)) })
+}
+
+func TestBatchInvertE4IntoAllocs(t *testing.T) {
+	const n = 1 << 12
+	a := randomBatchInvE4(n)
+	a[n/3].SetZero()
+	res := make(VectorE4, n)
+	scratch := make(VectorE4, n)
+
+	require.Zero(t, testing.AllocsPerRun(10, func() { BatchInvertE4Into(res, a) }), "BatchInvertE4Into")
+	require.Zero(t, testing.AllocsPerRun(10, func() { BatchInvertE4IntoScratch(res, a, scratch) }), "BatchInvertE4IntoScratch")
+	require.Zero(t, testing.AllocsPerRun(10, func() { BatchInvertE4IntoScratch(res, res, scratch) }), "BatchInvertE4IntoScratch in place")
+	// in place, BatchInvertE4Into takes its scratch from a pool, which only
+	// allocates on a miss (e.g. after a GC, or randomly under -race).
+	require.Zero(t, testing.AllocsPerRun(100, func() { BatchInvertE4Into(res, res) }), "BatchInvertE4Into in place")
+}
+
+// TestBatchInvertE4Lanes checks batchInvertE4 at every row width, whatever the
+// width batchInvertE4Lanes picks for the input length.
+func TestBatchInvertE4Lanes(t *testing.T) {
+	for _, lanes := range []int{0, 16, 32, 64, 128, 256} {
+		if lanes > batchInvertE4MaxLanes {
+			continue
+		}
+		for _, n := range []int{1, 15, 16, 17, lanes - 1, lanes, lanes + 1, lanes + 17, 3*lanes + 33} {
+			if n < 1 {
+				continue
+			}
+			t.Run(fmt.Sprintf("lanes=%d/n=%d", lanes, n), func(t *testing.T) {
+				a := randomBatchInvE4(n)
+				expected := make(VectorE4, n)
+				for i := range a {
+					if i%5 == 2 || i == n-1 {
+						a[i].SetZero()
+					}
+					expected[i].Inverse(&a[i]) // Inverse(0) = 0
+				}
+				orig := slices.Clone(a)
+				res := make(VectorE4, n)
+
+				batchInvertE4(res, a, nil, lanes)
+				require.Equal(t, expected, res, "running products in res")
+
+				res = make(VectorE4, n)
+				batchInvertE4(res, a, make(VectorE4, n), lanes)
+				require.Equal(t, expected, res, "running products in scratch")
+				require.Equal(t, orig, a)
+
+				res = slices.Clone(a)
+				batchInvertE4(res, res, make(VectorE4, n), lanes)
+				require.Equal(t, expected, res, "in place")
+			})
+		}
+	}
+}
+
+func BenchmarkBatchInvertE4(b *testing.B) {
+	for _, size := range []int{1 << 12, 1 << 16} {
+		x := randomBatchInvE4(size)
+		res := make(VectorE4, size)
+		scratch := make(VectorE4, size)
+
+		b.Run("alloc/n="+strconv.Itoa(size), func(b *testing.B) {
+			b.ReportAllocs()
+			for b.Loop() {
+				_ = BatchInvertE4(x)
+			}
+		})
+		b.Run("into/n="+strconv.Itoa(size), func(b *testing.B) {
+			b.ReportAllocs()
+			for b.Loop() {
+				BatchInvertE4Into(res, x)
+			}
+		})
+		b.Run("into-scratch/n="+strconv.Itoa(size), func(b *testing.B) {
+			b.ReportAllocs()
+			for b.Loop() {
+				BatchInvertE4IntoScratch(res, x, scratch)
+			}
+		})
+		b.Run("in-place-scratch/n="+strconv.Itoa(size), func(b *testing.B) {
+			b.ReportAllocs()
+			copy(res, x)
+			for b.Loop() {
+				// the content is meaningless after the first call, but the cost is the same
+				BatchInvertE4IntoScratch(res, res, scratch)
+			}
+		})
+	}
+}
+
+// BenchmarkBatchInvertE4Lanes measures batchInvertE4 at every row width, to
+// set the thresholds of batchInvertE4Lanes.
+func BenchmarkBatchInvertE4Lanes(b *testing.B) {
+	for _, n := range []int{64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384, 65536} {
+		x := randomBatchInvE4(n)
+		res := make(VectorE4, n)
+		scratch := make(VectorE4, n)
+		for _, lanes := range []int{0, 16, 32, 64, 128, 256} {
+			if lanes > batchInvertE4MaxLanes {
+				continue
+			}
+			b.Run(fmt.Sprintf("n=%d/lanes=%d/into", n, lanes), func(b *testing.B) {
+				for b.Loop() {
+					batchInvertE4(res, x, nil, lanes)
+				}
+			})
+			b.Run(fmt.Sprintf("n=%d/lanes=%d/scratch", n, lanes), func(b *testing.B) {
+				for b.Loop() {
+					batchInvertE4(res, x, scratch, lanes)
+				}
+			})
+		}
+	}
+}
+
+// randomBatchInvE4 returns n random elements.
+func randomBatchInvE4(n int) VectorE4 {
+	v := make(VectorE4, n)
+	for i := range v {
+		v[i].MustSetRandom()
+	}
+	return v
 }

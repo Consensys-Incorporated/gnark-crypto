@@ -1,0 +1,195 @@
+{{/* batchInvertExtTests tests and benchmarks batchInvertExt, called with the
+   same dict. */}}
+{{define "batchInvertExtTests"}}
+func TestBatchInvert{{.E}}Into(t *testing.T) {
+	zeroPatterns := map[string]func(i, n int) bool{
+		"none":   func(i, n int) bool { return false },
+		"all":    func(i, n int) bool { return true },
+		"first":  func(i, n int) bool { return i == 0 },
+		"last":   func(i, n int) bool { return i == n-1 },
+		"middle": func(i, n int) bool { return i == n/2 },
+		"edges":  func(i, n int) bool { return i == 0 || i == n-1 },
+		"every3": func(i, n int) bool { return i%3 == 0 },
+		"every7": func(i, n int) bool { return i%7 == 3 },
+	}
+
+	for name, isZero := range zeroPatterns {
+		for _, size := range []int{0, 1, 2, 3, 15, 16, 17, 31, 32, 33, 100, 4099} {
+			t.Run(name+"/"+strconv.Itoa(size), func(t *testing.T) {
+				a := randomBatchInv{{.E}}(size)
+				expected := make({{.V}}, size)
+				for i := range a {
+					if isZero(i, size) {
+						a[i].SetZero()
+					}
+					expected[i].Inverse(&a[i]) // Inverse(0) = 0
+				}
+				orig := slices.Clone(a)
+
+				// fresh returns a destination holding garbage that must be fully overwritten.
+				fresh := func(n int) {{.V}} {
+					v := randomBatchInv{{.E}}(n)
+					return v
+				}
+
+				require.Equal(t, expected, {{.V}}(BatchInvert{{.E}}(a)))
+
+				res := fresh(size)
+				BatchInvert{{.E}}Into(res, a)
+				require.Equal(t, expected, res)
+
+				res = fresh(size)
+				BatchInvert{{.E}}IntoScratch(res, a, fresh(size))
+				require.Equal(t, expected, res)
+
+				// scratch may be longer than needed
+				res = fresh(size)
+				BatchInvert{{.E}}IntoScratch(res, a, fresh(size+5))
+				require.Equal(t, expected, res)
+
+				// a is left untouched unless it is the destination
+				require.Equal(t, orig, a)
+
+				// res may be the very same slice as a
+				res = slices.Clone(a)
+				BatchInvert{{.E}}Into(res, res)
+				require.Equal(t, expected, res)
+
+				res = slices.Clone(a)
+				BatchInvert{{.E}}IntoScratch(res, res, fresh(size))
+				require.Equal(t, expected, res)
+			})
+		}
+	}
+}
+
+func TestBatchInvert{{.E}}IntoPanics(t *testing.T) {
+	a := make({{.V}}, 4)
+	require.Panics(t, func() { BatchInvert{{.E}}Into(make({{.V}}, 3), a) })
+	require.Panics(t, func() { BatchInvert{{.E}}IntoScratch(make({{.V}}, 3), a, make({{.V}}, 4)) })
+	require.Panics(t, func() { BatchInvert{{.E}}IntoScratch(make({{.V}}, 4), a, make({{.V}}, 3)) })
+}
+
+func TestBatchInvert{{.E}}IntoAllocs(t *testing.T) {
+	const n = 1 << 12
+	a := randomBatchInv{{.E}}(n)
+	a[n/3].SetZero()
+	res := make({{.V}}, n)
+	scratch := make({{.V}}, n)
+
+	require.Zero(t, testing.AllocsPerRun(10, func() { BatchInvert{{.E}}Into(res, a) }), "BatchInvert{{.E}}Into")
+	require.Zero(t, testing.AllocsPerRun(10, func() { BatchInvert{{.E}}IntoScratch(res, a, scratch) }), "BatchInvert{{.E}}IntoScratch")
+	require.Zero(t, testing.AllocsPerRun(10, func() { BatchInvert{{.E}}IntoScratch(res, res, scratch) }), "BatchInvert{{.E}}IntoScratch in place")
+	// in place, BatchInvert{{.E}}Into takes its scratch from a pool, which only
+	// allocates on a miss (e.g. after a GC, or randomly under -race).
+	require.Zero(t, testing.AllocsPerRun(100, func() { BatchInvert{{.E}}Into(res, res) }), "BatchInvert{{.E}}Into in place")
+}
+
+// TestBatchInvert{{.E}}Lanes checks batchInvert{{.E}} at every row width, whatever the
+// width batchInvert{{.E}}Lanes picks for the input length.
+func TestBatchInvert{{.E}}Lanes(t *testing.T) {
+	for _, lanes := range []int{0, 16, 32, 64, 128, 256} {
+		if lanes > batchInvert{{.E}}MaxLanes {
+			continue
+		}
+		for _, n := range []int{1, 15, 16, 17, lanes - 1, lanes, lanes + 1, lanes + 17, 3*lanes + 33} {
+			if n < 1 {
+				continue
+			}
+			t.Run(fmt.Sprintf("lanes=%d/n=%d", lanes, n), func(t *testing.T) {
+				a := randomBatchInv{{.E}}(n)
+				expected := make({{.V}}, n)
+				for i := range a {
+					if i%5 == 2 || i == n-1 {
+						a[i].SetZero()
+					}
+					expected[i].Inverse(&a[i]) // Inverse(0) = 0
+				}
+				orig := slices.Clone(a)
+				res := make({{.V}}, n)
+
+				batchInvert{{.E}}(res, a, nil, lanes)
+				require.Equal(t, expected, res, "running products in res")
+
+				res = make({{.V}}, n)
+				batchInvert{{.E}}(res, a, make({{.V}}, n), lanes)
+				require.Equal(t, expected, res, "running products in scratch")
+				require.Equal(t, orig, a)
+
+				res = slices.Clone(a)
+				batchInvert{{.E}}(res, res, make({{.V}}, n), lanes)
+				require.Equal(t, expected, res, "in place")
+			})
+		}
+	}
+}
+
+func BenchmarkBatchInvert{{.E}}(b *testing.B) {
+	for _, size := range []int{1 << 12, 1 << 16} {
+		x := randomBatchInv{{.E}}(size)
+		res := make({{.V}}, size)
+		scratch := make({{.V}}, size)
+
+		b.Run("alloc/n="+strconv.Itoa(size), func(b *testing.B) {
+			b.ReportAllocs()
+			for b.Loop() {
+				_ = BatchInvert{{.E}}(x)
+			}
+		})
+		b.Run("into/n="+strconv.Itoa(size), func(b *testing.B) {
+			b.ReportAllocs()
+			for b.Loop() {
+				BatchInvert{{.E}}Into(res, x)
+			}
+		})
+		b.Run("into-scratch/n="+strconv.Itoa(size), func(b *testing.B) {
+			b.ReportAllocs()
+			for b.Loop() {
+				BatchInvert{{.E}}IntoScratch(res, x, scratch)
+			}
+		})
+		b.Run("in-place-scratch/n="+strconv.Itoa(size), func(b *testing.B) {
+			b.ReportAllocs()
+			copy(res, x)
+			for b.Loop() {
+				// the content is meaningless after the first call, but the cost is the same
+				BatchInvert{{.E}}IntoScratch(res, res, scratch)
+			}
+		})
+	}
+}
+
+// BenchmarkBatchInvert{{.E}}Lanes measures batchInvert{{.E}} at every row width, to
+// set the thresholds of batchInvert{{.E}}Lanes.
+func BenchmarkBatchInvert{{.E}}Lanes(b *testing.B) {
+	for _, n := range []int{64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384, 65536} {
+		x := randomBatchInv{{.E}}(n)
+		res := make({{.V}}, n)
+		scratch := make({{.V}}, n)
+		for _, lanes := range []int{0, 16, 32, 64, 128, 256} {
+			if lanes > batchInvert{{.E}}MaxLanes {
+				continue
+			}
+			b.Run(fmt.Sprintf("n=%d/lanes=%d/into", n, lanes), func(b *testing.B) {
+				for b.Loop() {
+					batchInvert{{.E}}(res, x, nil, lanes)
+				}
+			})
+			b.Run(fmt.Sprintf("n=%d/lanes=%d/scratch", n, lanes), func(b *testing.B) {
+				for b.Loop() {
+					batchInvert{{.E}}(res, x, scratch, lanes)
+				}
+			})
+		}
+	}
+}
+
+// randomBatchInv{{.E}} returns n random elements.
+func randomBatchInv{{.E}}(n int) {{.V}} {
+	v := make({{.V}}, n)
+	for i := range v {
+		v[i].MustSetRandom()
+	}
+	return v
+}
+{{end}}

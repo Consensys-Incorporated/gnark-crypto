@@ -633,20 +633,22 @@ const (
 	// batchInvertE6MinLanes is the narrowest row of batchInvertE6, the block
 	// size of the vectorised VectorE6.Mul.
 	batchInvertE6MinLanes = 16
-	// batchInvertE6MaxLanes is the widest row of batchInvertE6.
+	// batchInvertE6MaxLanes is the widest row of batchInvertE6; it sizes
+	// the stack buffers, which are zeroed on every call.
 	batchInvertE6MaxLanes = 256
 )
 
 // batchInvertE6Lanes returns the number of interleaved product chains
-// batchInvertE6 runs for n elements. Wider rows amortise the per-call cost of
+// batchInvertE6 runs for n elements, 0 meaning a single scalar chain. Wider
+// rows amortise the per-call cost of
 // the vectorised VectorE6.Mul and keep more independent products in flight,
 // while every chain adds to the inversion of the chain products; the
 // thresholds are measured (BenchmarkBatchInvertE6Lanes). Without the AVX-512
 // kernel, VectorE6.Mul is a plain loop with no per-call cost to amortise, and
-// wider rows only add chain products: the narrowest row is the fastest.
+// chains only add chain products: a single scalar chain is the fastest.
 func batchInvertE6Lanes(n int) int {
 	if !cpu.SupportAVX512 {
-		return batchInvertE6MinLanes
+		return 0
 	}
 	switch {
 	case n >= 8192:
@@ -672,7 +674,8 @@ func batchInvertE6Lanes(n int) int {
 // chain as one and gets a zero running product, so that its inverse comes out
 // as zero.
 //
-// lanes must be a multiple of batchInvertE6MinLanes, at most
+// lanes must be 0 (a single scalar chain) or a multiple of
+// batchInvertE6MinLanes, at most
 // batchInvertE6MaxLanes, and len(a) must be > 0. If scratch is nil, res and a
 // must be distinct and res holds the running products. Otherwise scratch holds
 // them, must be disjoint from res and a and have len(a) elements, and res
@@ -688,8 +691,11 @@ func batchInvertE6(res, a, scratch []E6, lanes int) {
 
 	// row boundaries: [0, wide) in rows of lanes, [wide, narrow) in rows of
 	// batchInvertE6MinLanes, [narrow, n) one scalar chain.
-	wide := n / lanes * lanes
-	narrow := wide + (n-wide)/batchInvertE6MinLanes*batchInvertE6MinLanes
+	wide, narrow := 0, 0
+	if lanes > 0 {
+		wide = n / lanes * lanes
+		narrow = wide + (n-wide)/batchInvertE6MinLanes*batchInvertE6MinLanes
+	}
 
 	// acc[l] is the running product of chain l, acc[lanes] that of the scalar
 	// chain.
@@ -774,7 +780,7 @@ func batchInvertE6(res, a, scratch []E6, lanes int) {
 	for j := narrow - batchInvertE6MinLanes; j >= wide; j -= batchInvertE6MinLanes {
 		backward(j, batchInvertE6MinLanes)
 	}
-	for j := wide - lanes; j >= 0; j -= lanes {
+	for j := wide - lanes; lanes > 0 && j >= 0; j -= lanes {
 		backward(j, lanes)
 	}
 }

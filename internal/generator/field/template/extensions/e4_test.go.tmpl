@@ -6,6 +6,7 @@ import (
 	"os"
 	"math/big"
 	"reflect"
+	"slices"
 	"sort"
 	"io"
 	"bytes"
@@ -1670,3 +1671,5 @@ func BenchmarkVectorE4FoldPairs(b *testing.B) {
 		})
 	}
 }
+
+{{template "batchInvertExtTests" dict "all" . "E" "E4" "V" "VectorE4"}}
