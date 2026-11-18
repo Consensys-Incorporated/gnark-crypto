@@ -13,6 +13,7 @@ import (
 	"unsafe"
 
 	fr "github.com/consensys/gnark-crypto/field/babybear"
+	"github.com/consensys/gnark-crypto/utils/cpu"
 )
 
 // BytesE6 is the number of bytes needed to represent a E6
@@ -640,8 +641,13 @@ const (
 // batchInvertE6 runs for n elements. Wider rows amortise the per-call cost of
 // the vectorised VectorE6.Mul and keep more independent products in flight,
 // while every chain adds to the inversion of the chain products; the
-// thresholds are measured (BenchmarkBatchInvertE6Lanes).
+// thresholds are measured (BenchmarkBatchInvertE6Lanes). Without the AVX-512
+// kernel, VectorE6.Mul is a plain loop with no per-call cost to amortise, and
+// wider rows only add chain products: the narrowest row is the fastest.
 func batchInvertE6Lanes(n int) int {
+	if !cpu.SupportAVX512 {
+		return batchInvertE6MinLanes
+	}
 	switch {
 	case n >= 8192:
 		return 256
