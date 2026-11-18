@@ -492,54 +492,111 @@ func batchInvert(res, a, scratch []Element) {
 
 // batchInvertDistinct is the Montgomery batch inversion of a into res, which
 // must be distinct; res holds the running products. len(a) must be > 0.
+//
+// It runs two interleaved chains, over the even and the odd indices, so that
+// the products of one chain overlap the latency of the other's; the
+// accumulators are kept out of reach of pointers so they can stay in registers.
 func batchInvertDistinct(res, a []Element) {
-	accumulator := One()
+	res = res[:len(a)]
+	n := len(a)
+	m := n &^ 1
+	acc0, acc1 := One(), One()
 
-	for i := range a {
+	for i := 0; i < m; i += 2 {
 		if a[i].IsZero() {
 			res[i].SetZero()
-			continue
+		} else {
+			res[i] = acc0
+			acc0.Mul(&acc0, &a[i])
 		}
-		res[i] = accumulator
-		accumulator.Mul(&accumulator, &a[i])
+		if a[i+1].IsZero() {
+			res[i+1].SetZero()
+		} else {
+			res[i+1] = acc1
+			acc1.Mul(&acc1, &a[i+1])
+		}
+	}
+	if m < n {
+		if a[m].IsZero() {
+			res[m].SetZero()
+		} else {
+			res[m] = acc0
+			acc0.Mul(&acc0, &a[m])
+		}
 	}
 
-	accumulator.Inverse(&accumulator)
+	acc0, acc1 = batchInvertPair(acc0, acc1)
 
-	for i := len(a) - 1; i >= 0; i-- {
-		if a[i].IsZero() {
-			continue
+	if m < n && !a[m].IsZero() {
+		res[m].Mul(&res[m], &acc0)
+		acc0.Mul(&acc0, &a[m])
+	}
+	for i := m - 2; i >= 0; i -= 2 {
+		if !a[i+1].IsZero() {
+			res[i+1].Mul(&res[i+1], &acc1)
+			acc1.Mul(&acc1, &a[i+1])
 		}
-		res[i].Mul(&res[i], &accumulator)
-		accumulator.Mul(&accumulator, &a[i])
+		if !a[i].IsZero() {
+			res[i].Mul(&res[i], &acc0)
+			acc0.Mul(&acc0, &a[i])
+		}
 	}
 }
 
 // batchInvertInPlace is the Montgomery batch inversion of a in place; prefix
-// holds the running products and must be disjoint from a, with len(prefix) ==
-// len(a) > 0.
+// holds the running products and must be disjoint from a, with len(prefix) >=
+// len(a) > 0. Like batchInvertDistinct, it runs two interleaved chains.
 func batchInvertInPlace(a, prefix []Element) {
 	prefix = prefix[:len(a)]
-	accumulator := One()
+	n := len(a)
+	m := n &^ 1
+	acc0, acc1 := One(), One()
 
-	for i := range a {
-		if a[i].IsZero() {
-			continue
+	for i := 0; i < m; i += 2 {
+		if !a[i].IsZero() {
+			prefix[i] = acc0
+			acc0.Mul(&acc0, &a[i])
 		}
-		prefix[i] = accumulator
-		accumulator.Mul(&accumulator, &a[i])
+		if !a[i+1].IsZero() {
+			prefix[i+1] = acc1
+			acc1.Mul(&acc1, &a[i+1])
+		}
+	}
+	if m < n && !a[m].IsZero() {
+		prefix[m] = acc0
+		acc0.Mul(&acc0, &a[m])
 	}
 
-	accumulator.Inverse(&accumulator)
+	acc0, acc1 = batchInvertPair(acc0, acc1)
 
-	for i := len(a) - 1; i >= 0; i-- {
-		if a[i].IsZero() {
-			continue
-		}
-		x := a[i]
-		a[i].Mul(&prefix[i], &accumulator)
-		accumulator.Mul(&accumulator, &x)
+	if m < n && !a[m].IsZero() {
+		x := a[m]
+		a[m].Mul(&prefix[m], &acc0)
+		acc0.Mul(&acc0, &x)
 	}
+	for i := m - 2; i >= 0; i -= 2 {
+		if !a[i+1].IsZero() {
+			x := a[i+1]
+			a[i+1].Mul(&prefix[i+1], &acc1)
+			acc1.Mul(&acc1, &x)
+		}
+		if !a[i].IsZero() {
+			x := a[i]
+			a[i].Mul(&prefix[i], &acc0)
+			acc0.Mul(&acc0, &x)
+		}
+	}
+}
+
+// batchInvertPair returns the inverses of the nonzero x and y, with a single
+// Inverse.
+func batchInvertPair(x, y Element) (Element, Element) {
+	var inv, xInv, yInv Element
+	inv.Mul(&x, &y)
+	inv.Inverse(&inv)
+	xInv.Mul(&inv, &y)
+	yInv.Mul(&inv, &x)
+	return xInv, yInv
 }
 
 const (
@@ -551,7 +608,8 @@ const (
 )
 
 // batchInvertLanes returns the number of interleaved product chains batchInvert
-// runs for n elements, 0 meaning a single scalar chain. A field product is
+// runs for n elements, 0 meaning the scalar path (batchInvertDistinct,
+// batchInvertInPlace). A field product is
 // cheap enough that the per-call cost of the vectorised Vector.Mul only pays
 // off on long inputs, and wider rows keep more independent products in
 // flight, while every chain adds to the inversion of the chain products; the
@@ -565,8 +623,6 @@ func batchInvertLanes(n int) int {
 		return 512
 	case n >= 1024:
 		return 256
-	case n >= 512:
-		return 128
 	default:
 		return 0
 	}
