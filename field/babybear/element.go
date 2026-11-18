@@ -600,10 +600,11 @@ func batchInvertPair(x, y Element) (Element, Element) {
 }
 
 const (
-	// batchInvertMinLanes is the narrowest row of batchInvertChains, the block
-	// size of the vectorised row kernels.
+	// batchInvertMinLanes is the narrowest row of batchInvertChains, a
+	// multiple of the block size of the vectorised row kernels.
 	batchInvertMinLanes = 16
-	// batchInvertMaxLanes is the widest row of batchInvertChains.
+	// batchInvertMaxLanes is the widest row of batchInvertChains; it bounds
+	// the stack buffers of batchInvertChains to a few KiB.
 	batchInvertMaxLanes = 1024
 )
 
@@ -631,8 +632,8 @@ func batchInvertLanes(n int) int {
 // batchInvertChains runs the Montgomery batch inversion of a into res as
 // interleaved product chains: the elements are laid out in rows, one chain per
 // column, so that the running products of a row are a single vectorised pass
-// (batchInvertRowForward / batchInvertRowBackward, one fused AVX-512 kernel
-// each on amd64). Rows are lanes wide, then batchInvertMinLanes wide for the
+// (batchInvertRowForward / batchInvertRowBackward, one fused AVX-512
+// kernel each on amd64). Rows are lanes wide, then batchInvertMinLanes wide for the
 // remainder, and the last few elements form one more chain multiplied scalar
 // by scalar. A zero element enters its chain as one and gets a zero running
 // product, so that its inverse comes out as zero.

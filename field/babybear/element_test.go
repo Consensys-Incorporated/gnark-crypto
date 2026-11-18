@@ -2309,7 +2309,10 @@ func TestElementBatchInvertIntoAllocs(t *testing.T) {
 func TestElementBatchInvertChains(t *testing.T) {
 	t.Parallel()
 
-	for _, lanes := range []int{batchInvertMinLanes, 32, 128, 256, 512, batchInvertMaxLanes} {
+	for _, lanes := range []int{batchInvertMinLanes, 32, 128, 256, 512, 1024} {
+		if lanes > batchInvertMaxLanes {
+			continue
+		}
 		for _, n := range []int{1, 15, 16, 17, lanes - 1, lanes, lanes + 1, lanes + 17, 3*lanes + 33} {
 			t.Run(fmt.Sprintf("lanes=%d/n=%d", lanes, n), func(t *testing.T) {
 				a := make([]Element, n)
@@ -2355,6 +2358,9 @@ func BenchmarkElementBatchInvertLanes(b *testing.B) {
 		res := make([]Element, n)
 		scratch := make([]Element, n)
 		for _, lanes := range []int{0, 32, 64, 128, 256, 512, 1024} {
+			if lanes > batchInvertMaxLanes || lanes > n/2 {
+				continue
+			}
 			b.Run(fmt.Sprintf("n=%d/lanes=%d/into", n, lanes), func(b *testing.B) {
 				for b.Loop() {
 					if lanes == 0 {

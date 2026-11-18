@@ -19,6 +19,7 @@ import (
 
 	"github.com/consensys/gnark-crypto/field/hash"
 	"github.com/consensys/gnark-crypto/field/pool"
+	"github.com/consensys/gnark-crypto/utils/cpu"
 )
 
 // Element represents a field element stored on 4 words (uint64)
@@ -728,6 +729,10 @@ func BatchInvertIntoScratch(res, a, scratch []Element) {
 // scratch is either nil, and then res and a are distinct, or len(a) elements
 // disjoint from res and a, and then res may be the very same slice as a.
 func batchInvert(res, a, scratch []Element) {
+	if lanes := batchInvertLanes(len(a)); lanes > 0 {
+		batchInvertChains(res, a, scratch, lanes)
+		return
+	}
 	if &res[0] == &a[0] {
 		batchInvertInPlace(res, scratch)
 		return
@@ -842,6 +847,200 @@ func batchInvertPair(x, y Element) (Element, Element) {
 	xInv.Mul(&inv, &y)
 	yInv.Mul(&inv, &x)
 	return xInv, yInv
+}
+
+const (
+	// batchInvertMinLanes is the narrowest row of batchInvertChains, a
+	// multiple of the block size of the vectorised row kernels.
+	batchInvertMinLanes = 16
+	// batchInvertMaxLanes is the widest row of batchInvertChains; it bounds
+	// the stack buffers of batchInvertChains to a few KiB.
+	batchInvertMaxLanes = 256
+)
+
+// batchInvertLanes returns the number of interleaved product chains batchInvert
+// runs for n elements, 0 meaning the scalar path (batchInvertDistinct,
+// batchInvertInPlace). A field product is
+// cheap enough that the per-call cost of the vectorised Vector.Mul only pays
+// off on long inputs, and wider rows keep more independent products in
+// flight, while every chain adds to the inversion of the chain products; the
+// thresholds are measured (BenchmarkElementBatchInvertLanes).
+// It must stay at most n/2, so that the chain products are fewer than n.
+func batchInvertLanes(n int) int {
+	// without the AVX-512 IFMA kernel, Vector.Mul is a plain loop and the
+	// chains are slower than the scalar path.
+	if !cpu.SupportAVX512IFMA {
+		return 0
+	}
+	switch {
+	case n >= 4096:
+		return 256
+	case n >= 1024:
+		return 128
+	case n >= 512:
+		return 64
+	default:
+		return 0
+	}
+}
+
+// batchInvertChains runs the Montgomery batch inversion of a into res as
+// interleaved product chains: the elements are laid out in rows, one chain per
+// column, so that the running products of a row are a single vectorised pass
+// (batchInvertRowForward / batchInvertRowBackward). Rows are lanes wide, then batchInvertMinLanes wide for the
+// remainder, and the last few elements form one more chain multiplied scalar
+// by scalar. A zero element enters its chain as one and gets a zero running
+// product, so that its inverse comes out as zero.
+//
+// lanes must be a multiple of batchInvertMinLanes, at most batchInvertMaxLanes,
+// and len(a) must be > 0. If scratch is nil, res and a must be distinct and
+// res holds the running products. Otherwise scratch holds them, must be
+// disjoint from res and a and have len(a) elements, and res holds a with its
+// zeros replaced by one in between the two passes, so it may be the very same
+// slice as a.
+func batchInvertChains(res, a, scratch []Element, lanes int) {
+	n := len(a)
+	inRes := scratch == nil
+	prefix := scratch
+	if inRes {
+		prefix = res
+	}
+
+	// row boundaries: [0, wide) in rows of lanes, [wide, narrow) in rows of
+	// batchInvertMinLanes, [narrow, n) one scalar chain.
+	wide := n / lanes * lanes
+	narrow := wide + (n-wide)/batchInvertMinLanes*batchInvertMinLanes
+
+	// acc[l] is the running product of chain l, acc[lanes] that of the scalar
+	// chain.
+	var accBuf [batchInvertMaxLanes + 1]Element
+	acc := accBuf[:lanes+1]
+	for l := range acc {
+		acc[l].SetOne()
+	}
+	tail := &acc[lanes]
+	// rowBuf receives the rows of a with their zeros replaced by one, when res
+	// holds the running products.
+	var rowBuf [batchInvertMaxLanes]Element
+
+	// forward pass: prefix[i] is the product of the earlier elements of the
+	// chain of i, or zero if a[i] is zero.
+	forward := func(j, w int) {
+		row := rowBuf[:w]
+		if !inRes {
+			row = res[j : j+w]
+		}
+		batchInvertRowForward(acc[:w], prefix[j:j+w], row, a[j:j+w])
+	}
+	for j := 0; j < wide; j += lanes {
+		forward(j, lanes)
+	}
+	for j := wide; j < narrow; j += batchInvertMinLanes {
+		forward(j, batchInvertMinLanes)
+	}
+	for i := narrow; i < n; i++ {
+		if a[i].IsZero() {
+			prefix[i].SetZero()
+			if !inRes {
+				res[i].SetOne()
+			}
+			continue
+		}
+		prefix[i] = *tail
+		if !inRes {
+			res[i] = a[i]
+		}
+		tail.Mul(tail, &a[i])
+	}
+
+	batchInvertChainProducts(acc)
+
+	// backward pass: the inverse of element i is the running inverse of its
+	// chain times prefix[i]; the row is read before res is overwritten.
+	for i := n - 1; i >= narrow; i-- {
+		x := res[i]
+		if inRes {
+			x = a[i]
+			if x.IsZero() {
+				continue
+			}
+		}
+		res[i].Mul(tail, &prefix[i])
+		tail.Mul(tail, &x)
+	}
+	// the row is a (its zeros are replaced by one on the fly), or res, which
+	// holds it already cleaned.
+	row := a
+	if !inRes {
+		row = res
+	}
+	backward := func(j, w int) {
+		batchInvertRowBackward(acc[:w], res[j:j+w], prefix[j:j+w], row[j:j+w])
+	}
+	for j := narrow - batchInvertMinLanes; j >= wide; j -= batchInvertMinLanes {
+		backward(j, batchInvertMinLanes)
+	}
+	for j := wide - lanes; j >= 0; j -= lanes {
+		backward(j, lanes)
+	}
+}
+
+// batchInvertChainProducts inverts the chain products p of batchInvertChains
+// in place; there are at most batchInvertMaxLanes+1 of them. The recursion
+// ends since batchInvertLanes(n) is at most n/2.
+func batchInvertChainProducts(p []Element) {
+	var scratch [batchInvertMaxLanes + 1]Element
+	batchInvert(p, p, scratch[:len(p)])
+}
+
+// batchInvertRowForwardGeneric is the forward step of batchInvertChains on
+// one row: for every chain k,
+//
+//	prefix[k] = a[k] != 0 ? acc[k] : 0
+//	row[k]    = a[k] != 0 ? a[k] : 1
+//	acc[k]    = acc[k] * row[k]
+//
+// row may be the very same slice as a. All lengths are equal, a multiple of 16
+// at most batchInvertMaxLanes.
+func batchInvertRowForwardGeneric(acc, prefix, row, a Vector) {
+	copy(prefix, acc)
+	copy(row, a)
+	for k := range row {
+		if row[k].IsZero() {
+			row[k].SetOne()
+			prefix[k].SetZero()
+		}
+	}
+	acc.Mul(acc, row)
+}
+
+// batchInvertRowBackwardGeneric is the backward step of batchInvertChains on
+// one row: for every chain k,
+//
+//	res[k] = acc[k] * prefix[k]
+//	acc[k] = acc[k] * (row[k] != 0 ? row[k] : 1)
+//
+// row may be the very same slice as res. All lengths are equal, a multiple of
+// 16 at most batchInvertMaxLanes.
+func batchInvertRowBackwardGeneric(acc, res, prefix, row Vector) {
+	var buf [batchInvertMaxLanes]Element
+	x := Vector(buf[:len(row)])
+	copy(x, row)
+	for k := range x {
+		if x[k].IsZero() {
+			x[k].SetOne()
+		}
+	}
+	res.Mul(acc, prefix)
+	acc.Mul(acc, x)
+}
+
+func batchInvertRowForward(acc, prefix, row, a Vector) {
+	batchInvertRowForwardGeneric(acc, prefix, row, a)
+}
+
+func batchInvertRowBackward(acc, res, prefix, row Vector) {
+	batchInvertRowBackwardGeneric(acc, res, prefix, row)
 }
 
 func _butterflyGeneric(a, b *Element) {

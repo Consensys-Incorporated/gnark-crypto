@@ -12,6 +12,9 @@ import (
 
 	"github.com/consensys/gnark-crypto/field/hash"
 	"github.com/consensys/gnark-crypto/field/pool"
+	{{- if and (not .F31) .GenerateVectorOpsAMD64 (eq .NbWords 4)}}
+	"github.com/consensys/gnark-crypto/utils/cpu"
+	{{- end}}
 )
 
 // {{.ElementName}} represents a field element stored on {{.NbWords}} words ({{$.Word.TypeLower}})
@@ -711,7 +714,7 @@ func BatchInvertIntoScratch(res, a, scratch []{{.ElementName}}) {
 // scratch is either nil, and then res and a are distinct, or len(a) elements
 // disjoint from res and a, and then res may be the very same slice as a.
 func batchInvert(res, a, scratch []{{.ElementName}}) {
-	{{- if .F31}}
+	{{- if or .F31 (and .GenerateVectorOpsAMD64 (eq .NbWords 4))}}
 	if lanes := batchInvertLanes(len(a)); lanes > 0 {
 		batchInvertChains(res, a, scratch, lanes)
 		return
@@ -833,14 +836,15 @@ func batchInvertPair(x, y {{.ElementName}}) ({{.ElementName}}, {{.ElementName}})
 	return xInv, yInv
 }
 
-{{- if .F31}}
+{{- if or .F31 (and .GenerateVectorOpsAMD64 (eq .NbWords 4))}}
 
 const (
-	// batchInvertMinLanes is the narrowest row of batchInvertChains, the block
-	// size of the vectorised row kernels.
+	// batchInvertMinLanes is the narrowest row of batchInvertChains, a
+	// multiple of the block size of the vectorised row kernels.
 	batchInvertMinLanes = 16
-	// batchInvertMaxLanes is the widest row of batchInvertChains.
-	batchInvertMaxLanes = 1024
+	// batchInvertMaxLanes is the widest row of batchInvertChains; it bounds
+	// the stack buffers of batchInvertChains to a few KiB.
+	batchInvertMaxLanes = {{if .F31}}1024{{else}}256{{end}}
 )
 
 // batchInvertLanes returns the number of interleaved product chains batchInvert
@@ -852,6 +856,7 @@ const (
 // thresholds are measured (Benchmark{{toTitle .ElementName}}BatchInvertLanes).
 // It must stay at most n/2, so that the chain products are fewer than n.
 func batchInvertLanes(n int) int {
+	{{- if .F31}}
 	switch {
 	case n >= 8192:
 		return 1024
@@ -862,13 +867,30 @@ func batchInvertLanes(n int) int {
 	default:
 		return 0
 	}
+	{{- else}}
+	// without the AVX-512 IFMA kernel, Vector.Mul is a plain loop and the
+	// chains are slower than the scalar path.
+	if !cpu.SupportAVX512IFMA {
+		return 0
+	}
+	switch {
+	case n >= 4096:
+		return 256
+	case n >= 1024:
+		return 128
+	case n >= 512:
+		return 64
+	default:
+		return 0
+	}
+	{{- end}}
 }
 
 // batchInvertChains runs the Montgomery batch inversion of a into res as
 // interleaved product chains: the elements are laid out in rows, one chain per
 // column, so that the running products of a row are a single vectorised pass
-// (batchInvertRowForward / batchInvertRowBackward, one fused AVX-512 kernel
-// each on amd64). Rows are lanes wide, then batchInvertMinLanes wide for the
+// (batchInvertRowForward / batchInvertRowBackward{{if .F31}}, one fused AVX-512
+// kernel each on amd64{{end}}). Rows are lanes wide, then batchInvertMinLanes wide for the
 // remainder, and the last few elements form one more chain multiplied scalar
 // by scalar. A zero element enters its chain as one and gets a zero running
 // product, so that its inverse comes out as zero.
@@ -1015,6 +1037,16 @@ func batchInvertRowBackwardGeneric(acc, res, prefix, row Vector) {
 	res.Mul(acc, prefix)
 	acc.Mul(acc, x)
 }
+{{- if not .F31}}
+
+func batchInvertRowForward(acc, prefix, row, a Vector) {
+	batchInvertRowForwardGeneric(acc, prefix, row, a)
+}
+
+func batchInvertRowBackward(acc, res, prefix, row Vector) {
+	batchInvertRowBackwardGeneric(acc, res, prefix, row)
+}
+{{- end}}
 {{- end}}
 
 func _butterflyGeneric(a, b *{{.ElementName}}) {
