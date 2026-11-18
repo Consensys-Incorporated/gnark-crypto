@@ -2299,6 +2299,82 @@ func TestElementBatchInvertIntoAllocs(t *testing.T) {
 	require.LessOrEqual(t, testing.AllocsPerRun(10, func() { BatchInvertInto(res, a) }), inverseAllocs, "BatchInvertInto")
 	require.LessOrEqual(t, testing.AllocsPerRun(10, func() { BatchInvertIntoScratch(res, a, scratch) }), inverseAllocs, "BatchInvertIntoScratch")
 	require.LessOrEqual(t, testing.AllocsPerRun(10, func() { BatchInvertIntoScratch(res, res, scratch) }), inverseAllocs, "BatchInvertIntoScratch in place")
+	// in place, BatchInvertInto takes its scratch from a pool, which only
+	// allocates on a miss (e.g. after a GC, or randomly under -race).
+	require.LessOrEqual(t, testing.AllocsPerRun(100, func() { BatchInvertInto(res, res) }), inverseAllocs, "BatchInvertInto in place")
+}
+
+// TestElementBatchInvertChains checks batchInvertChains at every
+// row width, whatever the width batchInvertLanes picks for the input length.
+func TestElementBatchInvertChains(t *testing.T) {
+	t.Parallel()
+
+	for _, lanes := range []int{batchInvertMinLanes, 32, 128, 256, 512, batchInvertMaxLanes} {
+		for _, n := range []int{1, 15, 16, 17, lanes - 1, lanes, lanes + 1, lanes + 17, 3*lanes + 33} {
+			t.Run(fmt.Sprintf("lanes=%d/n=%d", lanes, n), func(t *testing.T) {
+				a := make([]Element, n)
+				expected := make([]Element, n)
+				for i := range a {
+					if i%5 == 2 || i == n-1 {
+						continue // a[i] = 0, expected[i] = 0
+					}
+					a[i].MustSetRandom()
+					if a[i].IsZero() {
+						a[i].SetOne()
+					}
+					expected[i].Inverse(&a[i])
+				}
+				orig := slices.Clone(a)
+				res := make([]Element, n)
+
+				batchInvertChains(res, a, nil, lanes)
+				require.Equal(t, expected, res, "running products in res")
+
+				res = make([]Element, n)
+				batchInvertChains(res, a, make([]Element, n), lanes)
+				require.Equal(t, expected, res, "running products in scratch")
+				require.Equal(t, orig, a)
+
+				res = slices.Clone(a)
+				batchInvertChains(res, res, make([]Element, n), lanes)
+				require.Equal(t, expected, res, "in place")
+			})
+		}
+	}
+}
+
+// BenchmarkElementBatchInvertLanes measures batchInvertChains
+// at every row width, against a single scalar chain (lanes=0), to set the
+// thresholds of batchInvertLanes.
+func BenchmarkElementBatchInvertLanes(b *testing.B) {
+	for _, n := range []int{256, 384, 512, 768, 1024, 1536, 2048, 3072, 4096, 8192, 12288, 16384, 32768, 65536, 262144} {
+		a := make([]Element, n)
+		for i := range a {
+			a[i].MustSetRandom()
+		}
+		res := make([]Element, n)
+		scratch := make([]Element, n)
+		for _, lanes := range []int{0, 32, 64, 128, 256, 512, 1024} {
+			b.Run(fmt.Sprintf("n=%d/lanes=%d/into", n, lanes), func(b *testing.B) {
+				for b.Loop() {
+					if lanes == 0 {
+						batchInvertDistinct(res, a)
+					} else {
+						batchInvertChains(res, a, nil, lanes)
+					}
+				}
+			})
+			b.Run(fmt.Sprintf("n=%d/lanes=%d/scratch", n, lanes), func(b *testing.B) {
+				for b.Loop() {
+					if lanes == 0 {
+						batchInvertDistinct(res, a)
+					} else {
+						batchInvertChains(res, a, scratch, lanes)
+					}
+				}
+			})
+		}
+	}
 }
 
 func TestElementFromMont(t *testing.T) {

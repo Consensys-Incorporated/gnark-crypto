@@ -2335,6 +2335,9 @@ func TestElementBatchInvertIntoAllocs(t *testing.T) {
 	require.LessOrEqual(t, testing.AllocsPerRun(10, func() { BatchInvertInto(res, a) }), inverseAllocs, "BatchInvertInto")
 	require.LessOrEqual(t, testing.AllocsPerRun(10, func() { BatchInvertIntoScratch(res, a, scratch) }), inverseAllocs, "BatchInvertIntoScratch")
 	require.LessOrEqual(t, testing.AllocsPerRun(10, func() { BatchInvertIntoScratch(res, res, scratch) }), inverseAllocs, "BatchInvertIntoScratch in place")
+	// in place, BatchInvertInto takes its scratch from a pool, which only
+	// allocates on a miss (e.g. after a GC, or randomly under -race).
+	require.LessOrEqual(t, testing.AllocsPerRun(100, func() { BatchInvertInto(res, res) }), inverseAllocs, "BatchInvertInto in place")
 }
 
 func TestElementFromMont(t *testing.T) {

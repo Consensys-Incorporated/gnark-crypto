@@ -15,6 +15,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/consensys/gnark-crypto/field/hash"
 	"github.com/consensys/gnark-crypto/field/pool"
@@ -1428,8 +1429,9 @@ func BatchInvert(a []Element) []Element {
 // res may be the very same slice as a (in place), but must not otherwise
 // overlap it. When res and a are distinct, BatchInvertInto allocates nothing
 // beyond the single Inverse call it makes: res holds the running products.
-// In place, it needs len(a) elements of scratch space and allocates them;
-// use BatchInvertIntoScratch to provide them.
+// In place, it needs len(a) elements of scratch space, which it takes from an
+// internal pool (allocating only when the pool has none large enough); use
+// BatchInvertIntoScratch to provide them.
 func BatchInvertInto(res, a []Element) {
 	if len(res) != len(a) {
 		panic("BatchInvertInto: slices don't have the same length")
@@ -1437,11 +1439,21 @@ func BatchInvertInto(res, a []Element) {
 	if len(a) == 0 {
 		return
 	}
-	if &res[0] == &a[0] {
-		batchInvert(res, a, make([]Element, len(a)))
+	if &res[0] != &a[0] {
+		batchInvert(res, a, nil)
 		return
 	}
-	batchInvert(res, a, res)
+	scratch := batchInvertScratchPool.Get().(*[]Element)
+	if cap(*scratch) < len(a) {
+		*scratch = make([]Element, len(a))
+	}
+	batchInvert(res, a, (*scratch)[:len(a)])
+	batchInvertScratchPool.Put(scratch)
+}
+
+// batchInvertScratchPool holds the scratch space of in-place BatchInvertInto calls.
+var batchInvertScratchPool = sync.Pool{
+	New: func() any { return new([]Element) },
 }
 
 // BatchInvertIntoScratch is BatchInvertInto with caller-provided scratch
@@ -1464,11 +1476,47 @@ func BatchInvertIntoScratch(res, a, scratch []Element) {
 	batchInvert(res, a, scratch[:len(a)])
 }
 
-// batchInvert is the implementation of BatchInvertInto. The running products
-// are stored in prefix, which is either res itself (then a is distinct from
-// res) or scratch space disjoint from res and a. a[i] is read before res[i]
-// is written, so res may alias a in the latter case. len(a) must be > 0.
-func batchInvert(res, a, prefix []Element) {
+// batchInvert is the implementation of BatchInvertInto. len(a) must be > 0.
+// scratch is either nil, and then res and a are distinct, or len(a) elements
+// disjoint from res and a, and then res may be the very same slice as a.
+func batchInvert(res, a, scratch []Element) {
+	if &res[0] == &a[0] {
+		batchInvertInPlace(res, scratch)
+		return
+	}
+	batchInvertDistinct(res, a)
+}
+
+// batchInvertDistinct is the Montgomery batch inversion of a into res, which
+// must be distinct; res holds the running products. len(a) must be > 0.
+func batchInvertDistinct(res, a []Element) {
+	accumulator := One()
+
+	for i := range a {
+		if a[i].IsZero() {
+			res[i].SetZero()
+			continue
+		}
+		res[i] = accumulator
+		accumulator.Mul(&accumulator, &a[i])
+	}
+
+	accumulator.Inverse(&accumulator)
+
+	for i := len(a) - 1; i >= 0; i-- {
+		if a[i].IsZero() {
+			continue
+		}
+		res[i].Mul(&res[i], &accumulator)
+		accumulator.Mul(&accumulator, &a[i])
+	}
+}
+
+// batchInvertInPlace is the Montgomery batch inversion of a in place; prefix
+// holds the running products and must be disjoint from a, with len(prefix) ==
+// len(a) > 0.
+func batchInvertInPlace(a, prefix []Element) {
+	prefix = prefix[:len(a)]
 	accumulator := One()
 
 	for i := range a {
@@ -1482,12 +1530,11 @@ func batchInvert(res, a, prefix []Element) {
 	accumulator.Inverse(&accumulator)
 
 	for i := len(a) - 1; i >= 0; i-- {
-		x := a[i]
-		if x.IsZero() {
-			res[i].SetZero()
+		if a[i].IsZero() {
 			continue
 		}
-		res[i].Mul(&prefix[i], &accumulator)
+		x := a[i]
+		a[i].Mul(&prefix[i], &accumulator)
 		accumulator.Mul(&accumulator, &x)
 	}
 }
