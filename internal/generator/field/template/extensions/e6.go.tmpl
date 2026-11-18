@@ -639,6 +639,7 @@ const (
 // kernel, VectorE6.Mul is a plain loop with no per-call cost to amortise, and
 // wider rows only add chain products: the narrowest row is the fastest.
 func batchInvertE6Lanes(n int) int {
+	{{- if .IsKoalaBear }}
 	if !cpu.SupportAVX512 {
 		return batchInvertE6MinLanes
 	}
@@ -654,6 +655,10 @@ func batchInvertE6Lanes(n int) int {
 	default:
 		return batchInvertE6MinLanes
 	}
+	{{- else }}
+	// VectorE6.Mul has no AVX-512 kernel for this field.
+	return batchInvertE6MinLanes
+	{{- end }}
 }
 
 // batchInvertE6 is the implementation of BatchInvertE6Into. It runs the
