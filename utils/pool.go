@@ -27,7 +27,7 @@ type poolStats[T any] struct {
 	allocatedFor map[*T][]uintptr
 }
 
-// Pool is a pool of slices of T, grouped by maximum length. Its copies share the same slices.
+// Pool is a pool of slices of T, grouped by power-of-two capacity. Its copies share the same slices.
 type Pool[T any] struct {
 	*pool[T]
 }
@@ -52,7 +52,7 @@ func (p *pool[T]) PauseStats() {
 	p.stats.recording = false
 }
 
-// NewPool returns a pool with capacity up to the next power of 2 to the greatest maxN.
+// NewPool returns a pool whose largest class is the smallest power of two at least the largest maxN.
 func NewPool[T any](maxN ...int) Pool[T] {
 	var maxSize int
 	for _, n := range maxN {

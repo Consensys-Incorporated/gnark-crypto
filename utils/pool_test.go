@@ -49,8 +49,7 @@ func TestPoolReusesDumpedSlice(t *testing.T) {
 	pool := NewPool[int](8)
 	a := pool.Make(4)
 	pool.Dump(a)
-	// re-allocating the same backing array after a Dump must not trip the
-	// "re-allocated non-dumped slice" check
+	// a slice reused after a Dump can be dumped again
 	b := pool.Make(4)
 	pool.Dump(b)
 }
