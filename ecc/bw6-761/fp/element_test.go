@@ -2402,9 +2402,22 @@ func TestElementBatchInvertIntoAllocs(t *testing.T) {
 	res := make([]Element, n)
 	scratch := make([]Element, n)
 
-	var x, z Element
-	x.MustSetRandom()
-	inverseAllocs := testing.AllocsPerRun(10, func() { z.Inverse(&x) })
+	// The batch makes a single Inverse call, on the product of the nonzero
+	// inputs, or on its inverse once an in-place call has replaced a by its
+	// inverses. Inverse may allocate (math/big fallback), a value-dependent
+	// amount, so the allowance is measured on those very values.
+	prod := One()
+	for i := range a {
+		if !a[i].IsZero() {
+			prod.Mul(&prod, &a[i])
+		}
+	}
+	var prodInv, z Element
+	prodInv.Inverse(&prod)
+	inverseAllocs := max(
+		testing.AllocsPerRun(10, func() { z.Inverse(&prod) }),
+		testing.AllocsPerRun(10, func() { z.Inverse(&prodInv) }),
+	)
 
 	require.LessOrEqual(t, testing.AllocsPerRun(10, func() { BatchInvertInto(res, a) }), inverseAllocs, "BatchInvertInto")
 	require.LessOrEqual(t, testing.AllocsPerRun(10, func() { BatchInvertIntoScratch(res, a, scratch) }), inverseAllocs, "BatchInvertIntoScratch")
