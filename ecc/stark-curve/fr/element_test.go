@@ -2393,7 +2393,7 @@ func BenchmarkElementBatchInvertLanes(b *testing.B) {
 		}
 		res := make([]Element, n)
 		scratch := make([]Element, n)
-		for _, lanes := range []int{0, 32, 64, 128, 256, 512, 1024} {
+		for _, lanes := range []int{0, 16, 32, 64, 128, 256, 512, 1024} {
 			if lanes > batchInvertMaxLanes || lanes > n/2 {
 				continue
 			}
@@ -2409,7 +2409,7 @@ func BenchmarkElementBatchInvertLanes(b *testing.B) {
 			b.Run(fmt.Sprintf("n=%d/lanes=%d/scratch", n, lanes), func(b *testing.B) {
 				for b.Loop() {
 					if lanes == 0 {
-						batchInvertScalar(res, a, res)
+						batchInvertScalar(res, a, scratch)
 					} else {
 						batchInvertChains(res, a, scratch, lanes)
 					}
