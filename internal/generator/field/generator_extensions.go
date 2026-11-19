@@ -110,12 +110,12 @@ func generateExtensions(F *config.Field, outputDir string) error {
 	}
 	if F.F31 {
 		entries_ext4 := []bavard.Entry{
-			{File: filepath.Join(outputDir, "e4.go"), Templates: []string{"e4.go.tmpl"}},
+			{File: filepath.Join(outputDir, "e4.go"), Templates: []string{"e4.go.tmpl", "batchinv.go.tmpl"}},
 			{File: filepath.Join(outputDir, "vector.go"), Templates: []string{"vector.go.tmpl"}},
-			{File: filepath.Join(outputDir, "e4_test.go"), Templates: []string{"e4_test.go.tmpl"}},
-			{File: filepath.Join(outputDir, "e6.go"), Templates: []string{"e6.go.tmpl"}},
+			{File: filepath.Join(outputDir, "e4_test.go"), Templates: []string{"e4_test.go.tmpl", "batchinv_test.go.tmpl"}},
+			{File: filepath.Join(outputDir, "e6.go"), Templates: []string{"e6.go.tmpl", "batchinv.go.tmpl"}},
 			{File: filepath.Join(outputDir, "e6_test.go"), Templates: []string{"e6_test.go.tmpl"}},
-			{File: filepath.Join(outputDir, "e6_vector_test.go"), Templates: []string{"e6_vector_test.go.tmpl"}},
+			{File: filepath.Join(outputDir, "e6_vector_test.go"), Templates: []string{"e6_vector_test.go.tmpl", "batchinv_test.go.tmpl"}},
 		}
 
 		if isKoalaBear {

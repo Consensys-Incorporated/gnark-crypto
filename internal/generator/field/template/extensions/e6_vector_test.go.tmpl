@@ -1,5 +1,6 @@
 import (
 	"fmt"
+	"slices"
 	"strconv"
 	"testing"
 	"unsafe"
@@ -626,33 +627,6 @@ func TestVectorE6InnerProduct(t *testing.T) {
 	}
 }
 
-func TestBatchInvertE6Into(t *testing.T) {
-	for _, size := range []int{0, 1, 15, 16, 17, 33, 100} {
-		t.Run(strconv.Itoa(size), func(t *testing.T) {
-			a := make(VectorE6, size)
-			a.MustSetRandom()
-			for i := 0; i < size; i += 7 {
-				a[i].SetZero()
-			}
-			expected := make(VectorE6, size)
-			for i := range a {
-				expected[i].Inverse(&a[i]) // Inverse(0) = 0
-			}
-
-			require.Equal(t, expected, VectorE6(BatchInvertE6(a)))
-
-			res := make(VectorE6, size)
-			res.MustSetRandom() // must be fully overwritten
-			BatchInvertE6Into(res, a)
-			require.Equal(t, expected, res)
-
-			// res may alias a
-			BatchInvertE6Into(a, a)
-			require.Equal(t, expected, a)
-		})
-	}
-}
-
 func BenchmarkVectorE6Mul(b *testing.B) {
 	const size = 1 << 16
 	x, y := makeE6MulTestInputs(size, false)
@@ -681,16 +655,6 @@ func BenchmarkVectorE6InnerProduct(b *testing.B) {
 	b.ResetTimer()
 	for b.Loop() {
 		_ = x.InnerProduct(y)
-	}
-}
-
-func BenchmarkBatchInvertE6(b *testing.B) {
-	const size = 1 << 16
-	x, _ := makeE6MulTestInputs(size, false)
-	res := make(VectorE6, size)
-	b.ResetTimer()
-	for b.Loop() {
-		BatchInvertE6Into(res, x)
 	}
 }
 
@@ -1074,3 +1038,5 @@ func randVectorFoldE6(n int) VectorE6 {
 	v.MustSetRandom()
 	return v
 }
+
+{{template "batchInvertExtTests" dict "all" . "E" "E6" "V" "VectorE6"}}

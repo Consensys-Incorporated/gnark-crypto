@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"math/big"
 	"math/bits"
+	"sync"
 	"unsafe"
 
 	fr "github.com/consensys/gnark-crypto/field/koalabear"
@@ -571,92 +572,350 @@ func BatchInvertE6(a []E6) []E6 {
 	return res
 }
 
-// batchInvertE6Lanes is the number of interleaved product chains of
-// BatchInvertE6Into, the block size of the vectorised VectorE6.Mul.
-// BatchInvertE6Into is correct for any value ≥ 1; matching the block size
-// only lets each block of running products take the vectorised path.
-const batchInvertE6Lanes = 16
-
 // BatchInvertE6Into sets res[i] to the inverse of a[i], using Montgomery batch
-// inversion trick; if a[i] == 0, res[i] = 0. res may alias a.
+// inversion trick; if a[i] == 0, res[i] = 0. res and a must have the same
+// length.
 //
-// The trick runs as batchInvertE6Lanes interleaved chains, chain l taking the
-// elements l, l+batchInvertE6Lanes, ..., so that the running products of a block
-// are a single VectorE6.Mul; the chain products are then inverted together with
-// a single E6 inversion.
+// res may be the very same slice as a (in place), but must not otherwise
+// overlap it. When res and a are distinct, BatchInvertE6Into does not
+// allocate: res holds the running products. In place, it needs len(a) elements
+// of scratch space, which it takes from an internal pool (allocating only when
+// the pool has none large enough); use BatchInvertE6IntoScratch to provide
+// them.
+//
+// For long inputs, BatchInvertE6IntoScratch is faster even when res and a are
+// distinct, since keeping the running products apart saves a pass over a.
 func BatchInvertE6Into(res, a []E6) {
 	if len(res) != len(a) {
 		panic("BatchInvertE6Into: vectors don't have the same length")
 	}
-	const L = batchInvertE6Lanes
-	n := len(a)
-	if n == 0 {
+	if len(a) == 0 {
 		return
 	}
+	if &res[0] != &a[0] {
+		if batchInvertE6Overlap(res, a) {
+			panic("BatchInvertE6Into: res and a overlap without being the same slice")
+		}
+		batchInvertE6(res, a, nil, batchInvertE6Lanes(len(a)))
+		return
+	}
+	if uintptr(len(a))*unsafe.Sizeof(E6{}) > batchInvertE6PoolMaxBytes {
+		batchInvertE6(res, a, make([]E6, len(a)), batchInvertE6Lanes(len(a)))
+		return
+	}
+	scratch := batchInvertE6ScratchPool.Get().(*[]E6)
+	if cap(*scratch) < len(a) {
+		*scratch = make([]E6, len(a))
+	}
+	batchInvertE6(res, a, (*scratch)[:len(a)], batchInvertE6Lanes(len(a)))
+	batchInvertE6ScratchPool.Put(scratch)
+}
 
-	// res first holds a with its zeros replaced by one, which the chains
-	// multiply through unchanged; prefix[i] is the product of the earlier
-	// elements of the chain of i.
-	var zeros []int
-	for i := range a {
+// batchInvertE6PoolMaxBytes is the size of the largest scratch buffer kept in
+// batchInvertE6ScratchPool; larger ones are left to the garbage collector, so that a
+// single long in-place call does not pin its scratch space.
+const batchInvertE6PoolMaxBytes = 4 << 20
+
+// batchInvertE6Overlap reports whether x and y share memory; both are non-empty.
+func batchInvertE6Overlap(x, y []E6) bool {
+	const size = unsafe.Sizeof(E6{})
+	xs, ys := uintptr(unsafe.Pointer(&x[0])), uintptr(unsafe.Pointer(&y[0]))
+	return xs < ys+uintptr(len(y))*size && ys < xs+uintptr(len(x))*size
+}
+
+// batchInvertE6ScratchPool holds the scratch space of in-place
+// BatchInvertE6Into calls.
+var batchInvertE6ScratchPool = sync.Pool{
+	New: func() any { return new([]E6) },
+}
+
+// BatchInvertE6IntoScratch is BatchInvertE6Into with caller-provided scratch
+// space, so that it never allocates, including in place (res may be the very
+// same slice as a, but must not otherwise overlap it).
+//
+// scratch must have at least len(a) elements and must not overlap res or a;
+// its content on return is unspecified.
+func BatchInvertE6IntoScratch(res, a, scratch []E6) {
+	if len(res) != len(a) {
+		panic("BatchInvertE6IntoScratch: vectors don't have the same length")
+	}
+	if len(scratch) < len(a) {
+		panic("BatchInvertE6IntoScratch: scratch is shorter than the input")
+	}
+	if len(a) == 0 {
+		return
+	}
+	scratch = scratch[:len(a)]
+	if batchInvertE6Overlap(scratch, res) || batchInvertE6Overlap(scratch, a) {
+		panic("BatchInvertE6IntoScratch: scratch overlaps res or a")
+	}
+	if &res[0] != &a[0] && batchInvertE6Overlap(res, a) {
+		panic("BatchInvertE6IntoScratch: res and a overlap without being the same slice")
+	}
+	batchInvertE6(res, a, scratch, batchInvertE6Lanes(len(a)))
+}
+
+const (
+	// batchInvertE6MinLanes is the narrowest row of batchInvertE6Chains,
+	// the block size of the vectorised VectorE6.Mul.
+	batchInvertE6MinLanes = 16
+	// batchInvertE6MaxLanes is the widest row of batchInvertE6Chains; it
+	// sizes the stack buffers, which are zeroed on every call.
+	batchInvertE6MaxLanes = 256
+)
+
+// batchInvertE6Lanes returns the number of interleaved product chains
+// batchInvertE6 runs for n elements, 0 meaning the scalar path. Wider rows
+// amortise the per-call cost of the vectorised VectorE6.Mul and keep more
+// independent products in flight, while every chain adds to the inversion of
+// the chain products; the thresholds are measured
+// (BenchmarkBatchInvertE6Lanes). Without the AVX-512 kernel (arm64
+// included), VectorE6.Mul is a plain loop with no per-call cost to amortise, and
+// the two interleaved chains of batchInvertE6Scalar already hide the
+// latency of E6.Mul: the scalar path is the fastest at every size
+// (measured on Apple M4).
+func batchInvertE6Lanes(n int) int {
+	if !cpu.SupportAVX512 {
+		return 0
+	}
+	switch {
+	case n < 48:
+		// below this, inverting the chain products costs more than the
+		// chains save: the scalar path is the fastest.
+		return 0
+	case n >= 8192:
+		return 256
+	case n >= 1024:
+		return 128
+	case n >= 512:
+		return 64
+	case n >= 128:
+		return 32
+	default:
+		return batchInvertE6MinLanes
+	}
+}
+
+// batchInvertE6 is the implementation of BatchInvertE6Into: the scalar
+// path (batchInvertE6Scalar) if lanes is 0, the interleaved product chains
+// (batchInvertE6Chains) otherwise. len(a) must be > 0. scratch is
+// either nil, and then res and a are distinct, or len(a) elements disjoint
+// from res and a, and then res may be the very same slice as a.
+func batchInvertE6(res, a, scratch []E6, lanes int) {
+	if lanes > 0 {
+		batchInvertE6Chains(res, a, scratch, lanes)
+		return
+	}
+	prefix := res
+	if &res[0] == &a[0] {
+		prefix = scratch
+	}
+	batchInvertE6Scalar(res, a, prefix)
+}
+
+// batchInvertE6Scalar is the Montgomery batch inversion of a into res, with
+// the running products in prefix. len(a) must be > 0 and len(res), len(prefix)
+// >= len(a). prefix is either res, and then res and a are distinct, or
+// disjoint from res and a, and then res may be the very same slice as a.
+//
+// It runs two interleaved chains, over the even and the odd indices, so that
+// the products of one chain overlap the latency of the other's; the
+// accumulators are kept out of reach of pointers so they can stay in
+// registers.
+func batchInvertE6Scalar(res, a, prefix []E6) {
+	n := len(a)
+	res, prefix = res[:n], prefix[:n]
+	m := n &^ 1
+	var acc0, acc1 E6
+	acc0.SetOne()
+	acc1.SetOne()
+
+	for i := 0; i < m; i += 2 {
 		if a[i].IsZero() {
-			zeros = append(zeros, i)
-			res[i].SetOne()
+			prefix[i].SetZero()
 		} else {
-			res[i] = a[i]
+			prefix[i] = acc0
+			acc0.Mul(&acc0, &a[i])
+		}
+		if a[i+1].IsZero() {
+			prefix[i+1].SetZero()
+		} else {
+			prefix[i+1] = acc1
+			acc1.Mul(&acc1, &a[i+1])
 		}
 	}
-	nz := VectorE6(res)
-	m := n / L * L
+	if m < n {
+		if a[m].IsZero() {
+			prefix[m].SetZero()
+		} else {
+			prefix[m] = acc0
+			acc0.Mul(&acc0, &a[m])
+		}
+	}
 
-	// forward pass; chain l ends in acc[l], and the tail in acc[L].
-	prefix := make(VectorE6, n)
-	var acc [L + 1]E6
+	acc0, acc1 = batchInvertE6Pair(acc0, acc1)
+
+	// a[i] is read before res[i] is written, since they may be the same.
+	if m < n {
+		if x := a[m]; x.IsZero() {
+			res[m].SetZero()
+		} else {
+			res[m].Mul(&prefix[m], &acc0)
+			acc0.Mul(&acc0, &x)
+		}
+	}
+	for i := m - 2; i >= 0; i -= 2 {
+		if x := a[i+1]; x.IsZero() {
+			res[i+1].SetZero()
+		} else {
+			res[i+1].Mul(&prefix[i+1], &acc1)
+			acc1.Mul(&acc1, &x)
+		}
+		if x := a[i]; x.IsZero() {
+			res[i].SetZero()
+		} else {
+			res[i].Mul(&prefix[i], &acc0)
+			acc0.Mul(&acc0, &x)
+		}
+	}
+}
+
+// batchInvertE6Pair returns the inverses of the nonzero x and y, with a
+// single E6 inversion.
+func batchInvertE6Pair(x, y E6) (E6, E6) {
+	var inv, xInv, yInv E6
+	inv.Mul(&x, &y)
+	inv.Inverse(&inv)
+	xInv.Mul(&inv, &y)
+	yInv.Mul(&inv, &x)
+	return xInv, yInv
+}
+
+// batchInvertE6Chains runs the
+// Montgomery batch inversion as interleaved product chains: the elements are
+// laid out in rows, one chain per column, so that the running products of a
+// row are a single vectorised VectorE6.Mul. Rows are lanes wide, then
+// batchInvertE6MinLanes wide for the remainder, and the last few elements form
+// one more chain multiplied scalar by scalar. The chain products are then
+// inverted together with a single E6 inversion. A zero element enters its
+// chain as one and gets a zero running product, so that its inverse comes out
+// as zero.
+//
+// lanes must be a multiple of batchInvertE6MinLanes, at most
+// batchInvertE6MaxLanes, and len(a) must be > 0. If scratch is nil, res and a
+// must be distinct and res holds the running products. Otherwise scratch holds
+// them, must be disjoint from res and a and have len(a) elements, and res
+// holds a with its zeros replaced by one in between the two passes, so it may
+// be the very same slice as a.
+func batchInvertE6Chains(res, a, scratch []E6, lanes int) {
+	n := len(a)
+	inRes := scratch == nil
+	prefix := scratch
+	if inRes {
+		prefix = res
+	}
+
+	// row boundaries: [0, wide) in rows of lanes, [wide, narrow) in rows of
+	// batchInvertE6MinLanes, [narrow, n) one scalar chain.
+	wide := n / lanes * lanes
+	narrow := wide + (n-wide)/batchInvertE6MinLanes*batchInvertE6MinLanes
+
+	// acc[l] is the running product of chain l, acc[lanes] that of the scalar
+	// chain.
+	var accBuf [batchInvertE6MaxLanes + 1]E6
+	acc := accBuf[:lanes+1]
 	for l := range acc {
 		acc[l].SetOne()
 	}
-	for j := 0; j < m; j += L {
-		copy(prefix[j:j+L], acc[:L])
-		VectorE6(acc[:L]).Mul(acc[:L], nz[j:j+L])
+	tail := &acc[lanes]
+	// row holds a row of a with its zeros replaced by one.
+	var rowBuf [batchInvertE6MaxLanes]E6
+
+	// forward pass: prefix[i] is the product of the earlier elements of the
+	// chain of i, or zero if a[i] is zero.
+	forward := func(j, w int) {
+		row := rowBuf[:w]
+		if !inRes {
+			row = res[j : j+w]
+		}
+		p := prefix[j : j+w]
+		copy(p, acc[:w])
+		copy(row, a[j:j+w])
+		for k := range row {
+			if row[k].IsZero() {
+				row[k].SetOne()
+				p[k].SetZero()
+			}
+		}
+		VectorE6(acc[:w]).Mul(acc[:w], row)
 	}
-	for i := m; i < n; i++ {
-		prefix[i] = acc[L]
-		acc[L].Mul(&acc[L], &nz[i])
+	for j := 0; j < wide; j += lanes {
+		forward(j, lanes)
+	}
+	for j := wide; j < narrow; j += batchInvertE6MinLanes {
+		forward(j, batchInvertE6MinLanes)
+	}
+	for i := narrow; i < n; i++ {
+		if a[i].IsZero() {
+			prefix[i].SetZero()
+			if !inRes {
+				res[i].SetOne()
+			}
+			continue
+		}
+		prefix[i] = *tail
+		if !inRes {
+			res[i] = a[i]
+		}
+		tail.Mul(tail, &a[i])
 	}
 
-	// invert the L+1 chain products at once.
-	var accPrefix [L + 1]E6
-	var run E6
-	run.SetOne()
-	for l := range acc {
-		accPrefix[l] = run
-		run.Mul(&run, &acc[l])
-	}
-	run.Inverse(&run)
-	for l := len(acc) - 1; l >= 0; l-- {
-		var inv E6
-		inv.Mul(&run, &accPrefix[l])
-		run.Mul(&run, &acc[l])
-		acc[l] = inv
-	}
+	batchInvertE6ChainProducts(acc)
 
 	// backward pass: the inverse of element i is the running inverse of its
-	// chain times prefix[i]; nz[i] is read before res[i] is overwritten.
-	for i := n - 1; i >= m; i-- {
-		x := nz[i]
-		res[i].Mul(&acc[L], &prefix[i])
-		acc[L].Mul(&acc[L], &x)
+	// chain times prefix[i]; the row is read before res is overwritten.
+	for i := n - 1; i >= narrow; i-- {
+		x := res[i]
+		if inRes {
+			x = a[i]
+			if x.IsZero() {
+				continue
+			}
+		}
+		res[i].Mul(tail, &prefix[i])
+		tail.Mul(tail, &x)
 	}
-	var blk [L]E6
-	for j := m - L; j >= 0; j -= L {
-		copy(blk[:], nz[j:j+L])
-		VectorE6(res[j:j+L]).Mul(acc[:L], prefix[j:j+L])
-		VectorE6(acc[:L]).Mul(acc[:L], blk[:])
+	backward := func(j, w int) {
+		row := rowBuf[:w]
+		if inRes {
+			copy(row, a[j:j+w])
+			for k := range row {
+				if row[k].IsZero() {
+					row[k].SetOne()
+				}
+			}
+		} else {
+			copy(row, res[j:j+w])
+		}
+		VectorE6(res[j:j+w]).Mul(acc[:w], prefix[j:j+w])
+		VectorE6(acc[:w]).Mul(acc[:w], row)
 	}
+	for j := narrow - batchInvertE6MinLanes; j >= wide; j -= batchInvertE6MinLanes {
+		backward(j, batchInvertE6MinLanes)
+	}
+	for j := wide - lanes; j >= 0; j -= lanes {
+		backward(j, lanes)
+	}
+}
 
-	for _, i := range zeros {
-		res[i].SetZero()
-	}
+// batchInvertE6ChainProducts inverts the chain products p of
+// batchInvertE6Chains in place; they are all nonzero and at most
+// batchInvertE6MaxLanes+1. The recursion ends since batchInvertE6Lanes
+// returns 0 (the scalar path) for short inputs, and fewer lanes than elements
+// otherwise.
+func batchInvertE6ChainProducts(p []E6) {
+	var prefix [batchInvertE6MaxLanes + 1]E6
+	batchInvertE6(p, p, prefix[:len(p)], batchInvertE6Lanes(len(p)))
 }
 
 // Div divides an element in E6 by an element in E6

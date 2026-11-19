@@ -224,6 +224,34 @@ func vectorFoldPairs(res, layer, halfInvTwiddles Vector, alpha *{{.ElementName}}
 }
 
 //go:noescape
+func batchInvFwdVec(acc, prefix, row, a, one *{{.ElementName}}, n uint64)
+
+//go:noescape
+func batchInvBwdVec(acc, res, prefix, row, one *{{.ElementName}}, n uint64)
+
+// batchInvertRowForward is batchInvertRowForwardGeneric, fused in a single
+// AVX-512 pass when available.
+func batchInvertRowForward(acc, prefix, row, a Vector) {
+	if !cpu.SupportAVX512 {
+		batchInvertRowForwardGeneric(acc, prefix, row, a)
+		return
+	}
+	one := One()
+	batchInvFwdVec(&acc[0], &prefix[0], &row[0], &a[0], &one, uint64(len(a)/16))
+}
+
+// batchInvertRowBackward is batchInvertRowBackwardGeneric, fused in a single
+// AVX-512 pass when available.
+func batchInvertRowBackward(acc, res, prefix, row, tmp Vector) {
+	if !cpu.SupportAVX512 {
+		batchInvertRowBackwardGeneric(acc, res, prefix, row, tmp)
+		return
+	}
+	one := One()
+	batchInvBwdVec(&acc[0], &res[0], &prefix[0], &row[0], &one, uint64(len(row)/16))
+}
+
+//go:noescape
 func mulAccVec(res, a, b *{{.ElementName}}, n uint64)
 
 //go:noescape

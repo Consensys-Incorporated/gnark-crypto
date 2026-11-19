@@ -1,8 +1,13 @@
 import (
 	"math/big"
 	"math/bits"
+	"sync"
+	"unsafe"
 
 	fr "{{ .FieldPackagePath }}"
+	{{- if .IsKoalaBear}}
+	"github.com/consensys/gnark-crypto/utils/cpu"
+	{{- end}}
 )
 
 // q + r'.r = 1, i.e., qInvNeg = - q⁻¹ mod r
@@ -573,41 +578,7 @@ func (z *E4) Sqrt(x *E4) *E4 {
 	return z
 }
 
-// BatchInvertE4 returns a new slice with every element in a inverted.
-// It uses Montgomery batch inversion trick.
-//
-// if a[i] == 0, returns result[i] = a[i]
-func BatchInvertE4(a []E4) []E4 {
-	res := make([]E4, len(a))
-	if len(a) == 0 {
-		return res
-	}
-
-	zeroes := make([]bool, len(a))
-	var accumulator E4
-	accumulator.SetOne()
-
-	for i := range len(a) {
-		if a[i].IsZero() {
-			zeroes[i] = true
-			continue
-		}
-		res[i].Set(&accumulator)
-		accumulator.Mul(&accumulator, &a[i])
-	}
-
-	accumulator.Inverse(&accumulator)
-
-	for i := len(a) - 1; i >= 0; i-- {
-		if zeroes[i] {
-			continue
-		}
-		res[i].Mul(&res[i], &accumulator)
-		accumulator.Mul(&accumulator, &a[i])
-	}
-
-	return res
-}
+{{template "batchInvertExt" dict "all" . "E" "E4" "V" "VectorE4"}}
 
 // Div divides an element in E4 by an element in E4
 func (z *E4) Div(x *E4, y *E4) *E4 {

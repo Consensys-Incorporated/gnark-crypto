@@ -7,6 +7,7 @@ package extensions
 
 import (
 	"fmt"
+	"slices"
 	"strconv"
 	"testing"
 	"unsafe"
@@ -633,33 +634,6 @@ func TestVectorE6InnerProduct(t *testing.T) {
 	}
 }
 
-func TestBatchInvertE6Into(t *testing.T) {
-	for _, size := range []int{0, 1, 15, 16, 17, 33, 100} {
-		t.Run(strconv.Itoa(size), func(t *testing.T) {
-			a := make(VectorE6, size)
-			a.MustSetRandom()
-			for i := 0; i < size; i += 7 {
-				a[i].SetZero()
-			}
-			expected := make(VectorE6, size)
-			for i := range a {
-				expected[i].Inverse(&a[i]) // Inverse(0) = 0
-			}
-
-			require.Equal(t, expected, VectorE6(BatchInvertE6(a)))
-
-			res := make(VectorE6, size)
-			res.MustSetRandom() // must be fully overwritten
-			BatchInvertE6Into(res, a)
-			require.Equal(t, expected, res)
-
-			// res may alias a
-			BatchInvertE6Into(a, a)
-			require.Equal(t, expected, a)
-		})
-	}
-}
-
 func BenchmarkVectorE6Mul(b *testing.B) {
 	const size = 1 << 16
 	x, y := makeE6MulTestInputs(size, false)
@@ -688,16 +662,6 @@ func BenchmarkVectorE6InnerProduct(b *testing.B) {
 	b.ResetTimer()
 	for b.Loop() {
 		_ = x.InnerProduct(y)
-	}
-}
-
-func BenchmarkBatchInvertE6(b *testing.B) {
-	const size = 1 << 16
-	x, _ := makeE6MulTestInputs(size, false)
-	res := make(VectorE6, size)
-	b.ResetTimer()
-	for b.Loop() {
-		BatchInvertE6Into(res, x)
 	}
 }
 
@@ -1079,5 +1043,204 @@ func BenchmarkVectorE6FoldPairs(b *testing.B) {
 func randVectorFoldE6(n int) VectorE6 {
 	v := make(VectorE6, n)
 	v.MustSetRandom()
+	return v
+}
+
+func TestBatchInvertE6Into(t *testing.T) {
+	zeroPatterns := map[string]func(i, n int) bool{
+		"none":   func(i, n int) bool { return false },
+		"all":    func(i, n int) bool { return true },
+		"first":  func(i, n int) bool { return i == 0 },
+		"last":   func(i, n int) bool { return i == n-1 },
+		"middle": func(i, n int) bool { return i == n/2 },
+		"edges":  func(i, n int) bool { return i == 0 || i == n-1 },
+		"every3": func(i, n int) bool { return i%3 == 0 },
+		"every7": func(i, n int) bool { return i%7 == 3 },
+	}
+
+	for name, isZero := range zeroPatterns {
+		for _, size := range []int{0, 1, 2, 3, 15, 16, 17, 31, 32, 33, 100, 4099} {
+			t.Run(name+"/"+strconv.Itoa(size), func(t *testing.T) {
+				a := randomBatchInvE6(size)
+				expected := make(VectorE6, size)
+				for i := range a {
+					if isZero(i, size) {
+						a[i].SetZero()
+					}
+					expected[i].Inverse(&a[i]) // Inverse(0) = 0
+				}
+				orig := slices.Clone(a)
+
+				// fresh returns a destination holding garbage that must be fully overwritten.
+				fresh := func(n int) VectorE6 {
+					v := randomBatchInvE6(n)
+					return v
+				}
+
+				require.Equal(t, expected, VectorE6(BatchInvertE6(a)))
+
+				res := fresh(size)
+				BatchInvertE6Into(res, a)
+				require.Equal(t, expected, res)
+
+				res = fresh(size)
+				BatchInvertE6IntoScratch(res, a, fresh(size))
+				require.Equal(t, expected, res)
+
+				// scratch may be longer than needed
+				res = fresh(size)
+				BatchInvertE6IntoScratch(res, a, fresh(size+5))
+				require.Equal(t, expected, res)
+
+				// a is left untouched unless it is the destination
+				require.Equal(t, orig, a)
+
+				// res may be the very same slice as a
+				res = slices.Clone(a)
+				BatchInvertE6Into(res, res)
+				require.Equal(t, expected, res)
+
+				res = slices.Clone(a)
+				BatchInvertE6IntoScratch(res, res, fresh(size))
+				require.Equal(t, expected, res)
+			})
+		}
+	}
+}
+
+func TestBatchInvertE6IntoPanics(t *testing.T) {
+	a := make(VectorE6, 4)
+	require.Panics(t, func() { BatchInvertE6Into(make(VectorE6, 3), a) })
+	require.Panics(t, func() { BatchInvertE6IntoScratch(make(VectorE6, 3), a, make(VectorE6, 4)) })
+	require.Panics(t, func() { BatchInvertE6IntoScratch(make(VectorE6, 4), a, make(VectorE6, 3)) })
+
+	// partial overlaps are rejected; the very same slice is allowed (in place).
+	buf := make(VectorE6, 9)
+	for i := range buf {
+		buf[i].SetOne()
+	}
+	require.Panics(t, func() { BatchInvertE6Into(buf[1:5], buf[:4]) })
+	require.Panics(t, func() { BatchInvertE6IntoScratch(buf[1:5], buf[:4], make(VectorE6, 4)) })
+	require.Panics(t, func() { BatchInvertE6IntoScratch(buf[:4], buf[:4], buf[2:6]) })
+	require.Panics(t, func() { BatchInvertE6IntoScratch(make(VectorE6, 4), buf[:4], buf[3:7]) })
+	require.NotPanics(t, func() { BatchInvertE6Into(buf[:4], buf[4:8]) })
+	require.NotPanics(t, func() { BatchInvertE6Into(buf[:4], buf[:4]) })
+	require.NotPanics(t, func() { BatchInvertE6IntoScratch(buf[:4], buf[:4], buf[4:9]) })
+}
+
+func TestBatchInvertE6IntoAllocs(t *testing.T) {
+	const n = 1 << 12
+	a := randomBatchInvE6(n)
+	a[n/3].SetZero()
+	res := make(VectorE6, n)
+	scratch := make(VectorE6, n)
+
+	require.Zero(t, testing.AllocsPerRun(10, func() { BatchInvertE6Into(res, a) }), "BatchInvertE6Into")
+	require.Zero(t, testing.AllocsPerRun(10, func() { BatchInvertE6IntoScratch(res, a, scratch) }), "BatchInvertE6IntoScratch")
+	require.Zero(t, testing.AllocsPerRun(10, func() { BatchInvertE6IntoScratch(res, res, scratch) }), "BatchInvertE6IntoScratch in place")
+	// in place, BatchInvertE6Into takes its scratch from a pool, which only
+	// allocates on a miss (e.g. after a GC, or randomly under -race).
+	require.LessOrEqual(t, testing.AllocsPerRun(100, func() { BatchInvertE6Into(res, res) }), 1.0, "BatchInvertE6Into in place")
+}
+
+// TestBatchInvertE6Lanes checks batchInvertE6 at every row width, whatever the
+// width batchInvertE6Lanes picks for the input length.
+func TestBatchInvertE6Lanes(t *testing.T) {
+	for _, lanes := range []int{0} {
+		for _, n := range []int{1, 15, 16, 17, lanes - 1, lanes, lanes + 1, lanes + 17, 3*lanes + 33} {
+			if n < 1 {
+				continue
+			}
+			t.Run(fmt.Sprintf("lanes=%d/n=%d", lanes, n), func(t *testing.T) {
+				a := randomBatchInvE6(n)
+				expected := make(VectorE6, n)
+				for i := range a {
+					if i%5 == 2 || i == n-1 {
+						a[i].SetZero()
+					}
+					expected[i].Inverse(&a[i]) // Inverse(0) = 0
+				}
+				orig := slices.Clone(a)
+				res := make(VectorE6, n)
+
+				batchInvertE6(res, a, nil, lanes)
+				require.Equal(t, expected, res, "running products in res")
+
+				res = make(VectorE6, n)
+				batchInvertE6(res, a, make(VectorE6, n), lanes)
+				require.Equal(t, expected, res, "running products in scratch")
+				require.Equal(t, orig, a)
+
+				res = slices.Clone(a)
+				batchInvertE6(res, res, make(VectorE6, n), lanes)
+				require.Equal(t, expected, res, "in place")
+			})
+		}
+	}
+}
+
+func BenchmarkBatchInvertE6(b *testing.B) {
+	for _, size := range []int{1 << 12, 1 << 16} {
+		x := randomBatchInvE6(size)
+		res := make(VectorE6, size)
+		scratch := make(VectorE6, size)
+
+		b.Run("alloc/n="+strconv.Itoa(size), func(b *testing.B) {
+			b.ReportAllocs()
+			for b.Loop() {
+				_ = BatchInvertE6(x)
+			}
+		})
+		b.Run("into/n="+strconv.Itoa(size), func(b *testing.B) {
+			b.ReportAllocs()
+			for b.Loop() {
+				BatchInvertE6Into(res, x)
+			}
+		})
+		b.Run("into-scratch/n="+strconv.Itoa(size), func(b *testing.B) {
+			b.ReportAllocs()
+			for b.Loop() {
+				BatchInvertE6IntoScratch(res, x, scratch)
+			}
+		})
+		b.Run("in-place-scratch/n="+strconv.Itoa(size), func(b *testing.B) {
+			b.ReportAllocs()
+			copy(res, x)
+			for b.Loop() {
+				// the content is meaningless after the first call, but the cost is the same
+				BatchInvertE6IntoScratch(res, res, scratch)
+			}
+		})
+	}
+}
+
+// BenchmarkBatchInvertE6Lanes measures batchInvertE6 at every row width, to
+// set the thresholds of batchInvertE6Lanes.
+func BenchmarkBatchInvertE6Lanes(b *testing.B) {
+	for _, n := range []int{64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384, 65536} {
+		x := randomBatchInvE6(n)
+		res := make(VectorE6, n)
+		scratch := make(VectorE6, n)
+		for _, lanes := range []int{0} {
+			b.Run(fmt.Sprintf("n=%d/lanes=%d/into", n, lanes), func(b *testing.B) {
+				for b.Loop() {
+					batchInvertE6(res, x, nil, lanes)
+				}
+			})
+			b.Run(fmt.Sprintf("n=%d/lanes=%d/scratch", n, lanes), func(b *testing.B) {
+				for b.Loop() {
+					batchInvertE6(res, x, scratch, lanes)
+				}
+			})
+		}
+	}
+}
+
+// randomBatchInvE6 returns n random elements.
+func randomBatchInvE6(n int) VectorE6 {
+	v := make(VectorE6, n)
+	for i := range v {
+		v[i].MustSetRandom()
+	}
 	return v
 }
