@@ -21,6 +21,7 @@ var (
 	ErrNbPolynomialsNbPoints          = errors.New("the number of packs of polynomials should be the same as the number of pack of points")
 	ErrInonsistentFolding             = errors.New("the outer claimed values are not consistent with the shplonk proof")
 	ErrInconsistentNumberFoldedPoints = errors.New("the number of outer claimed values is inconsistent with the number of claimed values in the shplonk proof")
+	ErrZeroPoint                      = errors.New("0 is not a valid evaluation point")
 )
 
 // Opening fflonk proof for opening a list of list of polynomials ((fʲᵢ)ᵢ)ⱼ where each
@@ -88,6 +89,9 @@ func BatchOpen(p [][][]fr.Element, digests []kzg.Digest, points [][]fr.Element, 
 	for i := range len(p) {
 		nbPolysPerPack[i] = len(p[i])
 		nextDivisorRminusOnePerPack[i] = getNextDivisorRMinusOne(len(p[i]))
+	}
+	if err := checkNoZeroPoint(points, nextDivisorRminusOnePerPack); err != nil {
+		return res, err
 	}
 	pointsPowerM := make([][]fr.Element, len(points))
 	var tmpBigInt big.Int
@@ -159,6 +163,15 @@ func BatchVerify(proof OpeningProof, digests []kzg.Digest, points [][]fr.Element
 		return ErrNbPolynomialsNbPoints
 	}
 
+	// the number of polynomials per pack, as claimed by the proof
+	nbPolysPerPack := make([]int, len(proof.ClaimedValues))
+	for i := range len(proof.ClaimedValues) {
+		nbPolysPerPack[i] = len(proof.ClaimedValues[i])
+	}
+	if err := checkNoZeroPoint(points, nbPolysPerPack); err != nil {
+		return err
+	}
+
 	for i := range len(proof.ClaimedValues) {
 		if len(proof.ClaimedValues[i]) == 0 {
 			return ErrNbPolynomialsNbPoints
@@ -224,6 +237,40 @@ func BatchVerify(proof OpeningProof, digests []kzg.Digest, points [][]fr.Element
 }
 
 // utils
+
+// checkNoZeroPoint returns ErrZeroPoint if the set of the i-th pack contains 0
+// while that pack holds more than one polynomial. nbPolysPerPack[i] is the
+// number of polynomials folded together in the i-th pack.
+//
+// extendSet(p, t) maps a point x to <x, ωx, .., ωᵗ⁻¹x>; for x = 0 that is t
+// copies of 0, so the shplonk set handed down has a t-fold duplicate and the
+// claimed values silently drop out of the shplonk verification equation. The
+// fold check of BatchVerify degenerates at the same time: ωˡ·0 = 0 for every l,
+// so instead of pinning the t claimed values of a pack it only pins one of them,
+// leaving the other t-1 free.
+//
+// None of that happens for a pack of a single polynomial: t = 1, extendSet is
+// the identity, the extended set has no duplicate and the fold check pins the
+// one claimed value exactly. Opening such a pack at 0 is a legitimate statement
+// and is deliberately still accepted.
+//
+// For t > 1 the check is in fact redundant with shplonk.ErrDuplicatePoint,
+// which catches the same degenerate set one layer down; it is kept because it
+// reports the actual cause and because it lets the prover fail before doing any
+// work.
+func checkNoZeroPoint(points [][]fr.Element, nbPolysPerPack []int) error {
+	for i := range points {
+		if i >= len(nbPolysPerPack) || nbPolysPerPack[i] < 2 {
+			continue
+		}
+		for j := range points[i] {
+			if points[i][j].IsZero() {
+				return ErrZeroPoint
+			}
+		}
+	}
+	return nil
+}
 
 // getIthRootOne returns a generator of Z/iZ
 func getIthRootOne(i int) (fr.Element, error) {

@@ -61,12 +61,20 @@ func (vector VectorE4) Mul(a, b VectorE4) {
 	vectorMulGeneric(vector, a, b)
 }
 
+// ScalarMul sets vector[i] = a[i] * b for all i, where b ∈ E4.
+//
+// vector may be identical to a, and b may point into vector or a.
 func (vector VectorE4) ScalarMul(a VectorE4, b *E4) {
 	N := len(a)
 	if N != len(vector) {
 		panic("vector.ScalarMul: vectors don't have the same length")
 	}
-	vectorScalarMulGeneric(vector, a, b)
+	if N == 0 {
+		return
+	}
+	// copy b: it may point into vector, which the loop overwrites.
+	bb := *b
+	vectorScalarMulGeneric(vector, a, &bb)
 }
 
 // Neg sets vector[i] = -a[i]. vector may be identical to a; partially overlapping slices are not supported.
@@ -175,6 +183,96 @@ func (vector VectorE4) ScalarMulByElement(a VectorE4, b *fr.Element) {
 	vRes.ScalarMul(vBase, b)
 }
 
+// ScalarAdd sets vector[i] = a[i] + c for all i.
+//
+// vector may be identical to a, and c may point into vector or a; partially
+// overlapping slices are not supported.
+func (vector VectorE4) ScalarAdd(a VectorE4, c *E4) {
+	N := len(vector)
+	if len(a) != N {
+		panic("vector.ScalarAdd: vectors don't have the same length")
+	}
+	if len(vector) == 0 {
+		return
+	}
+	cc := *c
+	for i := range vector {
+		vector[i].Add(&a[i], &cc)
+	}
+}
+
+// ScalarSub sets vector[i] = a[i] - c for all i.
+//
+// vector may be identical to a, and c may point into vector or a; partially
+// overlapping slices are not supported.
+func (vector VectorE4) ScalarSub(a VectorE4, c *E4) {
+	if len(vector) != len(a) {
+		panic("vector.ScalarSub: vectors don't have the same length")
+	}
+	if len(vector) == 0 {
+		return
+	}
+	var negC E4
+	negC.Neg(c)
+	vector.ScalarAdd(a, &negC)
+}
+
+// ScalarSubFrom sets vector[i] = c - a[i] for all i.
+//
+// vector may be identical to a, and c may point into vector or a; partially
+// overlapping slices are not supported.
+func (vector VectorE4) ScalarSubFrom(c *E4, a VectorE4) {
+	N := len(vector)
+	if len(a) != N {
+		panic("vector.ScalarSubFrom: vectors don't have the same length")
+	}
+	if len(vector) == 0 {
+		return
+	}
+	cc := *c
+	for i := range vector {
+		vector[i].Sub(&cc, &a[i])
+	}
+}
+
+// FoldPairs folds layer in pairs, as in one FRI folding round:
+//
+//	vector[j] = (layer[2j] + layer[2j+1]) / 2 + alpha · halfInvTwiddles[j] · (layer[2j] − layer[2j+1])
+//
+// FoldPairs halves the even part (p + q) itself, but multiplies the odd part
+// (p − q) by halfInvTwiddles[j] as given: callers pass (2·x_j)⁻¹, where x_j is
+// the evaluation point of the pair. Callers holding x_j⁻¹ must halve it first,
+// or the odd term is off by a factor of 2.
+//
+// It panics unless len(layer) == 2·len(vector) and
+// len(halfInvTwiddles) == len(vector). vector may be layer[:len(vector)]
+// (folding in place); alpha may point into vector or layer. Other overlaps are
+// not supported.
+func (vector VectorE4) FoldPairs(layer VectorE4, halfInvTwiddles fr.Vector, alpha *E4) {
+	n := len(vector)
+	if len(layer) != 2*n || len(halfInvTwiddles) != n {
+		panic("vector.FoldPairs: len(layer) must be 2·len(vector) and len(halfInvTwiddles) len(vector)")
+	}
+	if n == 0 {
+		return
+	}
+	aa := *alpha
+	foldPairsE4Generic(vector, layer, halfInvTwiddles, &aa)
+}
+
+func foldPairsE4Generic(vector, layer VectorE4, halfInvTwiddles fr.Vector, alpha *E4) {
+	var s, d E4
+	for j := range vector {
+		p, q := &layer[2*j], &layer[2*j+1]
+		s.Add(p, q)
+		s.Halve()
+		d.Sub(p, q)
+		d.MulByElement(&d, &halfInvTwiddles[j])
+		d.Mul(&d, alpha)
+		vector[j].Add(&s, &d)
+	}
+}
+
 // Exp sets vector[i] = a[i]ᵏ for all i
 func (vector VectorE4) Exp(a VectorE4, k int64) {
 	N := len(a)
@@ -214,14 +312,128 @@ func (vector VectorE4) Exp(a VectorE4, k int64) {
 	}
 }
 
-// MulAccByElement multiplies each element of the vector v by the E4 element alpha,
-// accumulating the result in the same vector.
+// MulAccByElement sets vector[i] += scale[i] * alpha for all i.
+//
+// It is equivalent to vector.ScalarMulAccBase(scale, alpha).
 func (vector VectorE4) MulAccByElement(scale []fr.Element, alpha *E4) {
+	vector.ScalarMulAccBase(scale, alpha)
+}
+
+// ScalarMulAccBase sets vector[i] += a[i] * c for all i, where a is a
+// base-field vector and c an extension scalar.
+//
+// c may point into vector.
+func (vector VectorE4) ScalarMulAccBase(a fr.Vector, c *E4) {
 	N := len(vector)
-	if N != len(scale) {
-		panic("MulAccByElement: len(vector) != len(scale)")
+	if N != len(a) {
+		panic("vector.ScalarMulAccBase: vectors don't have the same length")
 	}
-	vectorMulAccByElementGeneric(vector, scale, alpha)
+	if len(vector) == 0 {
+		return
+	}
+	cc := *c
+	vectorMulAccByElementGeneric(vector, a, &cc)
+}
+
+// ScalarMulAcc sets vector[i] += a[i] * c for all i.
+//
+// vector may be identical to a, and c may point into vector or a; partially
+// overlapping slices are not supported.
+func (vector VectorE4) ScalarMulAcc(a VectorE4, c *E4) {
+	N := len(vector)
+	if len(a) != N {
+		panic("vector.ScalarMulAcc: vectors don't have the same length")
+	}
+	if len(vector) == 0 {
+		return
+	}
+	cc := *c
+	var t E4
+	for i := range vector {
+		t.Mul(&a[i], &cc)
+		vector[i].Add(&vector[i], &t)
+	}
+}
+
+// MulAcc sets vector[i] += a[i] * b[i] for all i.
+//
+// vector may be identical to a and/or b; partially overlapping slices are not
+// supported.
+func (vector VectorE4) MulAcc(a, b VectorE4) {
+	N := len(vector)
+	if len(a) != N || len(b) != N {
+		panic("vector.MulAcc: vectors don't have the same length")
+	}
+	var t E4
+	for i := range vector {
+		t.Mul(&a[i], &b[i])
+		vector[i].Add(&vector[i], &t)
+	}
+}
+
+// ScalarMulBase sets vector[i] = a[i] * c for all i, where a is a base-field
+// vector and c an extension scalar.
+//
+// c may point into vector.
+func (vector VectorE4) ScalarMulBase(a fr.Vector, c *E4) {
+	N := len(vector)
+	if len(a) != N {
+		panic("vector.ScalarMulBase: vectors don't have the same length")
+	}
+	if len(vector) == 0 {
+		return
+	}
+	cc := *c
+	for i := range vector {
+		vector[i].MulByElement(&cc, &a[i])
+	}
+}
+
+// ScalarMulAdd sets vector[i] = vector[i] * c + b[i] for all i: one Horner step
+// applied across the vector.
+//
+// vector may be identical to b, and c may point into vector or b; partially
+// overlapping slices are not supported.
+func (vector VectorE4) ScalarMulAdd(b VectorE4, c *E4) {
+	N := len(vector)
+	if len(b) != N {
+		panic("vector.ScalarMulAdd: vectors don't have the same length")
+	}
+	if len(vector) == 0 {
+		return
+	}
+	cc := *c
+	// compute into t first: b may alias vector.
+	var t E4
+	for i := range vector {
+		t.Mul(&vector[i], &cc)
+		vector[i].Add(&t, &b[i])
+	}
+}
+
+// ScalarMulAddBase sets vector[i] = vector[i] * c + b[i] for all i, where b is
+// a base-field vector: one Horner step applied across the vector.
+//
+// To compute a random linear combination ∑ cᵏ·colₖ of base-field columns
+// whose powers of c are known, prefer ScalarMulAccBase with each power: it
+// costs one extension-by-base product per element, whereas this method costs
+// a full extension product. Use ScalarMulAddBase for streaming Horner
+// evaluation when the powers of c are not precomputed.
+//
+// c may point into vector.
+func (vector VectorE4) ScalarMulAddBase(b fr.Vector, c *E4) {
+	N := len(vector)
+	if len(b) != N {
+		panic("vector.ScalarMulAddBase: vectors don't have the same length")
+	}
+	if len(vector) == 0 {
+		return
+	}
+	cc := *c
+	for i := range vector {
+		vector[i].Mul(&vector[i], &cc)
+		vector[i].B0.A0.Add(&vector[i].B0.A0, &b[i])
+	}
 }
 
 // Equal checks whether two vectors are equal

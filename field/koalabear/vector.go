@@ -348,46 +348,109 @@ func (vector Vector) Equal(other Vector) bool {
 	return slices.Equal(vector, other)
 }
 
-// Neg sets self to -a, element-wise. self may be identical to a; partially overlapping slices are not supported.
-// It panics if the vectors don't have the same length.
-func (vector Vector) Neg(a Vector) {
-	if len(a) != len(vector) {
-		panic("vector.Neg: vectors don't have the same length")
+// FoldPairs folds layer in pairs, as in one FRI folding round:
+//
+//	vector[j] = (layer[2j] + layer[2j+1]) / 2 + alpha · halfInvTwiddles[j] · (layer[2j] − layer[2j+1])
+//
+// FoldPairs halves the even part (p + q) itself, but multiplies the odd part
+// (p − q) by halfInvTwiddles[j] as given: callers pass (2·x_j)⁻¹, where x_j is
+// the evaluation point of the pair. Callers holding x_j⁻¹ must halve it first,
+// or the odd term is off by a factor of 2.
+//
+// It panics unless len(layer) == 2·len(vector) and
+// len(halfInvTwiddles) == len(vector). vector may be layer[:len(vector)]
+// (folding in place); alpha may point into vector or layer. Other overlaps are
+// not supported.
+func (vector Vector) FoldPairs(layer, halfInvTwiddles Vector, alpha *Element) {
+	n := len(vector)
+	if len(layer) != 2*n || len(halfInvTwiddles) != n {
+		panic("vector.FoldPairs: len(layer) must be 2·len(vector) and len(halfInvTwiddles) len(vector)")
 	}
-	for i := range a {
-		vector[i].Neg(&a[i])
+	if n == 0 {
+		return
+	}
+	aa := *alpha
+	vectorFoldPairs(vector, layer, halfInvTwiddles, &aa)
+}
+
+func foldPairsVecGeneric(res, layer, halfInvTwiddles Vector, alpha *Element) {
+	var s, d Element
+	for j := range res {
+		p, q := &layer[2*j], &layer[2*j+1]
+		s.Add(p, q)
+		s.Halve()
+		d.Sub(p, q)
+		d.Mul(&d, &halfInvTwiddles[j]).Mul(&d, alpha)
+		res[j].Add(&s, &d)
 	}
 }
 
-// ScalarAdd adds the scalar c to each element of a and stores the result in self.
-// self may be identical to a, and c may point into self; partially overlapping slices are not supported. It panics if the vectors don't have the same length.
-func (vector Vector) ScalarAdd(a Vector, c *Element) {
+// MulAcc sets vector[i] += a[i] * b[i] for all i.
+//
+// vector may be identical to a and/or b; partially overlapping slices are not
+// supported. It panics if the vectors don't have the same length.
+func (vector Vector) MulAcc(a, b Vector) {
+	if len(a) != len(vector) || len(b) != len(vector) {
+		panic("vector.MulAcc: vectors don't have the same length")
+	}
+	vectorMulAcc(vector, a, b)
+}
+
+// ScalarMulAcc sets vector[i] += a[i] * c for all i.
+//
+// vector may be identical to a, and c may point into vector or a; partially
+// overlapping slices are not supported. It panics if the vectors don't have
+// the same length.
+func (vector Vector) ScalarMulAcc(a Vector, c *Element) {
 	if len(a) != len(vector) {
-		panic("vector.ScalarAdd: vectors don't have the same length")
+		panic("vector.ScalarMulAcc: vectors don't have the same length")
+	}
+	if len(vector) == 0 {
+		return
 	}
 	cc := *c
-	for i := range a {
-		vector[i].Add(&a[i], &cc)
+	vectorScalarMulAcc(vector, a, &cc)
+}
+
+// ScalarMulAdd sets vector[i] = vector[i] * c + b[i] for all i: one Horner
+// step applied across the vector.
+//
+// vector may be identical to b, and c may point into vector or b; partially
+// overlapping slices are not supported. It panics if the vectors don't have
+// the same length.
+func (vector Vector) ScalarMulAdd(b Vector, c *Element) {
+	if len(b) != len(vector) {
+		panic("vector.ScalarMulAdd: vectors don't have the same length")
 	}
-}
-
-// ScalarSub subtracts the scalar c from each element of a and stores the result in self.
-// self may be identical to a, and c may point into self; partially overlapping slices are not supported. It panics if the vectors don't have the same length.
-func (vector Vector) ScalarSub(a Vector, c *Element) {
-	var negC Element
-	negC.Neg(c)
-	vector.ScalarAdd(a, &negC)
-}
-
-// ScalarSubFrom subtracts each element of a from the scalar c and stores the result in self.
-// self may be identical to a, and c may point into self; partially overlapping slices are not supported. It panics if the vectors don't have the same length.
-func (vector Vector) ScalarSubFrom(c *Element, a Vector) {
-	if len(a) != len(vector) {
-		panic("vector.ScalarSubFrom: vectors don't have the same length")
+	if len(vector) == 0 {
+		return
 	}
 	cc := *c
-	for i := range a {
-		vector[i].Sub(&cc, &a[i])
+	vectorScalarMulAdd(vector, b, &cc)
+}
+
+func mulAccVecGeneric(res, a, b Vector) {
+	var t Element
+	for i := range res {
+		t.Mul(&a[i], &b[i])
+		res[i].Add(&res[i], &t)
+	}
+}
+
+func scalarMulAccVecGeneric(res, a Vector, c *Element) {
+	var t Element
+	for i := range res {
+		t.Mul(&a[i], c)
+		res[i].Add(&res[i], &t)
+	}
+}
+
+func scalarMulAddVecGeneric(res, b Vector, c *Element) {
+	// compute into t first: b may alias res.
+	var t Element
+	for i := range res {
+		t.Mul(&res[i], c)
+		res[i].Add(&t, &b[i])
 	}
 }
 

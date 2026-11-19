@@ -698,48 +698,31 @@ func (vector VectorE6) MustSetRandom() {
 	}
 }
 
-// Neg sets vector[i] = -a[i]. vector may be identical to a; partially overlapping slices are not supported.
-func (vector VectorE6) Neg(a VectorE6) {
-	if len(a) != len(vector) {
-		panic("vector.Neg: vectors don't have the same length")
-	}
-	for i := range vector {
-		vector[i].Neg(&a[i])
-	}
-}
-
-// ScalarAddElement sets vector[i] = a[i] + c, where c is an element of the base field. vector may be identical to a, and c may point into vector; partially overlapping slices are not supported.
-func (vector VectorE6) ScalarAddElement(a VectorE6, c *fr.Element) {
-	if len(a) != len(vector) {
-		panic("vector.ScalarAddElement: vectors don't have the same length")
-	}
-	cc := *c
-	for i := range vector {
-		vector[i].AddElement(&a[i], &cc)
-	}
-}
-
-// ScalarSubElement sets vector[i] = a[i] - c, where c is an element of the base field. vector may be identical to a, and c may point into vector; partially overlapping slices are not supported.
-func (vector VectorE6) ScalarSubElement(a VectorE6, c *fr.Element) {
-	var negC fr.Element
-	negC.Neg(c)
-	vector.ScalarAddElement(a, &negC)
-}
-
-// ScalarSubFromElement sets vector[i] = c - a[i], where c is an element of the base field. vector may be identical to a, and c may point into vector; partially overlapping slices are not supported.
-func (vector VectorE6) ScalarSubFromElement(c *fr.Element, a VectorE6) {
-	if len(a) != len(vector) {
-		panic("vector.ScalarSubFromElement: vectors don't have the same length")
-	}
-	cc := *c
-	for i := range vector {
-		vector[i].SubFromElement(&cc, &a[i])
-	}
-}
-
 // Sum returns the sum of all elements in the vector.
 func (vector VectorE6) Sum() E6 {
 	var sum E6
+	const blockSize = 8
+	N := len(vector)
+	if cpu.SupportAVX512 && N >= blockSize {
+		r := N % blockSize
+		nr := N - r
+		// lane p of the accumulator holds a partial (unreduced) sum of
+		// coordinate p%6; reduce each lane mod q before folding so the fold
+		// cannot overflow.
+		var t [24]uint64
+		vectorSum_E6_avx512(&t, &vector[0], uint64(nr))
+		var c [6]uint64
+		for p := range t {
+			c[p%6] += t[p] % q
+		}
+		sum.B0.A0[0] = uint32(c[0] % q)
+		sum.B0.A1[0] = uint32(c[1] % q)
+		sum.B1.A0[0] = uint32(c[2] % q)
+		sum.B1.A1[0] = uint32(c[3] % q)
+		sum.B2.A0[0] = uint32(c[4] % q)
+		sum.B2.A1[0] = uint32(c[5] % q)
+		vector = vector[nr:]
+	}
 	for i := range vector {
 		sum.Add(&sum, &vector[i])
 	}
@@ -749,21 +732,107 @@ func (vector VectorE6) Sum() E6 {
 // Add sets vector[i] = a[i] + b[i]. vector may be identical to a and/or b;
 // partially overlapping slices are not supported.
 func (vector VectorE6) Add(a, b VectorE6) {
-	if len(a) != len(vector) || len(b) != len(vector) {
-		panic("vector.Add: vectors don't have the same length")
+	N := len(vector)
+	if len(a) != N || len(b) != N {
+		panic("vectorE6.Add: vectors don't have the same length")
 	}
-	v := asBaseVector(vector)
-	v.Add(asBaseVector(a), asBaseVector(b))
+	if N == 0 {
+		return
+	}
+	// E6 is laid out as 6 contiguous fr.Element; cast and reuse the optimized
+	// fr.Vector.Add.
+	M := N * 6
+	vRes := fr.Vector(unsafe.Slice((*fr.Element)(unsafe.Pointer(&vector[0])), M))
+	vA := fr.Vector(unsafe.Slice((*fr.Element)(unsafe.Pointer(&a[0])), M))
+	vB := fr.Vector(unsafe.Slice((*fr.Element)(unsafe.Pointer(&b[0])), M))
+	vRes.Add(vA, vB)
 }
 
 // Sub sets vector[i] = a[i] - b[i]. vector may be identical to a and/or b;
 // partially overlapping slices are not supported.
 func (vector VectorE6) Sub(a, b VectorE6) {
-	if len(a) != len(vector) || len(b) != len(vector) {
-		panic("vector.Sub: vectors don't have the same length")
+	N := len(vector)
+	if len(a) != N || len(b) != N {
+		panic("vectorE6.Sub: vectors don't have the same length")
 	}
-	v := asBaseVector(vector)
-	v.Sub(asBaseVector(a), asBaseVector(b))
+	if N == 0 {
+		return
+	}
+	// E6 is laid out as 6 contiguous fr.Element; cast and reuse the optimized
+	// fr.Vector.Sub.
+	M := N * 6
+	vRes := fr.Vector(unsafe.Slice((*fr.Element)(unsafe.Pointer(&vector[0])), M))
+	vA := fr.Vector(unsafe.Slice((*fr.Element)(unsafe.Pointer(&a[0])), M))
+	vB := fr.Vector(unsafe.Slice((*fr.Element)(unsafe.Pointer(&b[0])), M))
+	vRes.Sub(vA, vB)
+}
+
+// ScalarAdd sets vector[i] = a[i] + c for all i.
+//
+// vector may be identical to a, and c may point into vector or a; partially
+// overlapping slices are not supported.
+func (vector VectorE6) ScalarAdd(a VectorE6, c *E6) {
+	N := len(vector)
+	if len(a) != N {
+		panic("vectorE6.ScalarAdd: vectors don't have the same length")
+	}
+	if len(vector) == 0 {
+		return
+	}
+	cc := *c
+	const blockSize = 8
+	if cpu.SupportAVX512 && N >= blockSize {
+		r := N % blockSize
+		nr := N - r
+		cTiled := tileE6Scalar(&cc)
+		vectorScalarAdd_E6_avx512(&vector[0], &a[0], &cTiled[0], uint64(nr))
+		vector, a = vector[nr:], a[nr:]
+	}
+	for i := range vector {
+		vector[i].Add(&a[i], &cc)
+	}
+}
+
+// ScalarSub sets vector[i] = a[i] - c for all i.
+//
+// vector may be identical to a, and c may point into vector or a; partially
+// overlapping slices are not supported.
+func (vector VectorE6) ScalarSub(a VectorE6, c *E6) {
+	if len(vector) != len(a) {
+		panic("vectorE6.ScalarSub: vectors don't have the same length")
+	}
+	if len(vector) == 0 {
+		return
+	}
+	var negC E6
+	negC.Neg(c)
+	vector.ScalarAdd(a, &negC)
+}
+
+// ScalarSubFrom sets vector[i] = c - a[i] for all i.
+//
+// vector may be identical to a, and c may point into vector or a; partially
+// overlapping slices are not supported.
+func (vector VectorE6) ScalarSubFrom(c *E6, a VectorE6) {
+	N := len(vector)
+	if len(a) != N {
+		panic("vectorE6.ScalarSubFrom: vectors don't have the same length")
+	}
+	if len(vector) == 0 {
+		return
+	}
+	cc := *c
+	const blockSize = 8
+	if cpu.SupportAVX512 && N >= blockSize {
+		r := N % blockSize
+		nr := N - r
+		cTiled := tileE6Scalar(&cc)
+		vectorScalarSubFrom_E6_avx512(&vector[0], &a[0], &cTiled[0], uint64(nr))
+		vector, a = vector[nr:], a[nr:]
+	}
+	for i := range vector {
+		vector[i].Sub(&cc, &a[i])
+	}
 }
 
 // Mul sets vector[i] = a[i] * b[i]. vector may alias a or b.
@@ -818,12 +887,83 @@ func (vector VectorE6) InnerProduct(a VectorE6) E6 {
 	return res
 }
 
+// FoldPairs folds layer in pairs, as in one FRI folding round:
+//
+//	vector[j] = (layer[2j] + layer[2j+1]) / 2 + alpha · halfInvTwiddles[j] · (layer[2j] − layer[2j+1])
+//
+// FoldPairs halves the even part (p + q) itself, but multiplies the odd part
+// (p − q) by halfInvTwiddles[j] as given: callers pass (2·x_j)⁻¹, where x_j is
+// the evaluation point of the pair. Callers holding x_j⁻¹ must halve it first,
+// or the odd term is off by a factor of 2.
+//
+// It panics unless len(layer) == 2·len(vector) and
+// len(halfInvTwiddles) == len(vector). vector may be layer[:len(vector)]
+// (folding in place); alpha may point into vector or layer. Other overlaps are
+// not supported.
+func (vector VectorE6) FoldPairs(layer VectorE6, halfInvTwiddles fr.Vector, alpha *E6) {
+	n := len(vector)
+	if len(layer) != 2*n || len(halfInvTwiddles) != n {
+		panic("vectorE6.FoldPairs: len(layer) must be 2·len(vector) and len(halfInvTwiddles) len(vector)")
+	}
+	if n == 0 {
+		return
+	}
+	aa := *alpha
+	const blockSize = 16
+	if cpu.SupportAVX512 && n >= blockSize {
+		nr := n - n%blockSize
+		K := scalarMulE6Matrix(&aa)
+		vectorFoldPairs_E6_avx512(&vector[0], &layer[0], &halfInvTwiddles[0], &K[0], uint64(nr))
+		vector, layer, halfInvTwiddles = vector[nr:], layer[2*nr:], halfInvTwiddles[nr:]
+	}
+	foldPairsE6Generic(vector, layer, halfInvTwiddles, &aa)
+}
+
+func foldPairsE6Generic(vector, layer VectorE6, halfInvTwiddles fr.Vector, alpha *E6) {
+	var s, d E6
+	for j := range vector {
+		p, q := &layer[2*j], &layer[2*j+1]
+		s.Add(p, q)
+		s.Halve()
+		d.Sub(p, q)
+		d.MulByElement(&d, &halfInvTwiddles[j])
+		d.Mul(&d, alpha)
+		vector[j].Add(&s, &d)
+	}
+}
+
 // InnerProductByElement returns the sum of vector[i] * a[i], where a[i] ∈ F_p.
 func (vector VectorE6) InnerProductByElement(a fr.Vector) E6 {
 	if len(vector) != len(a) {
 		panic("vector.InnerProductByElement: vectors don't have the same length")
 	}
 	var res, tmp E6
+	const blockSize = 8
+	N := len(vector)
+	if cpu.SupportAVX512 && N >= blockSize {
+		r := N % blockSize
+		nr := N - r
+		// t[16g + 8h + j] is a partial (unreduced) sum of lane 16g + 2j + h of
+		// the 48-lane window, i.e. of coordinate (16g + 2j + h) % 6; reduce each
+		// lane mod q before folding so the fold cannot overflow.
+		var t [48]uint64
+		vectorInnerProductByElement_E6_avx512(&t, &vector[0], &a[0], uint64(nr))
+		var c [6]uint64
+		for g := range 3 {
+			for h := range 2 {
+				for j := range 8 {
+					c[(16*g+2*j+h)%6] += t[16*g+8*h+j] % q
+				}
+			}
+		}
+		res.B0.A0[0] = uint32(c[0] % q)
+		res.B0.A1[0] = uint32(c[1] % q)
+		res.B1.A0[0] = uint32(c[2] % q)
+		res.B1.A1[0] = uint32(c[3] % q)
+		res.B2.A0[0] = uint32(c[4] % q)
+		res.B2.A1[0] = uint32(c[5] % q)
+		vector, a = vector[nr:], a[nr:]
+	}
 	for i := range vector {
 		tmp.MulByElement(&vector[i], &a[i])
 		res.Add(&res, &tmp)
@@ -1016,25 +1156,36 @@ func (vector VectorE6) ScalarMulByElement(a VectorE6, b *fr.Element) {
 	vRes.ScalarMul(vBase, b)
 }
 
-// ScalarMulAccByElement accumulates vector[i] += a[i] * s, where a is a
-// base-field vector and s a fixed E6 scalar.
+// ScalarMulAccByElement sets vector[i] += a[i] * s for all i, where a is a
+// base-field vector and s an E6 scalar.
+//
+// It is equivalent to vector.ScalarMulAccBase(a, s).
 func (vector VectorE6) ScalarMulAccByElement(a fr.Vector, s *E6) {
+	vector.ScalarMulAccBase(a, s)
+}
+
+// ScalarMulAccBase sets vector[i] += a[i] * c for all i, where a is a
+// base-field vector and c an extension scalar.
+//
+// c may point into vector.
+func (vector VectorE6) ScalarMulAccBase(a fr.Vector, c *E6) {
 	N := len(vector)
 	if len(a) != N {
-		panic("vectorE6.ScalarMulAccByElement: vectors don't have the same length")
+		panic("vectorE6.ScalarMulAccBase: vectors don't have the same length")
 	}
+	if len(vector) == 0 {
+		return
+	}
+	cc := *c
 	const blockSize = 8
 	if cpu.SupportAVX512 && N >= blockSize {
 		r := N % blockSize
 		nr := N - r
-		sTiled := tileE6Scalar(s)
+		sTiled := tileE6Scalar(&cc)
 		vectorScalarMulAccByElement_E6_avx512(&vector[0], &a[0], &sTiled[0], uint64(nr))
-		if r != 0 {
-			scalarMulAccByElementE6Generic(vector[nr:], a[nr:], s)
-		}
-		return
+		vector, a = vector[nr:], a[nr:]
 	}
-	scalarMulAccByElementE6Generic(vector, a, s)
+	scalarMulAccByElementE6Generic(vector, a, &cc)
 }
 
 func scalarMulAccByElementE6Generic(vector VectorE6, a fr.Vector, s *E6) {
@@ -1045,24 +1196,139 @@ func scalarMulAccByElementE6Generic(vector VectorE6, a fr.Vector, s *E6) {
 	}
 }
 
+// MulAcc sets vector[i] += a[i] * b[i] for all i.
+//
+// vector may be identical to a and/or b; partially overlapping slices are not
+// supported.
+func (vector VectorE6) MulAcc(a, b VectorE6) {
+	N := len(vector)
+	if len(a) != N || len(b) != N {
+		panic("vectorE6.MulAcc: vectors don't have the same length")
+	}
+	const blockSize = 16
+	if cpu.SupportAVX512 && N >= blockSize {
+		r := N % blockSize
+		nr := N - r
+		vectorMulAcc_E6_avx512(&vector[0], &a[0], &b[0], uint64(nr))
+		vector, a, b = vector[nr:], a[nr:], b[nr:]
+	}
+	var t E6
+	for i := range vector {
+		t.Mul(&a[i], &b[i])
+		vector[i].Add(&vector[i], &t)
+	}
+}
+
+// ScalarMulBase sets vector[i] = a[i] * c for all i, where a is a base-field
+// vector and c an extension scalar.
+//
+// c may point into vector.
+func (vector VectorE6) ScalarMulBase(a fr.Vector, c *E6) {
+	N := len(vector)
+	if len(a) != N {
+		panic("vectorE6.ScalarMulBase: vectors don't have the same length")
+	}
+	if len(vector) == 0 {
+		return
+	}
+	cc := *c
+	const blockSize = 8
+	if cpu.SupportAVX512 && N >= blockSize {
+		r := N % blockSize
+		nr := N - r
+		sTiled := tileE6Scalar(&cc)
+		vectorScalarMulBase_E6_avx512(&vector[0], &a[0], &sTiled[0], uint64(nr))
+		vector, a = vector[nr:], a[nr:]
+	}
+	for i := range vector {
+		vector[i].MulByElement(&cc, &a[i])
+	}
+}
+
+// ScalarMulAdd sets vector[i] = vector[i] * c + b[i] for all i: one Horner step
+// applied across the vector.
+//
+// vector may be identical to b, and c may point into vector or b; partially
+// overlapping slices are not supported.
+func (vector VectorE6) ScalarMulAdd(b VectorE6, c *E6) {
+	N := len(vector)
+	if len(b) != N {
+		panic("vectorE6.ScalarMulAdd: vectors don't have the same length")
+	}
+	if len(vector) == 0 {
+		return
+	}
+	cc := *c
+	const blockSize = 8
+	if cpu.SupportAVX512 && N >= blockSize {
+		r := N % blockSize
+		nr := N - r
+		Kcol := e6ScalarMulKcol(&cc)
+		vectorScalarMulAdd_E6_avx512(&vector[0], &b[0], &Kcol[0], uint64(nr))
+		vector, b = vector[nr:], b[nr:]
+	}
+	// compute into t first: b may alias vector.
+	var t E6
+	for i := range vector {
+		t.Mul(&vector[i], &cc)
+		vector[i].Add(&t, &b[i])
+	}
+}
+
+// ScalarMulAddBase sets vector[i] = vector[i] * c + b[i] for all i, where b is
+// a base-field vector: one Horner step applied across the vector.
+//
+// To compute a random linear combination ∑ cᵏ·colₖ of base-field columns
+// whose powers of c are known, prefer ScalarMulAccBase with each power: it
+// costs one extension-by-base product per element, whereas this method costs
+// a full extension product. Use ScalarMulAddBase for streaming Horner
+// evaluation when the powers of c are not precomputed.
+//
+// c may point into vector.
+func (vector VectorE6) ScalarMulAddBase(b fr.Vector, c *E6) {
+	N := len(vector)
+	if len(b) != N {
+		panic("vectorE6.ScalarMulAddBase: vectors don't have the same length")
+	}
+	if len(vector) == 0 {
+		return
+	}
+	cc := *c
+	const blockSize = 8
+	if cpu.SupportAVX512 && N >= blockSize {
+		r := N % blockSize
+		nr := N - r
+		Kcol := e6ScalarMulKcol(&cc)
+		vectorScalarMulAddBase_E6_avx512(&vector[0], &b[0], &Kcol[0], uint64(nr))
+		vector, b = vector[nr:], b[nr:]
+	}
+	for i := range vector {
+		vector[i].Mul(&vector[i], &cc)
+		vector[i].B0.A0.Add(&vector[i].B0.A0, &b[i])
+	}
+}
+
 // ScalarMulAcc accumulates vector[i] += a[i] * s, where s is a fixed E6 scalar.
+// vector may be identical to a, and s may point into vector or a.
 func (vector VectorE6) ScalarMulAcc(a VectorE6, s *E6) {
 	N := len(vector)
 	if len(a) != N {
 		panic("vectorE6.ScalarMulAcc: vectors don't have the same length")
 	}
+	if len(vector) == 0 {
+		return
+	}
+	// copy s: it may point into vector, which the loop overwrites.
+	ss := *s
 	const blockSize = 8
 	if cpu.SupportAVX512 && N >= blockSize {
 		r := N % blockSize
 		nr := N - r
-		Kcol := e6ScalarMulKcol(s)
+		Kcol := e6ScalarMulKcol(&ss)
 		vectorScalarMulAcc_E6_avx512(&vector[0], &a[0], &Kcol[0], uint64(nr))
-		if r != 0 {
-			scalarMulAccE6Generic(vector[nr:], a[nr:], s)
-		}
-		return
+		vector, a = vector[nr:], a[nr:]
 	}
-	scalarMulAccE6Generic(vector, a, s)
+	scalarMulAccE6Generic(vector, a, &ss)
 }
 
 func scalarMulAccE6Generic(vector, a VectorE6, s *E6) {
@@ -1074,23 +1340,26 @@ func scalarMulAccE6Generic(vector, a VectorE6, s *E6) {
 }
 
 // ScalarMul sets vector[i] = a[i] * s, where s is a fixed E6 scalar.
+// vector may be identical to a, and s may point into vector or a.
 func (vector VectorE6) ScalarMul(a VectorE6, s *E6) {
 	N := len(vector)
 	if len(a) != N {
 		panic("vectorE6.ScalarMul: vectors don't have the same length")
 	}
+	if len(vector) == 0 {
+		return
+	}
+	// copy s: it may point into vector, which the loop overwrites.
+	ss := *s
 	const blockSize = 8
 	if cpu.SupportAVX512 && N >= blockSize {
 		r := N % blockSize
 		nr := N - r
-		Kcol := e6ScalarMulKcol(s)
+		Kcol := e6ScalarMulKcol(&ss)
 		vectorScalarMul_E6_avx512(&vector[0], &a[0], &Kcol[0], uint64(nr))
-		if r != 0 {
-			scalarMulE6Generic(vector[nr:], a[nr:], s)
-		}
-		return
+		vector, a = vector[nr:], a[nr:]
 	}
-	scalarMulE6Generic(vector, a, s)
+	scalarMulE6Generic(vector, a, &ss)
 }
 
 func scalarMulE6Generic(vector, a VectorE6, s *E6) {
@@ -1100,7 +1369,8 @@ func scalarMulE6Generic(vector, a VectorE6, s *E6) {
 }
 
 // tileE6Scalar tiles the six fr coordinates of s across 48 lanes (period 6, the
-// 8-E6 = 3-zmm broadcast window consumed by vectorScalarMulAccByElement_E6_avx512).
+// 8-E6 = 3-zmm broadcast window consumed by vectorScalarMulAccByElement_E6_avx512,
+// vectorScalarAdd_E6_avx512 and vectorScalarSubFrom_E6_avx512).
 func tileE6Scalar(s *E6) [48]fr.Element {
 	c := [6]fr.Element{s.B0.A0, s.B0.A1, s.B1.A0, s.B1.A1, s.B2.A0, s.B2.A1}
 	var out [48]fr.Element
