@@ -16,6 +16,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"unsafe"
 
 	"github.com/consensys/gnark-crypto/field/hash"
 	"github.com/consensys/gnark-crypto/field/pool"
@@ -1440,6 +1441,9 @@ func BatchInvertInto(res, a []Element) {
 		return
 	}
 	if &res[0] != &a[0] {
+		if batchInvertOverlap(res, a) {
+			panic("BatchInvertInto: res and a overlap without being the same slice")
+		}
 		batchInvert(res, a, nil)
 		return
 	}
@@ -1448,7 +1452,21 @@ func BatchInvertInto(res, a []Element) {
 		*scratch = make([]Element, len(a))
 	}
 	batchInvert(res, a, (*scratch)[:len(a)])
-	batchInvertScratchPool.Put(scratch)
+	if uintptr(cap(*scratch))*unsafe.Sizeof(Element{}) <= batchInvertPoolMaxBytes {
+		batchInvertScratchPool.Put(scratch)
+	}
+}
+
+// batchInvertPoolMaxBytes is the size of the largest scratch buffer kept in
+// batchInvertScratchPool; larger ones are left to the garbage collector, so that a
+// single long in-place call does not pin its scratch space.
+const batchInvertPoolMaxBytes = 4 << 20
+
+// batchInvertOverlap reports whether x and y share memory; both are non-empty.
+func batchInvertOverlap(x, y []Element) bool {
+	const size = unsafe.Sizeof(Element{})
+	xs, ys := uintptr(unsafe.Pointer(&x[0])), uintptr(unsafe.Pointer(&y[0]))
+	return xs < ys+uintptr(len(y))*size && ys < xs+uintptr(len(x))*size
 }
 
 // batchInvertScratchPool holds the scratch space of in-place BatchInvertInto calls.
@@ -1473,7 +1491,14 @@ func BatchInvertIntoScratch(res, a, scratch []Element) {
 	if len(a) == 0 {
 		return
 	}
-	batchInvert(res, a, scratch[:len(a)])
+	scratch = scratch[:len(a)]
+	if batchInvertOverlap(scratch, res) || batchInvertOverlap(scratch, a) {
+		panic("BatchInvertIntoScratch: scratch overlaps res or a")
+	}
+	if &res[0] != &a[0] && batchInvertOverlap(res, a) {
+		panic("BatchInvertIntoScratch: res and a overlap without being the same slice")
+	}
+	batchInvert(res, a, scratch)
 }
 
 // batchInvert is the implementation of BatchInvertInto. len(a) must be > 0.

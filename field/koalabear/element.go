@@ -16,6 +16,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"unsafe"
 
 	"github.com/consensys/gnark-crypto/field/hash"
 	"github.com/consensys/gnark-crypto/field/pool"
@@ -437,6 +438,9 @@ func BatchInvertInto(res, a []Element) {
 		return
 	}
 	if &res[0] != &a[0] {
+		if batchInvertOverlap(res, a) {
+			panic("BatchInvertInto: res and a overlap without being the same slice")
+		}
 		batchInvert(res, a, nil)
 		return
 	}
@@ -445,7 +449,21 @@ func BatchInvertInto(res, a []Element) {
 		*scratch = make([]Element, len(a))
 	}
 	batchInvert(res, a, (*scratch)[:len(a)])
-	batchInvertScratchPool.Put(scratch)
+	if uintptr(cap(*scratch))*unsafe.Sizeof(Element{}) <= batchInvertPoolMaxBytes {
+		batchInvertScratchPool.Put(scratch)
+	}
+}
+
+// batchInvertPoolMaxBytes is the size of the largest scratch buffer kept in
+// batchInvertScratchPool; larger ones are left to the garbage collector, so that a
+// single long in-place call does not pin its scratch space.
+const batchInvertPoolMaxBytes = 4 << 20
+
+// batchInvertOverlap reports whether x and y share memory; both are non-empty.
+func batchInvertOverlap(x, y []Element) bool {
+	const size = unsafe.Sizeof(Element{})
+	xs, ys := uintptr(unsafe.Pointer(&x[0])), uintptr(unsafe.Pointer(&y[0]))
+	return xs < ys+uintptr(len(y))*size && ys < xs+uintptr(len(x))*size
 }
 
 // batchInvertScratchPool holds the scratch space of in-place BatchInvertInto calls.
@@ -470,7 +488,14 @@ func BatchInvertIntoScratch(res, a, scratch []Element) {
 	if len(a) == 0 {
 		return
 	}
-	batchInvert(res, a, scratch[:len(a)])
+	scratch = scratch[:len(a)]
+	if batchInvertOverlap(scratch, res) || batchInvertOverlap(scratch, a) {
+		panic("BatchInvertIntoScratch: scratch overlaps res or a")
+	}
+	if &res[0] != &a[0] && batchInvertOverlap(res, a) {
+		panic("BatchInvertIntoScratch: res and a overlap without being the same slice")
+	}
+	batchInvert(res, a, scratch)
 }
 
 // batchInvert is the implementation of BatchInvertInto. len(a) must be > 0.
@@ -654,15 +679,15 @@ func batchInvertChains(res, a, scratch []Element, lanes int) {
 
 	// acc[l] is the running product of chain l, acc[lanes] that of the scalar
 	// chain.
-	var accBuf [batchInvertMaxLanes + 1]Element
-	acc := accBuf[:lanes+1]
+	bufs := batchInvertBufsPool.Get().(*batchInvertBufs)
+	acc := bufs.acc[:lanes+1]
 	for l := range acc {
 		acc[l].SetOne()
 	}
 	tail := &acc[lanes]
 	// rowBuf receives the rows of a with their zeros replaced by one, when res
 	// holds the running products.
-	var rowBuf [batchInvertMaxLanes]Element
+	rowBuf := bufs.row[:]
 
 	// forward pass: prefix[i] is the product of the earlier elements of the
 	// chain of i, or zero if a[i] is zero.
@@ -694,7 +719,7 @@ func batchInvertChains(res, a, scratch []Element, lanes int) {
 		tail.Mul(tail, &a[i])
 	}
 
-	batchInvertChainProducts(acc)
+	batchInvert(acc, acc, bufs.products[:len(acc)])
 
 	// backward pass: the inverse of element i is the running inverse of its
 	// chain times prefix[i]; the row is read before res is overwritten.
@@ -725,14 +750,20 @@ func batchInvertChains(res, a, scratch []Element, lanes int) {
 	for j := wide - lanes; j >= 0; j -= lanes {
 		backward(j, lanes)
 	}
+	batchInvertBufsPool.Put(bufs)
 }
 
-// batchInvertChainProducts inverts the chain products p of batchInvertChains
-// in place; there are at most batchInvertMaxLanes+1 of them. The recursion
-// ends since batchInvertLanes(n) is at most n/2.
-func batchInvertChainProducts(p []Element) {
-	var scratch [batchInvertMaxLanes + 1]Element
-	batchInvert(p, p, scratch[:len(p)])
+// batchInvertBufs holds the row-sized buffers of batchInvertChains; they come
+// from a pool rather than the stack, which would zero them on every call
+// (and grow the goroutine stack), whatever the row width.
+type batchInvertBufs struct {
+	acc      [batchInvertMaxLanes + 1]Element
+	row      [batchInvertMaxLanes]Element
+	products [batchInvertMaxLanes + 1]Element // scratch to invert the chain products
+}
+
+var batchInvertBufsPool = sync.Pool{
+	New: func() any { return new(batchInvertBufs) },
 }
 
 // batchInvertRowForwardGeneric is the forward step of batchInvertChains on

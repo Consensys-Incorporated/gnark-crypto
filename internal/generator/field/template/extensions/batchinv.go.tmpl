@@ -34,6 +34,9 @@ func BatchInvert{{.E}}Into(res, a []{{.E}}) {
 		return
 	}
 	if &res[0] != &a[0] {
+		if batchInvert{{.E}}Overlap(res, a) {
+			panic("BatchInvert{{.E}}Into: res and a overlap without being the same slice")
+		}
 		batchInvert{{.E}}(res, a, nil, batchInvert{{.E}}Lanes(len(a)))
 		return
 	}
@@ -42,7 +45,21 @@ func BatchInvert{{.E}}Into(res, a []{{.E}}) {
 		*scratch = make([]{{.E}}, len(a))
 	}
 	batchInvert{{.E}}(res, a, (*scratch)[:len(a)], batchInvert{{.E}}Lanes(len(a)))
-	batchInvert{{.E}}ScratchPool.Put(scratch)
+	if uintptr(cap(*scratch))*unsafe.Sizeof({{.E}}{}) <= batchInvert{{.E}}PoolMaxBytes {
+		batchInvert{{.E}}ScratchPool.Put(scratch)
+	}
+}
+
+// batchInvert{{.E}}PoolMaxBytes is the size of the largest scratch buffer kept in
+// batchInvert{{.E}}ScratchPool; larger ones are left to the garbage collector, so that a
+// single long in-place call does not pin its scratch space.
+const batchInvert{{.E}}PoolMaxBytes = 4 << 20
+
+// batchInvert{{.E}}Overlap reports whether x and y share memory; both are non-empty.
+func batchInvert{{.E}}Overlap(x, y []{{.E}}) bool {
+	const size = unsafe.Sizeof({{.E}}{})
+	xs, ys := uintptr(unsafe.Pointer(&x[0])), uintptr(unsafe.Pointer(&y[0]))
+	return xs < ys+uintptr(len(y))*size && ys < xs+uintptr(len(x))*size
 }
 
 // batchInvert{{.E}}ScratchPool holds the scratch space of in-place
@@ -67,7 +84,14 @@ func BatchInvert{{.E}}IntoScratch(res, a, scratch []{{.E}}) {
 	if len(a) == 0 {
 		return
 	}
-	batchInvert{{.E}}(res, a, scratch[:len(a)], batchInvert{{.E}}Lanes(len(a)))
+	scratch = scratch[:len(a)]
+	if batchInvert{{.E}}Overlap(scratch, res) || batchInvert{{.E}}Overlap(scratch, a) {
+		panic("BatchInvert{{.E}}IntoScratch: scratch overlaps res or a")
+	}
+	if &res[0] != &a[0] && batchInvert{{.E}}Overlap(res, a) {
+		panic("BatchInvert{{.E}}IntoScratch: res and a overlap without being the same slice")
+	}
+	batchInvert{{.E}}(res, a, scratch, batchInvert{{.E}}Lanes(len(a)))
 }
 
 {{- if .all.IsKoalaBear}}

@@ -2276,6 +2276,19 @@ func TestElementBatchInvertIntoPanics(t *testing.T) {
 	require.Panics(t, func() { BatchInvertInto(make([]Element, 3), a) })
 	require.Panics(t, func() { BatchInvertIntoScratch(make([]Element, 3), a, make([]Element, 4)) })
 	require.Panics(t, func() { BatchInvertIntoScratch(make([]Element, 4), a, make([]Element, 3)) })
+
+	// partial overlaps are rejected; the very same slice is allowed (in place).
+	buf := make([]Element, 9)
+	for i := range buf {
+		buf[i].SetOne()
+	}
+	require.Panics(t, func() { BatchInvertInto(buf[1:5], buf[:4]) })
+	require.Panics(t, func() { BatchInvertIntoScratch(buf[1:5], buf[:4], make([]Element, 4)) })
+	require.Panics(t, func() { BatchInvertIntoScratch(buf[:4], buf[:4], buf[2:6]) })
+	require.Panics(t, func() { BatchInvertIntoScratch(make([]Element, 4), buf[:4], buf[3:7]) })
+	require.NotPanics(t, func() { BatchInvertInto(buf[:4], buf[4:8]) })
+	require.NotPanics(t, func() { BatchInvertInto(buf[:4], buf[:4]) })
+	require.NotPanics(t, func() { BatchInvertIntoScratch(buf[:4], buf[:4], buf[4:9]) })
 }
 
 // TestBatchInvertIntoAllocs checks the allocation contract of the Into variants:
@@ -2299,9 +2312,10 @@ func TestElementBatchInvertIntoAllocs(t *testing.T) {
 	require.LessOrEqual(t, testing.AllocsPerRun(10, func() { BatchInvertInto(res, a) }), inverseAllocs, "BatchInvertInto")
 	require.LessOrEqual(t, testing.AllocsPerRun(10, func() { BatchInvertIntoScratch(res, a, scratch) }), inverseAllocs, "BatchInvertIntoScratch")
 	require.LessOrEqual(t, testing.AllocsPerRun(10, func() { BatchInvertIntoScratch(res, res, scratch) }), inverseAllocs, "BatchInvertIntoScratch in place")
-	// in place, BatchInvertInto takes its scratch from a pool, which only
-	// allocates on a miss (e.g. after a GC, or randomly under -race).
-	require.LessOrEqual(t, testing.AllocsPerRun(100, func() { BatchInvertInto(res, res) }), inverseAllocs, "BatchInvertInto in place")
+	// in place, BatchInvertInto takes its scratch (and the chains their row
+	// buffers) from pools, which only allocate on a miss: after a GC, or
+	// randomly under -race, which drops a quarter of the pooled items.
+	require.LessOrEqual(t, testing.AllocsPerRun(100, func() { BatchInvertInto(res, res) }), inverseAllocs+1, "BatchInvertInto in place")
 }
 
 // TestElementBatchInvertChains checks batchInvertChains at every

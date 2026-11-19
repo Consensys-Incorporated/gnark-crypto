@@ -593,6 +593,9 @@ func BatchInvertE6Into(res, a []E6) {
 		return
 	}
 	if &res[0] != &a[0] {
+		if batchInvertE6Overlap(res, a) {
+			panic("BatchInvertE6Into: res and a overlap without being the same slice")
+		}
 		batchInvertE6(res, a, nil, batchInvertE6Lanes(len(a)))
 		return
 	}
@@ -601,7 +604,21 @@ func BatchInvertE6Into(res, a []E6) {
 		*scratch = make([]E6, len(a))
 	}
 	batchInvertE6(res, a, (*scratch)[:len(a)], batchInvertE6Lanes(len(a)))
-	batchInvertE6ScratchPool.Put(scratch)
+	if uintptr(cap(*scratch))*unsafe.Sizeof(E6{}) <= batchInvertE6PoolMaxBytes {
+		batchInvertE6ScratchPool.Put(scratch)
+	}
+}
+
+// batchInvertE6PoolMaxBytes is the size of the largest scratch buffer kept in
+// batchInvertE6ScratchPool; larger ones are left to the garbage collector, so that a
+// single long in-place call does not pin its scratch space.
+const batchInvertE6PoolMaxBytes = 4 << 20
+
+// batchInvertE6Overlap reports whether x and y share memory; both are non-empty.
+func batchInvertE6Overlap(x, y []E6) bool {
+	const size = unsafe.Sizeof(E6{})
+	xs, ys := uintptr(unsafe.Pointer(&x[0])), uintptr(unsafe.Pointer(&y[0]))
+	return xs < ys+uintptr(len(y))*size && ys < xs+uintptr(len(x))*size
 }
 
 // batchInvertE6ScratchPool holds the scratch space of in-place
@@ -626,7 +643,14 @@ func BatchInvertE6IntoScratch(res, a, scratch []E6) {
 	if len(a) == 0 {
 		return
 	}
-	batchInvertE6(res, a, scratch[:len(a)], batchInvertE6Lanes(len(a)))
+	scratch = scratch[:len(a)]
+	if batchInvertE6Overlap(scratch, res) || batchInvertE6Overlap(scratch, a) {
+		panic("BatchInvertE6IntoScratch: scratch overlaps res or a")
+	}
+	if &res[0] != &a[0] && batchInvertE6Overlap(res, a) {
+		panic("BatchInvertE6IntoScratch: res and a overlap without being the same slice")
+	}
+	batchInvertE6(res, a, scratch, batchInvertE6Lanes(len(a)))
 }
 
 const (

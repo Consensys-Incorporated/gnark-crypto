@@ -10,6 +10,7 @@ import (
 	"math/big"
 	"math/bits"
 	"sync"
+	"unsafe"
 
 	fr "github.com/consensys/gnark-crypto/field/koalabear"
 	"github.com/consensys/gnark-crypto/utils/cpu"
@@ -590,6 +591,9 @@ func BatchInvertE4Into(res, a []E4) {
 		return
 	}
 	if &res[0] != &a[0] {
+		if batchInvertE4Overlap(res, a) {
+			panic("BatchInvertE4Into: res and a overlap without being the same slice")
+		}
 		batchInvertE4(res, a, nil, batchInvertE4Lanes(len(a)))
 		return
 	}
@@ -598,7 +602,21 @@ func BatchInvertE4Into(res, a []E4) {
 		*scratch = make([]E4, len(a))
 	}
 	batchInvertE4(res, a, (*scratch)[:len(a)], batchInvertE4Lanes(len(a)))
-	batchInvertE4ScratchPool.Put(scratch)
+	if uintptr(cap(*scratch))*unsafe.Sizeof(E4{}) <= batchInvertE4PoolMaxBytes {
+		batchInvertE4ScratchPool.Put(scratch)
+	}
+}
+
+// batchInvertE4PoolMaxBytes is the size of the largest scratch buffer kept in
+// batchInvertE4ScratchPool; larger ones are left to the garbage collector, so that a
+// single long in-place call does not pin its scratch space.
+const batchInvertE4PoolMaxBytes = 4 << 20
+
+// batchInvertE4Overlap reports whether x and y share memory; both are non-empty.
+func batchInvertE4Overlap(x, y []E4) bool {
+	const size = unsafe.Sizeof(E4{})
+	xs, ys := uintptr(unsafe.Pointer(&x[0])), uintptr(unsafe.Pointer(&y[0]))
+	return xs < ys+uintptr(len(y))*size && ys < xs+uintptr(len(x))*size
 }
 
 // batchInvertE4ScratchPool holds the scratch space of in-place
@@ -623,7 +641,14 @@ func BatchInvertE4IntoScratch(res, a, scratch []E4) {
 	if len(a) == 0 {
 		return
 	}
-	batchInvertE4(res, a, scratch[:len(a)], batchInvertE4Lanes(len(a)))
+	scratch = scratch[:len(a)]
+	if batchInvertE4Overlap(scratch, res) || batchInvertE4Overlap(scratch, a) {
+		panic("BatchInvertE4IntoScratch: scratch overlaps res or a")
+	}
+	if &res[0] != &a[0] && batchInvertE4Overlap(res, a) {
+		panic("BatchInvertE4IntoScratch: res and a overlap without being the same slice")
+	}
+	batchInvertE4(res, a, scratch, batchInvertE4Lanes(len(a)))
 }
 
 const (

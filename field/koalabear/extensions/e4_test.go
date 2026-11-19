@@ -1741,6 +1741,19 @@ func TestBatchInvertE4IntoPanics(t *testing.T) {
 	require.Panics(t, func() { BatchInvertE4Into(make(VectorE4, 3), a) })
 	require.Panics(t, func() { BatchInvertE4IntoScratch(make(VectorE4, 3), a, make(VectorE4, 4)) })
 	require.Panics(t, func() { BatchInvertE4IntoScratch(make(VectorE4, 4), a, make(VectorE4, 3)) })
+
+	// partial overlaps are rejected; the very same slice is allowed (in place).
+	buf := make(VectorE4, 9)
+	for i := range buf {
+		buf[i].SetOne()
+	}
+	require.Panics(t, func() { BatchInvertE4Into(buf[1:5], buf[:4]) })
+	require.Panics(t, func() { BatchInvertE4IntoScratch(buf[1:5], buf[:4], make(VectorE4, 4)) })
+	require.Panics(t, func() { BatchInvertE4IntoScratch(buf[:4], buf[:4], buf[2:6]) })
+	require.Panics(t, func() { BatchInvertE4IntoScratch(make(VectorE4, 4), buf[:4], buf[3:7]) })
+	require.NotPanics(t, func() { BatchInvertE4Into(buf[:4], buf[4:8]) })
+	require.NotPanics(t, func() { BatchInvertE4Into(buf[:4], buf[:4]) })
+	require.NotPanics(t, func() { BatchInvertE4IntoScratch(buf[:4], buf[:4], buf[4:9]) })
 }
 
 func TestBatchInvertE4IntoAllocs(t *testing.T) {
