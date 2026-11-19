@@ -13,7 +13,7 @@ import (
 // PoolE6 is a pool of slices of extensions.E6
 type PoolE6 = utils.Pool[extensions.E6]
 
-// NewPoolE6 returns a PoolE6 with capacity up to the next power of 2 to the greatest maxN.
+// NewPoolE6 returns a PoolE6. maxN is ignored; it is kept for compatibility.
 func NewPoolE6(maxN ...int) PoolE6 {
 	return utils.NewPool[extensions.E6](maxN...)
 }

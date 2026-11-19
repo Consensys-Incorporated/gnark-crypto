@@ -23,7 +23,7 @@ type sizedPoolStats struct {
 
 type poolStats[T any] struct {
 	recording    bool
-	subPools     []sizedPoolStats
+	subPools     [64]sizedPoolStats
 	allocatedFor map[*T][]uintptr
 }
 
@@ -34,7 +34,7 @@ type Pool[T any] struct {
 
 type pool[T any] struct {
 	lock     sync.Mutex
-	subPools []map[*T]struct{}
+	subPools [64]map[*T]struct{}
 	stats    *poolStats[T]
 }
 
@@ -52,24 +52,12 @@ func (p *pool[T]) PauseStats() {
 	p.stats.recording = false
 }
 
-// NewPool returns a pool whose largest class is the smallest power of two at least the largest maxN.
+// NewPool returns a pool with a size class for every power of two. maxN is ignored; it is kept for compatibility.
 func NewPool[T any](maxN ...int) Pool[T] {
-	var maxSize int
-	for _, n := range maxN {
-		maxSize = max(maxSize, ceilLog2(n))
-	}
-
+	_ = maxN
 	p := new(pool[T])
-
-	p.subPools = make([]map[*T]struct{}, maxSize+1)
 	p.stats = new(poolStats[T])
-	p.stats.subPools = make([]sizedPoolStats, maxSize+1)
 	p.stats.allocatedFor = make(map[*T][]uintptr)
-
-	for poolI := range p.subPools {
-		p.subPools[poolI] = make(map[*T]struct{})
-	}
-
 	return Pool[T]{p}
 }
 
@@ -137,6 +125,9 @@ func (p *pool[T]) Dump(slices ...[]T) {
 		if _, ok := p.subPools[poolI][ptr]; ok {
 			panic("slice double-dumped")
 		}
+		if p.subPools[poolI] == nil {
+			p.subPools[poolI] = make(map[*T]struct{})
+		}
 		p.subPools[poolI][ptr] = struct{}{}
 
 		if p.stats.recording {
@@ -179,14 +170,18 @@ func (p *pool[T]) PrintPoolStats() {
 	defer p.lock.Unlock()
 
 	InUse := 0
-	subStats := p.stats.subPools
-	for i := range p.subPools {
-		subStats[i].ReuseRate = float64(subStats[i].Used) / float64(max(1, subStats[i].Allocated))
-		InUse += subStats[i].InUse
+	subStats := make(map[int]sizedPoolStats)
+	for i, s := range p.stats.subPools {
+		if s == (sizedPoolStats{}) {
+			continue
+		}
+		s.ReuseRate = float64(s.Used) / float64(max(1, s.Allocated))
+		subStats[1<<i] = s
+		InUse += s.InUse
 	}
 
 	stats := struct {
-		SubPools []sizedPoolStats
+		SubPools map[int]sizedPoolStats
 		InUse    int
 	}{subStats, InUse}
 	serialized, _ := json.MarshalIndent(stats, "", "  ")

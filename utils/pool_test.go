@@ -13,7 +13,7 @@ import (
 )
 
 func TestPoolMakeDump(t *testing.T) {
-	pool := NewPool[uint64](2048)
+	pool := NewPool[uint64]()
 
 	for _, c := range []struct{ n, cap int }{
 		{1, 1}, {2, 2}, {3, 4}, {4, 4}, {5, 8}, {7, 8}, {8, 8}, {9, 16}, {1023, 1024}, {1024, 1024}, {1025, 2048},
