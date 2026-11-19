@@ -82,9 +82,8 @@ func (vector VectorE4) Neg(a VectorE4) {
 	if len(a) != len(vector) {
 		panic("vector.Neg: vectors don't have the same length")
 	}
-	for i := range vector {
-		vector[i].Neg(&a[i])
-	}
+	v := asBaseVector(vector)
+	v.Neg(asBaseVector(a))
 }
 
 // ScalarAddElement sets vector[i] = a[i] + c, where c is an element of the base field. vector may be identical to a, and c may point into vector; partially overlapping slices are not supported.
