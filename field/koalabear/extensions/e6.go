@@ -644,8 +644,10 @@ const (
 // the vectorised VectorE6.Mul and keep more independent products in flight,
 // while every chain adds to the inversion of the chain products; the
 // thresholds are measured (BenchmarkBatchInvertE6Lanes). Without the AVX-512
-// kernel, VectorE6.Mul is a plain loop with no per-call cost to amortise, and
-// chains only add chain products: a single scalar chain is the fastest.
+// kernel (arm64 included), VectorE6.Mul is a plain loop with no per-call cost to
+// amortise, and the two interleaved chains of batchInvertE6Scalar already
+// hide the latency of E6.Mul: the scalar path is the fastest at every size
+// (measured on Apple M4).
 func batchInvertE6Lanes(n int) int {
 	if !cpu.SupportAVX512 {
 		return 0
@@ -664,7 +666,102 @@ func batchInvertE6Lanes(n int) int {
 	}
 }
 
-// batchInvertE6 is the implementation of BatchInvertE6Into. It runs the
+// batchInvertE6 is the implementation of BatchInvertE6Into: the scalar
+// path (batchInvertE6Scalar) if lanes is 0, the interleaved product chains
+// (batchInvertE6Chains) otherwise. The arguments are those of
+// batchInvertE6Chains.
+func batchInvertE6(res, a, scratch []E6, lanes int) {
+	if lanes == 0 {
+		prefix := scratch
+		if prefix == nil {
+			prefix = res
+		}
+		batchInvertE6Scalar(res, a, prefix)
+		return
+	}
+	batchInvertE6Chains(res, a, scratch, lanes)
+}
+
+// batchInvertE6Scalar is the Montgomery batch inversion of a into res, with
+// the running products in prefix. len(a) must be > 0 and len(res), len(prefix)
+// >= len(a). prefix is either res, and then res and a are distinct, or
+// disjoint from res and a, and then res may be the very same slice as a.
+//
+// It runs two interleaved chains, over the even and the odd indices, so that
+// the products of one chain overlap the latency of the other's; the
+// accumulators are kept out of reach of pointers so they can stay in
+// registers. Unlike batchInvertE6Chains, it has no stack buffers to zero,
+// which matters for short inputs.
+func batchInvertE6Scalar(res, a, prefix []E6) {
+	n := len(a)
+	res, prefix = res[:n], prefix[:n]
+	m := n &^ 1
+	var acc0, acc1 E6
+	acc0.SetOne()
+	acc1.SetOne()
+
+	for i := 0; i < m; i += 2 {
+		if a[i].IsZero() {
+			prefix[i].SetZero()
+		} else {
+			prefix[i] = acc0
+			acc0.Mul(&acc0, &a[i])
+		}
+		if a[i+1].IsZero() {
+			prefix[i+1].SetZero()
+		} else {
+			prefix[i+1] = acc1
+			acc1.Mul(&acc1, &a[i+1])
+		}
+	}
+	if m < n {
+		if a[m].IsZero() {
+			prefix[m].SetZero()
+		} else {
+			prefix[m] = acc0
+			acc0.Mul(&acc0, &a[m])
+		}
+	}
+
+	acc0, acc1 = batchInvertE6Pair(acc0, acc1)
+
+	// a[i] is read before res[i] is written, since they may be the same.
+	if m < n {
+		if x := a[m]; x.IsZero() {
+			res[m].SetZero()
+		} else {
+			res[m].Mul(&prefix[m], &acc0)
+			acc0.Mul(&acc0, &x)
+		}
+	}
+	for i := m - 2; i >= 0; i -= 2 {
+		if x := a[i+1]; x.IsZero() {
+			res[i+1].SetZero()
+		} else {
+			res[i+1].Mul(&prefix[i+1], &acc1)
+			acc1.Mul(&acc1, &x)
+		}
+		if x := a[i]; x.IsZero() {
+			res[i].SetZero()
+		} else {
+			res[i].Mul(&prefix[i], &acc0)
+			acc0.Mul(&acc0, &x)
+		}
+	}
+}
+
+// batchInvertE6Pair returns the inverses of the nonzero x and y, with a
+// single E6 inversion.
+func batchInvertE6Pair(x, y E6) (E6, E6) {
+	var inv, xInv, yInv E6
+	inv.Mul(&x, &y)
+	inv.Inverse(&inv)
+	xInv.Mul(&inv, &y)
+	yInv.Mul(&inv, &x)
+	return xInv, yInv
+}
+
+// batchInvertE6Chains runs the
 // Montgomery batch inversion as interleaved product chains: the elements are
 // laid out in rows, one chain per column, so that the running products of a
 // row are a single vectorised VectorE6.Mul. Rows are lanes wide, then
@@ -674,14 +771,13 @@ func batchInvertE6Lanes(n int) int {
 // chain as one and gets a zero running product, so that its inverse comes out
 // as zero.
 //
-// lanes must be 0 (a single scalar chain) or a multiple of
-// batchInvertE6MinLanes, at most
+// lanes must be a multiple of batchInvertE6MinLanes, at most
 // batchInvertE6MaxLanes, and len(a) must be > 0. If scratch is nil, res and a
 // must be distinct and res holds the running products. Otherwise scratch holds
 // them, must be disjoint from res and a and have len(a) elements, and res
 // holds a with its zeros replaced by one in between the two passes, so it may
 // be the very same slice as a.
-func batchInvertE6(res, a, scratch []E6, lanes int) {
+func batchInvertE6Chains(res, a, scratch []E6, lanes int) {
 	n := len(a)
 	inRes := scratch == nil
 	prefix := scratch
@@ -691,11 +787,8 @@ func batchInvertE6(res, a, scratch []E6, lanes int) {
 
 	// row boundaries: [0, wide) in rows of lanes, [wide, narrow) in rows of
 	// batchInvertE6MinLanes, [narrow, n) one scalar chain.
-	wide, narrow := 0, 0
-	if lanes > 0 {
-		wide = n / lanes * lanes
-		narrow = wide + (n-wide)/batchInvertE6MinLanes*batchInvertE6MinLanes
-	}
+	wide := n / lanes * lanes
+	narrow := wide + (n-wide)/batchInvertE6MinLanes*batchInvertE6MinLanes
 
 	// acc[l] is the running product of chain l, acc[lanes] that of the scalar
 	// chain.
@@ -780,7 +873,7 @@ func batchInvertE6(res, a, scratch []E6, lanes int) {
 	for j := narrow - batchInvertE6MinLanes; j >= wide; j -= batchInvertE6MinLanes {
 		backward(j, batchInvertE6MinLanes)
 	}
-	for j := wide - lanes; lanes > 0 && j >= 0; j -= lanes {
+	for j := wide - lanes; j >= 0; j -= lanes {
 		backward(j, lanes)
 	}
 }
