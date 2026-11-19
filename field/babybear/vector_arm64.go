@@ -203,11 +203,6 @@ func vectorScalarMulAdd(res, b Vector, c *Element) {
 	scalarMulAddVecGeneric(res, b, c)
 }
 
-// batchInvertNEON selects the batchInvertLanes thresholds measured with the
-// NEON Vector.Mul; without NEON (e.g. -tags noneon), Vector.Mul is the generic
-// loop.
-var batchInvertNEON = cpu.SupportNEON
-
 func batchInvertRowForward(acc, prefix, row, a Vector) {
 	batchInvertRowForwardGeneric(acc, prefix, row, a)
 }

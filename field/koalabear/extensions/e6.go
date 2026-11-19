@@ -599,14 +599,16 @@ func BatchInvertE6Into(res, a []E6) {
 		batchInvertE6(res, a, nil, batchInvertE6Lanes(len(a)))
 		return
 	}
+	if uintptr(len(a))*unsafe.Sizeof(E6{}) > batchInvertE6PoolMaxBytes {
+		batchInvertE6(res, a, make([]E6, len(a)), batchInvertE6Lanes(len(a)))
+		return
+	}
 	scratch := batchInvertE6ScratchPool.Get().(*[]E6)
 	if cap(*scratch) < len(a) {
 		*scratch = make([]E6, len(a))
 	}
 	batchInvertE6(res, a, (*scratch)[:len(a)], batchInvertE6Lanes(len(a)))
-	if uintptr(cap(*scratch))*unsafe.Sizeof(E6{}) <= batchInvertE6PoolMaxBytes {
-		batchInvertE6ScratchPool.Put(scratch)
-	}
+	batchInvertE6ScratchPool.Put(scratch)
 }
 
 // batchInvertE6PoolMaxBytes is the size of the largest scratch buffer kept in
@@ -704,9 +706,9 @@ func batchInvertE6(res, a, scratch []E6, lanes int) {
 		batchInvertE6Chains(res, a, scratch, lanes)
 		return
 	}
-	prefix := scratch
-	if prefix == nil {
-		prefix = res
+	prefix := res
+	if &res[0] == &a[0] {
+		prefix = scratch
 	}
 	batchInvertE6Scalar(res, a, prefix)
 }

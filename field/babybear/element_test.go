@@ -109,26 +109,26 @@ func BenchmarkElementBatchInvert(b *testing.B) {
 
 		b.Run(fmt.Sprintf("alloc/n=%d", n), func(b *testing.B) {
 			b.ReportAllocs()
-			for range b.N {
+			for b.Loop() {
 				_ = BatchInvert(a)
 			}
 		})
 		b.Run(fmt.Sprintf("into/n=%d", n), func(b *testing.B) {
 			b.ReportAllocs()
-			for range b.N {
+			for b.Loop() {
 				BatchInvertInto(res, a)
 			}
 		})
 		b.Run(fmt.Sprintf("into-scratch/n=%d", n), func(b *testing.B) {
 			b.ReportAllocs()
-			for range b.N {
+			for b.Loop() {
 				BatchInvertIntoScratch(res, a, scratch)
 			}
 		})
 		b.Run(fmt.Sprintf("in-place-scratch/n=%d", n), func(b *testing.B) {
 			b.ReportAllocs()
 			copy(res, a)
-			for range b.N {
+			for b.Loop() {
 				// the content is meaningless after the first call, but the cost is the same
 				BatchInvertIntoScratch(res, res, scratch)
 			}
@@ -2291,7 +2291,7 @@ func TestElementBatchInvertIntoPanics(t *testing.T) {
 	require.NotPanics(t, func() { BatchInvertIntoScratch(buf[:4], buf[:4], buf[4:9]) })
 }
 
-// TestBatchInvertIntoAllocs checks the allocation contract of the Into variants:
+// TestElementBatchInvertIntoAllocs checks the allocation contract of the Into variants:
 // they allocate nothing besides what the single Inverse call they make allocates
 // (which is not zero for moduli whose Inverse falls back to math/big).
 func TestElementBatchInvertIntoAllocs(t *testing.T) {
@@ -2382,7 +2382,7 @@ func TestElementBatchInvertChains(t *testing.T) {
 }
 
 // BenchmarkElementBatchInvertLanes measures batchInvertChains
-// at every row width, against a single scalar chain (lanes=0), to set the
+// at every row width, against the scalar path (lanes=0), to set the
 // thresholds of batchInvertLanes.
 func BenchmarkElementBatchInvertLanes(b *testing.B) {
 	for _, n := range []int{256, 384, 512, 768, 1024, 1536, 2048, 3072, 4096, 8192, 12288, 16384, 32768, 65536, 262144} {

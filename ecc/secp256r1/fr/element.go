@@ -725,14 +725,16 @@ func BatchInvertInto(res, a []Element) {
 		batchInvert(res, a, nil)
 		return
 	}
+	if uintptr(len(a))*unsafe.Sizeof(Element{}) > batchInvertPoolMaxBytes {
+		batchInvert(res, a, make([]Element, len(a)))
+		return
+	}
 	scratch := batchInvertScratchPool.Get().(*[]Element)
 	if cap(*scratch) < len(a) {
 		*scratch = make([]Element, len(a))
 	}
 	batchInvert(res, a, (*scratch)[:len(a)])
-	if uintptr(cap(*scratch))*unsafe.Sizeof(Element{}) <= batchInvertPoolMaxBytes {
-		batchInvertScratchPool.Put(scratch)
-	}
+	batchInvertScratchPool.Put(scratch)
 }
 
 // batchInvertPoolMaxBytes is the size of the largest scratch buffer kept in

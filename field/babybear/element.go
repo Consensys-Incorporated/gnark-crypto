@@ -446,14 +446,16 @@ func BatchInvertInto(res, a []Element) {
 		batchInvert(res, a, nil)
 		return
 	}
+	if uintptr(len(a))*unsafe.Sizeof(Element{}) > batchInvertPoolMaxBytes {
+		batchInvert(res, a, make([]Element, len(a)))
+		return
+	}
 	scratch := batchInvertScratchPool.Get().(*[]Element)
 	if cap(*scratch) < len(a) {
 		*scratch = make([]Element, len(a))
 	}
 	batchInvert(res, a, (*scratch)[:len(a)])
-	if uintptr(cap(*scratch))*unsafe.Sizeof(Element{}) <= batchInvertPoolMaxBytes {
-		batchInvertScratchPool.Put(scratch)
-	}
+	batchInvertScratchPool.Put(scratch)
 }
 
 // batchInvertPoolMaxBytes is the size of the largest scratch buffer kept in
@@ -603,14 +605,13 @@ const (
 
 // batchInvertLanes returns the number of interleaved product chains batchInvert
 // runs for n elements, 0 meaning the scalar path (batchInvertScalar). A field
-// product is
-// cheap enough that the per-call cost of the vectorised Vector.Mul only pays
+// product is cheap enough that the per-call cost of the vectorised Vector.Mul only pays
 // off on long inputs, and wider rows keep more independent products in
 // flight, while every chain adds to the inversion of the chain products; the
 // thresholds are measured (BenchmarkElementBatchInvertLanes).
 // It must stay at most n/2, so that the chain products are fewer than n.
 func batchInvertLanes(n int) int {
-	if batchInvertNEON {
+	if cpu.SupportNEON {
 		// measured on Apple M4: without the fused AVX-512 kernels, narrower
 		// rows pay off from shorter inputs.
 		switch {

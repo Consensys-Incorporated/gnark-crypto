@@ -238,10 +238,6 @@ func batchInvFwdVec(acc, prefix, row, a, one *Element, n uint64)
 //go:noescape
 func batchInvBwdVec(acc, res, prefix, row, one *Element, n uint64)
 
-// batchInvertNEON selects the batchInvertLanes thresholds measured with the
-// NEON Vector.Mul.
-const batchInvertNEON = false
-
 // batchInvertRowForward is batchInvertRowForwardGeneric, fused in a single
 // AVX-512 pass when available.
 func batchInvertRowForward(acc, prefix, row, a Vector) {
