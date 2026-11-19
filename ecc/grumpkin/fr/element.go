@@ -677,11 +677,13 @@ func BatchInvert(a []Element) []Element {
 // length.
 //
 // res may be the very same slice as a (in place), but must not otherwise
-// overlap it. When res and a are distinct, BatchInvertInto allocates nothing
-// beyond the single Inverse call it makes: res holds the running products.
+// overlap it. When res and a are distinct, res holds the running products.
 // In place, it needs len(a) elements of scratch space, which it takes from an
-// internal pool (allocating only when the pool has none large enough); use
-// BatchInvertIntoScratch to provide them.
+// internal pool; use BatchInvertIntoScratch to provide them.
+//
+// Besides the single Inverse call it makes, BatchInvertInto allocates nothing
+// in steady state: its temporary buffers come from internal pools, which only
+// allocate when empty (on first use, after a GC, or randomly under -race).
 func BatchInvertInto(res, a []Element) {
 	if len(res) != len(a) {
 		panic("BatchInvertInto: slices don't have the same length")
@@ -724,9 +726,10 @@ var batchInvertScratchPool = sync.Pool{
 }
 
 // BatchInvertIntoScratch is BatchInvertInto with caller-provided scratch
-// space, so that it allocates nothing beyond the single Inverse call it makes,
-// including in place (res may be the very same slice as a, but must not
-// otherwise overlap it).
+// space, so that it needs no pooled scratch, including in place (res may be
+// the very same slice as a, but must not otherwise overlap it). Like
+// BatchInvertInto, it allocates nothing in steady state besides the single
+// Inverse call it makes.
 //
 // scratch must have at least len(a) elements and must not overlap res or a;
 // its content on return is unspecified.
@@ -845,8 +848,8 @@ const (
 	// batchInvertMinLanes is the narrowest row of batchInvertChains, a
 	// multiple of the block size of the vectorised row kernels.
 	batchInvertMinLanes = 16
-	// batchInvertMaxLanes is the widest row of batchInvertChains; it bounds
-	// the stack buffers of batchInvertChains to a few KiB.
+	// batchInvertMaxLanes is the widest row of batchInvertChains; it sizes
+	// the pooled batchInvertBufs (about 12 KiB on F31, 24 KiB on 4 limbs).
 	batchInvertMaxLanes = 256
 )
 

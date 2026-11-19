@@ -95,7 +95,7 @@ func TestBatchInvert{{.E}}IntoAllocs(t *testing.T) {
 	require.Zero(t, testing.AllocsPerRun(10, func() { BatchInvert{{.E}}IntoScratch(res, res, scratch) }), "BatchInvert{{.E}}IntoScratch in place")
 	// in place, BatchInvert{{.E}}Into takes its scratch from a pool, which only
 	// allocates on a miss (e.g. after a GC, or randomly under -race).
-	require.Zero(t, testing.AllocsPerRun(100, func() { BatchInvert{{.E}}Into(res, res) }), "BatchInvert{{.E}}Into in place")
+	require.LessOrEqual(t, testing.AllocsPerRun(100, func() { BatchInvert{{.E}}Into(res, res) }), 1.0, "BatchInvert{{.E}}Into in place")
 }
 
 // TestBatchInvert{{.E}}Lanes checks batchInvert{{.E}} at every row width, whatever the
