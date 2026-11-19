@@ -98,6 +98,7 @@ func generateExtensions(F *config.Field, outputDir string) error {
 
 	if data.GenerateE3 {
 		entries_ext3 := []bavard.Entry{
+			{File: filepath.Join(outputDir, "utils.go"), Templates: []string{"utils.go.tmpl"}},
 			{File: filepath.Join(outputDir, "e3.go"), Templates: []string{"e3.go.tmpl"}},
 			{File: filepath.Join(outputDir, "e3_test.go"), Templates: []string{"e3_test.go.tmpl"}},
 			{File: filepath.Join(outputDir, "e3_vector.go"), Templates: []string{"e3_vector.go.tmpl"}},

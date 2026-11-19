@@ -31,20 +31,26 @@ type VectorE4 []E4
 // Deprecated: use VectorE4.
 type Vector = VectorE4
 
+// Add sets vector[i] = a[i] + b[i]. vector may be identical to a and/or b;
+// partially overlapping slices are not supported.
 func (vector VectorE4) Add(a, b VectorE4) {
 	N := len(a)
 	if N != len(b) || N != len(vector) {
 		panic("vector.Add: vectors don't have the same length")
 	}
-	vectorAddGeneric(vector, a, b)
+	v := asBaseVector(vector)
+	v.Add(asBaseVector(a), asBaseVector(b))
 }
 
+// Sub sets vector[i] = a[i] - b[i]. vector may be identical to a and/or b;
+// partially overlapping slices are not supported.
 func (vector VectorE4) Sub(a, b VectorE4) {
 	N := len(a)
 	if N != len(b) || N != len(vector) {
 		panic("vector.Sub: vectors don't have the same length")
 	}
-	vectorSubGeneric(vector, a, b)
+	v := asBaseVector(vector)
+	v.Sub(asBaseVector(a), asBaseVector(b))
 }
 
 func (vector VectorE4) Mul(a, b VectorE4) {
@@ -69,6 +75,44 @@ func (vector VectorE4) ScalarMul(a VectorE4, b *E4) {
 	// copy b: it may point into vector, which the loop overwrites.
 	bb := *b
 	vectorScalarMulGeneric(vector, a, &bb)
+}
+
+// Neg sets vector[i] = -a[i]. vector may be identical to a; partially overlapping slices are not supported.
+func (vector VectorE4) Neg(a VectorE4) {
+	if len(a) != len(vector) {
+		panic("vector.Neg: vectors don't have the same length")
+	}
+	v := asBaseVector(vector)
+	v.Neg(asBaseVector(a))
+}
+
+// ScalarAddElement sets vector[i] = a[i] + c, where c is an element of the base field. vector may be identical to a, and c may point into vector; partially overlapping slices are not supported.
+func (vector VectorE4) ScalarAddElement(a VectorE4, c *fr.Element) {
+	if len(a) != len(vector) {
+		panic("vector.ScalarAddElement: vectors don't have the same length")
+	}
+	cc := *c
+	for i := range vector {
+		vector[i].AddElement(&a[i], &cc)
+	}
+}
+
+// ScalarSubElement sets vector[i] = a[i] - c, where c is an element of the base field. vector may be identical to a, and c may point into vector; partially overlapping slices are not supported.
+func (vector VectorE4) ScalarSubElement(a VectorE4, c *fr.Element) {
+	var negC fr.Element
+	negC.Neg(c)
+	vector.ScalarAddElement(a, &negC)
+}
+
+// ScalarSubFromElement sets vector[i] = c - a[i], where c is an element of the base field. vector may be identical to a, and c may point into vector; partially overlapping slices are not supported.
+func (vector VectorE4) ScalarSubFromElement(c *fr.Element, a VectorE4) {
+	if len(a) != len(vector) {
+		panic("vector.ScalarSubFromElement: vectors don't have the same length")
+	}
+	cc := *c
+	for i := range vector {
+		vector[i].SubFromElement(&cc, &a[i])
+	}
 }
 
 // Sum computes the sum of all elements in the vector.
@@ -685,17 +729,6 @@ func (vector VectorE4) PrefixProduct(nbTasks ...int) {
 func (vector VectorE4) prefixProductGeneric() {
 	for i := 1; i < len(vector); i++ {
 		vector[i].Mul(&vector[i], &vector[i-1])
-	}
-}
-
-func vectorAddGeneric(res, a, b VectorE4) {
-	for i := range len(res) {
-		res[i].Add(&a[i], &b[i])
-	}
-}
-func vectorSubGeneric(res, a, b VectorE4) {
-	for i := range len(res) {
-		res[i].Sub(&a[i], &b[i])
 	}
 }
 func vectorMulGeneric(res, a, b VectorE4) {

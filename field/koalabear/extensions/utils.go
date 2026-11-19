@@ -8,10 +8,21 @@ package extensions
 import (
 	"math/big"
 	"sync"
+	"unsafe"
+
+	fr "github.com/consensys/gnark-crypto/field/koalabear"
 )
 
 var bigIntPool = sync.Pool{
 	New: func() any {
 		return new(big.Int)
 	},
+}
+
+// asBaseVector returns v as the vector of its coordinates. E must consist only of fr.Element fields.
+func asBaseVector[E any](v []E) fr.Vector {
+	if len(v) == 0 {
+		return nil
+	}
+	return unsafe.Slice((*fr.Element)(unsafe.Pointer(&v[0])), len(v)*int(unsafe.Sizeof(v[0])/unsafe.Sizeof(fr.Element{})))
 }
