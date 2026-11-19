@@ -148,6 +148,12 @@ func generateField(F *config.Field, outputDir, asmDirIncludePath, hashArm64, has
 	g.Go(generate("element_test.go", testFiles))
 	g.Go(generate("vector_test.go", []string{"element/testvector.go.tmpl"}))
 
+	// the batch inversion chains take their row buffers from a sync.Pool; their
+	// allocation test needs to know whether it runs under -race.
+	hasBatchInvertChains := F.F31 || (F.GenerateVectorOpsAMD64 && F.NbWords == 4)
+	g.Go(generate("race_test.go", []string{"element/testrace.go.tmpl"}, only(hasBatchInvertChains), withBuildTag("race"), withData(true)))
+	g.Go(generate("norace_test.go", []string{"element/testrace.go.tmpl"}, only(hasBatchInvertChains), withBuildTag("!race"), withData(false)))
+
 	g.Go(generate("element_amd64.s", []string{"element/asm_include.s.tmpl"}, only(F.GenerateOpsAMD64 && hashAMD64 != ""), withBuildTag("!purego"), withData(amd64d)))
 	g.Go(generate("element_arm64.s", []string{"element/asm_include.s.tmpl"}, only(F.GenerateOpsARM64 && hashArm64 != ""), withBuildTag("!purego"), withData(arm64d)))
 

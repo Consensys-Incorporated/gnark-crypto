@@ -2427,9 +2427,14 @@ func TestElementBatchInvertIntoAllocs(t *testing.T) {
 	// the chains take their row buffers from a pool, and BatchInvertInto in
 	// place its scratch too; a pool only allocates on a miss: after a GC, or
 	// randomly under -race, which drops a quarter of the pooled items (about
-	// half the calls then allocate, plus rare outliers). Hence the slack of one
-	// allocation per call, averaged over many runs.
-	const runs, slack = 100, 1
+	// half the calls then allocate, plus rare outliers). Under -race only, hence
+	// the slack of one allocation per call, averaged over many runs; otherwise
+	// the bound stays strict, so that a buffer not returned to its pool (one
+	// allocation per call) is caught.
+	runs, slack := 10, 0.
+	if raceEnabled {
+		runs, slack = 100, 1
+	}
 
 	require.LessOrEqual(t, testing.AllocsPerRun(runs, func() { BatchInvertInto(res, a) }), inverseAllocs+slack, "BatchInvertInto")
 	require.LessOrEqual(t, testing.AllocsPerRun(runs, func() { BatchInvertIntoScratch(res, a, scratch) }), inverseAllocs+slack, "BatchInvertIntoScratch")
