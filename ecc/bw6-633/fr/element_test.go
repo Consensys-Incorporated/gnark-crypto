@@ -2426,13 +2426,13 @@ func TestElementBatchInvertIntoAllocs(t *testing.T) {
 		testing.AllocsPerRun(10, func() { z.Inverse(&prod) }),
 		testing.AllocsPerRun(10, func() { z.Inverse(&prodInv) }),
 	)
+	// only BatchInvertInto in place uses a pool (for its scratch), which only
+	// allocates on a miss: after a GC, or randomly under -race.
+	const runs, slack = 10, 0
 
-	require.LessOrEqual(t, testing.AllocsPerRun(10, func() { BatchInvertInto(res, a) }), inverseAllocs, "BatchInvertInto")
-	require.LessOrEqual(t, testing.AllocsPerRun(10, func() { BatchInvertIntoScratch(res, a, scratch) }), inverseAllocs, "BatchInvertIntoScratch")
-	require.LessOrEqual(t, testing.AllocsPerRun(10, func() { BatchInvertIntoScratch(res, res, scratch) }), inverseAllocs, "BatchInvertIntoScratch in place")
-	// in place, BatchInvertInto takes its scratch (and the chains their row
-	// buffers) from pools, which only allocate on a miss: after a GC, or
-	// randomly under -race, which drops a quarter of the pooled items.
+	require.LessOrEqual(t, testing.AllocsPerRun(runs, func() { BatchInvertInto(res, a) }), inverseAllocs+slack, "BatchInvertInto")
+	require.LessOrEqual(t, testing.AllocsPerRun(runs, func() { BatchInvertIntoScratch(res, a, scratch) }), inverseAllocs+slack, "BatchInvertIntoScratch")
+	require.LessOrEqual(t, testing.AllocsPerRun(runs, func() { BatchInvertIntoScratch(res, res, scratch) }), inverseAllocs+slack, "BatchInvertIntoScratch in place")
 	require.LessOrEqual(t, testing.AllocsPerRun(100, func() { BatchInvertInto(res, res) }), inverseAllocs+1, "BatchInvertInto in place")
 }
 
