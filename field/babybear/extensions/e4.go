@@ -861,28 +861,14 @@ func batchInvertE4Chains(res, a, scratch []E4, lanes int) {
 	}
 }
 
-// batchInvertE4ChainProducts inverts the chain products p of batchInvertE4 in
-// place; they are all nonzero and at most batchInvertE4MaxLanes+1. Up to
-// batchInvertE4MinLanes+1 of them are inverted with a single scalar chain, more
-// with an interleaved pass, which has fewer chain products of its own.
+// batchInvertE4ChainProducts inverts the chain products p of
+// batchInvertE4Chains in place; they are all nonzero and at most
+// batchInvertE4MaxLanes+1. The recursion ends since batchInvertE4Lanes
+// returns 0 (the scalar path) for short inputs, and fewer lanes than elements
+// otherwise.
 func batchInvertE4ChainProducts(p []E4) {
 	var prefix [batchInvertE4MaxLanes + 1]E4
-	if len(p) > batchInvertE4MinLanes+1 {
-		batchInvertE4(p, p, prefix[:len(p)], batchInvertE4Lanes(len(p)))
-		return
-	}
-	var run E4
-	run.SetOne()
-	for l := range p {
-		prefix[l] = run
-		run.Mul(&run, &p[l])
-	}
-	run.Inverse(&run)
-	for l := len(p) - 1; l >= 0; l-- {
-		x := p[l]
-		p[l].Mul(&run, &prefix[l])
-		run.Mul(&run, &x)
-	}
+	batchInvertE4(p, p, prefix[:len(p)], batchInvertE4Lanes(len(p)))
 }
 
 // Div divides an element in E4 by an element in E4

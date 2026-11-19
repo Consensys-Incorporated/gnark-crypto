@@ -242,9 +242,9 @@ func batchInvertRowForward(acc, prefix, row, a Vector) {
 
 // batchInvertRowBackward is batchInvertRowBackwardGeneric, fused in a single
 // AVX-512 pass when available.
-func batchInvertRowBackward(acc, res, prefix, row Vector) {
+func batchInvertRowBackward(acc, res, prefix, row, tmp Vector) {
 	if !cpu.SupportAVX512 {
-		batchInvertRowBackwardGeneric(acc, res, prefix, row)
+		batchInvertRowBackwardGeneric(acc, res, prefix, row, tmp)
 		return
 	}
 	one := One()

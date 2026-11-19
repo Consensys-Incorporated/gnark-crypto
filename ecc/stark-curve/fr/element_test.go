@@ -2400,7 +2400,7 @@ func BenchmarkElementBatchInvertLanes(b *testing.B) {
 			b.Run(fmt.Sprintf("n=%d/lanes=%d/into", n, lanes), func(b *testing.B) {
 				for b.Loop() {
 					if lanes == 0 {
-						batchInvertDistinct(res, a)
+						batchInvertScalar(res, a, res)
 					} else {
 						batchInvertChains(res, a, nil, lanes)
 					}
@@ -2409,7 +2409,7 @@ func BenchmarkElementBatchInvertLanes(b *testing.B) {
 			b.Run(fmt.Sprintf("n=%d/lanes=%d/scratch", n, lanes), func(b *testing.B) {
 				for b.Loop() {
 					if lanes == 0 {
-						batchInvertDistinct(res, a)
+						batchInvertScalar(res, a, res)
 					} else {
 						batchInvertChains(res, a, scratch, lanes)
 					}

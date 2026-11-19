@@ -197,6 +197,6 @@ func batchInvertRowForward(acc, prefix, row, a Vector) {
 	batchInvertRowForwardGeneric(acc, prefix, row, a)
 }
 
-func batchInvertRowBackward(acc, res, prefix, row Vector) {
-	batchInvertRowBackwardGeneric(acc, res, prefix, row)
+func batchInvertRowBackward(acc, res, prefix, row, tmp Vector) {
+	batchInvertRowBackwardGeneric(acc, res, prefix, row, tmp)
 }

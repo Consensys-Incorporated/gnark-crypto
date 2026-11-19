@@ -653,6 +653,10 @@ func batchInvertE6Lanes(n int) int {
 		return 0
 	}
 	switch {
+	case n < 40:
+		// below this, inverting the chain products costs more than the
+		// chains save: the scalar path is the fastest.
+		return 0
 	case n >= 8192:
 		return 256
 	case n >= 1024:
@@ -878,28 +882,14 @@ func batchInvertE6Chains(res, a, scratch []E6, lanes int) {
 	}
 }
 
-// batchInvertE6ChainProducts inverts the chain products p of batchInvertE6 in
-// place; they are all nonzero and at most batchInvertE6MaxLanes+1. Up to
-// batchInvertE6MinLanes+1 of them are inverted with a single scalar chain, more
-// with an interleaved pass, which has fewer chain products of its own.
+// batchInvertE6ChainProducts inverts the chain products p of
+// batchInvertE6Chains in place; they are all nonzero and at most
+// batchInvertE6MaxLanes+1. The recursion ends since batchInvertE6Lanes
+// returns 0 (the scalar path) for short inputs, and fewer lanes than elements
+// otherwise.
 func batchInvertE6ChainProducts(p []E6) {
 	var prefix [batchInvertE6MaxLanes + 1]E6
-	if len(p) > batchInvertE6MinLanes+1 {
-		batchInvertE6(p, p, prefix[:len(p)], batchInvertE6Lanes(len(p)))
-		return
-	}
-	var run E6
-	run.SetOne()
-	for l := range p {
-		prefix[l] = run
-		run.Mul(&run, &p[l])
-	}
-	run.Inverse(&run)
-	for l := len(p) - 1; l >= 0; l-- {
-		x := p[l]
-		p[l].Mul(&run, &prefix[l])
-		run.Mul(&run, &x)
-	}
+	batchInvertE6(p, p, prefix[:len(p)], batchInvertE6Lanes(len(p)))
 }
 
 // Div divides an element in E6 by an element in E6
