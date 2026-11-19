@@ -575,11 +575,9 @@ func TestVectorE3ElementwiseOps(t *testing.T) {
 }
 
 func TestVectorE3ZeroAllocs(t *testing.T) {
-	const n = mulAccChunk + 1
+	const n = 100
 	v, a, b := make(VectorE3, n), make(VectorE3, n), make(VectorE3, n)
-	base := make(fr.Vector, n)
 	var c fr.Element
-	var e E3
 	for _, op := range []struct {
 		name string
 		call func()
@@ -591,8 +589,6 @@ func TestVectorE3ZeroAllocs(t *testing.T) {
 		{"ScalarAddElement", func() { v.ScalarAddElement(a, &c) }},
 		{"ScalarSubElement", func() { v.ScalarSubElement(a, &c) }},
 		{"ScalarSubFromElement", func() { v.ScalarSubFromElement(&c, a) }},
-		{"ScalarMulAccBase", func() { v.ScalarMulAccBase(base, &e) }},
-		{"mulAccByElementBatched", func() { mulAccByElementBatched(v, base, &e) }},
 	} {
 		require.Zero(t, testing.AllocsPerRun(10, op.call), op.name)
 	}

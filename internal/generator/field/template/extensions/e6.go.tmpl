@@ -912,8 +912,6 @@ func (vector VectorE6) InnerProduct(a VectorE6) E6 {
 	return res
 }
 
-<<<<<<< ours
-=======
 // FoldPairs folds layer in pairs, as in one FRI folding round:
 //
 //	vector[j] = (layer[2j] + layer[2j+1]) / 2 + alpha · halfInvTwiddles[j] · (layer[2j] − layer[2j+1])
@@ -961,15 +959,12 @@ func foldPairsE6Generic(vector, layer VectorE6, halfInvTwiddles fr.Vector, alpha
 	}
 }
 
->>>>>>> theirs
 // InnerProductByElement returns the sum of vector[i] * a[i], where a[i] ∈ F_p.
 func (vector VectorE6) InnerProductByElement(a fr.Vector) E6 {
 	if len(vector) != len(a) {
 		panic("vector.InnerProductByElement: vectors don't have the same length")
 	}
 	var res, tmp E6
-<<<<<<< ours
-=======
 {{- if .IsKoalaBear }}
 	const blockSize = 8
 	N := len(vector)
@@ -998,7 +993,6 @@ func (vector VectorE6) InnerProductByElement(a fr.Vector) E6 {
 		vector, a = vector[nr:], a[nr:]
 	}
 {{- end }}
->>>>>>> theirs
 	for i := range vector {
 		tmp.MulByElement(&vector[i], &a[i])
 		res.Add(&res, &tmp)

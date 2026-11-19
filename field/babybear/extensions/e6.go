@@ -697,6 +697,45 @@ func (vector VectorE6) MustSetRandom() {
 	}
 }
 
+// Neg sets vector[i] = -a[i]. vector may be identical to a; partially overlapping slices are not supported.
+func (vector VectorE6) Neg(a VectorE6) {
+	if len(a) != len(vector) {
+		panic("vector.Neg: vectors don't have the same length")
+	}
+	for i := range vector {
+		vector[i].Neg(&a[i])
+	}
+}
+
+// ScalarAddElement sets vector[i] = a[i] + c, where c is an element of the base field. vector may be identical to a, and c may point into vector; partially overlapping slices are not supported.
+func (vector VectorE6) ScalarAddElement(a VectorE6, c *fr.Element) {
+	if len(a) != len(vector) {
+		panic("vector.ScalarAddElement: vectors don't have the same length")
+	}
+	cc := *c
+	for i := range vector {
+		vector[i].AddElement(&a[i], &cc)
+	}
+}
+
+// ScalarSubElement sets vector[i] = a[i] - c, where c is an element of the base field. vector may be identical to a, and c may point into vector; partially overlapping slices are not supported.
+func (vector VectorE6) ScalarSubElement(a VectorE6, c *fr.Element) {
+	var negC fr.Element
+	negC.Neg(c)
+	vector.ScalarAddElement(a, &negC)
+}
+
+// ScalarSubFromElement sets vector[i] = c - a[i], where c is an element of the base field. vector may be identical to a, and c may point into vector; partially overlapping slices are not supported.
+func (vector VectorE6) ScalarSubFromElement(c *fr.Element, a VectorE6) {
+	if len(a) != len(vector) {
+		panic("vector.ScalarSubFromElement: vectors don't have the same length")
+	}
+	cc := *c
+	for i := range vector {
+		vector[i].SubFromElement(&cc, &a[i])
+	}
+}
+
 // Sum returns the sum of all elements in the vector.
 func (vector VectorE6) Sum() E6 {
 	var sum E6
@@ -709,39 +748,21 @@ func (vector VectorE6) Sum() E6 {
 // Add sets vector[i] = a[i] + b[i]. vector may be identical to a and/or b;
 // partially overlapping slices are not supported.
 func (vector VectorE6) Add(a, b VectorE6) {
-	N := len(vector)
-	if len(a) != N || len(b) != N {
-		panic("vectorE6.Add: vectors don't have the same length")
+	if len(a) != len(vector) || len(b) != len(vector) {
+		panic("vector.Add: vectors don't have the same length")
 	}
-	if N == 0 {
-		return
-	}
-	// E6 is laid out as 6 contiguous fr.Element; cast and reuse the optimized
-	// fr.Vector.Add.
-	M := N * 6
-	vRes := fr.Vector(unsafe.Slice((*fr.Element)(unsafe.Pointer(&vector[0])), M))
-	vA := fr.Vector(unsafe.Slice((*fr.Element)(unsafe.Pointer(&a[0])), M))
-	vB := fr.Vector(unsafe.Slice((*fr.Element)(unsafe.Pointer(&b[0])), M))
-	vRes.Add(vA, vB)
+	v := asBaseVector(vector)
+	v.Add(asBaseVector(a), asBaseVector(b))
 }
 
 // Sub sets vector[i] = a[i] - b[i]. vector may be identical to a and/or b;
 // partially overlapping slices are not supported.
 func (vector VectorE6) Sub(a, b VectorE6) {
-	N := len(vector)
-	if len(a) != N || len(b) != N {
-		panic("vectorE6.Sub: vectors don't have the same length")
+	if len(a) != len(vector) || len(b) != len(vector) {
+		panic("vector.Sub: vectors don't have the same length")
 	}
-	if N == 0 {
-		return
-	}
-	// E6 is laid out as 6 contiguous fr.Element; cast and reuse the optimized
-	// fr.Vector.Sub.
-	M := N * 6
-	vRes := fr.Vector(unsafe.Slice((*fr.Element)(unsafe.Pointer(&vector[0])), M))
-	vA := fr.Vector(unsafe.Slice((*fr.Element)(unsafe.Pointer(&a[0])), M))
-	vB := fr.Vector(unsafe.Slice((*fr.Element)(unsafe.Pointer(&b[0])), M))
-	vRes.Sub(vA, vB)
+	v := asBaseVector(vector)
+	v.Sub(asBaseVector(a), asBaseVector(b))
 }
 
 // ScalarAdd sets vector[i] = a[i] + c for all i.
