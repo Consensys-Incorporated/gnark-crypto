@@ -60,6 +60,10 @@ func vectorScalarMulAdd(res, b Vector, c *Element) {
 	scalarMulAddVecGeneric(res, b, c)
 }
 
+// batchInvertNEON selects the batchInvertLanes thresholds measured with the
+// NEON Vector.Mul; this build uses the generic one.
+const batchInvertNEON = false
+
 func batchInvertRowForward(acc, prefix, row, a Vector) {
 	batchInvertRowForwardGeneric(acc, prefix, row, a)
 }

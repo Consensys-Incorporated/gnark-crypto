@@ -630,23 +630,23 @@ func BatchInvertE6IntoScratch(res, a, scratch []E6) {
 }
 
 const (
-	// batchInvertE6MinLanes is the narrowest row of batchInvertE6, the block
-	// size of the vectorised VectorE6.Mul.
+	// batchInvertE6MinLanes is the narrowest row of batchInvertE6Chains,
+	// the block size of the vectorised VectorE6.Mul.
 	batchInvertE6MinLanes = 16
-	// batchInvertE6MaxLanes is the widest row of batchInvertE6; it sizes
-	// the stack buffers, which are zeroed on every call.
+	// batchInvertE6MaxLanes is the widest row of batchInvertE6Chains; it
+	// sizes the stack buffers, which are zeroed on every call.
 	batchInvertE6MaxLanes = 256
 )
 
 // batchInvertE6Lanes returns the number of interleaved product chains
-// batchInvertE6 runs for n elements, 0 meaning a single scalar chain. Wider
-// rows amortise the per-call cost of
-// the vectorised VectorE6.Mul and keep more independent products in flight,
-// while every chain adds to the inversion of the chain products; the
-// thresholds are measured (BenchmarkBatchInvertE6Lanes). Without the AVX-512
-// kernel (arm64 included), VectorE6.Mul is a plain loop with no per-call cost to
-// amortise, and the two interleaved chains of batchInvertE6Scalar already
-// hide the latency of E6.Mul: the scalar path is the fastest at every size
+// batchInvertE6 runs for n elements, 0 meaning the scalar path. Wider rows
+// amortise the per-call cost of the vectorised VectorE6.Mul and keep more
+// independent products in flight, while every chain adds to the inversion of
+// the chain products; the thresholds are measured
+// (BenchmarkBatchInvertE6Lanes). Without the AVX-512 kernel (arm64
+// included), VectorE6.Mul is a plain loop with no per-call cost to amortise, and
+// the two interleaved chains of batchInvertE6Scalar already hide the
+// latency of E6.Mul: the scalar path is the fastest at every size
 // (measured on Apple M4).
 func batchInvertE6Lanes(n int) int {
 	if !cpu.SupportAVX512 {
@@ -672,18 +672,19 @@ func batchInvertE6Lanes(n int) int {
 
 // batchInvertE6 is the implementation of BatchInvertE6Into: the scalar
 // path (batchInvertE6Scalar) if lanes is 0, the interleaved product chains
-// (batchInvertE6Chains) otherwise. The arguments are those of
-// batchInvertE6Chains.
+// (batchInvertE6Chains) otherwise. len(a) must be > 0. scratch is
+// either nil, and then res and a are distinct, or len(a) elements disjoint
+// from res and a, and then res may be the very same slice as a.
 func batchInvertE6(res, a, scratch []E6, lanes int) {
-	if lanes == 0 {
-		prefix := scratch
-		if prefix == nil {
-			prefix = res
-		}
-		batchInvertE6Scalar(res, a, prefix)
+	if lanes > 0 {
+		batchInvertE6Chains(res, a, scratch, lanes)
 		return
 	}
-	batchInvertE6Chains(res, a, scratch, lanes)
+	prefix := scratch
+	if prefix == nil {
+		prefix = res
+	}
+	batchInvertE6Scalar(res, a, prefix)
 }
 
 // batchInvertE6Scalar is the Montgomery batch inversion of a into res, with
@@ -694,8 +695,7 @@ func batchInvertE6(res, a, scratch []E6, lanes int) {
 // It runs two interleaved chains, over the even and the odd indices, so that
 // the products of one chain overlap the latency of the other's; the
 // accumulators are kept out of reach of pointers so they can stay in
-// registers. Unlike batchInvertE6Chains, it has no stack buffers to zero,
-// which matters for short inputs.
+// registers.
 func batchInvertE6Scalar(res, a, prefix []E6) {
 	n := len(a)
 	res, prefix = res[:n], prefix[:n]

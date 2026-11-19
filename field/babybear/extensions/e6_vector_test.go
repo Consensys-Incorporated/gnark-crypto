@@ -1047,10 +1047,7 @@ func TestBatchInvertE6IntoAllocs(t *testing.T) {
 // TestBatchInvertE6Lanes checks batchInvertE6 at every row width, whatever the
 // width batchInvertE6Lanes picks for the input length.
 func TestBatchInvertE6Lanes(t *testing.T) {
-	for _, lanes := range []int{0, 16, 32, 64, 128, 256} {
-		if lanes > batchInvertE6MaxLanes {
-			continue
-		}
+	for _, lanes := range []int{0} {
 		for _, n := range []int{1, 15, 16, 17, lanes - 1, lanes, lanes + 1, lanes + 17, 3*lanes + 33} {
 			if n < 1 {
 				continue
@@ -1125,10 +1122,7 @@ func BenchmarkBatchInvertE6Lanes(b *testing.B) {
 		x := randomBatchInvE6(n)
 		res := make(VectorE6, n)
 		scratch := make(VectorE6, n)
-		for _, lanes := range []int{0, 16, 32, 64, 128, 256} {
-			if lanes > batchInvertE6MaxLanes {
-				continue
-			}
+		for _, lanes := range []int{0} {
 			b.Run(fmt.Sprintf("n=%d/lanes=%d/into", n, lanes), func(b *testing.B) {
 				for b.Loop() {
 					batchInvertE6(res, x, nil, lanes)

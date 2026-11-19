@@ -9,9 +9,6 @@ import (
 	"reflect"
 	"strings"
 	"sync"
-	{{- if .F31}}
-	"runtime"
-	{{- end}}
 
 	"github.com/consensys/gnark-crypto/field/hash"
 	"github.com/consensys/gnark-crypto/field/pool"
@@ -822,7 +819,7 @@ const (
 // It must stay at most n/2, so that the chain products are fewer than n.
 func batchInvertLanes(n int) int {
 	{{- if .F31}}
-	if runtime.GOARCH == "arm64" {
+	if batchInvertNEON {
 		// measured on Apple M4: without the fused AVX-512 kernels, narrower
 		// rows pay off from shorter inputs.
 		switch {

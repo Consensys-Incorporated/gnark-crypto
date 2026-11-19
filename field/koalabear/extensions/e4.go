@@ -627,23 +627,23 @@ func BatchInvertE4IntoScratch(res, a, scratch []E4) {
 }
 
 const (
-	// batchInvertE4MinLanes is the narrowest row of batchInvertE4, the block
-	// size of the vectorised VectorE4.Mul.
+	// batchInvertE4MinLanes is the narrowest row of batchInvertE4Chains,
+	// the block size of the vectorised VectorE4.Mul.
 	batchInvertE4MinLanes = 16
-	// batchInvertE4MaxLanes is the widest row of batchInvertE4; it sizes
-	// the stack buffers, which are zeroed on every call.
+	// batchInvertE4MaxLanes is the widest row of batchInvertE4Chains; it
+	// sizes the stack buffers, which are zeroed on every call.
 	batchInvertE4MaxLanes = 256
 )
 
 // batchInvertE4Lanes returns the number of interleaved product chains
-// batchInvertE4 runs for n elements, 0 meaning a single scalar chain. Wider
-// rows amortise the per-call cost of
-// the vectorised VectorE4.Mul and keep more independent products in flight,
-// while every chain adds to the inversion of the chain products; the
-// thresholds are measured (BenchmarkBatchInvertE4Lanes). Without the AVX-512
-// kernel (arm64 included), VectorE4.Mul is a plain loop with no per-call cost to
-// amortise, and the two interleaved chains of batchInvertE4Scalar already
-// hide the latency of E4.Mul: the scalar path is the fastest at every size
+// batchInvertE4 runs for n elements, 0 meaning the scalar path. Wider rows
+// amortise the per-call cost of the vectorised VectorE4.Mul and keep more
+// independent products in flight, while every chain adds to the inversion of
+// the chain products; the thresholds are measured
+// (BenchmarkBatchInvertE4Lanes). Without the AVX-512 kernel (arm64
+// included), VectorE4.Mul is a plain loop with no per-call cost to amortise, and
+// the two interleaved chains of batchInvertE4Scalar already hide the
+// latency of E4.Mul: the scalar path is the fastest at every size
 // (measured on Apple M4).
 func batchInvertE4Lanes(n int) int {
 	if !cpu.SupportAVX512 {
@@ -669,18 +669,19 @@ func batchInvertE4Lanes(n int) int {
 
 // batchInvertE4 is the implementation of BatchInvertE4Into: the scalar
 // path (batchInvertE4Scalar) if lanes is 0, the interleaved product chains
-// (batchInvertE4Chains) otherwise. The arguments are those of
-// batchInvertE4Chains.
+// (batchInvertE4Chains) otherwise. len(a) must be > 0. scratch is
+// either nil, and then res and a are distinct, or len(a) elements disjoint
+// from res and a, and then res may be the very same slice as a.
 func batchInvertE4(res, a, scratch []E4, lanes int) {
-	if lanes == 0 {
-		prefix := scratch
-		if prefix == nil {
-			prefix = res
-		}
-		batchInvertE4Scalar(res, a, prefix)
+	if lanes > 0 {
+		batchInvertE4Chains(res, a, scratch, lanes)
 		return
 	}
-	batchInvertE4Chains(res, a, scratch, lanes)
+	prefix := scratch
+	if prefix == nil {
+		prefix = res
+	}
+	batchInvertE4Scalar(res, a, prefix)
 }
 
 // batchInvertE4Scalar is the Montgomery batch inversion of a into res, with
@@ -691,8 +692,7 @@ func batchInvertE4(res, a, scratch []E4, lanes int) {
 // It runs two interleaved chains, over the even and the odd indices, so that
 // the products of one chain overlap the latency of the other's; the
 // accumulators are kept out of reach of pointers so they can stay in
-// registers. Unlike batchInvertE4Chains, it has no stack buffers to zero,
-// which matters for short inputs.
+// registers.
 func batchInvertE4Scalar(res, a, prefix []E4) {
 	n := len(a)
 	res, prefix = res[:n], prefix[:n]

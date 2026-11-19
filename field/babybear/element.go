@@ -13,7 +13,6 @@ import (
 	"math/big"
 	"math/bits"
 	"reflect"
-	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -583,7 +582,7 @@ const (
 // thresholds are measured (BenchmarkElementBatchInvertLanes).
 // It must stay at most n/2, so that the chain products are fewer than n.
 func batchInvertLanes(n int) int {
-	if runtime.GOARCH == "arm64" {
+	if batchInvertNEON {
 		// measured on Apple M4: without the fused AVX-512 kernels, narrower
 		// rows pay off from shorter inputs.
 		switch {
