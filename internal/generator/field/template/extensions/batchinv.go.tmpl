@@ -121,7 +121,7 @@ func batchInvert{{.E}}Lanes(n int) int {
 		return 0
 	}
 	switch {
-	case n < {{if eq .E "E4"}}96{{else}}40{{end}}:
+	case n < {{if eq .E "E4"}}96{{else}}48{{end}}:
 		// below this, inverting the chain products costs more than the
 		// chains save: the scalar path is the fastest.
 		return 0
@@ -131,7 +131,7 @@ func batchInvert{{.E}}Lanes(n int) int {
 		return 128
 	case n >= {{if eq .E "E4"}}256{{else}}512{{end}}:
 		return 64
-	case n >= 128:
+	case n >= {{if eq .E "E4"}}96{{else}}128{{end}}:
 		return 32
 	default:
 		return batchInvert{{.E}}MinLanes

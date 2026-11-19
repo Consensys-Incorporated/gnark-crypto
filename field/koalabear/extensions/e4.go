@@ -685,7 +685,7 @@ func batchInvertE4Lanes(n int) int {
 		return 128
 	case n >= 256:
 		return 64
-	case n >= 128:
+	case n >= 96:
 		return 32
 	default:
 		return batchInvertE4MinLanes

@@ -677,7 +677,7 @@ func batchInvertE6Lanes(n int) int {
 		return 0
 	}
 	switch {
-	case n < 40:
+	case n < 48:
 		// below this, inverting the chain products costs more than the
 		// chains save: the scalar path is the fastest.
 		return 0
