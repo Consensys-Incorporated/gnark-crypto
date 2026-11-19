@@ -234,6 +234,113 @@ func (vector VectorE4) ScalarSubFrom(c *E4, a VectorE4) {
 	}
 }
 
+// AddElement sets vector[i] = a[i] + b[i] for all i, where b[i] is an element
+// of the base field embedded in E4.
+//
+// vector may be identical to a; partially overlapping slices are not supported.
+func (vector VectorE4) AddElement(a VectorE4, b fr.Vector) {
+	N := len(vector)
+	if len(a) != N || len(b) != N {
+		panic("vector.AddElement: vectors don't have the same length")
+	}
+	if N == 0 {
+		return
+	}
+	for i := range vector {
+		vector[i].AddElement(&a[i], &b[i])
+	}
+}
+
+// SubElement sets vector[i] = a[i] - b[i] for all i, where b[i] is an element
+// of the base field embedded in E4.
+//
+// vector may be identical to a; partially overlapping slices are not supported.
+func (vector VectorE4) SubElement(a VectorE4, b fr.Vector) {
+	N := len(vector)
+	if len(a) != N || len(b) != N {
+		panic("vector.SubElement: vectors don't have the same length")
+	}
+	if N == 0 {
+		return
+	}
+	for i := range vector {
+		vector[i].SubElement(&a[i], &b[i])
+	}
+}
+
+// SubFromElement sets vector[i] = a[i] - b[i] for all i, where a[i] is an
+// element of the base field embedded in E4.
+//
+// vector may be identical to b; partially overlapping slices are not supported.
+func (vector VectorE4) SubFromElement(a fr.Vector, b VectorE4) {
+	N := len(vector)
+	if len(a) != N || len(b) != N {
+		panic("vector.SubFromElement: vectors don't have the same length")
+	}
+	if N == 0 {
+		return
+	}
+	for i := range vector {
+		vector[i].SubFromElement(&a[i], &b[i])
+	}
+}
+
+// ScalarAddBase sets vector[i] = a[i] + c for all i, where a[i] is an element
+// of the base field embedded in E4.
+//
+// c may point into vector; partially overlapping slices are not supported.
+func (vector VectorE4) ScalarAddBase(a fr.Vector, c *E4) {
+	if len(vector) != len(a) {
+		panic("vector.ScalarAddBase: vectors don't have the same length")
+	}
+	if len(vector) == 0 {
+		return
+	}
+	// embedding a[i] only touches the first coordinate: the others are copies
+	// of c.
+	cc := *c
+	for i := range vector {
+		r := cc
+		r.B0.A0.Add(&cc.B0.A0, &a[i])
+		vector[i] = r
+	}
+}
+
+// ScalarSubBase sets vector[i] = a[i] - c for all i, where a[i] is an element
+// of the base field embedded in E4.
+//
+// c may point into vector; partially overlapping slices are not supported.
+func (vector VectorE4) ScalarSubBase(a fr.Vector, c *E4) {
+	if len(vector) != len(a) {
+		panic("vector.ScalarSubBase: vectors don't have the same length")
+	}
+	if len(vector) == 0 {
+		return
+	}
+	var negC E4
+	negC.Neg(c)
+	vector.ScalarAddBase(a, &negC)
+}
+
+// ScalarSubFromBase sets vector[i] = c - a[i] for all i, where a[i] is an
+// element of the base field embedded in E4.
+//
+// c may point into vector; partially overlapping slices are not supported.
+func (vector VectorE4) ScalarSubFromBase(c *E4, a fr.Vector) {
+	if len(vector) != len(a) {
+		panic("vector.ScalarSubFromBase: vectors don't have the same length")
+	}
+	if len(vector) == 0 {
+		return
+	}
+	cc := *c
+	for i := range vector {
+		r := cc
+		r.B0.A0.Sub(&cc.B0.A0, &a[i])
+		vector[i] = r
+	}
+}
+
 // FoldPairs folds layer in pairs, as in one FRI folding round:
 //
 //	vector[j] = (layer[2j] + layer[2j+1]) / 2 + alpha · halfInvTwiddles[j] · (layer[2j] − layer[2j+1])
