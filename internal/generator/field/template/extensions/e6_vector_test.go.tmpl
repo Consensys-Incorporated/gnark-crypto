@@ -541,11 +541,6 @@ func TestVectorE6InnerProduct(t *testing.T) {
 	}
 }
 
-
-
-
-
-
 func BenchmarkVectorE6Mul(b *testing.B) {
 	const size = 1 << 16
 	x, y := makeE6MulTestInputs(size, false)
@@ -576,7 +571,6 @@ func BenchmarkVectorE6InnerProduct(b *testing.B) {
 		_ = x.InnerProduct(y)
 	}
 }
-
 
 func TestVectorE6MulAccHorner(t *testing.T) {
 	// sizes straddle the AVX-512 block sizes and include non-aligned tails
