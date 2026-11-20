@@ -418,42 +418,38 @@ func (vector VectorE3) ScalarMulAccBase(a fr.Vector, c *E3) {
 	mulAccByElementBatched(vector, a, &cc)
 }
 
-// mulAccChunk is the number of E3 elements mulAccByElementBatched processes per
-// call of fr.Vector's kernels. It bounds the size of the stack buffers.
-const mulAccChunk = 128
-
-// mulAccByElementBatched implements ScalarMulAccBase by reinterpreting the
+// mulAccByElementBatched implements MulAccByElement by reinterpreting the
 // interleaved E3 layout (A0, A1, A2 per element) as a flat fr.Vector and
 // processing it with fr.Vector's Mul/Add, which dispatch to the AVX-512IFMA
 // kernels on amd64. Split out from ScalarMulAccBase so its correctness can be
 // tested independently of cpu.SupportAVX512IFMA.
 func mulAccByElementBatched(vector VectorE3, scale []fr.Element, alpha *E3) {
-	var tiledScale, tiledAlpha, tmp [3 * mulAccChunk]fr.Element
-	for i := range min(len(vector), mulAccChunk) {
+	n := len(vector)
+
+	// E3 = {A0, A1, A2} with no padding — safe to reinterpret as 3×fr.Element.
+	M := n * 3
+	flatVector := fr.Vector(unsafe.Slice((*fr.Element)(unsafe.Pointer(&vector[0])), M))
+
+	tiledScale := make(fr.Vector, M)
+	tiledAlpha := make(fr.Vector, M)
+	for i := range scale {
+		tiledScale[3*i] = scale[i]
+		tiledScale[3*i+1] = scale[i]
+		tiledScale[3*i+2] = scale[i]
 		tiledAlpha[3*i] = alpha.A0
 		tiledAlpha[3*i+1] = alpha.A1
 		tiledAlpha[3*i+2] = alpha.A2
 	}
-	for len(vector) > 0 {
-		m := min(len(vector), mulAccChunk)
-		for i, s := range scale[:m] {
-			tiledScale[3*i] = s
-			tiledScale[3*i+1] = s
-			tiledScale[3*i+2] = s
-		}
-		flatVector := asBaseVector(vector[:m])
-		flatTmp := fr.Vector(tmp[:3*m])
-		flatTmp.Mul(tiledScale[:3*m], tiledAlpha[:3*m])
-		flatVector.Add(flatVector, flatTmp)
-		vector, scale = vector[m:], scale[m:]
-	}
+
+	tmp := make(fr.Vector, M)
+	tmp.Mul(tiledScale, tiledAlpha)
+	flatVector.Add(flatVector, tmp)
 }
 
 func mulAccByElementGeneric(vector VectorE3, scale []fr.Element, alpha *E3) {
 	var tmp E3
-	cc := *alpha
 	for i := range vector {
-		tmp.MulByElement(&cc, &scale[i])
+		tmp.MulByElement(alpha, &scale[i])
 		vector[i].Add(&vector[i], &tmp)
 	}
 }
