@@ -1093,6 +1093,45 @@ func TestVectorE6MixedAdditive(t *testing.T) {
 			got.ScalarSubFromBase(&c, b)
 			require.Equal(t, wantSSubFrom, got, "ScalarSubFromBase")
 
+			// Scalar*Element: base-field scalar, against the element-wise
+			// reference, out of place, in place, and with the scalar
+			// pointing into the destination.
+			if size > 0 {
+				e := b[0]
+				wantE := [3]VectorE6{make(VectorE6, size), make(VectorE6, size), make(VectorE6, size)}
+				for i := range a {
+					wantE[0][i].AddElement(&a[i], &e)
+					wantE[1][i].SubElement(&a[i], &e)
+					wantE[2][i].SubFromElement(&e, &a[i])
+				}
+				ops := [3]func(v, x VectorE6, c *fr.Element){
+					func(v, x VectorE6, c *fr.Element) { v.ScalarAddElement(x, c) },
+					func(v, x VectorE6, c *fr.Element) { v.ScalarSubElement(x, c) },
+					func(v, x VectorE6, c *fr.Element) { v.ScalarSubFromElement(c, x) },
+				}
+				for k, name := range []string{"ScalarAddElement", "ScalarSubElement", "ScalarSubFromElement"} {
+					ops[k](got, a, &e)
+					require.Equal(t, wantE[k], got, name)
+					got = append(make(VectorE6, 0, size), a...)
+					ops[k](got, got, &e)
+					require.Equal(t, wantE[k], got, name+" in place")
+					// c aliases the first coordinate of got[0]
+					got = append(make(VectorE6, 0, size), a...)
+					got[0].B0.A0 = e
+					x := append(make(VectorE6, 0, size), a...)
+					x[0].B0.A0 = e
+					want := make(VectorE6, size)
+					ops[k](want, x, &e)
+					ops[k](got, got, &got[0].B0.A0)
+					require.Equal(t, want, got, name+" scalar alias")
+				}
+				require.Zero(t, testing.AllocsPerRun(10, func() {
+					got.ScalarAddElement(a, &e)
+					got.ScalarSubElement(a, &e)
+					got.ScalarSubFromElement(&e, a)
+				}), "Scalar*Element allocations")
+			}
+
 			// in place: vector == the extension operand
 			got = append(make(VectorE6, 0, size), a...)
 			got.AddElement(got, b)
@@ -1187,6 +1226,23 @@ func BenchmarkVectorE6MixedAdditive(b *testing.B) {
 				for i := range res {
 					res[i] = a[i]
 					res[i].B0.A0.Add(&a[i].B0.A0, &base[i])
+				}
+			}
+		})
+		b.Run(fmt.Sprintf("ScalarAddElement/N=%d", N), func(b *testing.B) {
+			for b.Loop() {
+				res.ScalarAddElement(a, &base[0])
+			}
+		})
+		b.Run(fmt.Sprintf("ScalarSubFromElement/N=%d", N), func(b *testing.B) {
+			for b.Loop() {
+				res.ScalarSubFromElement(&base[0], a)
+			}
+		})
+		b.Run(fmt.Sprintf("ScalarAddElementGeneric/N=%d", N), func(b *testing.B) {
+			for b.Loop() {
+				for i := range res {
+					res[i].AddElement(&a[i], &base[0])
 				}
 			}
 		})

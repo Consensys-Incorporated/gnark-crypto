@@ -796,10 +796,18 @@ func (vector VectorE6) Neg(a VectorE6) {
 	v.Neg(asBaseVector(a))
 }
 
-// ScalarAddElement sets vector[i] = a[i] + c, where c is an element of the base field. vector may be identical to a, and c may point into vector; partially overlapping slices are not supported.
+// ScalarAddElement sets vector[i] = a[i] + c for all i, where c is an element
+// of the base field embedded in E6.
+//
+// vector may be identical to a, and c may point into vector; partially
+// overlapping slices are not supported.
 func (vector VectorE6) ScalarAddElement(a VectorE6, c *fr.Element) {
-	if len(a) != len(vector) {
+	N := len(vector)
+	if len(a) != N {
 		panic("vector.ScalarAddElement: vectors don't have the same length")
+	}
+	if N == 0 {
+		return
 	}
 	cc := *c
 	for i := range vector {
@@ -807,17 +815,29 @@ func (vector VectorE6) ScalarAddElement(a VectorE6, c *fr.Element) {
 	}
 }
 
-// ScalarSubElement sets vector[i] = a[i] - c, where c is an element of the base field. vector may be identical to a, and c may point into vector; partially overlapping slices are not supported.
+// ScalarSubElement sets vector[i] = a[i] - c for all i, where c is an element
+// of the base field embedded in E6.
+//
+// vector may be identical to a, and c may point into vector; partially
+// overlapping slices are not supported.
 func (vector VectorE6) ScalarSubElement(a VectorE6, c *fr.Element) {
 	var negC fr.Element
 	negC.Neg(c)
 	vector.ScalarAddElement(a, &negC)
 }
 
-// ScalarSubFromElement sets vector[i] = c - a[i], where c is an element of the base field. vector may be identical to a, and c may point into vector; partially overlapping slices are not supported.
+// ScalarSubFromElement sets vector[i] = c - a[i] for all i, where c is an
+// element of the base field embedded in E6.
+//
+// vector may be identical to a, and c may point into vector; partially
+// overlapping slices are not supported.
 func (vector VectorE6) ScalarSubFromElement(c *fr.Element, a VectorE6) {
-	if len(a) != len(vector) {
+	N := len(vector)
+	if len(a) != N {
 		panic("vector.ScalarSubFromElement: vectors don't have the same length")
+	}
+	if N == 0 {
+		return
 	}
 	cc := *c
 	for i := range vector {
