@@ -28,7 +28,7 @@ type Pool[T any] struct {
 }
 
 type pool[T any] struct {
-	lock     sync.Mutex
+	lock             sync.Mutex
 	subPools         [bits.UintSize][][]T
 	trackingUndumped bool
 	undumped         map[*T]callSite // call stack of Make for each tracked slice not yet dumped, keyed by data pointer
