@@ -1944,11 +1944,14 @@ func BenchmarkBatchInvertE4(b *testing.B) {
 // BenchmarkBatchInvertE4Lanes measures batchInvertE4 at every row width, to
 // set the thresholds of batchInvertE4Lanes.
 func BenchmarkBatchInvertE4Lanes(b *testing.B) {
-	for _, n := range []int{64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384, 65536} {
+	for _, n := range []int{32, 48, 64, 96, 128, 192, 256, 384, 512, 768, 1024, 2048, 4096, 8192, 16384, 65536} {
 		x := randomBatchInvE4(n)
 		res := make(VectorE4, n)
 		scratch := make(VectorE4, n)
 		for _, lanes := range []int{0} {
+			if lanes > n/2 {
+				continue
+			}
 			b.Run(fmt.Sprintf("n=%d/lanes=%d/into", n, lanes), func(b *testing.B) {
 				for b.Loop() {
 					batchInvertE4(res, x, nil, lanes)
