@@ -19,7 +19,7 @@ func EvalBasePolyLagrange(poly []koalabear.Element, x fext.E4) (fext.E4, error) 
 
 	var (
 		n            = len(poly)
-		denominators = make([]fext.E4, n)
+		denominators = make(fext.VectorE4, n)
 		one          = koalabear.One()
 		generator, _ = fft.Generator(uint64(n))
 		generatorInv = new(koalabear.Element).Inverse(&generator)
@@ -50,7 +50,7 @@ func EvalBasePolyLagrange(poly []koalabear.Element, x fext.E4) (fext.E4, error) 
 		}
 	}
 
-	denominators = fext.VectorE4(denominators).BatchInvert()
+	denominators = denominators.BatchInvert()
 	res, tmp := fext.E4{}, fext.E4{}
 	for i := range denominators {
 		tmp.MulByElement(&denominators[i], &poly[i])
@@ -75,7 +75,7 @@ func EvalFextPolyLagrange(poly []fext.E4, x fext.E4) (fext.E4, error) {
 
 	var (
 		n            = len(poly)
-		denominators = make([]fext.E4, n)
+		denominators = make(fext.VectorE4, n)
 		one          = koalabear.One()
 		generator, _ = fft.Generator(uint64(n))
 		generatorInv = new(koalabear.Element).Inverse(&generator)
@@ -104,7 +104,7 @@ func EvalFextPolyLagrange(poly []fext.E4, x fext.E4) (fext.E4, error) {
 		}
 	}
 
-	denominators = fext.VectorE4(denominators).BatchInvert()
+	denominators = denominators.BatchInvert()
 	res, tmp := fext.E4{}, fext.E4{}
 	for i := range denominators {
 		tmp.Mul(&denominators[i], &poly[i])

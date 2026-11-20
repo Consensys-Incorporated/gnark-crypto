@@ -25,6 +25,8 @@ type VectorE4 []E4
 // Vector is a slice of E4 elements.
 //
 // Deprecated: use VectorE4.
+//
+//go:fix inline
 type Vector = VectorE4
 
 // Add sets vector[i] = a[i] + b[i]. vector may be identical to a and/or b;
