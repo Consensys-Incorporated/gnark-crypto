@@ -29,6 +29,8 @@ type VectorE4 []E4
 // Vector is a slice of E4 elements.
 //
 // Deprecated: use VectorE4.
+//
+//go:fix inline
 type Vector = VectorE4
 
 // Add sets vector[i] = a[i] + b[i]. vector may be identical to a and/or b;
@@ -415,7 +417,7 @@ func (vector VectorE4) Exp(a VectorE4, k int64) {
 	exp := k
 	if k < 0 {
 		// call batch inverse
-		base = BatchInvertE4(a)
+		base = a.BatchInvert()
 		exp = -k // if k == math.MinInt64, -k overflows, but uint64(-k) is correct
 	} else if N > 0 {
 		// ensure that vector and a are not the same slice; else we need to copy a into base
@@ -438,11 +440,24 @@ func (vector VectorE4) Exp(a VectorE4, k int64) {
 	}
 }
 
-// MulAccByElement sets vector[i] += scale[i] * alpha for all i.
+// MulAccByElement sets vector[i] += a[i] * b[i] for all i, where b is a
+// base-field vector.
 //
-// It is equivalent to vector.ScalarMulAccBase(scale, alpha).
-func (vector VectorE4) MulAccByElement(scale []fr.Element, alpha *E4) {
-	vector.ScalarMulAccBase(scale, alpha)
+// vector may be identical to a; partially overlapping slices are not
+// supported.
+//
+// In v0.22.0 and earlier, this method had the signature
+// (scale []fr.Element, alpha *E4) and computed vector[i] += scale[i] * alpha;
+// that operation is now [VectorE4.ScalarMulAccBase].
+func (vector VectorE4) MulAccByElement(a VectorE4, b fr.Vector) {
+	if len(a) != len(vector) || len(b) != len(vector) {
+		panic("vector.MulAccByElement: length mismatch")
+	}
+	var t E4
+	for i := range vector {
+		t.MulByElement(&a[i], &b[i])
+		vector[i].Add(&vector[i], &t)
+	}
 }
 
 // ScalarMulAccBase sets vector[i] += a[i] * c for all i, where a is a

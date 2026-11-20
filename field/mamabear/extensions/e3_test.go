@@ -265,45 +265,25 @@ func TestBatchInvertE3Into(t *testing.T) {
 					return v
 				}
 
-				require.Equal(t, expected, VectorE3(BatchInvertE3(a)))
+				require.Equal(t, expected, a.BatchInvert())
 
 				res := fresh(size)
-				BatchInvertE3Into(res, a)
+				res.BatchInvertInto(a)
 				require.Equal(t, expected, res)
 
 				res = fresh(size)
-				BatchInvertE3IntoScratch(res, a, fresh(size))
+				res.BatchInvertIntoScratch(a, fresh(size))
 				require.Equal(t, expected, res)
 
 				// scratch may be longer than needed
 				res = fresh(size)
-				BatchInvertE3IntoScratch(res, a, fresh(size+5))
+				res.BatchInvertIntoScratch(a, fresh(size+5))
 				require.Equal(t, expected, res)
 
 				// a is left untouched unless it is the destination
 				require.Equal(t, orig, a)
 
-				// res may be the very same slice as a
-				res = slices.Clone(a)
-				BatchInvertE3Into(res, res)
-				require.Equal(t, expected, res)
-
-				res = slices.Clone(a)
-				BatchInvertE3IntoScratch(res, res, fresh(size))
-				require.Equal(t, expected, res)
-
-				// method forms, with the destination as receiver
-				require.Equal(t, expected, a.BatchInvert())
-
-				res = fresh(size)
-				res.BatchInvertInto(a)
-				require.Equal(t, expected, res)
-
-				res = fresh(size)
-				res.BatchInvertIntoScratch(a, fresh(size+5))
-				require.Equal(t, expected, res)
-				require.Equal(t, orig, a)
-
+				// the destination may be the very same slice as a
 				res = slices.Clone(a)
 				res.BatchInvertInto(res)
 				require.Equal(t, expected, res)
@@ -325,27 +305,15 @@ func TestBatchInvertE3Into(t *testing.T) {
 
 func TestBatchInvertE3IntoPanics(t *testing.T) {
 	a := make(VectorE3, 4)
-	require.Panics(t, func() { BatchInvertE3Into(make(VectorE3, 3), a) })
-	require.Panics(t, func() { BatchInvertE3IntoScratch(make(VectorE3, 3), a, make(VectorE3, 4)) })
-	require.Panics(t, func() { BatchInvertE3IntoScratch(make(VectorE3, 4), a, make(VectorE3, 3)) })
+	require.Panics(t, func() { make(VectorE3, 3).BatchInvertInto(a) })
+	require.Panics(t, func() { make(VectorE3, 3).BatchInvertIntoScratch(a, make(VectorE3, 4)) })
+	require.Panics(t, func() { make(VectorE3, 4).BatchInvertIntoScratch(a, make(VectorE3, 3)) })
 
 	// partial overlaps are rejected; the very same slice is allowed (in place).
 	buf := make(VectorE3, 9)
 	for i := range buf {
 		buf[i].SetOne()
 	}
-	require.Panics(t, func() { BatchInvertE3Into(buf[1:5], buf[:4]) })
-	require.Panics(t, func() { BatchInvertE3IntoScratch(buf[1:5], buf[:4], make(VectorE3, 4)) })
-	require.Panics(t, func() { BatchInvertE3IntoScratch(buf[:4], buf[:4], buf[2:6]) })
-	require.Panics(t, func() { BatchInvertE3IntoScratch(make(VectorE3, 4), buf[:4], buf[3:7]) })
-	require.NotPanics(t, func() { BatchInvertE3Into(buf[:4], buf[4:8]) })
-	require.NotPanics(t, func() { BatchInvertE3Into(buf[:4], buf[:4]) })
-	require.NotPanics(t, func() { BatchInvertE3IntoScratch(buf[:4], buf[:4], buf[4:9]) })
-
-	// method forms
-	require.Panics(t, func() { make(VectorE3, 3).BatchInvertInto(a) })
-	require.Panics(t, func() { make(VectorE3, 3).BatchInvertIntoScratch(a, make(VectorE3, 4)) })
-	require.Panics(t, func() { make(VectorE3, 4).BatchInvertIntoScratch(a, make(VectorE3, 3)) })
 	require.Panics(t, func() { buf[1:5].BatchInvertInto(buf[:4]) })
 	require.Panics(t, func() { buf[1:5].BatchInvertIntoScratch(buf[:4], make(VectorE3, 4)) })
 	require.Panics(t, func() { buf[:4].BatchInvertIntoScratch(buf[:4], buf[2:6]) })
@@ -365,16 +333,32 @@ func TestBatchInvertE3IntoAllocs(t *testing.T) {
 	res := make(VectorE3, n)
 	scratch := make(VectorE3, n)
 
-	require.Zero(t, testing.AllocsPerRun(10, func() { BatchInvertE3Into(res, a) }), "BatchInvertE3Into")
-	require.Zero(t, testing.AllocsPerRun(10, func() { BatchInvertE3IntoScratch(res, a, scratch) }), "BatchInvertE3IntoScratch")
-	require.Zero(t, testing.AllocsPerRun(10, func() { BatchInvertE3IntoScratch(res, res, scratch) }), "BatchInvertE3IntoScratch in place")
-	// in place, BatchInvertE3Into takes its scratch from a pool, which only
-	// allocates on a miss (e.g. after a GC, or randomly under -race).
-	require.LessOrEqual(t, testing.AllocsPerRun(100, func() { BatchInvertE3Into(res, res) }), 1.0, "BatchInvertE3Into in place")
 	require.Zero(t, testing.AllocsPerRun(10, func() { res.BatchInvertInto(a) }), "VectorE3.BatchInvertInto")
 	require.Zero(t, testing.AllocsPerRun(10, func() { res.BatchInvertIntoScratch(a, scratch) }), "VectorE3.BatchInvertIntoScratch")
 	require.Zero(t, testing.AllocsPerRun(10, func() { res.BatchInvertIntoScratch(res, scratch) }), "VectorE3.BatchInvertIntoScratch in place")
+	// in place, BatchInvertInto takes its scratch from a pool, which only
+	// allocates on a miss (e.g. after a GC, or randomly under -race).
 	require.LessOrEqual(t, testing.AllocsPerRun(100, func() { res.BatchInvertInto(res) }), 1.0, "VectorE3.BatchInvertInto in place")
+}
+
+// TestBatchInvertE3Deprecated checks that the deprecated package-level
+// functions still match the VectorE3 methods they forward to.
+func TestBatchInvertE3Deprecated(t *testing.T) {
+	a := randomBatchInvE3(100)
+	a[7].SetZero()
+	expected := a.BatchInvert()
+
+	require.Equal(t, expected, VectorE3(BatchInvertE3(a))) //nolint:govet // exercises the deprecated wrapper
+	res := make(VectorE3, len(a))
+	BatchInvertE3Into(res, a) //nolint:govet // exercises the deprecated wrapper
+	require.Equal(t, expected, res)
+	res = make(VectorE3, len(a))
+	BatchInvertE3IntoScratch(res, a, make(VectorE3, len(a))) //nolint:govet // exercises the deprecated wrapper
+	require.Equal(t, expected, res)
+	res = slices.Clone(a)
+	BatchInvertE3Into(res, res) //nolint:govet // exercises the deprecated wrapper
+	require.Equal(t, expected, res)
+	require.Panics(t, func() { BatchInvertE3Into(make(VectorE3, 3), a) }) //nolint:govet // exercises the deprecated wrapper
 }
 
 // TestBatchInvertE3Lanes checks batchInvertE3 at every row width, whatever the
@@ -422,19 +406,19 @@ func BenchmarkBatchInvertE3(b *testing.B) {
 		b.Run("alloc/n="+strconv.Itoa(size), func(b *testing.B) {
 			b.ReportAllocs()
 			for b.Loop() {
-				_ = BatchInvertE3(x)
+				_ = x.BatchInvert()
 			}
 		})
 		b.Run("into/n="+strconv.Itoa(size), func(b *testing.B) {
 			b.ReportAllocs()
 			for b.Loop() {
-				BatchInvertE3Into(res, x)
+				res.BatchInvertInto(x)
 			}
 		})
 		b.Run("into-scratch/n="+strconv.Itoa(size), func(b *testing.B) {
 			b.ReportAllocs()
 			for b.Loop() {
-				BatchInvertE3IntoScratch(res, x, scratch)
+				res.BatchInvertIntoScratch(x, scratch)
 			}
 		})
 		b.Run("in-place-scratch/n="+strconv.Itoa(size), func(b *testing.B) {
@@ -442,7 +426,7 @@ func BenchmarkBatchInvertE3(b *testing.B) {
 			copy(res, x)
 			for b.Loop() {
 				// the content is meaningless after the first call, but the cost is the same
-				BatchInvertE3IntoScratch(res, res, scratch)
+				res.BatchInvertIntoScratch(res, scratch)
 			}
 		})
 	}

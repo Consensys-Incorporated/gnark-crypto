@@ -563,18 +563,31 @@ func (z *E4) Sqrt(x *E4) *E4 {
 // It uses Montgomery batch inversion trick.
 //
 // if a[i] == 0, returns result[i] = a[i]
+//
+// Deprecated: use [VectorE4.BatchInvert].
+//
+//go:fix inline
 func BatchInvertE4(a []E4) []E4 {
 	return VectorE4(a).BatchInvert()
 }
 
-// BatchInvertE4Into sets res[i] to the inverse of a[i]; see
-// [VectorE4.BatchInvertInto].
+// BatchInvertE4Into sets res[i] to the inverse of a[i].
+//
+// Deprecated: use [VectorE4.BatchInvertInto], with the destination as receiver:
+// VectorE4(res).BatchInvertInto(a).
+//
+//go:fix inline
 func BatchInvertE4Into(res, a []E4) {
 	VectorE4(res).BatchInvertInto(a)
 }
 
 // BatchInvertE4IntoScratch is BatchInvertE4Into with caller-provided
-// scratch space; see [VectorE4.BatchInvertIntoScratch].
+// scratch space.
+//
+// Deprecated: use [VectorE4.BatchInvertIntoScratch], with the destination as
+// receiver: VectorE4(res).BatchInvertIntoScratch(a, scratch).
+//
+//go:fix inline
 func BatchInvertE4IntoScratch(res, a, scratch []E4) {
 	VectorE4(res).BatchInvertIntoScratch(a, scratch)
 }

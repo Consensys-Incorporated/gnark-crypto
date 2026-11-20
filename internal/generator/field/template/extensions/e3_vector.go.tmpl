@@ -18,6 +18,8 @@ type VectorE3 []E3
 // Vector is a slice of E3 elements.
 //
 // Deprecated: use VectorE3.
+//
+//go:fix inline
 type Vector = VectorE3
 
 // Butterfly computes the in-place butterfly between two same-length vectors:

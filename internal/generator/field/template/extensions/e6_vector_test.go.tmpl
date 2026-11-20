@@ -300,7 +300,7 @@ func TestVectorE6ScalarMulAcc(t *testing.T) {
 	}
 }
 
-func TestVectorE6ScalarMulAccByElement(t *testing.T) {
+func TestVectorE6ScalarMulAccBase(t *testing.T) {
 	for _, size := range []int{0, 1, 7, 8, 9, 16, 17, 100} {
 		t.Run(strconv.Itoa(size), func(t *testing.T) {
 			dst := make([]E6, size)
@@ -319,10 +319,15 @@ func TestVectorE6ScalarMulAccByElement(t *testing.T) {
 				expected[i].Add(&expected[i], &tmp)
 			}
 
-			VectorE6(dst).ScalarMulAccByElement(a, &s)
+			// the deprecated ScalarMulAccByElement forwards to ScalarMulAccBase
+			legacy := slices.Clone(dst)
+			VectorE6(legacy).ScalarMulAccByElement(a, &s) //nolint:govet // exercises the deprecated wrapper
+
+			VectorE6(dst).ScalarMulAccBase(a, &s)
 			for i := range expected {
 				require.Equal(t, expected[i], dst[i], "element %d", i)
 			}
+			require.Equal(t, dst, legacy, "ScalarMulAccByElement")
 		})
 	}
 }
@@ -374,7 +379,7 @@ func BenchmarkVectorE6ScalarMulAccGeneric(b *testing.B) {
 	}
 }
 
-func BenchmarkVectorE6ScalarMulAccByElement(b *testing.B) {
+func BenchmarkVectorE6ScalarMulAccBase(b *testing.B) {
 	const size = 1 << 12
 	dst := make([]E6, size)
 	a := make(fr.Vector, size)
@@ -386,11 +391,11 @@ func BenchmarkVectorE6ScalarMulAccByElement(b *testing.B) {
 	}
 	b.ResetTimer()
 	for range b.N {
-		VectorE6(dst).ScalarMulAccByElement(a, &s)
+		VectorE6(dst).ScalarMulAccBase(a, &s)
 	}
 }
 
-func BenchmarkVectorE6ScalarMulAccByElementGeneric(b *testing.B) {
+func BenchmarkVectorE6ScalarMulAccBaseGeneric(b *testing.B) {
 	const size = 1 << 12
 	dst := make([]E6, size)
 	a := make(fr.Vector, size)

@@ -573,18 +573,31 @@ func (z *E3) Frobenius(x *E3) *E3 {
 // It uses Montgomery batch inversion trick.
 //
 // if a[i] == 0, returns result[i] = a[i]
+//
+// Deprecated: use [VectorE3.BatchInvert].
+//
+//go:fix inline
 func BatchInvertE3(a []E3) []E3 {
 	return VectorE3(a).BatchInvert()
 }
 
-// BatchInvertE3Into sets res[i] to the inverse of a[i]; see
-// [VectorE3.BatchInvertInto].
+// BatchInvertE3Into sets res[i] to the inverse of a[i].
+//
+// Deprecated: use [VectorE3.BatchInvertInto], with the destination as receiver:
+// VectorE3(res).BatchInvertInto(a).
+//
+//go:fix inline
 func BatchInvertE3Into(res, a []E3) {
 	VectorE3(res).BatchInvertInto(a)
 }
 
 // BatchInvertE3IntoScratch is BatchInvertE3Into with caller-provided
-// scratch space; see [VectorE3.BatchInvertIntoScratch].
+// scratch space.
+//
+// Deprecated: use [VectorE3.BatchInvertIntoScratch], with the destination as
+// receiver: VectorE3(res).BatchInvertIntoScratch(a, scratch).
+//
+//go:fix inline
 func BatchInvertE3IntoScratch(res, a, scratch []E3) {
 	VectorE3(res).BatchInvertIntoScratch(a, scratch)
 }

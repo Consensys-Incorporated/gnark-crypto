@@ -121,7 +121,7 @@ func ComputeLagrangeBasisAtX(n int, x fext.E4, oncoset ...bool) ([]fext.E4, erro
 	res.ScalarMul(res, &numerator)
 
 	// 1/(x-1), 1/(x/ω-1), 1/(x/ω²-1), ...
-	res = fext.BatchInvertE4(res)
+	res = res.BatchInvert()
 
 	return res, nil
 }
