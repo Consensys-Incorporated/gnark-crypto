@@ -767,14 +767,24 @@ func (vector VectorE4) Exp(a VectorE4, k int64) {
 	}
 }
  
-// MulAccByElement sets vector[i] += scale[i] * alpha for all i.
+// MulAccByElement sets vector[i] += a[i] * b[i] for all i, where b is a
+// base-field vector.
 //
-// Deprecated: use [VectorE4.ScalarMulAccBase]. On the other extension
-// vectors, MulAccByElement is the element-wise vector[i] += a[i] * b[i].
+// vector may be identical to a; partially overlapping slices are not
+// supported.
 //
-//go:fix inline
-func (vector VectorE4) MulAccByElement(scale []fr.Element, alpha *E4) {
-	vector.ScalarMulAccBase(scale, alpha)
+// In v0.22.0 and earlier, this method had the signature
+// (scale []fr.Element, alpha *E4) and computed vector[i] += scale[i] * alpha;
+// that operation is now [VectorE4.ScalarMulAccBase].
+func (vector VectorE4) MulAccByElement(a VectorE4, b fr.Vector) {
+	if len(a) != len(vector) || len(b) != len(vector) {
+		panic("vector.MulAccByElement: length mismatch")
+	}
+	var t E4
+	for i := range vector {
+		t.MulByElement(&a[i], &b[i])
+		vector[i].Add(&vector[i], &t)
+	}
 }
 
 // ScalarMulAccBase sets vector[i] += a[i] * c for all i, where a is a

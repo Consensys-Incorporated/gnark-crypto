@@ -1455,6 +1455,8 @@ func TestVectorE4MulAccHorner(t *testing.T) {
 				func(v VectorE4) { v.ScalarMulAdd(b, &c) })
 			check("ScalarMulAddBase", want(func(i int, z *E4) { z.Mul(z, &c); z.B0.A0.Add(&z.B0.A0, &base2[i]) }),
 				func(v VectorE4) { v.ScalarMulAddBase(base2, &c) })
+			check("MulAccByElement", want(func(i int, z *E4) { z.Add(z, tmp.MulByElement(&a[i], &base[i])) }),
+				func(v VectorE4) { v.MulAccByElement(a, base) })
 
 			// vector aliases the inputs
 			check("MulAcc alias", want(func(i int, z *E4) { z.Add(z, tmp.Mul(z, z)) }),
@@ -1463,6 +1465,8 @@ func TestVectorE4MulAccHorner(t *testing.T) {
 				func(v VectorE4) { v.ScalarMulAcc(v, &c) })
 			check("ScalarMulAdd alias", want(func(i int, z *E4) { tmp.Set(z); z.Mul(z, &c).Add(z, &tmp) }),
 				func(v VectorE4) { v.ScalarMulAdd(v, &c) })
+			check("MulAccByElement alias", want(func(i int, z *E4) { z.Add(z, tmp.MulByElement(z, &base[i])) }),
+				func(v VectorE4) { v.MulAccByElement(v, base) })
 
 			if size == 0 {
 				// the scalar is not read when the vectors are empty
@@ -1507,6 +1511,8 @@ func TestVectorE4MulAccHornerLengthMismatch(t *testing.T) {
 	require.Panics(t, func() { v.ScalarMulAccBase(base, &c) })
 	require.Panics(t, func() { v.ScalarMulAdd(a, &c) })
 	require.Panics(t, func() { v.ScalarMulAddBase(base, &c) })
+	require.Panics(t, func() { v.MulAccByElement(a, base[:3]) })
+	require.Panics(t, func() { v.MulAccByElement(v, base) })
 }
 
 func BenchmarkVectorE4MulAccHorner(b *testing.B) {
@@ -1710,25 +1716,6 @@ func BenchmarkVectorE4FoldPairs(b *testing.B) {
 				res.FoldPairs(layer, w, &alpha)
 			}
 		})
-	}
-}
-
-// TestVectorE4MulAccByElementDeprecated checks that the deprecated
-// MulAccByElement forwards to ScalarMulAccBase.
-func TestVectorE4MulAccByElementDeprecated(t *testing.T) {
-	for _, size := range []int{0, 1, 4, 17} {
-		v := make(VectorE4, size)
-		for i := range v {
-			v[i].MustSetRandom()
-		}
-		a := make(fr.Vector, size)
-		a.MustSetRandom()
-		var c E4
-		c.MustSetRandom()
-		want := slices.Clone(v)
-		want.ScalarMulAccBase(a, &c)
-		v.MulAccByElement(a, &c) //nolint:govet // exercises the deprecated wrapper
-		require.Equal(t, want, v, "size %d", size)
 	}
 }
 
