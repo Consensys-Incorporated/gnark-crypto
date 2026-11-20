@@ -15,8 +15,9 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"sync"
+	"unsafe"
 
-	"github.com/bits-and-blooms/bitset"
 	"github.com/consensys/gnark-crypto/field/hash"
 	"github.com/consensys/gnark-crypto/field/pool"
 )
@@ -735,35 +736,182 @@ func _reduceGeneric(z *Element) {
 
 // BatchInvert returns a new slice with every element inverted.
 // Uses Montgomery batch inversion trick
+//
+// if a[i] == 0, returns result[i] = a[i]
 func BatchInvert(a []Element) []Element {
 	res := make([]Element, len(a))
-	if len(a) == 0 {
-		return res
-	}
-
-	zeroes := bitset.New(uint(len(a)))
-	accumulator := One()
-
-	for i := range len(a) {
-		if a[i].IsZero() {
-			zeroes.Set(uint(i))
-			continue
-		}
-		res[i] = accumulator
-		accumulator.Mul(&accumulator, &a[i])
-	}
-
-	accumulator.Inverse(&accumulator)
-
-	for i := len(a) - 1; i >= 0; i-- {
-		if zeroes.Test(uint(i)) {
-			continue
-		}
-		res[i].Mul(&res[i], &accumulator)
-		accumulator.Mul(&accumulator, &a[i])
-	}
-
+	BatchInvertInto(res, a)
 	return res
+}
+
+// BatchInvertInto sets res[i] to the inverse of a[i], using Montgomery batch
+// inversion trick; if a[i] == 0, res[i] = 0. res and a must have the same
+// length.
+//
+// res may be the very same slice as a (in place), but must not otherwise
+// overlap it. When res and a are distinct, res holds the running products.
+// In place, it needs len(a) elements of scratch space, which it takes from an
+// internal pool; use BatchInvertIntoScratch to provide them.
+//
+// Besides the single Inverse call it makes, BatchInvertInto allocates nothing
+// in steady state: its temporary buffers come from internal pools, which only
+// allocate when empty (on first use, after a GC, or randomly under -race).
+func BatchInvertInto(res, a []Element) {
+	if len(res) != len(a) {
+		panic("BatchInvertInto: slices don't have the same length")
+	}
+	if len(a) == 0 {
+		return
+	}
+	if &res[0] != &a[0] {
+		if batchInvertOverlap(res, a) {
+			panic("BatchInvertInto: res and a overlap without being the same slice")
+		}
+		batchInvert(res, a, nil)
+		return
+	}
+	if uintptr(len(a))*unsafe.Sizeof(Element{}) > batchInvertPoolMaxBytes {
+		batchInvert(res, a, make([]Element, len(a)))
+		return
+	}
+	scratch := batchInvertScratchPool.Get().(*[]Element)
+	if cap(*scratch) < len(a) {
+		*scratch = make([]Element, len(a))
+	}
+	batchInvert(res, a, (*scratch)[:len(a)])
+	batchInvertScratchPool.Put(scratch)
+}
+
+// batchInvertPoolMaxBytes is the size of the largest scratch buffer kept in
+// batchInvertScratchPool; larger ones are left to the garbage collector, so that a
+// single long in-place call does not pin its scratch space.
+const batchInvertPoolMaxBytes = 4 << 20
+
+// batchInvertOverlap reports whether x and y share memory; both are non-empty.
+func batchInvertOverlap(x, y []Element) bool {
+	const size = unsafe.Sizeof(Element{})
+	xs, ys := uintptr(unsafe.Pointer(&x[0])), uintptr(unsafe.Pointer(&y[0]))
+	return xs < ys+uintptr(len(y))*size && ys < xs+uintptr(len(x))*size
+}
+
+// batchInvertScratchPool holds the scratch space of in-place BatchInvertInto calls.
+var batchInvertScratchPool = sync.Pool{
+	New: func() any { return new([]Element) },
+}
+
+// BatchInvertIntoScratch is BatchInvertInto with caller-provided scratch
+// space, so that it needs no pooled scratch, including in place (res may be
+// the very same slice as a, but must not otherwise overlap it). Like
+// BatchInvertInto, it allocates nothing in steady state besides the single
+// Inverse call it makes.
+//
+// scratch must have at least len(a) elements and must not overlap res or a;
+// its content on return is unspecified.
+func BatchInvertIntoScratch(res, a, scratch []Element) {
+	if len(res) != len(a) {
+		panic("BatchInvertIntoScratch: slices don't have the same length")
+	}
+	if len(scratch) < len(a) {
+		panic("BatchInvertIntoScratch: scratch is shorter than the input")
+	}
+	if len(a) == 0 {
+		return
+	}
+	scratch = scratch[:len(a)]
+	if batchInvertOverlap(scratch, res) || batchInvertOverlap(scratch, a) {
+		panic("BatchInvertIntoScratch: scratch overlaps res or a")
+	}
+	if &res[0] != &a[0] && batchInvertOverlap(res, a) {
+		panic("BatchInvertIntoScratch: res and a overlap without being the same slice")
+	}
+	batchInvert(res, a, scratch)
+}
+
+// batchInvert is the implementation of BatchInvertInto. len(a) must be > 0.
+// scratch is either nil, and then res and a are distinct, or len(a) elements
+// disjoint from res and a, and then res may be the very same slice as a.
+func batchInvert(res, a, scratch []Element) {
+	prefix := res
+	if &res[0] == &a[0] {
+		prefix = scratch
+	}
+	batchInvertScalar(res, a, prefix)
+}
+
+// batchInvertScalar is the Montgomery batch inversion of a into res, with the
+// running products in prefix. len(a) must be > 0 and len(res), len(prefix) >=
+// len(a). prefix is either res, and then res and a are distinct, or disjoint
+// from res and a, and then res may be the very same slice as a.
+//
+// It runs two interleaved chains, over the even and the odd indices, so that
+// the products of one chain overlap the latency of the other's; the
+// accumulators are kept out of reach of pointers so they can stay in
+// registers.
+func batchInvertScalar(res, a, prefix []Element) {
+	n := len(a)
+	res, prefix = res[:n], prefix[:n]
+	m := n &^ 1
+	acc0, acc1 := One(), One()
+
+	for i := 0; i < m; i += 2 {
+		if a[i].IsZero() {
+			prefix[i].SetZero()
+		} else {
+			prefix[i] = acc0
+			acc0.Mul(&acc0, &a[i])
+		}
+		if a[i+1].IsZero() {
+			prefix[i+1].SetZero()
+		} else {
+			prefix[i+1] = acc1
+			acc1.Mul(&acc1, &a[i+1])
+		}
+	}
+	if m < n {
+		if a[m].IsZero() {
+			prefix[m].SetZero()
+		} else {
+			prefix[m] = acc0
+			acc0.Mul(&acc0, &a[m])
+		}
+	}
+
+	acc0, acc1 = batchInvertPair(acc0, acc1)
+
+	// a[i] is read before res[i] is written, since they may be the same.
+	if m < n {
+		if x := a[m]; x.IsZero() {
+			res[m].SetZero()
+		} else {
+			res[m].Mul(&prefix[m], &acc0)
+			acc0.Mul(&acc0, &x)
+		}
+	}
+	for i := m - 2; i >= 0; i -= 2 {
+		if x := a[i+1]; x.IsZero() {
+			res[i+1].SetZero()
+		} else {
+			res[i+1].Mul(&prefix[i+1], &acc1)
+			acc1.Mul(&acc1, &x)
+		}
+		if x := a[i]; x.IsZero() {
+			res[i].SetZero()
+		} else {
+			res[i].Mul(&prefix[i], &acc0)
+			acc0.Mul(&acc0, &x)
+		}
+	}
+}
+
+// batchInvertPair returns the inverses of the nonzero x and y, with a single
+// Inverse.
+func batchInvertPair(x, y Element) (Element, Element) {
+	var inv, xInv, yInv Element
+	inv.Mul(&x, &y)
+	inv.Inverse(&inv)
+	xInv.Mul(&inv, &y)
+	yInv.Mul(&inv, &x)
+	return xInv, yInv
 }
 
 func _butterflyGeneric(a, b *Element) {

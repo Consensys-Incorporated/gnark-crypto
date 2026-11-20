@@ -70,7 +70,7 @@ See [list of audits for `gnark` and `gnark-crypto`](https://github.com/Consensys
 
 ### Go version
 
-`gnark-crypto` requires Go 1.26 or newer (see `go.mod`); CI tests against Go 1.26.x.
+`gnark-crypto` requires Go 1.27.4 or newer (see `go.mod`); CI tests against Go 1.27.x.
 
 ### Install `gnark-crypto`
 

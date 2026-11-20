@@ -8,9 +8,12 @@ package extensions
 import (
 	"fmt"
 	"math/big"
+	"runtime"
 	"sync"
+	"unsafe"
 
 	fr "github.com/consensys/gnark-crypto/field/mamabear"
+	"github.com/consensys/gnark-crypto/parallel"
 )
 
 // BytesE3 is the number of bytes needed to represent a E3
@@ -567,36 +570,274 @@ func (z *E3) Frobenius(x *E3) *E3 {
 // ---- Batch inverse -----------------------------------------------------------
 
 // BatchInvertE3 returns a new slice with every element in a inverted.
-// It uses the Montgomery batch inversion trick.
-// If a[i] == 0, result[i] == 0.
+// It uses Montgomery batch inversion trick.
+//
+// if a[i] == 0, returns result[i] = a[i]
+//
+// Deprecated: use [VectorE3.BatchInvert].
+//
+//go:fix inline
 func BatchInvertE3(a []E3) []E3 {
-	res := make([]E3, len(a))
-	if len(a) == 0 {
-		return res
-	}
+	return VectorE3(a).BatchInvert()
+}
 
-	zeroes := make([]bool, len(a))
-	var accumulator E3
-	accumulator.SetOne()
+// BatchInvertE3Into sets res[i] to the inverse of a[i].
+//
+// Deprecated: use [VectorE3.BatchInvertInto], with the destination as receiver:
+// VectorE3(res).BatchInvertInto(a).
+//
+//go:fix inline
+func BatchInvertE3Into(res, a []E3) {
+	VectorE3(res).BatchInvertInto(a)
+}
 
-	for i := range a {
-		if a[i].IsZero() {
-			zeroes[i] = true
-			continue
-		}
-		res[i].Set(&accumulator)
-		accumulator.Mul(&accumulator, &a[i])
-	}
+// BatchInvertE3IntoScratch is BatchInvertE3Into with caller-provided
+// scratch space.
+//
+// Deprecated: use [VectorE3.BatchInvertIntoScratch], with the destination as
+// receiver: VectorE3(res).BatchInvertIntoScratch(a, scratch).
+//
+//go:fix inline
+func BatchInvertE3IntoScratch(res, a, scratch []E3) {
+	VectorE3(res).BatchInvertIntoScratch(a, scratch)
+}
 
-	accumulator.Inverse(&accumulator)
-
-	for i := len(a) - 1; i >= 0; i-- {
-		if zeroes[i] {
-			continue
-		}
-		res[i].Mul(&res[i], &accumulator)
-		accumulator.Mul(&accumulator, &a[i])
-	}
-
+// BatchInvert returns a new vector with every element of vector inverted,
+// using Montgomery batch inversion trick; zero elements stay zero.
+func (vector VectorE3) BatchInvert() VectorE3 {
+	res := make(VectorE3, len(vector))
+	res.BatchInvertInto(vector)
 	return res
+}
+
+// BatchInvertInto sets vector[i] to the inverse of a[i], using Montgomery batch
+// inversion trick; if a[i] == 0, vector[i] = 0. vector and a must have the same
+// length.
+//
+// vector may be the very same slice as a (in place), but must not otherwise
+// overlap it. When vector and a are distinct, BatchInvertInto does not
+// allocate: vector holds the running products. In place, it needs len(a)
+// elements of scratch space, which it takes from an internal pool (allocating
+// only when the pool has none large enough); use BatchInvertIntoScratch to
+// provide them.
+func (vector VectorE3) BatchInvertInto(a VectorE3) {
+	if len(vector) != len(a) {
+		panic("VectorE3.BatchInvertInto: vectors don't have the same length")
+	}
+	if len(a) == 0 {
+		return
+	}
+	if &vector[0] != &a[0] {
+		if batchInvertE3Overlap(vector, a) {
+			panic("VectorE3.BatchInvertInto: vector and a overlap without being the same slice")
+		}
+		batchInvertE3(vector, a, nil, batchInvertE3Lanes(len(a)))
+		return
+	}
+	if uintptr(len(a))*unsafe.Sizeof(E3{}) > batchInvertE3PoolMaxBytes {
+		batchInvertE3(vector, a, make([]E3, len(a)), batchInvertE3Lanes(len(a)))
+		return
+	}
+	scratch := batchInvertE3ScratchPool.Get().(*[]E3)
+	if cap(*scratch) < len(a) {
+		*scratch = make([]E3, len(a))
+	}
+	batchInvertE3(vector, a, (*scratch)[:len(a)], batchInvertE3Lanes(len(a)))
+	batchInvertE3ScratchPool.Put(scratch)
+}
+
+// BatchInvertIntoScratch is BatchInvertInto with caller-provided scratch
+// space, so that it never allocates, including in place (vector may be the
+// very same slice as a, but must not otherwise overlap it).
+//
+// scratch must have at least len(a) elements and must not overlap vector or
+// a; its content on return is unspecified.
+func (vector VectorE3) BatchInvertIntoScratch(a, scratch VectorE3) {
+	if len(vector) != len(a) {
+		panic("VectorE3.BatchInvertIntoScratch: vectors don't have the same length")
+	}
+	if len(scratch) < len(a) {
+		panic("VectorE3.BatchInvertIntoScratch: scratch is shorter than the input")
+	}
+	if len(a) == 0 {
+		return
+	}
+	scratch = scratch[:len(a)]
+	if batchInvertE3Overlap(scratch, vector) || batchInvertE3Overlap(scratch, a) {
+		panic("VectorE3.BatchInvertIntoScratch: scratch overlaps vector or a")
+	}
+	if &vector[0] != &a[0] && batchInvertE3Overlap(vector, a) {
+		panic("VectorE3.BatchInvertIntoScratch: vector and a overlap without being the same slice")
+	}
+	batchInvertE3(vector, a, scratch, batchInvertE3Lanes(len(a)))
+}
+
+// batchInvertE3PoolMaxBytes is the size of the largest scratch buffer kept in
+// batchInvertE3ScratchPool; larger ones are left to the garbage collector, so that a
+// single long in-place call does not pin its scratch space.
+const batchInvertE3PoolMaxBytes = 4 << 20
+
+// batchInvertE3Overlap reports whether x and y share memory; both are non-empty.
+func batchInvertE3Overlap(x, y []E3) bool {
+	const size = unsafe.Sizeof(E3{})
+	xs, ys := uintptr(unsafe.Pointer(&x[0])), uintptr(unsafe.Pointer(&y[0]))
+	return xs < ys+uintptr(len(y))*size && ys < xs+uintptr(len(x))*size
+}
+
+// batchInvertE3ScratchPool holds the scratch space of in-place
+// VectorE3.BatchInvertInto calls.
+var batchInvertE3ScratchPool = sync.Pool{
+	New: func() any { return new([]E3) },
+}
+
+// batchInvertE3Lanes returns 0: VectorE3.Mul has no vectorised kernel for this
+// field, so interleaved product chains would only add the inversion of their
+// products, and batchInvertE3 always runs the scalar path.
+func batchInvertE3Lanes(int) int {
+	return 0
+}
+
+// batchInvertE3 is the implementation of VectorE3.BatchInvertInto: the scalar
+// path (batchInvertE3Scalar) if lanes is 0. len(a) must be > 0. scratch is
+// either nil, and then res and a are distinct, or len(a) elements disjoint
+// from res and a, and then res may be the very same slice as a.
+func batchInvertE3(res, a, scratch []E3, lanes int) {
+	prefix := res
+	if &res[0] == &a[0] {
+		prefix = scratch
+	}
+	batchInvertE3Scalar(res, a, prefix)
+}
+
+// batchInvertE3Scalar is the Montgomery batch inversion of a into res, with
+// the running products in prefix. len(a) must be > 0 and len(res), len(prefix)
+// >= len(a). prefix is either res, and then res and a are distinct, or
+// disjoint from res and a, and then res may be the very same slice as a.
+//
+// It runs two interleaved chains, over the even and the odd indices, so that
+// the products of one chain overlap the latency of the other's; the
+// accumulators are kept out of reach of pointers so they can stay in
+// registers.
+func batchInvertE3Scalar(res, a, prefix []E3) {
+	n := len(a)
+	res, prefix = res[:n], prefix[:n]
+	m := n &^ 1
+	var acc0, acc1 E3
+	acc0.SetOne()
+	acc1.SetOne()
+
+	for i := 0; i < m; i += 2 {
+		if a[i].IsZero() {
+			prefix[i].SetZero()
+		} else {
+			prefix[i] = acc0
+			acc0.Mul(&acc0, &a[i])
+		}
+		if a[i+1].IsZero() {
+			prefix[i+1].SetZero()
+		} else {
+			prefix[i+1] = acc1
+			acc1.Mul(&acc1, &a[i+1])
+		}
+	}
+	if m < n {
+		if a[m].IsZero() {
+			prefix[m].SetZero()
+		} else {
+			prefix[m] = acc0
+			acc0.Mul(&acc0, &a[m])
+		}
+	}
+
+	acc0, acc1 = batchInvertE3Pair(acc0, acc1)
+
+	// a[i] is read before res[i] is written, since they may be the same.
+	if m < n {
+		if x := a[m]; x.IsZero() {
+			res[m].SetZero()
+		} else {
+			res[m].Mul(&prefix[m], &acc0)
+			acc0.Mul(&acc0, &x)
+		}
+	}
+	for i := m - 2; i >= 0; i -= 2 {
+		if x := a[i+1]; x.IsZero() {
+			res[i+1].SetZero()
+		} else {
+			res[i+1].Mul(&prefix[i+1], &acc1)
+			acc1.Mul(&acc1, &x)
+		}
+		if x := a[i]; x.IsZero() {
+			res[i].SetZero()
+		} else {
+			res[i].Mul(&prefix[i], &acc0)
+			acc0.Mul(&acc0, &x)
+		}
+	}
+}
+
+// batchInvertE3Pair returns the inverses of the nonzero x and y, with a
+// single E3 inversion.
+func batchInvertE3Pair(x, y E3) (E3, E3) {
+	var inv, xInv, yInv E3
+	inv.Mul(&x, &y)
+	inv.Inverse(&inv)
+	xInv.Mul(&inv, &y)
+	yInv.Mul(&inv, &x)
+	return xInv, yInv
+}
+
+// PrefixProduct computes the prefix product of the vector in place, i.e.
+// vector[i] = vector[0] * vector[1] * ... * vector[i].
+//
+// Long vectors are split in chunks processed in parallel, by at most nbTasks
+// goroutines if nbTasks is given and positive, and at most GOMAXPROCS
+// goroutines in any case.
+func (vector VectorE3) PrefixProduct(nbTasks ...int) {
+	n := len(vector)
+	nbWorkers := runtime.GOMAXPROCS(0)
+	if len(nbTasks) == 1 && nbTasks[0] > 0 {
+		nbWorkers = min(nbWorkers, nbTasks[0])
+	}
+	// the second pass (a ScalarMul per chunk) and the goroutines only pay off
+	// on long vectors and chunks; the thresholds are measured
+	// (BenchmarkVectorE3PrefixProduct, 64 cores).
+	nbWorkers = min(nbWorkers, n/2048)
+	if n < 1<<14 || nbWorkers < 2 {
+		vector.prefixProductGeneric()
+		return
+	}
+
+	// first pass: the prefix product of every chunk, independently.
+	chunks := parallel.Chunks(n, nbWorkers)
+	var wg sync.WaitGroup
+	for _, c := range chunks {
+		wg.Go(func() {
+			vector[c[0]:c[1]].prefixProductGeneric()
+		})
+	}
+	wg.Wait()
+
+	// carry[i] is the product of the chunks before chunk i.
+	carry := make([]E3, len(chunks))
+	carry[1] = vector[chunks[0][1]-1]
+	for i := 2; i < len(chunks); i++ {
+		carry[i].Mul(&carry[i-1], &vector[chunks[i-1][1]-1])
+	}
+
+	// second pass: every chunk but the first is multiplied by its carry.
+	for i := 1; i < len(chunks); i++ {
+		wg.Go(func() {
+			chunk := vector[chunks[i][0]:chunks[i][1]]
+			chunk.ScalarMul(chunk, &carry[i])
+		})
+	}
+	wg.Wait()
+}
+
+// prefixProductGeneric is the sequential PrefixProduct.
+func (vector VectorE3) prefixProductGeneric() {
+	for i := 1; i < len(vector); i++ {
+		vector[i].Mul(&vector[i], &vector[i-1])
+	}
 }

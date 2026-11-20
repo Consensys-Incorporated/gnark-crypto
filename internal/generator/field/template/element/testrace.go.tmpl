@@ -1,0 +1,4 @@
+// raceEnabled reports whether the test binary is built with -race, under which
+// sync.Pool drops pooled items on purpose, so that allocation counts of pooled
+// code are not meaningful.
+const raceEnabled = {{.}}

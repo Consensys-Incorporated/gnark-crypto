@@ -453,3 +453,121 @@ loop_19:
 
 done_20:
 	RET
+
+// batchInvFwdVec(acc, prefix, row, a, one *Element, n uint64)
+// prefix = a != 0 ? acc : 0; row = a != 0 ? a : one; acc *= row
+// n is the number of blocks of 16 elements to process
+TEXT ·batchInvFwdVec(SB), NOSPLIT, $0-48
+	MOVD         $const_q, AX
+	VPBROADCASTD AX, Z0
+	MOVD         $const_qInvNeg, AX
+	VPBROADCASTD AX, Z1
+	MOVQ         one+32(FP), R14
+	MOVL         0(R14), AX
+	VPBROADCASTD AX, Z2
+	MOVQ         acc+0(FP), R14
+	MOVQ         prefix+8(FP), DX
+	MOVQ         row+16(FP), CX
+	MOVQ         a+24(FP), BX
+	MOVQ         n+40(FP), SI
+	MOVQ         $0x0000000000005555, AX
+	KMOVD        AX, K3
+
+loop_21:
+	TESTQ       SI, SI
+	JEQ         done_22
+	DECQ        SI
+	VMOVDQU32   0(BX), Z3
+	VMOVDQU32   0(R14), Z4
+	VPTESTMD    Z3, Z3, K1     // K1 = nonzero lanes
+	VPBLENDMD   Z3, Z2, K1, Z3 // zeros replaced by one
+	VMOVDQA32.Z Z4, K1, Z5     // running product, zero for a zero
+	VMOVDQU32   Z5, 0(DX)
+	VMOVDQU32   Z3, 0(CX)
+	VPSRLQ      $32, Z4, Z7
+	VPSRLQ      $32, Z3, Z8
+	VPMULUDQ    Z4, Z3, Z9
+	VPMULUDQ    Z7, Z8, Z6
+	VPMULUDQ    Z9, Z1, Z10
+	VPMULUDQ    Z6, Z1, Z11
+	VPMULUDQ    Z10, Z0, Z10
+	VPMULUDQ    Z11, Z0, Z11
+	VPADDQ      Z9, Z10, Z9
+	VPADDQ      Z6, Z11, Z6
+	VMOVSHDUP   Z9, K3, Z6
+	VPSUBD      Z0, Z6, Z11
+	VPMINUD     Z6, Z11, Z6
+	VMOVDQU32   Z6, 0(R14)
+	ADDQ        $64, R14
+	ADDQ        $64, DX
+	ADDQ        $64, CX
+	ADDQ        $64, BX
+	JMP         loop_21
+
+done_22:
+	RET
+
+// batchInvBwdVec(acc, res, prefix, row, one *Element, n uint64)
+// x = row != 0 ? row : one; res = acc * prefix; acc *= x
+// n is the number of blocks of 16 elements to process
+TEXT ·batchInvBwdVec(SB), NOSPLIT, $0-48
+	MOVD         $const_q, AX
+	VPBROADCASTD AX, Z0
+	MOVD         $const_qInvNeg, AX
+	VPBROADCASTD AX, Z1
+	MOVQ         one+32(FP), R14
+	MOVL         0(R14), AX
+	VPBROADCASTD AX, Z2
+	MOVQ         acc+0(FP), R14
+	MOVQ         res+8(FP), DX
+	MOVQ         prefix+16(FP), CX
+	MOVQ         row+24(FP), BX
+	MOVQ         n+40(FP), SI
+	MOVQ         $0x0000000000005555, AX
+	KMOVD        AX, K3
+
+loop_23:
+	TESTQ     SI, SI
+	JEQ       done_24
+	DECQ      SI
+	VMOVDQU32 0(BX), Z3
+	VMOVDQU32 0(R14), Z4
+	VPTESTMD  Z3, Z3, K1     // K1 = nonzero lanes
+	VPBLENDMD Z3, Z2, K1, Z3 // zeros replaced by one
+	VMOVDQU32 0(CX), Z5
+	VPSRLQ    $32, Z4, Z7
+	VPSRLQ    $32, Z5, Z8
+	VPMULUDQ  Z4, Z5, Z9
+	VPMULUDQ  Z7, Z8, Z6
+	VPMULUDQ  Z9, Z1, Z10
+	VPMULUDQ  Z6, Z1, Z11
+	VPMULUDQ  Z10, Z0, Z10
+	VPMULUDQ  Z11, Z0, Z11
+	VPADDQ    Z9, Z10, Z9
+	VPADDQ    Z6, Z11, Z6
+	VMOVSHDUP Z9, K3, Z6
+	VPSUBD    Z0, Z6, Z11
+	VPMINUD   Z6, Z11, Z6
+	VMOVDQU32 Z6, 0(DX)
+	VPSRLQ    $32, Z4, Z12
+	VPSRLQ    $32, Z3, Z13
+	VPMULUDQ  Z4, Z3, Z14
+	VPMULUDQ  Z12, Z13, Z6
+	VPMULUDQ  Z14, Z1, Z15
+	VPMULUDQ  Z6, Z1, Z16
+	VPMULUDQ  Z15, Z0, Z15
+	VPMULUDQ  Z16, Z0, Z16
+	VPADDQ    Z14, Z15, Z14
+	VPADDQ    Z6, Z16, Z6
+	VMOVSHDUP Z14, K3, Z6
+	VPSUBD    Z0, Z6, Z16
+	VPMINUD   Z6, Z16, Z6
+	VMOVDQU32 Z6, 0(R14)
+	ADDQ      $64, R14
+	ADDQ      $64, DX
+	ADDQ      $64, CX
+	ADDQ      $64, BX
+	JMP       loop_23
+
+done_24:
+	RET

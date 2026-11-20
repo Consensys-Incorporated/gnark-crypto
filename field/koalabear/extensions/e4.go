@@ -9,8 +9,11 @@ import (
 	"fmt"
 	"math/big"
 	"math/bits"
+	"sync"
+	"unsafe"
 
 	fr "github.com/consensys/gnark-crypto/field/koalabear"
+	"github.com/consensys/gnark-crypto/utils/cpu"
 )
 
 // q + r'.r = 1, i.e., qInvNeg = - q⁻¹ mod r
@@ -561,36 +564,385 @@ func (z *E4) Sqrt(x *E4) *E4 {
 // It uses Montgomery batch inversion trick.
 //
 // if a[i] == 0, returns result[i] = a[i]
+//
+// Deprecated: use [VectorE4.BatchInvert].
+//
+//go:fix inline
 func BatchInvertE4(a []E4) []E4 {
-	res := make([]E4, len(a))
-	if len(a) == 0 {
-		return res
-	}
+	return VectorE4(a).BatchInvert()
+}
 
-	zeroes := make([]bool, len(a))
-	var accumulator E4
-	accumulator.SetOne()
+// BatchInvertE4Into sets res[i] to the inverse of a[i].
+//
+// Deprecated: use [VectorE4.BatchInvertInto], with the destination as receiver:
+// VectorE4(res).BatchInvertInto(a).
+//
+//go:fix inline
+func BatchInvertE4Into(res, a []E4) {
+	VectorE4(res).BatchInvertInto(a)
+}
 
-	for i := range len(a) {
-		if a[i].IsZero() {
-			zeroes[i] = true
-			continue
-		}
-		res[i].Set(&accumulator)
-		accumulator.Mul(&accumulator, &a[i])
-	}
+// BatchInvertE4IntoScratch is BatchInvertE4Into with caller-provided
+// scratch space.
+//
+// Deprecated: use [VectorE4.BatchInvertIntoScratch], with the destination as
+// receiver: VectorE4(res).BatchInvertIntoScratch(a, scratch).
+//
+//go:fix inline
+func BatchInvertE4IntoScratch(res, a, scratch []E4) {
+	VectorE4(res).BatchInvertIntoScratch(a, scratch)
+}
 
-	accumulator.Inverse(&accumulator)
-
-	for i := len(a) - 1; i >= 0; i-- {
-		if zeroes[i] {
-			continue
-		}
-		res[i].Mul(&res[i], &accumulator)
-		accumulator.Mul(&accumulator, &a[i])
-	}
-
+// BatchInvert returns a new vector with every element of vector inverted,
+// using Montgomery batch inversion trick; zero elements stay zero.
+func (vector VectorE4) BatchInvert() VectorE4 {
+	res := make(VectorE4, len(vector))
+	res.BatchInvertInto(vector)
 	return res
+}
+
+// BatchInvertInto sets vector[i] to the inverse of a[i], using Montgomery batch
+// inversion trick; if a[i] == 0, vector[i] = 0. vector and a must have the same
+// length.
+//
+// vector may be the very same slice as a (in place), but must not otherwise
+// overlap it. When vector and a are distinct, BatchInvertInto does not
+// allocate: vector holds the running products. In place, it needs len(a)
+// elements of scratch space, which it takes from an internal pool (allocating
+// only when the pool has none large enough); use BatchInvertIntoScratch to
+// provide them.
+//
+// For long inputs, BatchInvertIntoScratch is faster even when vector and a are
+// distinct, since keeping the running products apart saves a pass over a.
+func (vector VectorE4) BatchInvertInto(a VectorE4) {
+	if len(vector) != len(a) {
+		panic("VectorE4.BatchInvertInto: vectors don't have the same length")
+	}
+	if len(a) == 0 {
+		return
+	}
+	if &vector[0] != &a[0] {
+		if batchInvertE4Overlap(vector, a) {
+			panic("VectorE4.BatchInvertInto: vector and a overlap without being the same slice")
+		}
+		batchInvertE4(vector, a, nil, batchInvertE4Lanes(len(a)))
+		return
+	}
+	if uintptr(len(a))*unsafe.Sizeof(E4{}) > batchInvertE4PoolMaxBytes {
+		batchInvertE4(vector, a, make([]E4, len(a)), batchInvertE4Lanes(len(a)))
+		return
+	}
+	scratch := batchInvertE4ScratchPool.Get().(*[]E4)
+	if cap(*scratch) < len(a) {
+		*scratch = make([]E4, len(a))
+	}
+	batchInvertE4(vector, a, (*scratch)[:len(a)], batchInvertE4Lanes(len(a)))
+	batchInvertE4ScratchPool.Put(scratch)
+}
+
+// BatchInvertIntoScratch is BatchInvertInto with caller-provided scratch
+// space, so that it never allocates, including in place (vector may be the
+// very same slice as a, but must not otherwise overlap it).
+//
+// scratch must have at least len(a) elements and must not overlap vector or
+// a; its content on return is unspecified.
+func (vector VectorE4) BatchInvertIntoScratch(a, scratch VectorE4) {
+	if len(vector) != len(a) {
+		panic("VectorE4.BatchInvertIntoScratch: vectors don't have the same length")
+	}
+	if len(scratch) < len(a) {
+		panic("VectorE4.BatchInvertIntoScratch: scratch is shorter than the input")
+	}
+	if len(a) == 0 {
+		return
+	}
+	scratch = scratch[:len(a)]
+	if batchInvertE4Overlap(scratch, vector) || batchInvertE4Overlap(scratch, a) {
+		panic("VectorE4.BatchInvertIntoScratch: scratch overlaps vector or a")
+	}
+	if &vector[0] != &a[0] && batchInvertE4Overlap(vector, a) {
+		panic("VectorE4.BatchInvertIntoScratch: vector and a overlap without being the same slice")
+	}
+	batchInvertE4(vector, a, scratch, batchInvertE4Lanes(len(a)))
+}
+
+// batchInvertE4PoolMaxBytes is the size of the largest scratch buffer kept in
+// batchInvertE4ScratchPool; larger ones are left to the garbage collector, so that a
+// single long in-place call does not pin its scratch space.
+const batchInvertE4PoolMaxBytes = 4 << 20
+
+// batchInvertE4Overlap reports whether x and y share memory; both are non-empty.
+func batchInvertE4Overlap(x, y []E4) bool {
+	const size = unsafe.Sizeof(E4{})
+	xs, ys := uintptr(unsafe.Pointer(&x[0])), uintptr(unsafe.Pointer(&y[0]))
+	return xs < ys+uintptr(len(y))*size && ys < xs+uintptr(len(x))*size
+}
+
+// batchInvertE4ScratchPool holds the scratch space of in-place
+// VectorE4.BatchInvertInto calls.
+var batchInvertE4ScratchPool = sync.Pool{
+	New: func() any { return new([]E4) },
+}
+
+const (
+	// batchInvertE4MinLanes is the narrowest row of batchInvertE4Chains,
+	// the block size of the vectorised VectorE4.Mul.
+	batchInvertE4MinLanes = 16
+	// batchInvertE4MaxLanes is the widest row of batchInvertE4Chains; it
+	// sizes the stack buffers, which are zeroed on every call.
+	batchInvertE4MaxLanes = 256
+)
+
+// batchInvertE4Lanes returns the number of interleaved product chains
+// batchInvertE4 runs for n elements, 0 meaning the scalar path. Wider rows
+// amortise the per-call cost of the vectorised VectorE4.Mul and keep more
+// independent products in flight, while every chain adds to the inversion of
+// the chain products; the thresholds are measured
+// (BenchmarkBatchInvertE4Lanes). Without the AVX-512 kernel (arm64
+// included), VectorE4.Mul is a plain loop with no per-call cost to amortise, and
+// the two interleaved chains of batchInvertE4Scalar already hide the
+// latency of E4.Mul: the scalar path is the fastest at every size
+// (measured on Apple M4).
+func batchInvertE4Lanes(n int) int {
+	if !cpu.SupportAVX512 {
+		return 0
+	}
+	switch {
+	case n < 96:
+		// below this, inverting the chain products costs more than the
+		// chains save: the scalar path is the fastest.
+		return 0
+	case n >= 4096:
+		return 256
+	case n >= 1024:
+		return 128
+	case n >= 256:
+		return 64
+	default:
+		return 32
+	}
+}
+
+// batchInvertE4 is the implementation of VectorE4.BatchInvertInto: the scalar
+// path (batchInvertE4Scalar) if lanes is 0, the interleaved product chains
+// (batchInvertE4Chains) otherwise. len(a) must be > 0. scratch is
+// either nil, and then res and a are distinct, or len(a) elements disjoint
+// from res and a, and then res may be the very same slice as a.
+func batchInvertE4(res, a, scratch []E4, lanes int) {
+	if lanes > 0 {
+		batchInvertE4Chains(res, a, scratch, lanes)
+		return
+	}
+	prefix := res
+	if &res[0] == &a[0] {
+		prefix = scratch
+	}
+	batchInvertE4Scalar(res, a, prefix)
+}
+
+// batchInvertE4Scalar is the Montgomery batch inversion of a into res, with
+// the running products in prefix. len(a) must be > 0 and len(res), len(prefix)
+// >= len(a). prefix is either res, and then res and a are distinct, or
+// disjoint from res and a, and then res may be the very same slice as a.
+//
+// It runs two interleaved chains, over the even and the odd indices, so that
+// the products of one chain overlap the latency of the other's; the
+// accumulators are kept out of reach of pointers so they can stay in
+// registers.
+func batchInvertE4Scalar(res, a, prefix []E4) {
+	n := len(a)
+	res, prefix = res[:n], prefix[:n]
+	m := n &^ 1
+	var acc0, acc1 E4
+	acc0.SetOne()
+	acc1.SetOne()
+
+	for i := 0; i < m; i += 2 {
+		if a[i].IsZero() {
+			prefix[i].SetZero()
+		} else {
+			prefix[i] = acc0
+			acc0.Mul(&acc0, &a[i])
+		}
+		if a[i+1].IsZero() {
+			prefix[i+1].SetZero()
+		} else {
+			prefix[i+1] = acc1
+			acc1.Mul(&acc1, &a[i+1])
+		}
+	}
+	if m < n {
+		if a[m].IsZero() {
+			prefix[m].SetZero()
+		} else {
+			prefix[m] = acc0
+			acc0.Mul(&acc0, &a[m])
+		}
+	}
+
+	acc0, acc1 = batchInvertE4Pair(acc0, acc1)
+
+	// a[i] is read before res[i] is written, since they may be the same.
+	if m < n {
+		if x := a[m]; x.IsZero() {
+			res[m].SetZero()
+		} else {
+			res[m].Mul(&prefix[m], &acc0)
+			acc0.Mul(&acc0, &x)
+		}
+	}
+	for i := m - 2; i >= 0; i -= 2 {
+		if x := a[i+1]; x.IsZero() {
+			res[i+1].SetZero()
+		} else {
+			res[i+1].Mul(&prefix[i+1], &acc1)
+			acc1.Mul(&acc1, &x)
+		}
+		if x := a[i]; x.IsZero() {
+			res[i].SetZero()
+		} else {
+			res[i].Mul(&prefix[i], &acc0)
+			acc0.Mul(&acc0, &x)
+		}
+	}
+}
+
+// batchInvertE4Pair returns the inverses of the nonzero x and y, with a
+// single E4 inversion.
+func batchInvertE4Pair(x, y E4) (E4, E4) {
+	var inv, xInv, yInv E4
+	inv.Mul(&x, &y)
+	inv.Inverse(&inv)
+	xInv.Mul(&inv, &y)
+	yInv.Mul(&inv, &x)
+	return xInv, yInv
+}
+
+// batchInvertE4Chains runs the
+// Montgomery batch inversion as interleaved product chains: the elements are
+// laid out in rows, one chain per column, so that the running products of a
+// row are a single vectorised VectorE4.Mul. Rows are lanes wide, then
+// batchInvertE4MinLanes wide for the remainder, and the last few elements form
+// one more chain multiplied scalar by scalar. The chain products are then
+// inverted together with a single E4 inversion. A zero element enters its
+// chain as one and gets a zero running product, so that its inverse comes out
+// as zero.
+//
+// lanes must be a multiple of batchInvertE4MinLanes, at most
+// batchInvertE4MaxLanes, and len(a) must be > 0. If scratch is nil, res and a
+// must be distinct and res holds the running products. Otherwise scratch holds
+// them, must be disjoint from res and a and have len(a) elements, and res
+// holds a with its zeros replaced by one in between the two passes, so it may
+// be the very same slice as a.
+func batchInvertE4Chains(res, a, scratch []E4, lanes int) {
+	n := len(a)
+	inRes := scratch == nil
+	prefix := scratch
+	if inRes {
+		prefix = res
+	}
+
+	// row boundaries: [0, wide) in rows of lanes, [wide, narrow) in rows of
+	// batchInvertE4MinLanes, [narrow, n) one scalar chain.
+	wide := n / lanes * lanes
+	narrow := wide + (n-wide)/batchInvertE4MinLanes*batchInvertE4MinLanes
+
+	// acc[l] is the running product of chain l, acc[lanes] that of the scalar
+	// chain.
+	var accBuf [batchInvertE4MaxLanes + 1]E4
+	acc := accBuf[:lanes+1]
+	for l := range acc {
+		acc[l].SetOne()
+	}
+	tail := &acc[lanes]
+	// row holds a row of a with its zeros replaced by one.
+	var rowBuf [batchInvertE4MaxLanes]E4
+
+	// forward pass: prefix[i] is the product of the earlier elements of the
+	// chain of i, or zero if a[i] is zero.
+	forward := func(j, w int) {
+		row := rowBuf[:w]
+		if !inRes {
+			row = res[j : j+w]
+		}
+		p := prefix[j : j+w]
+		copy(p, acc[:w])
+		copy(row, a[j:j+w])
+		for k := range row {
+			if row[k].IsZero() {
+				row[k].SetOne()
+				p[k].SetZero()
+			}
+		}
+		VectorE4(acc[:w]).Mul(acc[:w], row)
+	}
+	for j := 0; j < wide; j += lanes {
+		forward(j, lanes)
+	}
+	for j := wide; j < narrow; j += batchInvertE4MinLanes {
+		forward(j, batchInvertE4MinLanes)
+	}
+	for i := narrow; i < n; i++ {
+		if a[i].IsZero() {
+			prefix[i].SetZero()
+			if !inRes {
+				res[i].SetOne()
+			}
+			continue
+		}
+		prefix[i] = *tail
+		if !inRes {
+			res[i] = a[i]
+		}
+		tail.Mul(tail, &a[i])
+	}
+
+	batchInvertE4ChainProducts(acc)
+
+	// backward pass: the inverse of element i is the running inverse of its
+	// chain times prefix[i]; the row is read before res is overwritten.
+	for i := n - 1; i >= narrow; i-- {
+		x := res[i]
+		if inRes {
+			x = a[i]
+			if x.IsZero() {
+				continue
+			}
+		}
+		res[i].Mul(tail, &prefix[i])
+		tail.Mul(tail, &x)
+	}
+	backward := func(j, w int) {
+		row := rowBuf[:w]
+		if inRes {
+			copy(row, a[j:j+w])
+			for k := range row {
+				if row[k].IsZero() {
+					row[k].SetOne()
+				}
+			}
+		} else {
+			copy(row, res[j:j+w])
+		}
+		VectorE4(res[j:j+w]).Mul(acc[:w], prefix[j:j+w])
+		VectorE4(acc[:w]).Mul(acc[:w], row)
+	}
+	for j := narrow - batchInvertE4MinLanes; j >= wide; j -= batchInvertE4MinLanes {
+		backward(j, batchInvertE4MinLanes)
+	}
+	for j := wide - lanes; j >= 0; j -= lanes {
+		backward(j, lanes)
+	}
+}
+
+// batchInvertE4ChainProducts inverts the chain products p of
+// batchInvertE4Chains in place; they are all nonzero and at most
+// batchInvertE4MaxLanes+1. The recursion ends since batchInvertE4Lanes
+// returns 0 (the scalar path) for short inputs, and fewer lanes than elements
+// otherwise.
+func batchInvertE4ChainProducts(p []E4) {
+	var prefix [batchInvertE4MaxLanes + 1]E4
+	batchInvertE4(p, p, prefix[:len(p)], batchInvertE4Lanes(len(p)))
 }
 
 // Div divides an element in E4 by an element in E4

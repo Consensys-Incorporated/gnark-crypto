@@ -15,13 +15,15 @@ on:
         required: false
   workflow_dispatch:
 
+permissions: {} # lock everything by default (least-privilege)
+
 jobs:
   security-scan:
     uses: MetaMask/action-security-code-scanner/.github/workflows/security-scan.yml@becb242930b3cc271c26da0280050db9c157e291 # v2.1.1
     permissions:
-      actions: read
-      contents: read
-      security-events: write
+      actions: read # read workflow run metadata, needed by the SARIF upload
+      contents: read # check out the code to scan
+      security-events: write # upload scan results to code scanning
     with:
       repo: ${{ github.repository }}
       scanner-ref: 'v2'
