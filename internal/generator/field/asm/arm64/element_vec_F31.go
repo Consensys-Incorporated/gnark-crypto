@@ -5,7 +5,7 @@ import (
 )
 
 // modAddF31 emits dst = a + b mod q on 4-lane registers, for a, b in [0, q). q holds the broadcast modulus and t is
-// scratch. dst may be b, and t may be a.
+// scratch. dst and t may each be a or b, but must differ from each other and from q.
 func (f *FFArm64) modAddF31(dst, a, b, q, t arm64.VectorRegister) {
 	f.VADD(a.S4(), b.S4(), dst.S4(), "dst = a + b")
 	f.VSUB(q.S4(), dst.S4(), t.S4(), "t = dst - q")
@@ -13,16 +13,16 @@ func (f *FFArm64) modAddF31(dst, a, b, q, t arm64.VectorRegister) {
 }
 
 // modSubF31 emits dst = a - b mod q on 4-lane registers, for a, b in [0, q). q holds the broadcast modulus and t is
-// scratch. dst may be b, and t may be a.
+// scratch. dst and t may each be a or b, but must differ from each other and from q.
 func (f *FFArm64) modSubF31(dst, a, b, q, t arm64.VectorRegister) {
 	f.VSUB(b.S4(), a.S4(), dst.S4(), "dst = a - b")
 	f.VADD(dst.S4(), q.S4(), t.S4(), "t = dst + q")
 	f.VUMIN(t.S4(), dst.S4(), dst.S4(), "dst = min(t, dst)")
 }
 
-// montMulF31 emits d = a * b * R^-1 mod p on 4-lane registers, with R = 2^32, for a, b in [0, p). p and mu hold the
-// broadcast modulus and its Montgomery constant; cHi, q, qpHi and underflow are scratch. d must differ from the
-// other registers, which a and b only read.
+// montMulF31 emits d = a * b * R^-1 mod p on 4-lane registers, with R = 2^32, for a, b in [0, p). p holds the
+// broadcast modulus and mu the broadcast p^-1 mod 2^32; cHi, q, qpHi and underflow are scratch. d may be a or b, which
+// are not read after d is written, and must differ from the other registers.
 func (f *FFArm64) montMulF31(d, a, b, p, mu, cHi, q, qpHi, underflow arm64.VectorRegister) {
 	// Step 1: c_hi = (2 * a * b) >> 32 using SQDMULH
 	// SQDMULH computes (2*a*b) >> 32 with signed saturation

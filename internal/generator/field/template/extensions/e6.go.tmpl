@@ -971,6 +971,12 @@ func (vector VectorE6) Mul(a, b VectorE6) {
 		vectorMul_E6_avx512(&vector[0], &a[0], &b[0], uint64(nr))
 		vector, a, b = vector[nr:], a[nr:], b[nr:]
 	}
+	const neonBlockSize = 4
+	if cpu.SupportNEON && N >= neonBlockSize {
+		nr := N - N%neonBlockSize
+		vectorMul_E6_neon(&vector[0], &a[0], &b[0], uint64(nr))
+		vector, a, b = vector[nr:], a[nr:], b[nr:]
+	}
 {{- end }}
 	for i := range vector {
 		vector[i].Mul(&a[i], &b[i])

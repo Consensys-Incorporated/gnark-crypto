@@ -69,6 +69,20 @@ func TestVectorE6ElementwiseOps(t *testing.T) {
 	c.MustSetRandom()
 	b := make(VectorE6, size)
 	b.MustSetRandom()
+{{- if .IsKoalaBear }}
+	// the conditional reductions of the vector kernels are rarely reached by random inputs: pair elements whose
+	// coordinates are all 0 or all q - 1, in a block of 4 and in a later one.
+	var zero, pm1 E6
+	for _, x := range []*fr.Element{&pm1.B0.A0, &pm1.B0.A1, &pm1.B1.A0, &pm1.B1.A1, &pm1.B2.A0, &pm1.B2.A1} {
+		x[0] = q - 1
+	}
+	for _, i := range []int{0, 8} {
+		a[i], b[i] = zero, zero
+		a[i+1], b[i+1] = zero, pm1
+		a[i+2], b[i+2] = pm1, zero
+		a[i+3], b[i+3] = pm1, pm1
+	}
+{{- end }}
 	add, sub, mul := make(VectorE6, size), make(VectorE6, size), make(VectorE6, size)
 	add.Add(a, b)
 	sub.Sub(a, b)
