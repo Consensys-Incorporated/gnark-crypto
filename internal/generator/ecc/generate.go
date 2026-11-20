@@ -54,6 +54,12 @@ func Generate(conf config.Curve, baseDir string, gen *common.Generator) error {
 		}
 		return lc
 	}
+	// batchAffineC is the smallest window size whose chunk processor accumulates
+	// buckets with the batch affine method; every smaller window uses extended
+	// jacobian formulas. The msm cost model prices the two differently, so the
+	// boundary has to come from one place.
+	const batchAffineC = 10
+
 	batchSize := func(c int) int {
 		switch c {
 		case 10:
@@ -76,6 +82,7 @@ func Generate(conf config.Curve, baseDir string, gen *common.Generator) error {
 	funcs := common.Funcs()
 	funcs["lastC"] = lastC
 	funcs["batchSize"] = batchSize
+	funcs["batchAffineC"] = func() int { return batchAffineC }
 
 	funcs["nbBuckets"] = func(c int) int {
 		return 1 << (c - 1)
@@ -114,6 +121,20 @@ func Generate(conf config.Curve, baseDir string, gen *common.Generator) error {
 		conf.G2.CRange = append(conf.G2.CRange, lastCG2...)
 		sort.Ints(conf.G2.CRange)
 		lastCG2 = lastCG2[:0]
+	}
+
+	// the window sizes whose chunk processor is the batch affine one, across both
+	// groups; the msm cost model needs their batch sizes to price a bucket
+	// accumulation on that path
+	funcs["batchAffineCs"] = func() []int {
+		cs := make([]int, 0, len(conf.G1.CRange)+len(conf.G2.CRange))
+		for _, c := range append(append([]int{}, conf.G1.CRange...), conf.G2.CRange...) {
+			if c >= batchAffineC && !slices.Contains(cs, c) {
+				cs = append(cs, c)
+			}
+		}
+		sort.Ints(cs)
+		return cs
 	}
 
 	bavardOpts := []func(*bavard.Bavard) error{bavard.Funcs(funcs)}

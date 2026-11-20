@@ -249,7 +249,7 @@ func processChunk{{ $.UPointName }}BatchAffine[BJE ib{{ $.TJacobianExtended }},B
 // we declare the buckets as fixed-size array types
 // this allow us to allocate the buckets on the stack
 {{- range $c :=  $.CRange}}
-{{- if gt $c 9}}
+{{- if ge $c batchAffineC}}
 type bucket{{ $.TAffine }}C{{$c}} [{{nbBuckets $c}}]{{ $.TAffine }}
 {{- end}}
 {{- end}}
@@ -258,7 +258,7 @@ type bucket{{ $.TAffine }}C{{$c}} [{{nbBuckets $c}}]{{ $.TAffine }}
 // buckets: array of {{ $.TAffine }} points of size 1 << (c-1)
 type ib{{ $.TAffine }} interface {
 	{{- range $i, $c :=  $.CRange}}
-	{{- if gt $c 9}}
+	{{- if ge $c batchAffineC}}
 	bucket{{ $.TAffine }}C{{$c}} {{- if not (last $i $.CRange)}} | {{- end}}
 	{{- end}}
 	{{- end}}
@@ -267,7 +267,7 @@ type ib{{ $.TAffine }} interface {
 // array of coordinates {{ $.CoordType }}
 type c{{ $.TAffine }} interface {
 	{{- range $i, $c :=  $.CRange}}
-	{{- if gt $c 9}}
+	{{- if ge $c batchAffineC}}
 	c{{ $.TAffine }}C{{$c}} {{- if not (last $i $.CRange)}} | {{- end}}
 	{{- end}}
 	{{- end}}
@@ -276,7 +276,7 @@ type c{{ $.TAffine }} interface {
 // buckets: array of {{ $.TAffine }} points (for the batch addition)
 type p{{ $.TAffine }} interface {
 	{{- range $i, $c :=  $.CRange}}
-	{{- if gt $c 9}}
+	{{- if ge $c batchAffineC}}
 	p{{ $.TAffine }}C{{$c}} {{- if not (last $i $.CRange)}} | {{- end}}
 	{{- end}}
 	{{- end}}
@@ -285,7 +285,7 @@ type p{{ $.TAffine }} interface {
 // buckets: array of *{{ $.TAffine }} points (for the batch addition)
 type pp{{ $.TAffine }} interface {
 	{{- range $i, $c :=  $.CRange}}
-	{{- if gt $c 9}}
+	{{- if ge $c batchAffineC}}
 	pp{{ $.TAffine }}C{{$c}} {{- if not (last $i $.CRange)}} | {{- end}}
 	{{- end}}
 	{{- end}}
@@ -294,7 +294,7 @@ type pp{{ $.TAffine }} interface {
 // buckets: array of {{ $.TAffine }} queue operations (for the batch addition)
 type qOps{{ $.TAffine }} interface {
 	{{- range $i, $c :=  $.CRange}}
-	{{- if gt $c 9}}
+	{{- if ge $c batchAffineC}}
 	q{{ $.TAffine }}C{{$c}} {{- if not (last $i $.CRange)}} | {{- end}}
 	{{- end}}
 	{{- end}}
@@ -302,7 +302,7 @@ type qOps{{ $.TAffine }} interface {
 
 
 {{- range $c :=  $.CRange}}
-{{if gt $c 9}}
+{{if ge $c batchAffineC}}
 // batch size {{batchSize $c}} when c = {{$c}}
 type c{{ $.TAffine }}C{{$c}} [{{batchSize $c}}]{{ $.CoordType }}
 type p{{ $.TAffine }}C{{$c}} [{{batchSize $c}}]{{ $.TAffine }}
