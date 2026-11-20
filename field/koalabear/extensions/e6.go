@@ -9,10 +9,12 @@ import (
 	"fmt"
 	"math/big"
 	"math/bits"
+	"runtime"
 	"sync"
 	"unsafe"
 
 	fr "github.com/consensys/gnark-crypto/field/koalabear"
+	"github.com/consensys/gnark-crypto/parallel"
 	"github.com/consensys/gnark-crypto/utils/cpu"
 )
 
@@ -567,48 +569,92 @@ func (z *E6) Halve() {
 //
 // if a[i] == 0, returns result[i] = a[i]
 func BatchInvertE6(a []E6) []E6 {
-	res := make([]E6, len(a))
-	BatchInvertE6Into(res, a)
+	return VectorE6(a).BatchInvert()
+}
+
+// BatchInvertE6Into sets res[i] to the inverse of a[i]; see
+// [VectorE6.BatchInvertInto].
+func BatchInvertE6Into(res, a []E6) {
+	VectorE6(res).BatchInvertInto(a)
+}
+
+// BatchInvertE6IntoScratch is BatchInvertE6Into with caller-provided
+// scratch space; see [VectorE6.BatchInvertIntoScratch].
+func BatchInvertE6IntoScratch(res, a, scratch []E6) {
+	VectorE6(res).BatchInvertIntoScratch(a, scratch)
+}
+
+// BatchInvert returns a new vector with every element of vector inverted,
+// using Montgomery batch inversion trick; zero elements stay zero.
+func (vector VectorE6) BatchInvert() VectorE6 {
+	res := make(VectorE6, len(vector))
+	res.BatchInvertInto(vector)
 	return res
 }
 
-// BatchInvertE6Into sets res[i] to the inverse of a[i], using Montgomery batch
-// inversion trick; if a[i] == 0, res[i] = 0. res and a must have the same
+// BatchInvertInto sets vector[i] to the inverse of a[i], using Montgomery batch
+// inversion trick; if a[i] == 0, vector[i] = 0. vector and a must have the same
 // length.
 //
-// res may be the very same slice as a (in place), but must not otherwise
-// overlap it. When res and a are distinct, BatchInvertE6Into does not
-// allocate: res holds the running products. In place, it needs len(a) elements
-// of scratch space, which it takes from an internal pool (allocating only when
-// the pool has none large enough); use BatchInvertE6IntoScratch to provide
-// them.
+// vector may be the very same slice as a (in place), but must not otherwise
+// overlap it. When vector and a are distinct, BatchInvertInto does not
+// allocate: vector holds the running products. In place, it needs len(a)
+// elements of scratch space, which it takes from an internal pool (allocating
+// only when the pool has none large enough); use BatchInvertIntoScratch to
+// provide them.
 //
-// For long inputs, BatchInvertE6IntoScratch is faster even when res and a are
+// For long inputs, BatchInvertIntoScratch is faster even when vector and a are
 // distinct, since keeping the running products apart saves a pass over a.
-func BatchInvertE6Into(res, a []E6) {
-	if len(res) != len(a) {
-		panic("BatchInvertE6Into: vectors don't have the same length")
+func (vector VectorE6) BatchInvertInto(a VectorE6) {
+	if len(vector) != len(a) {
+		panic("VectorE6.BatchInvertInto: vectors don't have the same length")
 	}
 	if len(a) == 0 {
 		return
 	}
-	if &res[0] != &a[0] {
-		if batchInvertE6Overlap(res, a) {
-			panic("BatchInvertE6Into: res and a overlap without being the same slice")
+	if &vector[0] != &a[0] {
+		if batchInvertE6Overlap(vector, a) {
+			panic("VectorE6.BatchInvertInto: vector and a overlap without being the same slice")
 		}
-		batchInvertE6(res, a, nil, batchInvertE6Lanes(len(a)))
+		batchInvertE6(vector, a, nil, batchInvertE6Lanes(len(a)))
 		return
 	}
 	if uintptr(len(a))*unsafe.Sizeof(E6{}) > batchInvertE6PoolMaxBytes {
-		batchInvertE6(res, a, make([]E6, len(a)), batchInvertE6Lanes(len(a)))
+		batchInvertE6(vector, a, make([]E6, len(a)), batchInvertE6Lanes(len(a)))
 		return
 	}
 	scratch := batchInvertE6ScratchPool.Get().(*[]E6)
 	if cap(*scratch) < len(a) {
 		*scratch = make([]E6, len(a))
 	}
-	batchInvertE6(res, a, (*scratch)[:len(a)], batchInvertE6Lanes(len(a)))
+	batchInvertE6(vector, a, (*scratch)[:len(a)], batchInvertE6Lanes(len(a)))
 	batchInvertE6ScratchPool.Put(scratch)
+}
+
+// BatchInvertIntoScratch is BatchInvertInto with caller-provided scratch
+// space, so that it never allocates, including in place (vector may be the
+// very same slice as a, but must not otherwise overlap it).
+//
+// scratch must have at least len(a) elements and must not overlap vector or
+// a; its content on return is unspecified.
+func (vector VectorE6) BatchInvertIntoScratch(a, scratch VectorE6) {
+	if len(vector) != len(a) {
+		panic("VectorE6.BatchInvertIntoScratch: vectors don't have the same length")
+	}
+	if len(scratch) < len(a) {
+		panic("VectorE6.BatchInvertIntoScratch: scratch is shorter than the input")
+	}
+	if len(a) == 0 {
+		return
+	}
+	scratch = scratch[:len(a)]
+	if batchInvertE6Overlap(scratch, vector) || batchInvertE6Overlap(scratch, a) {
+		panic("VectorE6.BatchInvertIntoScratch: scratch overlaps vector or a")
+	}
+	if &vector[0] != &a[0] && batchInvertE6Overlap(vector, a) {
+		panic("VectorE6.BatchInvertIntoScratch: vector and a overlap without being the same slice")
+	}
+	batchInvertE6(vector, a, scratch, batchInvertE6Lanes(len(a)))
 }
 
 // batchInvertE6PoolMaxBytes is the size of the largest scratch buffer kept in
@@ -624,35 +670,9 @@ func batchInvertE6Overlap(x, y []E6) bool {
 }
 
 // batchInvertE6ScratchPool holds the scratch space of in-place
-// BatchInvertE6Into calls.
+// VectorE6.BatchInvertInto calls.
 var batchInvertE6ScratchPool = sync.Pool{
 	New: func() any { return new([]E6) },
-}
-
-// BatchInvertE6IntoScratch is BatchInvertE6Into with caller-provided scratch
-// space, so that it never allocates, including in place (res may be the very
-// same slice as a, but must not otherwise overlap it).
-//
-// scratch must have at least len(a) elements and must not overlap res or a;
-// its content on return is unspecified.
-func BatchInvertE6IntoScratch(res, a, scratch []E6) {
-	if len(res) != len(a) {
-		panic("BatchInvertE6IntoScratch: vectors don't have the same length")
-	}
-	if len(scratch) < len(a) {
-		panic("BatchInvertE6IntoScratch: scratch is shorter than the input")
-	}
-	if len(a) == 0 {
-		return
-	}
-	scratch = scratch[:len(a)]
-	if batchInvertE6Overlap(scratch, res) || batchInvertE6Overlap(scratch, a) {
-		panic("BatchInvertE6IntoScratch: scratch overlaps res or a")
-	}
-	if &res[0] != &a[0] && batchInvertE6Overlap(res, a) {
-		panic("BatchInvertE6IntoScratch: res and a overlap without being the same slice")
-	}
-	batchInvertE6(res, a, scratch, batchInvertE6Lanes(len(a)))
 }
 
 const (
@@ -696,7 +716,7 @@ func batchInvertE6Lanes(n int) int {
 	}
 }
 
-// batchInvertE6 is the implementation of BatchInvertE6Into: the scalar
+// batchInvertE6 is the implementation of VectorE6.BatchInvertInto: the scalar
 // path (batchInvertE6Scalar) if lanes is 0, the interleaved product chains
 // (batchInvertE6Chains) otherwise. len(a) must be > 0. scratch is
 // either nil, and then res and a are distinct, or len(a) elements disjoint
@@ -916,6 +936,61 @@ func batchInvertE6Chains(res, a, scratch []E6, lanes int) {
 func batchInvertE6ChainProducts(p []E6) {
 	var prefix [batchInvertE6MaxLanes + 1]E6
 	batchInvertE6(p, p, prefix[:len(p)], batchInvertE6Lanes(len(p)))
+}
+
+// PrefixProduct computes the prefix product of the vector in place, i.e.
+// vector[i] = vector[0] * vector[1] * ... * vector[i].
+//
+// Long vectors are split in chunks processed in parallel, by at most nbTasks
+// goroutines if nbTasks is given and positive, and at most GOMAXPROCS
+// goroutines in any case.
+func (vector VectorE6) PrefixProduct(nbTasks ...int) {
+	n := len(vector)
+	nbWorkers := runtime.GOMAXPROCS(0)
+	if len(nbTasks) == 1 && nbTasks[0] > 0 {
+		nbWorkers = min(nbWorkers, nbTasks[0])
+	}
+	// the second pass (a ScalarMul per chunk) and the goroutines only pay off
+	// on long vectors and chunks; the thresholds are measured
+	// (BenchmarkVectorE6PrefixProduct, 64 cores).
+	nbWorkers = min(nbWorkers, n/2048)
+	if n < 1<<14 || nbWorkers < 2 {
+		vector.prefixProductGeneric()
+		return
+	}
+
+	// first pass: the prefix product of every chunk, independently.
+	chunks := parallel.Chunks(n, nbWorkers)
+	var wg sync.WaitGroup
+	for _, c := range chunks {
+		wg.Go(func() {
+			vector[c[0]:c[1]].prefixProductGeneric()
+		})
+	}
+	wg.Wait()
+
+	// carry[i] is the product of the chunks before chunk i.
+	carry := make([]E6, len(chunks))
+	carry[1] = vector[chunks[0][1]-1]
+	for i := 2; i < len(chunks); i++ {
+		carry[i].Mul(&carry[i-1], &vector[chunks[i-1][1]-1])
+	}
+
+	// second pass: every chunk but the first is multiplied by its carry.
+	for i := 1; i < len(chunks); i++ {
+		wg.Go(func() {
+			chunk := vector[chunks[i][0]:chunks[i][1]]
+			chunk.ScalarMul(chunk, &carry[i])
+		})
+	}
+	wg.Wait()
+}
+
+// prefixProductGeneric is the sequential PrefixProduct.
+func (vector VectorE6) prefixProductGeneric() {
+	for i := 1; i < len(vector); i++ {
+		vector[i].Mul(&vector[i], &vector[i-1])
+	}
 }
 
 // Div divides an element in E6 by an element in E6

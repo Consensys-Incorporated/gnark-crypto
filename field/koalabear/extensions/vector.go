@@ -911,75 +911,61 @@ func (vector *VectorE4) ReadFrom(r io.Reader) (int64, error) {
 	return n, <-chErr
 }
 
-// PrefixProduct computes the prefix product of the vector in place.
-// i.e. vector[i] = vector[0] * vector[1] * ... * vector[i]
-// If nbTasks > 1, it uses nbTasks goroutines to compute the prefix product in parallel.
-// If nbTasks is not provided, it uses the number of CPU cores.
+// PrefixProduct computes the prefix product of the vector in place, i.e.
+// vector[i] = vector[0] * vector[1] * ... * vector[i].
+//
+// Long vectors are split in chunks processed in parallel, by at most nbTasks
+// goroutines if nbTasks is given and positive, and at most GOMAXPROCS
+// goroutines in any case.
 func (vector VectorE4) PrefixProduct(nbTasks ...int) {
-	N := len(vector)
-	if N < 2 {
-		return
+	n := len(vector)
+	nbWorkers := runtime.GOMAXPROCS(0)
+	if len(nbTasks) == 1 && nbTasks[0] > 0 {
+		nbWorkers = min(nbWorkers, nbTasks[0])
 	}
-
-	if N < 512 {
+	// the second pass (a ScalarMul per chunk) and the goroutines only pay off
+	// on long vectors and chunks; the thresholds are measured
+	// (BenchmarkVectorE4PrefixProduct, 64 cores).
+	nbWorkers = min(nbWorkers, n/2048)
+	if n < 1<<14 || nbWorkers < 2 {
 		vector.prefixProductGeneric()
 		return
 	}
 
-	// Use one worker per available CPU core.
-	numWorkers := runtime.GOMAXPROCS(0)
-	if len(nbTasks) == 1 && nbTasks[0] > 0 && nbTasks[0] < numWorkers {
-		numWorkers = nbTasks[0]
-	}
-
-	for N/numWorkers < 64 && numWorkers > 1 {
-		numWorkers >>= 1
-	}
-	numWorkers = max(1, numWorkers)
-
-	// --- PASS 1: Calculate prefix product for each chunk independently ---
-	parallel.Execute(N, func(start, stop int) {
-		// This is the original sequential algorithm applied to the smaller chunk.
-		for j := start + 1; j < stop; j++ {
-			vector[j].Mul(&vector[j], &vector[j-1])
-		}
-	}, numWorkers)
-
-	// get the chunk indices
-	chunks := parallel.Chunks(N, numWorkers)
-
-	// Compute multipliers for each chunk (product of all previous chunks)
-	multipliers := make([]E4, len(chunks))
-	multipliers[0].SetOne()
-	for i := 1; i < len(chunks); i++ {
-		multipliers[i].SetOne()
-		for j := range i {
-			prevChunkEnd := chunks[j][1] - 1
-			multipliers[i].Mul(&multipliers[i], &vector[prevChunkEnd])
-		}
-	}
-
-	// propagate the multipliers to each chunk in parallel
-	// note: the first chunk is not modified (multiplier is 1)
+	// first pass: the prefix product of every chunk, independently.
+	chunks := parallel.Chunks(n, nbWorkers)
 	var wg sync.WaitGroup
-	wg.Add(len(chunks) - 1)
-	for i := 1; i < len(chunks); i++ {
-		go func(i int) {
-			defer wg.Done()
-			start, stop := chunks[i][0], chunks[i][1]
-			subVector := vector[start:stop]
-			subVector.ScalarMul(subVector, &multipliers[i])
-		}(i)
+	for _, c := range chunks {
+		wg.Go(func() {
+			vector[c[0]:c[1]].prefixProductGeneric()
+		})
 	}
 	wg.Wait()
 
+	// carry[i] is the product of the chunks before chunk i.
+	carry := make([]E4, len(chunks))
+	carry[1] = vector[chunks[0][1]-1]
+	for i := 2; i < len(chunks); i++ {
+		carry[i].Mul(&carry[i-1], &vector[chunks[i-1][1]-1])
+	}
+
+	// second pass: every chunk but the first is multiplied by its carry.
+	for i := 1; i < len(chunks); i++ {
+		wg.Go(func() {
+			chunk := vector[chunks[i][0]:chunks[i][1]]
+			chunk.ScalarMul(chunk, &carry[i])
+		})
+	}
+	wg.Wait()
 }
 
+// prefixProductGeneric is the sequential PrefixProduct.
 func (vector VectorE4) prefixProductGeneric() {
 	for i := 1; i < len(vector); i++ {
 		vector[i].Mul(&vector[i], &vector[i-1])
 	}
 }
+
 func vectorAddGeneric(res, a, b VectorE4) {
 	for i := range len(res) {
 		res[i].Add(&a[i], &b[i])

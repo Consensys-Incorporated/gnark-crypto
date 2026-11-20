@@ -622,16 +622,6 @@ func TestVectorExp(t *testing.T) {
 
 }
 
-// prefixProductGeneric computes the prefix product of the vector in place (single-threaded).
-func prefixProductGeneric(vector VectorE4) {
-	if len(vector) == 0 {
-		return
-	}
-	for i := 1; i < len(vector); i++ {
-		vector[i].Mul(&vector[i-1], &vector[i])
-	}
-}
-
 func randomVector(size int) VectorE4 {
 	v := make(VectorE4, size)
 	for i := range v {
@@ -640,28 +630,48 @@ func randomVector(size int) VectorE4 {
 	return v
 }
 
-func TestPrefixProduct_EmptyVector(t *testing.T) {
-	assert := require.New(t)
-	v := make(VectorE4, 0)
-	expected := make(VectorE4, 0)
-	prefixProductGeneric(expected)
-	v.PrefixProduct()
-	assert.Equal(expected, v)
+func TestVectorE4PrefixProduct(t *testing.T) {
+	for _, size := range []int{0, 1, 2, 3, 64, 1<<14 - 1, 1 << 14, 1<<14 + 1, 70001} {
+		for _, nbTasks := range [][]int{nil, {-1}, {0}, {1}, {2}, {3}, {16}, {runtime.NumCPU()}} {
+			t.Run(fmt.Sprintf("size=%d/nbTasks=%v", size, nbTasks), func(t *testing.T) {
+				v := make(VectorE4, size)
+				for i := range v {
+					v[i].MustSetRandom()
+				}
+				if size > 5000 {
+					// a zero in the middle of a chunk
+					v[5000].SetZero()
+				}
+				expected := make(VectorE4, size)
+				for i := range v {
+					expected[i] = v[i]
+					if i > 0 {
+						expected[i].Mul(&expected[i], &expected[i-1])
+					}
+				}
+				v.PrefixProduct(nbTasks...)
+				require.Equal(t, expected, v)
+			})
+		}
+	}
 }
 
-func TestPrefixProduct_VariousNbTasks(t *testing.T) {
-	assert := require.New(t)
-	sizes := []int{1, 2, 256, 1024}
-	nbTasksList := []int{1, 16, 32, runtime.NumCPU()}
-	for _, size := range sizes {
-		for _, nbTasks := range nbTasksList {
-			v := randomVector(size)
-			expected := make(VectorE4, size)
-			copy(expected, v)
-			prefixProductGeneric(expected)
-			v.PrefixProduct(nbTasks)
-			assert.Equal(expected, v, "size=%d nbTasks=%d", size, nbTasks)
+func BenchmarkVectorE4PrefixProduct(b *testing.B) {
+	for _, size := range []int{1 << 12, 1 << 14, 1 << 16, 1 << 19} {
+		v := make(VectorE4, size)
+		for i := range v {
+			v[i].MustSetRandom()
 		}
+		b.Run(fmt.Sprintf("generic/n=%d", size), func(b *testing.B) {
+			for b.Loop() {
+				v.prefixProductGeneric()
+			}
+		})
+		b.Run(fmt.Sprintf("parallel/n=%d", size), func(b *testing.B) {
+			for b.Loop() {
+				v.PrefixProduct()
+			}
+		})
 	}
 }
 
@@ -1098,29 +1108,6 @@ func BenchmarkVectorOps(b *testing.B) {
 			}
 		})
 	}
-}
-
-func BenchmarkPrefixProduct(b *testing.B) {
-	const N = 1 << 19
-	a1 := make(VectorE4, N)
-	for i := range N {
-		a1[i].MustSetRandom()
-	}
-
-	b.Run("generic", func(b *testing.B) {
-		b.ResetTimer()
-		for range b.N {
-			prefixProductGeneric(a1)
-		}
-	})
-
-	b.Run("PrefixProduct", func(b *testing.B) {
-		b.ResetTimer()
-		for range b.N {
-			a1.PrefixProduct()
-		}
-	})
-
 }
 
 func BenchmarkVectorE4AddSub(b *testing.B) {
@@ -1830,6 +1817,33 @@ func TestBatchInvertE4Into(t *testing.T) {
 				res = slices.Clone(a)
 				BatchInvertE4IntoScratch(res, res, fresh(size))
 				require.Equal(t, expected, res)
+
+				// method forms, with the destination as receiver
+				require.Equal(t, expected, a.BatchInvert())
+
+				res = fresh(size)
+				res.BatchInvertInto(a)
+				require.Equal(t, expected, res)
+
+				res = fresh(size)
+				res.BatchInvertIntoScratch(a, fresh(size+5))
+				require.Equal(t, expected, res)
+				require.Equal(t, orig, a)
+
+				res = slices.Clone(a)
+				res.BatchInvertInto(res)
+				require.Equal(t, expected, res)
+
+				res = slices.Clone(a)
+				res.BatchInvertIntoScratch(res, fresh(size))
+				require.Equal(t, expected, res)
+
+				// sub-slices are valid receivers
+				if size > 2 {
+					res = fresh(size)
+					res[1:].BatchInvertInto(a[1:])
+					require.Equal(t, expected[1:], res[1:])
+				}
 			})
 		}
 	}
@@ -1853,6 +1867,21 @@ func TestBatchInvertE4IntoPanics(t *testing.T) {
 	require.NotPanics(t, func() { BatchInvertE4Into(buf[:4], buf[4:8]) })
 	require.NotPanics(t, func() { BatchInvertE4Into(buf[:4], buf[:4]) })
 	require.NotPanics(t, func() { BatchInvertE4IntoScratch(buf[:4], buf[:4], buf[4:9]) })
+
+	// method forms
+	require.Panics(t, func() { make(VectorE4, 3).BatchInvertInto(a) })
+	require.Panics(t, func() { make(VectorE4, 3).BatchInvertIntoScratch(a, make(VectorE4, 4)) })
+	require.Panics(t, func() { make(VectorE4, 4).BatchInvertIntoScratch(a, make(VectorE4, 3)) })
+	require.Panics(t, func() { buf[1:5].BatchInvertInto(buf[:4]) })
+	require.Panics(t, func() { buf[1:5].BatchInvertIntoScratch(buf[:4], make(VectorE4, 4)) })
+	require.Panics(t, func() { buf[:4].BatchInvertIntoScratch(buf[:4], buf[2:6]) })
+	require.Panics(t, func() { make(VectorE4, 4).BatchInvertIntoScratch(buf[:4], buf[3:7]) })
+	require.NotPanics(t, func() { buf[:4].BatchInvertInto(buf[4:8]) })
+	require.NotPanics(t, func() { buf[:4].BatchInvertInto(buf[:4]) })
+	require.NotPanics(t, func() { buf[:4].BatchInvertIntoScratch(buf[:4], buf[4:9]) })
+	// empty inputs return early, even with a nil scratch
+	require.NotPanics(t, func() { VectorE4(nil).BatchInvertInto(nil) })
+	require.NotPanics(t, func() { VectorE4(nil).BatchInvertIntoScratch(nil, nil) })
 }
 
 func TestBatchInvertE4IntoAllocs(t *testing.T) {
@@ -1868,6 +1897,10 @@ func TestBatchInvertE4IntoAllocs(t *testing.T) {
 	// in place, BatchInvertE4Into takes its scratch from a pool, which only
 	// allocates on a miss (e.g. after a GC, or randomly under -race).
 	require.LessOrEqual(t, testing.AllocsPerRun(100, func() { BatchInvertE4Into(res, res) }), 1.0, "BatchInvertE4Into in place")
+	require.Zero(t, testing.AllocsPerRun(10, func() { res.BatchInvertInto(a) }), "VectorE4.BatchInvertInto")
+	require.Zero(t, testing.AllocsPerRun(10, func() { res.BatchInvertIntoScratch(a, scratch) }), "VectorE4.BatchInvertIntoScratch")
+	require.Zero(t, testing.AllocsPerRun(10, func() { res.BatchInvertIntoScratch(res, scratch) }), "VectorE4.BatchInvertIntoScratch in place")
+	require.LessOrEqual(t, testing.AllocsPerRun(100, func() { res.BatchInvertInto(res) }), 1.0, "VectorE4.BatchInvertInto in place")
 }
 
 // TestBatchInvertE4Lanes checks batchInvertE4 at every row width, whatever the

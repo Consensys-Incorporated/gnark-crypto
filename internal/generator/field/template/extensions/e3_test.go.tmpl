@@ -2,6 +2,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"math/big"
 	"fmt"
+	"slices"
 	"strconv"
 	"testing"
 
@@ -223,31 +224,9 @@ func TestE3Exp(t *testing.T) {
 	}
 }
 
-func TestBatchInvertE3(t *testing.T) {
-	const n = 64
-	a := make([]E3, n)
-	for i := range a {
-		a[i].MustSetRandom()
-	}
-	// Mix in a zero element
-	a[n/2].SetZero()
+{{template "batchInvertExtTests" dict "all" . "E" "E3" "V" "VectorE3"}}
 
-	inv := BatchInvertE3(a)
-
-	for i, ai := range a {
-		if ai.IsZero() {
-			if !inv[i].IsZero() {
-				t.Fatalf("BatchInvertE3: inv[%d] should be zero for zero input", i)
-			}
-			continue
-		}
-		var prod E3
-		prod.Mul(&ai, &inv[i])
-		if !prod.IsOne() {
-			t.Fatalf("BatchInvertE3: a[%d] * inv[%d] != 1", i, i)
-		}
-	}
-}
+{{template "prefixProductTests" dict "E" "E3" "V" "VectorE3"}}
 
 // ---- VectorE3 tests ------------------------------------------------------------
 

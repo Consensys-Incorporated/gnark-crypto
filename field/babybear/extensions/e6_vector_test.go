@@ -7,6 +7,7 @@ package extensions
 
 import (
 	"fmt"
+	"runtime"
 	"slices"
 	"strconv"
 	"testing"
@@ -1103,6 +1104,33 @@ func TestBatchInvertE6Into(t *testing.T) {
 				res = slices.Clone(a)
 				BatchInvertE6IntoScratch(res, res, fresh(size))
 				require.Equal(t, expected, res)
+
+				// method forms, with the destination as receiver
+				require.Equal(t, expected, a.BatchInvert())
+
+				res = fresh(size)
+				res.BatchInvertInto(a)
+				require.Equal(t, expected, res)
+
+				res = fresh(size)
+				res.BatchInvertIntoScratch(a, fresh(size+5))
+				require.Equal(t, expected, res)
+				require.Equal(t, orig, a)
+
+				res = slices.Clone(a)
+				res.BatchInvertInto(res)
+				require.Equal(t, expected, res)
+
+				res = slices.Clone(a)
+				res.BatchInvertIntoScratch(res, fresh(size))
+				require.Equal(t, expected, res)
+
+				// sub-slices are valid receivers
+				if size > 2 {
+					res = fresh(size)
+					res[1:].BatchInvertInto(a[1:])
+					require.Equal(t, expected[1:], res[1:])
+				}
 			})
 		}
 	}
@@ -1126,6 +1154,21 @@ func TestBatchInvertE6IntoPanics(t *testing.T) {
 	require.NotPanics(t, func() { BatchInvertE6Into(buf[:4], buf[4:8]) })
 	require.NotPanics(t, func() { BatchInvertE6Into(buf[:4], buf[:4]) })
 	require.NotPanics(t, func() { BatchInvertE6IntoScratch(buf[:4], buf[:4], buf[4:9]) })
+
+	// method forms
+	require.Panics(t, func() { make(VectorE6, 3).BatchInvertInto(a) })
+	require.Panics(t, func() { make(VectorE6, 3).BatchInvertIntoScratch(a, make(VectorE6, 4)) })
+	require.Panics(t, func() { make(VectorE6, 4).BatchInvertIntoScratch(a, make(VectorE6, 3)) })
+	require.Panics(t, func() { buf[1:5].BatchInvertInto(buf[:4]) })
+	require.Panics(t, func() { buf[1:5].BatchInvertIntoScratch(buf[:4], make(VectorE6, 4)) })
+	require.Panics(t, func() { buf[:4].BatchInvertIntoScratch(buf[:4], buf[2:6]) })
+	require.Panics(t, func() { make(VectorE6, 4).BatchInvertIntoScratch(buf[:4], buf[3:7]) })
+	require.NotPanics(t, func() { buf[:4].BatchInvertInto(buf[4:8]) })
+	require.NotPanics(t, func() { buf[:4].BatchInvertInto(buf[:4]) })
+	require.NotPanics(t, func() { buf[:4].BatchInvertIntoScratch(buf[:4], buf[4:9]) })
+	// empty inputs return early, even with a nil scratch
+	require.NotPanics(t, func() { VectorE6(nil).BatchInvertInto(nil) })
+	require.NotPanics(t, func() { VectorE6(nil).BatchInvertIntoScratch(nil, nil) })
 }
 
 func TestBatchInvertE6IntoAllocs(t *testing.T) {
@@ -1141,6 +1184,10 @@ func TestBatchInvertE6IntoAllocs(t *testing.T) {
 	// in place, BatchInvertE6Into takes its scratch from a pool, which only
 	// allocates on a miss (e.g. after a GC, or randomly under -race).
 	require.LessOrEqual(t, testing.AllocsPerRun(100, func() { BatchInvertE6Into(res, res) }), 1.0, "BatchInvertE6Into in place")
+	require.Zero(t, testing.AllocsPerRun(10, func() { res.BatchInvertInto(a) }), "VectorE6.BatchInvertInto")
+	require.Zero(t, testing.AllocsPerRun(10, func() { res.BatchInvertIntoScratch(a, scratch) }), "VectorE6.BatchInvertIntoScratch")
+	require.Zero(t, testing.AllocsPerRun(10, func() { res.BatchInvertIntoScratch(res, scratch) }), "VectorE6.BatchInvertIntoScratch in place")
+	require.LessOrEqual(t, testing.AllocsPerRun(100, func() { res.BatchInvertInto(res) }), 1.0, "VectorE6.BatchInvertInto in place")
 }
 
 // TestBatchInvertE6Lanes checks batchInvertE6 at every row width, whatever the
@@ -1243,4 +1290,49 @@ func randomBatchInvE6(n int) VectorE6 {
 		v[i].MustSetRandom()
 	}
 	return v
+}
+
+func TestVectorE6PrefixProduct(t *testing.T) {
+	for _, size := range []int{0, 1, 2, 3, 64, 1<<14 - 1, 1 << 14, 1<<14 + 1, 70001} {
+		for _, nbTasks := range [][]int{nil, {-1}, {0}, {1}, {2}, {3}, {16}, {runtime.NumCPU()}} {
+			t.Run(fmt.Sprintf("size=%d/nbTasks=%v", size, nbTasks), func(t *testing.T) {
+				v := make(VectorE6, size)
+				for i := range v {
+					v[i].MustSetRandom()
+				}
+				if size > 5000 {
+					// a zero in the middle of a chunk
+					v[5000].SetZero()
+				}
+				expected := make(VectorE6, size)
+				for i := range v {
+					expected[i] = v[i]
+					if i > 0 {
+						expected[i].Mul(&expected[i], &expected[i-1])
+					}
+				}
+				v.PrefixProduct(nbTasks...)
+				require.Equal(t, expected, v)
+			})
+		}
+	}
+}
+
+func BenchmarkVectorE6PrefixProduct(b *testing.B) {
+	for _, size := range []int{1 << 12, 1 << 14, 1 << 16, 1 << 19} {
+		v := make(VectorE6, size)
+		for i := range v {
+			v[i].MustSetRandom()
+		}
+		b.Run(fmt.Sprintf("generic/n=%d", size), func(b *testing.B) {
+			for b.Loop() {
+				v.prefixProductGeneric()
+			}
+		})
+		b.Run(fmt.Sprintf("parallel/n=%d", size), func(b *testing.B) {
+			for b.Loop() {
+				v.PrefixProduct()
+			}
+		})
+	}
 }

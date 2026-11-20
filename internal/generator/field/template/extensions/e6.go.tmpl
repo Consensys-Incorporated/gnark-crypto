@@ -558,6 +558,8 @@ func (z *E6) Halve() {
 
 {{template "batchInvertExt" dict "all" . "E" "E6" "V" "VectorE6"}}
 
+{{template "prefixProduct" dict "E" "E6" "V" "VectorE6"}}
+
 // Div divides an element in E6 by an element in E6
 func (z *E6) Div(x *E6, y *E6) *E6 {
 	var r E6

@@ -2369,6 +2369,25 @@ func TestElementBatchInvertInto(t *testing.T) {
 				BatchInvertIntoScratch(res, res, fresh(n))
 				check(t, res)
 
+				// method forms, with the destination as receiver
+				check(t, Vector(a).BatchInvert())
+
+				res = fresh(n)
+				Vector(res).BatchInvertInto(a)
+				check(t, res)
+
+				res = fresh(n)
+				Vector(res).BatchInvertIntoScratch(a, fresh(n+5))
+				check(t, res)
+
+				res = inPlace()
+				Vector(res).BatchInvertInto(res)
+				check(t, res)
+
+				res = inPlace()
+				Vector(res).BatchInvertIntoScratch(res, fresh(n))
+				check(t, res)
+
 				// a is left untouched unless it is the destination
 				require.Equal(t, orig, a)
 			})
@@ -2396,6 +2415,16 @@ func TestElementBatchInvertIntoPanics(t *testing.T) {
 	require.NotPanics(t, func() { BatchInvertInto(buf[:4], buf[4:8]) })
 	require.NotPanics(t, func() { BatchInvertInto(buf[:4], buf[:4]) })
 	require.NotPanics(t, func() { BatchInvertIntoScratch(buf[:4], buf[:4], buf[4:9]) })
+
+	// method forms
+	v := Vector(buf)
+	require.Panics(t, func() { make(Vector, 3).BatchInvertInto(a) })
+	require.Panics(t, func() { make(Vector, 4).BatchInvertIntoScratch(a, make(Vector, 3)) })
+	require.Panics(t, func() { v[1:5].BatchInvertInto(v[:4]) })
+	require.Panics(t, func() { v[:4].BatchInvertIntoScratch(v[:4], v[2:6]) })
+	require.NotPanics(t, func() { v[:4].BatchInvertInto(v[4:8]) })
+	require.NotPanics(t, func() { v[:4].BatchInvertIntoScratch(v[:4], v[4:9]) })
+	require.NotPanics(t, func() { Vector(nil).BatchInvertIntoScratch(nil, nil) })
 }
 
 // TestElementBatchInvertIntoAllocs checks the allocation contract of the Into variants:
@@ -2436,6 +2465,11 @@ func TestElementBatchInvertIntoAllocs(t *testing.T) {
 	require.LessOrEqual(t, testing.AllocsPerRun(runs, func() { BatchInvertIntoScratch(res, a, scratch) }), inverseAllocs+slack, "BatchInvertIntoScratch")
 	require.LessOrEqual(t, testing.AllocsPerRun(runs, func() { BatchInvertIntoScratch(res, res, scratch) }), inverseAllocs+slack, "BatchInvertIntoScratch in place")
 	require.LessOrEqual(t, testing.AllocsPerRun(100, func() { BatchInvertInto(res, res) }), inverseAllocs+1, "BatchInvertInto in place")
+
+	// method forms
+	vres := Vector(res)
+	require.LessOrEqual(t, testing.AllocsPerRun(runs, func() { vres.BatchInvertInto(a) }), inverseAllocs+slack, "Vector.BatchInvertInto")
+	require.LessOrEqual(t, testing.AllocsPerRun(runs, func() { vres.BatchInvertIntoScratch(a, scratch) }), inverseAllocs+slack, "Vector.BatchInvertIntoScratch")
 }
 
 func TestElementFromMont(t *testing.T) {

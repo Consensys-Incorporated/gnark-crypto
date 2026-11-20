@@ -58,6 +58,33 @@ func TestBatchInvert{{.E}}Into(t *testing.T) {
 				res = slices.Clone(a)
 				BatchInvert{{.E}}IntoScratch(res, res, fresh(size))
 				require.Equal(t, expected, res)
+
+				// method forms, with the destination as receiver
+				require.Equal(t, expected, a.BatchInvert())
+
+				res = fresh(size)
+				res.BatchInvertInto(a)
+				require.Equal(t, expected, res)
+
+				res = fresh(size)
+				res.BatchInvertIntoScratch(a, fresh(size+5))
+				require.Equal(t, expected, res)
+				require.Equal(t, orig, a)
+
+				res = slices.Clone(a)
+				res.BatchInvertInto(res)
+				require.Equal(t, expected, res)
+
+				res = slices.Clone(a)
+				res.BatchInvertIntoScratch(res, fresh(size))
+				require.Equal(t, expected, res)
+
+				// sub-slices are valid receivers
+				if size > 2 {
+					res = fresh(size)
+					res[1:].BatchInvertInto(a[1:])
+					require.Equal(t, expected[1:], res[1:])
+				}
 			})
 		}
 	}
@@ -81,6 +108,21 @@ func TestBatchInvert{{.E}}IntoPanics(t *testing.T) {
 	require.NotPanics(t, func() { BatchInvert{{.E}}Into(buf[:4], buf[4:8]) })
 	require.NotPanics(t, func() { BatchInvert{{.E}}Into(buf[:4], buf[:4]) })
 	require.NotPanics(t, func() { BatchInvert{{.E}}IntoScratch(buf[:4], buf[:4], buf[4:9]) })
+
+	// method forms
+	require.Panics(t, func() { make({{.V}}, 3).BatchInvertInto(a) })
+	require.Panics(t, func() { make({{.V}}, 3).BatchInvertIntoScratch(a, make({{.V}}, 4)) })
+	require.Panics(t, func() { make({{.V}}, 4).BatchInvertIntoScratch(a, make({{.V}}, 3)) })
+	require.Panics(t, func() { buf[1:5].BatchInvertInto(buf[:4]) })
+	require.Panics(t, func() { buf[1:5].BatchInvertIntoScratch(buf[:4], make({{.V}}, 4)) })
+	require.Panics(t, func() { buf[:4].BatchInvertIntoScratch(buf[:4], buf[2:6]) })
+	require.Panics(t, func() { make({{.V}}, 4).BatchInvertIntoScratch(buf[:4], buf[3:7]) })
+	require.NotPanics(t, func() { buf[:4].BatchInvertInto(buf[4:8]) })
+	require.NotPanics(t, func() { buf[:4].BatchInvertInto(buf[:4]) })
+	require.NotPanics(t, func() { buf[:4].BatchInvertIntoScratch(buf[:4], buf[4:9]) })
+	// empty inputs return early, even with a nil scratch
+	require.NotPanics(t, func() { {{.V}}(nil).BatchInvertInto(nil) })
+	require.NotPanics(t, func() { {{.V}}(nil).BatchInvertIntoScratch(nil, nil) })
 }
 
 func TestBatchInvert{{.E}}IntoAllocs(t *testing.T) {
@@ -96,6 +138,10 @@ func TestBatchInvert{{.E}}IntoAllocs(t *testing.T) {
 	// in place, BatchInvert{{.E}}Into takes its scratch from a pool, which only
 	// allocates on a miss (e.g. after a GC, or randomly under -race).
 	require.LessOrEqual(t, testing.AllocsPerRun(100, func() { BatchInvert{{.E}}Into(res, res) }), 1.0, "BatchInvert{{.E}}Into in place")
+	require.Zero(t, testing.AllocsPerRun(10, func() { res.BatchInvertInto(a) }), "{{.V}}.BatchInvertInto")
+	require.Zero(t, testing.AllocsPerRun(10, func() { res.BatchInvertIntoScratch(a, scratch) }), "{{.V}}.BatchInvertIntoScratch")
+	require.Zero(t, testing.AllocsPerRun(10, func() { res.BatchInvertIntoScratch(res, scratch) }), "{{.V}}.BatchInvertIntoScratch in place")
+	require.LessOrEqual(t, testing.AllocsPerRun(100, func() { res.BatchInvertInto(res) }), 1.0, "{{.V}}.BatchInvertInto in place")
 }
 
 // TestBatchInvert{{.E}}Lanes checks batchInvert{{.E}} at every row width, whatever the

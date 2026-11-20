@@ -977,75 +977,7 @@ func (vector *VectorE4) ReadFrom(r io.Reader) (int64, error) {
 	return n, <-chErr
 }
 
-// PrefixProduct computes the prefix product of the vector in place.
-// i.e. vector[i] = vector[0] * vector[1] * ... * vector[i]
-// If nbTasks > 1, it uses nbTasks goroutines to compute the prefix product in parallel.
-// If nbTasks is not provided, it uses the number of CPU cores.
-func (vector VectorE4) PrefixProduct(nbTasks ...int) {
-	N := len(vector)
-	if N < 2 {
-		return
-	}
-
-	if N < 512 {
-		vector.prefixProductGeneric()
-		return
-	}
-
-	// Use one worker per available CPU core.
-	numWorkers := runtime.GOMAXPROCS(0)
-	if len(nbTasks) == 1 && nbTasks[0] > 0 && nbTasks[0] < numWorkers {
-		numWorkers = nbTasks[0]
-	}
-
-	for N / numWorkers < 64 && numWorkers > 1 {
-		numWorkers >>= 1
-	}
-	numWorkers = max(1, numWorkers)
-
-		// --- PASS 1: Calculate prefix product for each chunk independently ---
-	parallel.Execute(N, func(start, stop int) {
-		// This is the original sequential algorithm applied to the smaller chunk.
-		for j := start + 1; j < stop; j++ {
-			vector[j].Mul(&vector[j], &vector[j-1])
-		}
-	}, numWorkers)
-
-	// get the chunk indices
-	chunks := parallel.Chunks(N, numWorkers)
-
-	// Compute multipliers for each chunk (product of all previous chunks)
-	multipliers := make([]E4, len(chunks))
-	multipliers[0].SetOne()
-	for i := 1; i < len(chunks); i++ {
-		multipliers[i].SetOne()
-		for j := range i {
-			prevChunkEnd := chunks[j][1] - 1
-			multipliers[i].Mul(&multipliers[i], &vector[prevChunkEnd])
-		}
-	}
-
-	// propagate the multipliers to each chunk in parallel
-	// note: the first chunk is not modified (multiplier is 1)
-	var wg sync.WaitGroup
-	wg.Add(len(chunks) - 1)
-	for i := 1; i < len(chunks); i++ {
-		go func(i int) {
-			defer wg.Done()
-			start, stop := chunks[i][0], chunks[i][1]
-			subVector := vector[start:stop]
-			subVector.ScalarMul(subVector, &multipliers[i])
-		}(i)
-	}
-	wg.Wait()
-
-}
-
-func (vector VectorE4) prefixProductGeneric() {
-	for i := 1; i < len(vector); i++ {
-		vector[i].Mul(&vector[i], &vector[i-1])
-	}
-}
+{{template "prefixProduct" dict "E" "E4" "V" "VectorE4"}}
 
 
 
