@@ -12,8 +12,10 @@ import (
 	"fmt"
 	"io"
 	"math/bits"
+	"runtime"
 	"slices"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"unsafe"
 
@@ -399,6 +401,151 @@ func (vector Vector) ScalarSubFrom(c *Element, a Vector) {
 	cc := *c
 	for i := range a {
 		vector[i].Sub(&cc, &a[i])
+	}
+}
+
+// MulAcc sets vector[i] += a[i] * b[i] for all i.
+//
+// vector may be identical to a and/or b; partially overlapping slices are not
+// supported. It panics if the vectors don't have the same length.
+func (vector Vector) MulAcc(a, b Vector) {
+	if len(a) != len(vector) || len(b) != len(vector) {
+		panic("vector.MulAcc: vectors don't have the same length")
+	}
+	mulAccVecGeneric(vector, a, b)
+}
+
+// ScalarMulAcc sets vector[i] += a[i] * c for all i.
+//
+// vector may be identical to a, and c may point into vector or a; partially
+// overlapping slices are not supported. It panics if the vectors don't have
+// the same length.
+func (vector Vector) ScalarMulAcc(a Vector, c *Element) {
+	if len(a) != len(vector) {
+		panic("vector.ScalarMulAcc: vectors don't have the same length")
+	}
+	if len(vector) == 0 {
+		return
+	}
+	cc := *c
+	scalarMulAccVecGeneric(vector, a, &cc)
+}
+
+// ScalarMulAdd sets vector[i] = vector[i] * c + b[i] for all i: one Horner
+// step applied across the vector.
+//
+// vector may be identical to b, and c may point into vector or b; partially
+// overlapping slices are not supported. It panics if the vectors don't have
+// the same length.
+func (vector Vector) ScalarMulAdd(b Vector, c *Element) {
+	if len(b) != len(vector) {
+		panic("vector.ScalarMulAdd: vectors don't have the same length")
+	}
+	if len(vector) == 0 {
+		return
+	}
+	cc := *c
+	scalarMulAddVecGeneric(vector, b, &cc)
+}
+
+// BatchInvert returns a new vector with every element of vector inverted,
+// using Montgomery batch inversion trick; zero elements stay zero. See
+// [BatchInvert].
+func (vector Vector) BatchInvert() Vector {
+	return BatchInvert(vector)
+}
+
+// BatchInvertInto sets vector[i] to the inverse of a[i] (zero if a[i] is
+// zero), with the contract of [BatchInvertInto]: vector may be the very same
+// slice as a, in which case the scratch space comes from an internal pool.
+func (vector Vector) BatchInvertInto(a Vector) {
+	BatchInvertInto(vector, a)
+}
+
+// BatchInvertIntoScratch is BatchInvertInto with caller-provided scratch
+// space, with the contract of [BatchInvertIntoScratch]: scratch must have at
+// least len(a) elements and must not overlap vector or a.
+func (vector Vector) BatchInvertIntoScratch(a, scratch Vector) {
+	BatchInvertIntoScratch(vector, a, scratch)
+}
+
+// PrefixProduct computes the prefix product of the vector in place, i.e.
+// vector[i] = vector[0] * vector[1] * ... * vector[i].
+//
+// Long vectors are split in chunks processed in parallel, by at most nbTasks
+// goroutines if nbTasks is given and positive, and at most GOMAXPROCS
+// goroutines in any case.
+func (vector Vector) PrefixProduct(nbTasks ...int) {
+	n := len(vector)
+	nbWorkers := runtime.GOMAXPROCS(0)
+	if len(nbTasks) == 1 && nbTasks[0] > 0 {
+		nbWorkers = min(nbWorkers, nbTasks[0])
+	}
+	// the second pass (a ScalarMul per chunk) and the goroutines only pay off
+	// on long vectors and chunks; the thresholds are measured
+	// (BenchmarkVectorPrefixProduct, 64 cores).
+	nbWorkers = min(nbWorkers, n/4096)
+	if n < 1<<15 || nbWorkers < 2 {
+		vector.prefixProductGeneric()
+		return
+	}
+
+	// first pass: the prefix product of every chunk, independently.
+	chunks := parallel.Chunks(n, nbWorkers)
+	var wg sync.WaitGroup
+	for _, c := range chunks {
+		wg.Go(func() {
+			vector[c[0]:c[1]].prefixProductGeneric()
+		})
+	}
+	wg.Wait()
+
+	// carry[i] is the product of the chunks before chunk i.
+	carry := make([]Element, len(chunks))
+	carry[1] = vector[chunks[0][1]-1]
+	for i := 2; i < len(chunks); i++ {
+		carry[i].Mul(&carry[i-1], &vector[chunks[i-1][1]-1])
+	}
+
+	// second pass: every chunk but the first is multiplied by its carry.
+	for i := 1; i < len(chunks); i++ {
+		wg.Go(func() {
+			chunk := vector[chunks[i][0]:chunks[i][1]]
+			chunk.ScalarMul(chunk, &carry[i])
+		})
+	}
+	wg.Wait()
+}
+
+// prefixProductGeneric is the sequential PrefixProduct.
+func (vector Vector) prefixProductGeneric() {
+	for i := 1; i < len(vector); i++ {
+		vector[i].Mul(&vector[i], &vector[i-1])
+	}
+}
+
+func mulAccVecGeneric(res, a, b Vector) {
+	var t Element
+	for i := range res {
+		t.Mul(&a[i], &b[i])
+		res[i].Add(&res[i], &t)
+	}
+}
+
+func scalarMulAccVecGeneric(res, a Vector, c *Element) {
+	var t Element
+	for i := range res {
+		t.Mul(&a[i], c)
+		res[i].Add(&res[i], &t)
+	}
+}
+
+func scalarMulAddVecGeneric(res, b Vector, c *Element) {
+	// compute into t first: b may alias res.
+	var t Element
+	for i := range res {
+		t.Mul(&res[i], c)
+		res[i].Add(&t, &b[i])
 	}
 }
 

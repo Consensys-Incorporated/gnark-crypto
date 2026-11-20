@@ -214,3 +214,98 @@ func (vector *Vector) Mul(a, b Vector) {
 		mulVecGeneric((*vector)[start:], a[start:], b[start:])
 	}
 }
+
+//go:noescape
+func foldPairsVec(res, layer, twiddles, alpha *Element, n uint64)
+
+// vectorFoldPairs implements Vector.FoldPairs; lengths are checked and alpha
+// is copied by the caller.
+func vectorFoldPairs(res, layer, halfInvTwiddles Vector, alpha *Element) {
+	const blockSize = 16
+	n := len(res)
+	if !cpu.SupportAVX512 || n < blockSize {
+		foldPairsVecGeneric(res, layer, halfInvTwiddles, alpha)
+		return
+	}
+	nr := n - n%blockSize
+	foldPairsVec(&res[0], &layer[0], &halfInvTwiddles[0], alpha, uint64(nr/blockSize))
+	foldPairsVecGeneric(res[nr:], layer[2*nr:], halfInvTwiddles[nr:], alpha)
+}
+
+//go:noescape
+func batchInvFwdVec(acc, prefix, row, a, one *Element, n uint64)
+
+//go:noescape
+func batchInvBwdVec(acc, res, prefix, row, one *Element, n uint64)
+
+// batchInvertRowForward is batchInvertRowForwardGeneric, fused in a single
+// AVX-512 pass when available.
+func batchInvertRowForward(acc, prefix, row, a Vector) {
+	if !cpu.SupportAVX512 {
+		batchInvertRowForwardGeneric(acc, prefix, row, a)
+		return
+	}
+	one := One()
+	batchInvFwdVec(&acc[0], &prefix[0], &row[0], &a[0], &one, uint64(len(a)/16))
+}
+
+// batchInvertRowBackward is batchInvertRowBackwardGeneric, fused in a single
+// AVX-512 pass when available.
+func batchInvertRowBackward(acc, res, prefix, row, tmp Vector) {
+	if !cpu.SupportAVX512 {
+		batchInvertRowBackwardGeneric(acc, res, prefix, row, tmp)
+		return
+	}
+	one := One()
+	batchInvBwdVec(&acc[0], &res[0], &prefix[0], &row[0], &one, uint64(len(row)/16))
+}
+
+//go:noescape
+func mulAccVec(res, a, b *Element, n uint64)
+
+//go:noescape
+func scalarMulAccVec(res, a, c *Element, n uint64)
+
+//go:noescape
+func scalarMulAddVec(res, b, c *Element, n uint64)
+
+// vectorMulAcc sets res[i] += a[i] * b[i]; lengths are checked by the caller.
+func vectorMulAcc(res, a, b Vector) {
+	const blockSize = 16
+	n := len(res)
+	if !cpu.SupportAVX512 || n < blockSize {
+		mulAccVecGeneric(res, a, b)
+		return
+	}
+	nr := n - n%blockSize
+	mulAccVec(&res[0], &a[0], &b[0], uint64(nr/blockSize))
+	mulAccVecGeneric(res[nr:], a[nr:], b[nr:])
+}
+
+// vectorScalarMulAcc sets res[i] += a[i] * c; lengths are checked and c is
+// copied by the caller.
+func vectorScalarMulAcc(res, a Vector, c *Element) {
+	const blockSize = 16
+	n := len(res)
+	if !cpu.SupportAVX512 || n < blockSize {
+		scalarMulAccVecGeneric(res, a, c)
+		return
+	}
+	nr := n - n%blockSize
+	scalarMulAccVec(&res[0], &a[0], c, uint64(nr/blockSize))
+	scalarMulAccVecGeneric(res[nr:], a[nr:], c)
+}
+
+// vectorScalarMulAdd sets res[i] = res[i] * c + b[i]; lengths are checked and
+// c is copied by the caller.
+func vectorScalarMulAdd(res, b Vector, c *Element) {
+	const blockSize = 16
+	n := len(res)
+	if !cpu.SupportAVX512 || n < blockSize {
+		scalarMulAddVecGeneric(res, b, c)
+		return
+	}
+	nr := n - n%blockSize
+	scalarMulAddVec(&res[0], &b[0], c, uint64(nr/blockSize))
+	scalarMulAddVecGeneric(res[nr:], b[nr:], c)
+}

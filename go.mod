@@ -1,9 +1,8 @@
 module github.com/consensys/gnark-crypto
 
-go 1.26.8
+go 1.27.4
 
 require (
-	github.com/bits-and-blooms/bitset v1.25.0
 	github.com/consensys/bavard v0.2.2-0.20260118153501-cba9f5475432
 	github.com/leanovate/gopter v0.2.11
 	github.com/mmcloughlin/addchain v0.4.0

@@ -9,9 +9,12 @@ import (
 	"fmt"
 	"math/big"
 	"math/bits"
+	"runtime"
+	"sync"
 	"unsafe"
 
 	fr "github.com/consensys/gnark-crypto/field/babybear"
+	"github.com/consensys/gnark-crypto/parallel"
 )
 
 // BytesE6 is the number of bytes needed to represent a E6
@@ -565,96 +568,258 @@ func (z *E6) Halve() {
 //
 // if a[i] == 0, returns result[i] = a[i]
 func BatchInvertE6(a []E6) []E6 {
-	res := make([]E6, len(a))
-	BatchInvertE6Into(res, a)
+	return VectorE6(a).BatchInvert()
+}
+
+// BatchInvertE6Into sets res[i] to the inverse of a[i]; see
+// [VectorE6.BatchInvertInto].
+func BatchInvertE6Into(res, a []E6) {
+	VectorE6(res).BatchInvertInto(a)
+}
+
+// BatchInvertE6IntoScratch is BatchInvertE6Into with caller-provided
+// scratch space; see [VectorE6.BatchInvertIntoScratch].
+func BatchInvertE6IntoScratch(res, a, scratch []E6) {
+	VectorE6(res).BatchInvertIntoScratch(a, scratch)
+}
+
+// BatchInvert returns a new vector with every element of vector inverted,
+// using Montgomery batch inversion trick; zero elements stay zero.
+func (vector VectorE6) BatchInvert() VectorE6 {
+	res := make(VectorE6, len(vector))
+	res.BatchInvertInto(vector)
 	return res
 }
 
-// batchInvertE6Lanes is the number of interleaved product chains of
-// BatchInvertE6Into, the block size of the vectorised VectorE6.Mul.
-// BatchInvertE6Into is correct for any value ≥ 1; matching the block size
-// only lets each block of running products take the vectorised path.
-const batchInvertE6Lanes = 16
-
-// BatchInvertE6Into sets res[i] to the inverse of a[i], using Montgomery batch
-// inversion trick; if a[i] == 0, res[i] = 0. res may alias a.
+// BatchInvertInto sets vector[i] to the inverse of a[i], using Montgomery batch
+// inversion trick; if a[i] == 0, vector[i] = 0. vector and a must have the same
+// length.
 //
-// The trick runs as batchInvertE6Lanes interleaved chains, chain l taking the
-// elements l, l+batchInvertE6Lanes, ..., so that the running products of a block
-// are a single VectorE6.Mul; the chain products are then inverted together with
-// a single E6 inversion.
-func BatchInvertE6Into(res, a []E6) {
-	if len(res) != len(a) {
-		panic("BatchInvertE6Into: vectors don't have the same length")
+// vector may be the very same slice as a (in place), but must not otherwise
+// overlap it. When vector and a are distinct, BatchInvertInto does not
+// allocate: vector holds the running products. In place, it needs len(a)
+// elements of scratch space, which it takes from an internal pool (allocating
+// only when the pool has none large enough); use BatchInvertIntoScratch to
+// provide them.
+func (vector VectorE6) BatchInvertInto(a VectorE6) {
+	if len(vector) != len(a) {
+		panic("VectorE6.BatchInvertInto: vectors don't have the same length")
 	}
-	const L = batchInvertE6Lanes
+	if len(a) == 0 {
+		return
+	}
+	if &vector[0] != &a[0] {
+		if batchInvertE6Overlap(vector, a) {
+			panic("VectorE6.BatchInvertInto: vector and a overlap without being the same slice")
+		}
+		batchInvertE6(vector, a, nil, batchInvertE6Lanes(len(a)))
+		return
+	}
+	if uintptr(len(a))*unsafe.Sizeof(E6{}) > batchInvertE6PoolMaxBytes {
+		batchInvertE6(vector, a, make([]E6, len(a)), batchInvertE6Lanes(len(a)))
+		return
+	}
+	scratch := batchInvertE6ScratchPool.Get().(*[]E6)
+	if cap(*scratch) < len(a) {
+		*scratch = make([]E6, len(a))
+	}
+	batchInvertE6(vector, a, (*scratch)[:len(a)], batchInvertE6Lanes(len(a)))
+	batchInvertE6ScratchPool.Put(scratch)
+}
+
+// BatchInvertIntoScratch is BatchInvertInto with caller-provided scratch
+// space, so that it never allocates, including in place (vector may be the
+// very same slice as a, but must not otherwise overlap it).
+//
+// scratch must have at least len(a) elements and must not overlap vector or
+// a; its content on return is unspecified.
+func (vector VectorE6) BatchInvertIntoScratch(a, scratch VectorE6) {
+	if len(vector) != len(a) {
+		panic("VectorE6.BatchInvertIntoScratch: vectors don't have the same length")
+	}
+	if len(scratch) < len(a) {
+		panic("VectorE6.BatchInvertIntoScratch: scratch is shorter than the input")
+	}
+	if len(a) == 0 {
+		return
+	}
+	scratch = scratch[:len(a)]
+	if batchInvertE6Overlap(scratch, vector) || batchInvertE6Overlap(scratch, a) {
+		panic("VectorE6.BatchInvertIntoScratch: scratch overlaps vector or a")
+	}
+	if &vector[0] != &a[0] && batchInvertE6Overlap(vector, a) {
+		panic("VectorE6.BatchInvertIntoScratch: vector and a overlap without being the same slice")
+	}
+	batchInvertE6(vector, a, scratch, batchInvertE6Lanes(len(a)))
+}
+
+// batchInvertE6PoolMaxBytes is the size of the largest scratch buffer kept in
+// batchInvertE6ScratchPool; larger ones are left to the garbage collector, so that a
+// single long in-place call does not pin its scratch space.
+const batchInvertE6PoolMaxBytes = 4 << 20
+
+// batchInvertE6Overlap reports whether x and y share memory; both are non-empty.
+func batchInvertE6Overlap(x, y []E6) bool {
+	const size = unsafe.Sizeof(E6{})
+	xs, ys := uintptr(unsafe.Pointer(&x[0])), uintptr(unsafe.Pointer(&y[0]))
+	return xs < ys+uintptr(len(y))*size && ys < xs+uintptr(len(x))*size
+}
+
+// batchInvertE6ScratchPool holds the scratch space of in-place
+// VectorE6.BatchInvertInto calls.
+var batchInvertE6ScratchPool = sync.Pool{
+	New: func() any { return new([]E6) },
+}
+
+// batchInvertE6Lanes returns 0: VectorE6.Mul has no vectorised kernel for this
+// field, so interleaved product chains would only add the inversion of their
+// products, and batchInvertE6 always runs the scalar path.
+func batchInvertE6Lanes(int) int {
+	return 0
+}
+
+// batchInvertE6 is the implementation of VectorE6.BatchInvertInto: the scalar
+// path (batchInvertE6Scalar) if lanes is 0. len(a) must be > 0. scratch is
+// either nil, and then res and a are distinct, or len(a) elements disjoint
+// from res and a, and then res may be the very same slice as a.
+func batchInvertE6(res, a, scratch []E6, lanes int) {
+	prefix := res
+	if &res[0] == &a[0] {
+		prefix = scratch
+	}
+	batchInvertE6Scalar(res, a, prefix)
+}
+
+// batchInvertE6Scalar is the Montgomery batch inversion of a into res, with
+// the running products in prefix. len(a) must be > 0 and len(res), len(prefix)
+// >= len(a). prefix is either res, and then res and a are distinct, or
+// disjoint from res and a, and then res may be the very same slice as a.
+//
+// It runs two interleaved chains, over the even and the odd indices, so that
+// the products of one chain overlap the latency of the other's; the
+// accumulators are kept out of reach of pointers so they can stay in
+// registers.
+func batchInvertE6Scalar(res, a, prefix []E6) {
 	n := len(a)
-	if n == 0 {
+	res, prefix = res[:n], prefix[:n]
+	m := n &^ 1
+	var acc0, acc1 E6
+	acc0.SetOne()
+	acc1.SetOne()
+
+	for i := 0; i < m; i += 2 {
+		if a[i].IsZero() {
+			prefix[i].SetZero()
+		} else {
+			prefix[i] = acc0
+			acc0.Mul(&acc0, &a[i])
+		}
+		if a[i+1].IsZero() {
+			prefix[i+1].SetZero()
+		} else {
+			prefix[i+1] = acc1
+			acc1.Mul(&acc1, &a[i+1])
+		}
+	}
+	if m < n {
+		if a[m].IsZero() {
+			prefix[m].SetZero()
+		} else {
+			prefix[m] = acc0
+			acc0.Mul(&acc0, &a[m])
+		}
+	}
+
+	acc0, acc1 = batchInvertE6Pair(acc0, acc1)
+
+	// a[i] is read before res[i] is written, since they may be the same.
+	if m < n {
+		if x := a[m]; x.IsZero() {
+			res[m].SetZero()
+		} else {
+			res[m].Mul(&prefix[m], &acc0)
+			acc0.Mul(&acc0, &x)
+		}
+	}
+	for i := m - 2; i >= 0; i -= 2 {
+		if x := a[i+1]; x.IsZero() {
+			res[i+1].SetZero()
+		} else {
+			res[i+1].Mul(&prefix[i+1], &acc1)
+			acc1.Mul(&acc1, &x)
+		}
+		if x := a[i]; x.IsZero() {
+			res[i].SetZero()
+		} else {
+			res[i].Mul(&prefix[i], &acc0)
+			acc0.Mul(&acc0, &x)
+		}
+	}
+}
+
+// batchInvertE6Pair returns the inverses of the nonzero x and y, with a
+// single E6 inversion.
+func batchInvertE6Pair(x, y E6) (E6, E6) {
+	var inv, xInv, yInv E6
+	inv.Mul(&x, &y)
+	inv.Inverse(&inv)
+	xInv.Mul(&inv, &y)
+	yInv.Mul(&inv, &x)
+	return xInv, yInv
+}
+
+// PrefixProduct computes the prefix product of the vector in place, i.e.
+// vector[i] = vector[0] * vector[1] * ... * vector[i].
+//
+// Long vectors are split in chunks processed in parallel, by at most nbTasks
+// goroutines if nbTasks is given and positive, and at most GOMAXPROCS
+// goroutines in any case.
+func (vector VectorE6) PrefixProduct(nbTasks ...int) {
+	n := len(vector)
+	nbWorkers := runtime.GOMAXPROCS(0)
+	if len(nbTasks) == 1 && nbTasks[0] > 0 {
+		nbWorkers = min(nbWorkers, nbTasks[0])
+	}
+	// the second pass (a ScalarMul per chunk) and the goroutines only pay off
+	// on long vectors and chunks; the thresholds are measured
+	// (BenchmarkVectorE6PrefixProduct, 64 cores).
+	nbWorkers = min(nbWorkers, n/2048)
+	if n < 1<<14 || nbWorkers < 2 {
+		vector.prefixProductGeneric()
 		return
 	}
 
-	// res first holds a with its zeros replaced by one, which the chains
-	// multiply through unchanged; prefix[i] is the product of the earlier
-	// elements of the chain of i.
-	var zeros []int
-	for i := range a {
-		if a[i].IsZero() {
-			zeros = append(zeros, i)
-			res[i].SetOne()
-		} else {
-			res[i] = a[i]
-		}
+	// first pass: the prefix product of every chunk, independently.
+	chunks := parallel.Chunks(n, nbWorkers)
+	var wg sync.WaitGroup
+	for _, c := range chunks {
+		wg.Go(func() {
+			vector[c[0]:c[1]].prefixProductGeneric()
+		})
 	}
-	nz := VectorE6(res)
-	m := n / L * L
+	wg.Wait()
 
-	// forward pass; chain l ends in acc[l], and the tail in acc[L].
-	prefix := make(VectorE6, n)
-	var acc [L + 1]E6
-	for l := range acc {
-		acc[l].SetOne()
-	}
-	for j := 0; j < m; j += L {
-		copy(prefix[j:j+L], acc[:L])
-		VectorE6(acc[:L]).Mul(acc[:L], nz[j:j+L])
-	}
-	for i := m; i < n; i++ {
-		prefix[i] = acc[L]
-		acc[L].Mul(&acc[L], &nz[i])
+	// carry[i] is the product of the chunks before chunk i.
+	carry := make([]E6, len(chunks))
+	carry[1] = vector[chunks[0][1]-1]
+	for i := 2; i < len(chunks); i++ {
+		carry[i].Mul(&carry[i-1], &vector[chunks[i-1][1]-1])
 	}
 
-	// invert the L+1 chain products at once.
-	var accPrefix [L + 1]E6
-	var run E6
-	run.SetOne()
-	for l := range acc {
-		accPrefix[l] = run
-		run.Mul(&run, &acc[l])
+	// second pass: every chunk but the first is multiplied by its carry.
+	for i := 1; i < len(chunks); i++ {
+		wg.Go(func() {
+			chunk := vector[chunks[i][0]:chunks[i][1]]
+			chunk.ScalarMul(chunk, &carry[i])
+		})
 	}
-	run.Inverse(&run)
-	for l := len(acc) - 1; l >= 0; l-- {
-		var inv E6
-		inv.Mul(&run, &accPrefix[l])
-		run.Mul(&run, &acc[l])
-		acc[l] = inv
-	}
+	wg.Wait()
+}
 
-	// backward pass: the inverse of element i is the running inverse of its
-	// chain times prefix[i]; nz[i] is read before res[i] is overwritten.
-	for i := n - 1; i >= m; i-- {
-		x := nz[i]
-		res[i].Mul(&acc[L], &prefix[i])
-		acc[L].Mul(&acc[L], &x)
-	}
-	var blk [L]E6
-	for j := m - L; j >= 0; j -= L {
-		copy(blk[:], nz[j:j+L])
-		VectorE6(res[j:j+L]).Mul(acc[:L], prefix[j:j+L])
-		VectorE6(acc[:L]).Mul(acc[:L], blk[:])
-	}
-
-	for _, i := range zeros {
-		res[i].SetZero()
+// prefixProductGeneric is the sequential PrefixProduct.
+func (vector VectorE6) prefixProductGeneric() {
+	for i := 1; i < len(vector); i++ {
+		vector[i].Mul(&vector[i], &vector[i-1])
 	}
 }
 
@@ -702,15 +867,22 @@ func (vector VectorE6) Neg(a VectorE6) {
 	if len(a) != len(vector) {
 		panic("vector.Neg: vectors don't have the same length")
 	}
-	for i := range vector {
-		vector[i].Neg(&a[i])
-	}
+	v := asBaseVector(vector)
+	v.Neg(asBaseVector(a))
 }
 
-// ScalarAddElement sets vector[i] = a[i] + c, where c is an element of the base field. vector may be identical to a, and c may point into vector; partially overlapping slices are not supported.
+// ScalarAddElement sets vector[i] = a[i] + c for all i, where c is an element
+// of the base field embedded in E6.
+//
+// vector may be identical to a, and c may point into vector; partially
+// overlapping slices are not supported.
 func (vector VectorE6) ScalarAddElement(a VectorE6, c *fr.Element) {
-	if len(a) != len(vector) {
+	N := len(vector)
+	if len(a) != N {
 		panic("vector.ScalarAddElement: vectors don't have the same length")
+	}
+	if N == 0 {
+		return
 	}
 	cc := *c
 	for i := range vector {
@@ -718,17 +890,29 @@ func (vector VectorE6) ScalarAddElement(a VectorE6, c *fr.Element) {
 	}
 }
 
-// ScalarSubElement sets vector[i] = a[i] - c, where c is an element of the base field. vector may be identical to a, and c may point into vector; partially overlapping slices are not supported.
+// ScalarSubElement sets vector[i] = a[i] - c for all i, where c is an element
+// of the base field embedded in E6.
+//
+// vector may be identical to a, and c may point into vector; partially
+// overlapping slices are not supported.
 func (vector VectorE6) ScalarSubElement(a VectorE6, c *fr.Element) {
 	var negC fr.Element
 	negC.Neg(c)
 	vector.ScalarAddElement(a, &negC)
 }
 
-// ScalarSubFromElement sets vector[i] = c - a[i], where c is an element of the base field. vector may be identical to a, and c may point into vector; partially overlapping slices are not supported.
+// ScalarSubFromElement sets vector[i] = c - a[i] for all i, where c is an
+// element of the base field embedded in E6.
+//
+// vector may be identical to a, and c may point into vector; partially
+// overlapping slices are not supported.
 func (vector VectorE6) ScalarSubFromElement(c *fr.Element, a VectorE6) {
-	if len(a) != len(vector) {
+	N := len(vector)
+	if len(a) != N {
 		panic("vector.ScalarSubFromElement: vectors don't have the same length")
+	}
+	if N == 0 {
+		return
 	}
 	cc := *c
 	for i := range vector {
@@ -765,6 +949,165 @@ func (vector VectorE6) Sub(a, b VectorE6) {
 	v.Sub(asBaseVector(a), asBaseVector(b))
 }
 
+// ScalarAdd sets vector[i] = a[i] + c for all i.
+//
+// vector may be identical to a, and c may point into vector or a; partially
+// overlapping slices are not supported.
+func (vector VectorE6) ScalarAdd(a VectorE6, c *E6) {
+	N := len(vector)
+	if len(a) != N {
+		panic("vectorE6.ScalarAdd: vectors don't have the same length")
+	}
+	if len(vector) == 0 {
+		return
+	}
+	cc := *c
+	for i := range vector {
+		vector[i].Add(&a[i], &cc)
+	}
+}
+
+// ScalarSub sets vector[i] = a[i] - c for all i.
+//
+// vector may be identical to a, and c may point into vector or a; partially
+// overlapping slices are not supported.
+func (vector VectorE6) ScalarSub(a VectorE6, c *E6) {
+	if len(vector) != len(a) {
+		panic("vectorE6.ScalarSub: vectors don't have the same length")
+	}
+	if len(vector) == 0 {
+		return
+	}
+	var negC E6
+	negC.Neg(c)
+	vector.ScalarAdd(a, &negC)
+}
+
+// ScalarSubFrom sets vector[i] = c - a[i] for all i.
+//
+// vector may be identical to a, and c may point into vector or a; partially
+// overlapping slices are not supported.
+func (vector VectorE6) ScalarSubFrom(c *E6, a VectorE6) {
+	N := len(vector)
+	if len(a) != N {
+		panic("vectorE6.ScalarSubFrom: vectors don't have the same length")
+	}
+	if len(vector) == 0 {
+		return
+	}
+	cc := *c
+	for i := range vector {
+		vector[i].Sub(&cc, &a[i])
+	}
+}
+
+// AddElement sets vector[i] = a[i] + b[i] for all i, where b[i] is an element
+// of the base field embedded in E6.
+//
+// vector may be identical to a; partially overlapping slices are not supported.
+func (vector VectorE6) AddElement(a VectorE6, b fr.Vector) {
+	N := len(vector)
+	if len(a) != N || len(b) != N {
+		panic("vectorE6.AddElement: vectors don't have the same length")
+	}
+	if N == 0 {
+		return
+	}
+	for i := range vector {
+		vector[i].AddElement(&a[i], &b[i])
+	}
+}
+
+// SubElement sets vector[i] = a[i] - b[i] for all i, where b[i] is an element
+// of the base field embedded in E6.
+//
+// vector may be identical to a; partially overlapping slices are not supported.
+func (vector VectorE6) SubElement(a VectorE6, b fr.Vector) {
+	N := len(vector)
+	if len(a) != N || len(b) != N {
+		panic("vectorE6.SubElement: vectors don't have the same length")
+	}
+	if N == 0 {
+		return
+	}
+	for i := range vector {
+		vector[i].SubElement(&a[i], &b[i])
+	}
+}
+
+// SubFromElement sets vector[i] = a[i] - b[i] for all i, where a[i] is an
+// element of the base field embedded in E6.
+//
+// vector may be identical to b; partially overlapping slices are not supported.
+func (vector VectorE6) SubFromElement(a fr.Vector, b VectorE6) {
+	N := len(vector)
+	if len(a) != N || len(b) != N {
+		panic("vectorE6.SubFromElement: vectors don't have the same length")
+	}
+	if N == 0 {
+		return
+	}
+	for i := range vector {
+		vector[i].SubFromElement(&a[i], &b[i])
+	}
+}
+
+// ScalarAddBase sets vector[i] = a[i] + c for all i, where a[i] is an element
+// of the base field embedded in E6.
+//
+// c may point into vector; partially overlapping slices are not supported.
+func (vector VectorE6) ScalarAddBase(a fr.Vector, c *E6) {
+	if len(vector) != len(a) {
+		panic("vectorE6.ScalarAddBase: vectors don't have the same length")
+	}
+	if len(vector) == 0 {
+		return
+	}
+	// embedding a[i] only touches the first coordinate: the others are copies
+	// of c.
+	cc := *c
+	for i := range vector {
+		r := cc
+		r.B0.A0.Add(&cc.B0.A0, &a[i])
+		vector[i] = r
+	}
+}
+
+// ScalarSubBase sets vector[i] = a[i] - c for all i, where a[i] is an element
+// of the base field embedded in E6.
+//
+// c may point into vector; partially overlapping slices are not supported.
+func (vector VectorE6) ScalarSubBase(a fr.Vector, c *E6) {
+	if len(vector) != len(a) {
+		panic("vectorE6.ScalarSubBase: vectors don't have the same length")
+	}
+	if len(vector) == 0 {
+		return
+	}
+	var negC E6
+	negC.Neg(c)
+	vector.ScalarAddBase(a, &negC)
+}
+
+// ScalarSubFromBase sets vector[i] = c - a[i] for all i, where a[i] is an
+// element of the base field embedded in E6.
+//
+// c may point into vector; partially overlapping slices are not supported.
+func (vector VectorE6) ScalarSubFromBase(c *E6, a fr.Vector) {
+	if len(vector) != len(a) {
+		panic("vectorE6.ScalarSubFromBase: vectors don't have the same length")
+	}
+	if len(vector) == 0 {
+		return
+	}
+	cc := *c
+	for i := range vector {
+		r := cc
+		r.B0.A0.Sub(&cc.B0.A0, &a[i])
+		vector[i] = r
+	}
+}
+
 // Mul sets vector[i] = a[i] * b[i]. vector may alias a or b.
 func (vector VectorE6) Mul(a, b VectorE6) {
 	N := len(vector)
@@ -789,6 +1132,44 @@ func (vector VectorE6) InnerProduct(a VectorE6) E6 {
 		res.Add(&res, &t)
 	}
 	return res
+}
+
+// FoldPairs folds layer in pairs, as in one FRI folding round:
+//
+//	vector[j] = (layer[2j] + layer[2j+1]) / 2 + alpha · halfInvTwiddles[j] · (layer[2j] − layer[2j+1])
+//
+// FoldPairs halves the even part (p + q) itself, but multiplies the odd part
+// (p − q) by halfInvTwiddles[j] as given: callers pass (2·x_j)⁻¹, where x_j is
+// the evaluation point of the pair. Callers holding x_j⁻¹ must halve it first,
+// or the odd term is off by a factor of 2.
+//
+// It panics unless len(layer) == 2·len(vector) and
+// len(halfInvTwiddles) == len(vector). vector may be layer[:len(vector)]
+// (folding in place); alpha may point into vector or layer. Other overlaps are
+// not supported.
+func (vector VectorE6) FoldPairs(layer VectorE6, halfInvTwiddles fr.Vector, alpha *E6) {
+	n := len(vector)
+	if len(layer) != 2*n || len(halfInvTwiddles) != n {
+		panic("vectorE6.FoldPairs: len(layer) must be 2·len(vector) and len(halfInvTwiddles) len(vector)")
+	}
+	if n == 0 {
+		return
+	}
+	aa := *alpha
+	foldPairsE6Generic(vector, layer, halfInvTwiddles, &aa)
+}
+
+func foldPairsE6Generic(vector, layer VectorE6, halfInvTwiddles fr.Vector, alpha *E6) {
+	var s, d E6
+	for j := range vector {
+		p, q := &layer[2*j], &layer[2*j+1]
+		s.Add(p, q)
+		s.Halve()
+		d.Sub(p, q)
+		d.MulByElement(&d, &halfInvTwiddles[j])
+		d.Mul(&d, alpha)
+		vector[j].Add(&s, &d)
+	}
 }
 
 // InnerProductByElement returns the sum of vector[i] * a[i], where a[i] ∈ F_p.
@@ -912,14 +1293,28 @@ func (vector VectorE6) ScalarMulByElement(a VectorE6, b *fr.Element) {
 	vRes.ScalarMul(vBase, b)
 }
 
-// ScalarMulAccByElement accumulates vector[i] += a[i] * s, where a is a
-// base-field vector and s a fixed E6 scalar.
+// ScalarMulAccByElement sets vector[i] += a[i] * s for all i, where a is a
+// base-field vector and s an E6 scalar.
+//
+// It is equivalent to vector.ScalarMulAccBase(a, s).
 func (vector VectorE6) ScalarMulAccByElement(a fr.Vector, s *E6) {
+	vector.ScalarMulAccBase(a, s)
+}
+
+// ScalarMulAccBase sets vector[i] += a[i] * c for all i, where a is a
+// base-field vector and c an extension scalar.
+//
+// c may point into vector.
+func (vector VectorE6) ScalarMulAccBase(a fr.Vector, c *E6) {
 	N := len(vector)
 	if len(a) != N {
-		panic("vectorE6.ScalarMulAccByElement: vectors don't have the same length")
+		panic("vectorE6.ScalarMulAccBase: vectors don't have the same length")
 	}
-	scalarMulAccByElementE6Generic(vector, a, s)
+	if len(vector) == 0 {
+		return
+	}
+	cc := *c
+	scalarMulAccByElementE6Generic(vector, a, &cc)
 }
 
 func scalarMulAccByElementE6Generic(vector VectorE6, a fr.Vector, s *E6) {
@@ -930,13 +1325,100 @@ func scalarMulAccByElementE6Generic(vector VectorE6, a fr.Vector, s *E6) {
 	}
 }
 
+// MulAcc sets vector[i] += a[i] * b[i] for all i.
+//
+// vector may be identical to a and/or b; partially overlapping slices are not
+// supported.
+func (vector VectorE6) MulAcc(a, b VectorE6) {
+	N := len(vector)
+	if len(a) != N || len(b) != N {
+		panic("vectorE6.MulAcc: vectors don't have the same length")
+	}
+	var t E6
+	for i := range vector {
+		t.Mul(&a[i], &b[i])
+		vector[i].Add(&vector[i], &t)
+	}
+}
+
+// ScalarMulBase sets vector[i] = a[i] * c for all i, where a is a base-field
+// vector and c an extension scalar.
+//
+// c may point into vector.
+func (vector VectorE6) ScalarMulBase(a fr.Vector, c *E6) {
+	N := len(vector)
+	if len(a) != N {
+		panic("vectorE6.ScalarMulBase: vectors don't have the same length")
+	}
+	if len(vector) == 0 {
+		return
+	}
+	cc := *c
+	for i := range vector {
+		vector[i].MulByElement(&cc, &a[i])
+	}
+}
+
+// ScalarMulAdd sets vector[i] = vector[i] * c + b[i] for all i: one Horner step
+// applied across the vector.
+//
+// vector may be identical to b, and c may point into vector or b; partially
+// overlapping slices are not supported.
+func (vector VectorE6) ScalarMulAdd(b VectorE6, c *E6) {
+	N := len(vector)
+	if len(b) != N {
+		panic("vectorE6.ScalarMulAdd: vectors don't have the same length")
+	}
+	if len(vector) == 0 {
+		return
+	}
+	cc := *c
+	// compute into t first: b may alias vector.
+	var t E6
+	for i := range vector {
+		t.Mul(&vector[i], &cc)
+		vector[i].Add(&t, &b[i])
+	}
+}
+
+// ScalarMulAddBase sets vector[i] = vector[i] * c + b[i] for all i, where b is
+// a base-field vector: one Horner step applied across the vector.
+//
+// To compute a random linear combination ∑ cᵏ·colₖ of base-field columns
+// whose powers of c are known, prefer ScalarMulAccBase with each power: it
+// costs one extension-by-base product per element, whereas this method costs
+// a full extension product. Use ScalarMulAddBase for streaming Horner
+// evaluation when the powers of c are not precomputed.
+//
+// c may point into vector.
+func (vector VectorE6) ScalarMulAddBase(b fr.Vector, c *E6) {
+	N := len(vector)
+	if len(b) != N {
+		panic("vectorE6.ScalarMulAddBase: vectors don't have the same length")
+	}
+	if len(vector) == 0 {
+		return
+	}
+	cc := *c
+	for i := range vector {
+		vector[i].Mul(&vector[i], &cc)
+		vector[i].B0.A0.Add(&vector[i].B0.A0, &b[i])
+	}
+}
+
 // ScalarMulAcc accumulates vector[i] += a[i] * s, where s is a fixed E6 scalar.
+// vector may be identical to a, and s may point into vector or a.
 func (vector VectorE6) ScalarMulAcc(a VectorE6, s *E6) {
 	N := len(vector)
 	if len(a) != N {
 		panic("vectorE6.ScalarMulAcc: vectors don't have the same length")
 	}
-	scalarMulAccE6Generic(vector, a, s)
+	if len(vector) == 0 {
+		return
+	}
+	// copy s: it may point into vector, which the loop overwrites.
+	ss := *s
+	scalarMulAccE6Generic(vector, a, &ss)
 }
 
 func scalarMulAccE6Generic(vector, a VectorE6, s *E6) {
@@ -948,12 +1430,18 @@ func scalarMulAccE6Generic(vector, a VectorE6, s *E6) {
 }
 
 // ScalarMul sets vector[i] = a[i] * s, where s is a fixed E6 scalar.
+// vector may be identical to a, and s may point into vector or a.
 func (vector VectorE6) ScalarMul(a VectorE6, s *E6) {
 	N := len(vector)
 	if len(a) != N {
 		panic("vectorE6.ScalarMul: vectors don't have the same length")
 	}
-	scalarMulE6Generic(vector, a, s)
+	if len(vector) == 0 {
+		return
+	}
+	// copy s: it may point into vector, which the loop overwrites.
+	ss := *s
+	scalarMulE6Generic(vector, a, &ss)
 }
 
 func scalarMulE6Generic(vector, a VectorE6, s *E6) {
