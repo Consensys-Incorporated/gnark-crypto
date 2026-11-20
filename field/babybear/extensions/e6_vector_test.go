@@ -308,7 +308,7 @@ func TestVectorE6ScalarMulAcc(t *testing.T) {
 	}
 }
 
-func TestVectorE6ScalarMulAccByElement(t *testing.T) {
+func TestVectorE6ScalarMulAccBase(t *testing.T) {
 	for _, size := range []int{0, 1, 7, 8, 9, 16, 17, 100} {
 		t.Run(strconv.Itoa(size), func(t *testing.T) {
 			dst := make([]E6, size)
@@ -327,10 +327,15 @@ func TestVectorE6ScalarMulAccByElement(t *testing.T) {
 				expected[i].Add(&expected[i], &tmp)
 			}
 
-			VectorE6(dst).ScalarMulAccByElement(a, &s)
+			// the deprecated ScalarMulAccByElement forwards to ScalarMulAccBase
+			legacy := slices.Clone(dst)
+			VectorE6(legacy).ScalarMulAccByElement(a, &s)
+
+			VectorE6(dst).ScalarMulAccBase(a, &s)
 			for i := range expected {
 				require.Equal(t, expected[i], dst[i], "element %d", i)
 			}
+			require.Equal(t, dst, legacy, "ScalarMulAccByElement")
 		})
 	}
 }
@@ -382,7 +387,7 @@ func BenchmarkVectorE6ScalarMulAccGeneric(b *testing.B) {
 	}
 }
 
-func BenchmarkVectorE6ScalarMulAccByElement(b *testing.B) {
+func BenchmarkVectorE6ScalarMulAccBase(b *testing.B) {
 	const size = 1 << 12
 	dst := make([]E6, size)
 	a := make(fr.Vector, size)
@@ -394,11 +399,11 @@ func BenchmarkVectorE6ScalarMulAccByElement(b *testing.B) {
 	}
 	b.ResetTimer()
 	for range b.N {
-		VectorE6(dst).ScalarMulAccByElement(a, &s)
+		VectorE6(dst).ScalarMulAccBase(a, &s)
 	}
 }
 
-func BenchmarkVectorE6ScalarMulAccByElementGeneric(b *testing.B) {
+func BenchmarkVectorE6ScalarMulAccBaseGeneric(b *testing.B) {
 	const size = 1 << 12
 	dst := make([]E6, size)
 	a := make(fr.Vector, size)
@@ -1078,45 +1083,25 @@ func TestBatchInvertE6Into(t *testing.T) {
 					return v
 				}
 
-				require.Equal(t, expected, VectorE6(BatchInvertE6(a)))
+				require.Equal(t, expected, a.BatchInvert())
 
 				res := fresh(size)
-				BatchInvertE6Into(res, a)
+				res.BatchInvertInto(a)
 				require.Equal(t, expected, res)
 
 				res = fresh(size)
-				BatchInvertE6IntoScratch(res, a, fresh(size))
+				res.BatchInvertIntoScratch(a, fresh(size))
 				require.Equal(t, expected, res)
 
 				// scratch may be longer than needed
 				res = fresh(size)
-				BatchInvertE6IntoScratch(res, a, fresh(size+5))
+				res.BatchInvertIntoScratch(a, fresh(size+5))
 				require.Equal(t, expected, res)
 
 				// a is left untouched unless it is the destination
 				require.Equal(t, orig, a)
 
-				// res may be the very same slice as a
-				res = slices.Clone(a)
-				BatchInvertE6Into(res, res)
-				require.Equal(t, expected, res)
-
-				res = slices.Clone(a)
-				BatchInvertE6IntoScratch(res, res, fresh(size))
-				require.Equal(t, expected, res)
-
-				// method forms, with the destination as receiver
-				require.Equal(t, expected, a.BatchInvert())
-
-				res = fresh(size)
-				res.BatchInvertInto(a)
-				require.Equal(t, expected, res)
-
-				res = fresh(size)
-				res.BatchInvertIntoScratch(a, fresh(size+5))
-				require.Equal(t, expected, res)
-				require.Equal(t, orig, a)
-
+				// the destination may be the very same slice as a
 				res = slices.Clone(a)
 				res.BatchInvertInto(res)
 				require.Equal(t, expected, res)
@@ -1138,27 +1123,15 @@ func TestBatchInvertE6Into(t *testing.T) {
 
 func TestBatchInvertE6IntoPanics(t *testing.T) {
 	a := make(VectorE6, 4)
-	require.Panics(t, func() { BatchInvertE6Into(make(VectorE6, 3), a) })
-	require.Panics(t, func() { BatchInvertE6IntoScratch(make(VectorE6, 3), a, make(VectorE6, 4)) })
-	require.Panics(t, func() { BatchInvertE6IntoScratch(make(VectorE6, 4), a, make(VectorE6, 3)) })
+	require.Panics(t, func() { make(VectorE6, 3).BatchInvertInto(a) })
+	require.Panics(t, func() { make(VectorE6, 3).BatchInvertIntoScratch(a, make(VectorE6, 4)) })
+	require.Panics(t, func() { make(VectorE6, 4).BatchInvertIntoScratch(a, make(VectorE6, 3)) })
 
 	// partial overlaps are rejected; the very same slice is allowed (in place).
 	buf := make(VectorE6, 9)
 	for i := range buf {
 		buf[i].SetOne()
 	}
-	require.Panics(t, func() { BatchInvertE6Into(buf[1:5], buf[:4]) })
-	require.Panics(t, func() { BatchInvertE6IntoScratch(buf[1:5], buf[:4], make(VectorE6, 4)) })
-	require.Panics(t, func() { BatchInvertE6IntoScratch(buf[:4], buf[:4], buf[2:6]) })
-	require.Panics(t, func() { BatchInvertE6IntoScratch(make(VectorE6, 4), buf[:4], buf[3:7]) })
-	require.NotPanics(t, func() { BatchInvertE6Into(buf[:4], buf[4:8]) })
-	require.NotPanics(t, func() { BatchInvertE6Into(buf[:4], buf[:4]) })
-	require.NotPanics(t, func() { BatchInvertE6IntoScratch(buf[:4], buf[:4], buf[4:9]) })
-
-	// method forms
-	require.Panics(t, func() { make(VectorE6, 3).BatchInvertInto(a) })
-	require.Panics(t, func() { make(VectorE6, 3).BatchInvertIntoScratch(a, make(VectorE6, 4)) })
-	require.Panics(t, func() { make(VectorE6, 4).BatchInvertIntoScratch(a, make(VectorE6, 3)) })
 	require.Panics(t, func() { buf[1:5].BatchInvertInto(buf[:4]) })
 	require.Panics(t, func() { buf[1:5].BatchInvertIntoScratch(buf[:4], make(VectorE6, 4)) })
 	require.Panics(t, func() { buf[:4].BatchInvertIntoScratch(buf[:4], buf[2:6]) })
@@ -1178,16 +1151,32 @@ func TestBatchInvertE6IntoAllocs(t *testing.T) {
 	res := make(VectorE6, n)
 	scratch := make(VectorE6, n)
 
-	require.Zero(t, testing.AllocsPerRun(10, func() { BatchInvertE6Into(res, a) }), "BatchInvertE6Into")
-	require.Zero(t, testing.AllocsPerRun(10, func() { BatchInvertE6IntoScratch(res, a, scratch) }), "BatchInvertE6IntoScratch")
-	require.Zero(t, testing.AllocsPerRun(10, func() { BatchInvertE6IntoScratch(res, res, scratch) }), "BatchInvertE6IntoScratch in place")
-	// in place, BatchInvertE6Into takes its scratch from a pool, which only
-	// allocates on a miss (e.g. after a GC, or randomly under -race).
-	require.LessOrEqual(t, testing.AllocsPerRun(100, func() { BatchInvertE6Into(res, res) }), 1.0, "BatchInvertE6Into in place")
 	require.Zero(t, testing.AllocsPerRun(10, func() { res.BatchInvertInto(a) }), "VectorE6.BatchInvertInto")
 	require.Zero(t, testing.AllocsPerRun(10, func() { res.BatchInvertIntoScratch(a, scratch) }), "VectorE6.BatchInvertIntoScratch")
 	require.Zero(t, testing.AllocsPerRun(10, func() { res.BatchInvertIntoScratch(res, scratch) }), "VectorE6.BatchInvertIntoScratch in place")
+	// in place, BatchInvertInto takes its scratch from a pool, which only
+	// allocates on a miss (e.g. after a GC, or randomly under -race).
 	require.LessOrEqual(t, testing.AllocsPerRun(100, func() { res.BatchInvertInto(res) }), 1.0, "VectorE6.BatchInvertInto in place")
+}
+
+// TestBatchInvertE6Deprecated checks that the deprecated package-level
+// functions still match the VectorE6 methods they forward to.
+func TestBatchInvertE6Deprecated(t *testing.T) {
+	a := randomBatchInvE6(100)
+	a[7].SetZero()
+	expected := a.BatchInvert()
+
+	require.Equal(t, expected, VectorE6(BatchInvertE6(a)))
+	res := make(VectorE6, len(a))
+	BatchInvertE6Into(res, a)
+	require.Equal(t, expected, res)
+	res = make(VectorE6, len(a))
+	BatchInvertE6IntoScratch(res, a, make(VectorE6, len(a)))
+	require.Equal(t, expected, res)
+	res = slices.Clone(a)
+	BatchInvertE6Into(res, res)
+	require.Equal(t, expected, res)
+	require.Panics(t, func() { BatchInvertE6Into(make(VectorE6, 3), a) })
 }
 
 // TestBatchInvertE6Lanes checks batchInvertE6 at every row width, whatever the
@@ -1235,19 +1224,19 @@ func BenchmarkBatchInvertE6(b *testing.B) {
 		b.Run("alloc/n="+strconv.Itoa(size), func(b *testing.B) {
 			b.ReportAllocs()
 			for b.Loop() {
-				_ = BatchInvertE6(x)
+				_ = x.BatchInvert()
 			}
 		})
 		b.Run("into/n="+strconv.Itoa(size), func(b *testing.B) {
 			b.ReportAllocs()
 			for b.Loop() {
-				BatchInvertE6Into(res, x)
+				res.BatchInvertInto(x)
 			}
 		})
 		b.Run("into-scratch/n="+strconv.Itoa(size), func(b *testing.B) {
 			b.ReportAllocs()
 			for b.Loop() {
-				BatchInvertE6IntoScratch(res, x, scratch)
+				res.BatchInvertIntoScratch(x, scratch)
 			}
 		})
 		b.Run("in-place-scratch/n="+strconv.Itoa(size), func(b *testing.B) {
@@ -1255,7 +1244,7 @@ func BenchmarkBatchInvertE6(b *testing.B) {
 			copy(res, x)
 			for b.Loop() {
 				// the content is meaningless after the first call, but the cost is the same
-				BatchInvertE6IntoScratch(res, res, scratch)
+				res.BatchInvertIntoScratch(res, scratch)
 			}
 		})
 	}

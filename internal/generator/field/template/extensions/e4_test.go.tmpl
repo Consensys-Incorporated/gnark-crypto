@@ -167,7 +167,7 @@ func TestE4Ops(t *testing.T) {
 	properties.Property("[{{.FF}}] BatchInvertE4 should output the same result as Inverse", prop.ForAll(
 		func(a, b, c E4) bool {
 
-			batch := BatchInvertE4([]E4{a, b, c})
+			batch := VectorE4{a, b, c}.BatchInvert()
 			a.Inverse(&a)
 			b.Inverse(&b)
 			c.Inverse(&c)
@@ -1710,6 +1710,25 @@ func BenchmarkVectorE4FoldPairs(b *testing.B) {
 				res.FoldPairs(layer, w, &alpha)
 			}
 		})
+	}
+}
+
+// TestVectorE4MulAccByElementDeprecated checks that the deprecated
+// MulAccByElement forwards to ScalarMulAccBase.
+func TestVectorE4MulAccByElementDeprecated(t *testing.T) {
+	for _, size := range []int{0, 1, 4, 17} {
+		v := make(VectorE4, size)
+		for i := range v {
+			v[i].MustSetRandom()
+		}
+		a := make(fr.Vector, size)
+		a.MustSetRandom()
+		var c E4
+		c.MustSetRandom()
+		want := slices.Clone(v)
+		want.ScalarMulAccBase(a, &c)
+		v.MulAccByElement(a, &c)
+		require.Equal(t, want, v, "size %d", size)
 	}
 }
 

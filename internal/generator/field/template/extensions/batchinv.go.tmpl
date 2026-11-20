@@ -5,18 +5,31 @@
 // It uses Montgomery batch inversion trick.
 //
 // if a[i] == 0, returns result[i] = a[i]
+//
+// Deprecated: use [{{.V}}.BatchInvert].
+//
+//go:fix inline
 func BatchInvert{{.E}}(a []{{.E}}) []{{.E}} {
 	return {{.V}}(a).BatchInvert()
 }
 
-// BatchInvert{{.E}}Into sets res[i] to the inverse of a[i]; see
-// [{{.V}}.BatchInvertInto].
+// BatchInvert{{.E}}Into sets res[i] to the inverse of a[i].
+//
+// Deprecated: use [{{.V}}.BatchInvertInto], with the destination as receiver:
+// {{.V}}(res).BatchInvertInto(a).
+//
+//go:fix inline
 func BatchInvert{{.E}}Into(res, a []{{.E}}) {
 	{{.V}}(res).BatchInvertInto(a)
 }
 
 // BatchInvert{{.E}}IntoScratch is BatchInvert{{.E}}Into with caller-provided
-// scratch space; see [{{.V}}.BatchInvertIntoScratch].
+// scratch space.
+//
+// Deprecated: use [{{.V}}.BatchInvertIntoScratch], with the destination as
+// receiver: {{.V}}(res).BatchInvertIntoScratch(a, scratch).
+//
+//go:fix inline
 func BatchInvert{{.E}}IntoScratch(res, a, scratch []{{.E}}) {
 	{{.V}}(res).BatchInvertIntoScratch(a, scratch)
 }

@@ -1297,7 +1297,9 @@ func (vector VectorE6) ScalarMulByElement(a VectorE6, b *fr.Element) {
 // ScalarMulAccByElement sets vector[i] += a[i] * s for all i, where a is a
 // base-field vector and s an E6 scalar.
 //
-// It is equivalent to vector.ScalarMulAccBase(a, s).
+// Deprecated: use [VectorE6.ScalarMulAccBase].
+//
+//go:fix inline
 func (vector VectorE6) ScalarMulAccByElement(a fr.Vector, s *E6) {
 	vector.ScalarMulAccBase(a, s)
 }

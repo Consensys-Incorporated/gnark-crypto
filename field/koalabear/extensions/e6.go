@@ -568,18 +568,31 @@ func (z *E6) Halve() {
 // It uses Montgomery batch inversion trick.
 //
 // if a[i] == 0, returns result[i] = a[i]
+//
+// Deprecated: use [VectorE6.BatchInvert].
+//
+//go:fix inline
 func BatchInvertE6(a []E6) []E6 {
 	return VectorE6(a).BatchInvert()
 }
 
-// BatchInvertE6Into sets res[i] to the inverse of a[i]; see
-// [VectorE6.BatchInvertInto].
+// BatchInvertE6Into sets res[i] to the inverse of a[i].
+//
+// Deprecated: use [VectorE6.BatchInvertInto], with the destination as receiver:
+// VectorE6(res).BatchInvertInto(a).
+//
+//go:fix inline
 func BatchInvertE6Into(res, a []E6) {
 	VectorE6(res).BatchInvertInto(a)
 }
 
 // BatchInvertE6IntoScratch is BatchInvertE6Into with caller-provided
-// scratch space; see [VectorE6.BatchInvertIntoScratch].
+// scratch space.
+//
+// Deprecated: use [VectorE6.BatchInvertIntoScratch], with the destination as
+// receiver: VectorE6(res).BatchInvertIntoScratch(a, scratch).
+//
+//go:fix inline
 func BatchInvertE6IntoScratch(res, a, scratch []E6) {
 	VectorE6(res).BatchInvertIntoScratch(a, scratch)
 }
@@ -1694,7 +1707,9 @@ func (vector VectorE6) ScalarMulByElement(a VectorE6, b *fr.Element) {
 // ScalarMulAccByElement sets vector[i] += a[i] * s for all i, where a is a
 // base-field vector and s an E6 scalar.
 //
-// It is equivalent to vector.ScalarMulAccBase(a, s).
+// Deprecated: use [VectorE6.ScalarMulAccBase].
+//
+//go:fix inline
 func (vector VectorE6) ScalarMulAccByElement(a fr.Vector, s *E6) {
 	vector.ScalarMulAccBase(a, s)
 }

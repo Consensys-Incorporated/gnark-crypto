@@ -742,7 +742,7 @@ func (vector VectorE4) Exp(a VectorE4, k int64) {
 	exp := k
 	if k < 0 {
 		// call batch inverse
-		base = BatchInvertE4(a)
+		base = a.BatchInvert()
 		exp = -k // if k == math.MinInt64, -k overflows, but uint64(-k) is correct
 	} else if N > 0 {
 		// ensure that vector and a are not the same slice; else we need to copy a into base
@@ -767,7 +767,10 @@ func (vector VectorE4) Exp(a VectorE4, k int64) {
  
 // MulAccByElement sets vector[i] += scale[i] * alpha for all i.
 //
-// It is equivalent to vector.ScalarMulAccBase(scale, alpha).
+// Deprecated: use [VectorE4.ScalarMulAccBase]. On the other extension
+// vectors, MulAccByElement is the element-wise vector[i] += a[i] * b[i].
+//
+//go:fix inline
 func (vector VectorE4) MulAccByElement(scale []fr.Element, alpha *E4) {
 	vector.ScalarMulAccBase(scale, alpha)
 }
