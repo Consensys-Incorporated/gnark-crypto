@@ -4,6 +4,7 @@
 package utils
 
 import (
+	"math"
 	"runtime"
 	"slices"
 	"sync"
@@ -36,6 +37,13 @@ func TestPoolMakeDump(t *testing.T) {
 
 	require.Nil(t, pool.Make(0))
 	pool.Dump(nil)
+}
+
+func TestPoolMakeTooLargePanicsRecoverably(t *testing.T) {
+	pool := NewPool[uint64]()
+	require.Panics(t, func() { pool.Make(math.MaxInt/2 + 2) })
+	// the lock was released: the pool is still usable
+	require.Len(t, pool.Make(1), 1)
 }
 
 func TestPoolDumpTwicePanics(t *testing.T) {

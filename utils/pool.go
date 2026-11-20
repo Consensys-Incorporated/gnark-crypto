@@ -22,18 +22,20 @@ type sizedPoolStats struct {
 
 type poolStats[T any] struct {
 	recording    bool
-	subPools     [64]sizedPoolStats
+	subPools     [bits.UintSize]sizedPoolStats
 	allocatedFor map[*T][]uintptr
 }
 
 // Pool is a pool of slices of T, grouped by power-of-two capacity. Its copies share the same slices.
+// Dumped slices are retained for the lifetime of the Pool and are not evicted by the garbage collector,
+// so a Pool should be scoped to an operation rather than kept globally.
 type Pool[T any] struct {
 	*pool[T]
 }
 
 type pool[T any] struct {
 	lock     sync.Mutex
-	subPools [64][][]T
+	subPools [bits.UintSize][][]T
 	stats    *poolStats[T]
 }
 
@@ -66,42 +68,53 @@ func (p *pool[T]) Make(n int) []T {
 		return nil
 	}
 
-	p.lock.Lock()
-	defer p.lock.Unlock()
-
 	poolI := ceilLog2(n)
-	var slice []T
+
+	p.lock.Lock()
 	if stack := p.subPools[poolI]; len(stack) > 0 {
 		last := len(stack) - 1
-		slice = stack[last]
+		slice := stack[last]
 		p.subPools[poolI] = stack[:last]
-	}
-	if slice == nil {
 		if p.stats.recording {
-			p.stats.subPools[poolI].Allocated++
+			p.recordMake(poolI, n, slice)
 		}
 		p.lock.Unlock()
-		slice = make([]T, 0, 1<<poolI)
-		p.lock.Lock()
+		return slice[:n]
 	}
 
-	if p.stats.recording {
-		s := &p.stats.subPools[poolI]
+	recording := p.stats.recording
+	if recording {
+		p.stats.subPools[poolI].Allocated++
+	}
+	p.lock.Unlock()
 
-		s.Used++
-		s.InUse++
-		if n > s.GreatestNUsed {
-			s.GreatestNUsed = n
-		}
-		if s.SmallestNUsed == 0 || s.SmallestNUsed > n {
-			s.SmallestNUsed = n
-		}
+	slice := make([]T, 0, 1<<poolI)
 
-		pcs := make([]uintptr, 2)
-		p.stats.allocatedFor[getDataPointer(slice)] = pcs[:runtime.Callers(2, pcs)]
+	if recording {
+		p.lock.Lock()
+		p.recordMake(poolI, n, slice)
+		p.lock.Unlock()
 	}
 
 	return slice[:n]
+}
+
+// recordMake records the statistics of a slice handed out by Make, along with the call site of Make.
+// The caller must hold the lock.
+func (p *pool[T]) recordMake(poolI, n int, slice []T) {
+	s := &p.stats.subPools[poolI]
+
+	s.Used++
+	s.InUse++
+	if n > s.GreatestNUsed {
+		s.GreatestNUsed = n
+	}
+	if s.SmallestNUsed == 0 || s.SmallestNUsed > n {
+		s.SmallestNUsed = n
+	}
+
+	pcs := make([]uintptr, 2)
+	p.stats.allocatedFor[getDataPointer(slice)] = pcs[:runtime.Callers(3, pcs)]
 }
 
 // Dump a set of slices into the pool. It doesn't need to have been created by the pool, but it must similarly
