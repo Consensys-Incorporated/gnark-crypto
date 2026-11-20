@@ -139,7 +139,7 @@ func (f *FFAmd64) generateBatchInvertVecF31(forward bool) {
 
 		registers.PushV(x, acc, t, r)
 	})
-	f.RET()
+	f.RETAVX()
 
 	registers.PushV(q, qInvNeg, one)
 	f.Push(&registers, addrAcc, addr1, addr2, addr3, n)

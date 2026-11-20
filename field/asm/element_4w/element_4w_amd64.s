@@ -684,6 +684,7 @@ modReduced_11:
 	MOVQ R14, 24(SI)
 
 done_8:
+	VZEROUPPER
 	RET
 
 // innerProdVec(res, a, b *Element, n uint64) res = sum(a[0...n] * b[0...n])
@@ -1010,6 +1011,7 @@ accumulate_13:
 	MOVQ R8, 24(R11)
 
 done_12:
+	VZEROUPPER
 	RET
 
 // AVX-512 IFMA vector operations (requires Ice Lake+ or Zen4+)
@@ -1448,6 +1450,7 @@ loop_16:
 	JMP  loop_16
 
 done_17:
+	VZEROUPPER
 	RET
 
 // scalarMulVec(res, a, b *Element, n uint64)
@@ -1859,4 +1862,5 @@ loop_18:
 	JMP  loop_18
 
 done_19:
+	VZEROUPPER
 	RET

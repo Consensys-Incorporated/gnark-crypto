@@ -31,6 +31,7 @@ loop_1:
 	JMP  loop_1
 
 done_2:
+	VZEROUPPER
 	RET
 
 // subVec(res, a, b *Element, n uint64) res[0...n] = a[0...n] - b[0...n]
@@ -61,6 +62,7 @@ loop_3:
 	JMP  loop_3
 
 done_4:
+	VZEROUPPER
 	RET
 
 // sumVec(res *uint64, a *[]uint32, n uint64) res = sum(a[0...n])
@@ -94,6 +96,7 @@ loop_5:
 done_6:
 	VPADDQ    Z2, Z3, Z2 // acc1 += acc2
 	VMOVDQU64 Z2, 0(R14) // res = acc1
+	VZEROUPPER
 	RET
 
 TEXT ·sumVec16_AVX512(SB), NOSPLIT, $0-16
@@ -110,6 +113,7 @@ TEXT ·sumVec16_AVX512(SB), NOSPLIT, $0-16
 	PEXTRQ        $1, X0, DX
 	ADDQ          DX, AX
 	MOVQ          AX, 0(R14)
+	VZEROUPPER
 	RET
 
 TEXT ·sumVec24_AVX512(SB), NOSPLIT, $0-16
@@ -128,6 +132,7 @@ TEXT ·sumVec24_AVX512(SB), NOSPLIT, $0-16
 	PEXTRQ        $1, X0, DX
 	ADDQ          DX, AX
 	MOVQ          AX, 0(R14)
+	VZEROUPPER
 	RET
 
 // mulVec(res, a, b *Element, n uint64) res[0...n] = a[0...n] * b[0...n]
@@ -173,6 +178,7 @@ loop_7:
 	JMP  loop_7
 
 done_8:
+	VZEROUPPER
 	RET
 
 // scalarMulVec(res, a, b *Element, n uint64) res[0...n] = a[0...n] * b
@@ -215,6 +221,7 @@ loop_9:
 	JMP  loop_9
 
 done_10:
+	VZEROUPPER
 	RET
 
 // innerProdVec(t *uint64, a,b *[]uint32, n uint64) res = sum(a[0...n] * b[0...n])
@@ -267,6 +274,7 @@ loop_11:
 done_12:
 	VPADDQ    Z11, Z10, Z11 // acc1 += acc0
 	VMOVDQU64 Z11, 0(CX)    // res = acc1
+	VZEROUPPER
 	RET
 
 // foldPairsVec(res, layer, twiddles, alpha *Element, n uint64)
@@ -355,6 +363,7 @@ loop_13:
 	JMP       loop_13
 
 done_14:
+	VZEROUPPER
 	RET
 
 // mulAccVec(res, a, b *Element, n uint64) res[0...n] += a[0...n] * b[0...n]
@@ -388,6 +397,7 @@ loop_15:
 	JMP       loop_15
 
 done_16:
+	VZEROUPPER
 	RET
 
 // scalarMulAccVec(res, a, c *Element, n uint64) res[0...n] += a[0...n] * c
@@ -420,6 +430,7 @@ loop_17:
 	JMP       loop_17
 
 done_18:
+	VZEROUPPER
 	RET
 
 // scalarMulAddVec(res, b, c *Element, n uint64) res[0...n] = res[0...n] * c + b[0...n]
@@ -452,6 +463,7 @@ loop_19:
 	JMP       loop_19
 
 done_20:
+	VZEROUPPER
 	RET
 
 // batchInvFwdVec(acc, prefix, row, a, one *Element, n uint64)
@@ -505,6 +517,7 @@ loop_21:
 	JMP         loop_21
 
 done_22:
+	VZEROUPPER
 	RET
 
 // batchInvBwdVec(acc, res, prefix, row, one *Element, n uint64)
@@ -570,4 +583,5 @@ loop_23:
 	JMP       loop_23
 
 done_24:
+	VZEROUPPER
 	RET

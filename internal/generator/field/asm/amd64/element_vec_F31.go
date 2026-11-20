@@ -70,7 +70,7 @@ func (f *FFAmd64) generateAddVecF31() {
 		f.ADDQ("$64", addrRes)
 	})
 
-	f.RET()
+	f.RETAVX()
 
 	f.Push(&registers, addrA, addrB, addrRes, len)
 
@@ -131,7 +131,7 @@ func (f *FFAmd64) generateSubVecF31() {
 
 	})
 
-	f.RET()
+	f.RETAVX()
 
 	f.Push(&registers, addrA, addrB, addrRes, len)
 
@@ -189,7 +189,7 @@ func (f *FFAmd64) generateSumVecF31() {
 	f.VPADDQ(acc1, acc2, acc1, "acc1 += acc2")
 	f.VMOVDQU64(acc1, addrT.At(0), "res = acc1")
 
-	f.RET()
+	f.RETAVX()
 
 	f.Push(&registers, addrA, addrT, len)
 }
@@ -236,7 +236,7 @@ func (f *FFAmd64) generateSumVecSmallF31(size int) {
 	f.ADDQ(amd64.DX, amd64.AX)
 	f.MOVQ(amd64.AX, addrT.At(0))
 
-	f.RET()
+	f.RETAVX()
 
 	f.Push(&registers, addrA, addrT)
 }
@@ -318,7 +318,7 @@ func (f *FFAmd64) generateMulVecF31() {
 		f.ADDQ("$64", addrRes)
 
 	})
-	f.RET()
+	f.RETAVX()
 
 	f.Push(&registers, addrA, addrB, addrRes, len)
 
@@ -396,7 +396,7 @@ func (f *FFAmd64) generateScalarMulVecF31() {
 		f.ADDQ("$64", addrRes)
 	})
 
-	f.RET()
+	f.RETAVX()
 
 	f.Push(&registers, addrA, addrB, addrRes, len)
 }
@@ -490,7 +490,7 @@ func (f *FFAmd64) generateInnerProdVecF31() {
 	f.VPADDQ(acc1, acc0, acc1, "acc1 += acc0")
 	f.VMOVDQU64(acc1, addrT.At(0), "res = acc1")
 
-	f.RET()
+	f.RETAVX()
 
 	f.Push(&registers, addrA, addrB, addrT, len)
 }
@@ -535,7 +535,7 @@ func (f *FFAmd64) generateSumVecE4() {
 
 	f.VMOVDQU64(vSum.Y(), addrRes.At(0))
 
-	f.RET()
+	f.RETAVX()
 }
 
 func (_f *FFAmd64) generateAddVecE4() {
@@ -584,7 +584,7 @@ func (_f *FFAmd64) generateAddVecE4() {
 		f.ADDQ("$64", addrA)
 	})
 
-	f.RET()
+	f.RETAVX()
 }
 
 func (_f *FFAmd64) generateSubVecE4() {
@@ -637,7 +637,7 @@ func (_f *FFAmd64) generateSubVecE4() {
 		f.ADDQ("$64", addrA)
 	})
 
-	f.RET()
+	f.RETAVX()
 }
 func (_f *FFAmd64) generateButterflyPairVecE4() {
 	// func vectorButterflyPair_avx512(a *E4, N uint64)
@@ -722,7 +722,7 @@ func (_f *FFAmd64) generateButterflyPairVecE4() {
 		f.ADDQ("$64", addrA)
 	})
 
-	f.RET()
+	f.RETAVX()
 
 }
 
@@ -821,7 +821,7 @@ func (_f *FFAmd64) generateButterflyPairVecE6() {
 		f.ADDQ("$192", addrA)
 	})
 
-	f.RET()
+	f.RETAVX()
 }
 
 func (_f *FFAmd64) generateButterflyVecE4() {
@@ -873,7 +873,7 @@ func (_f *FFAmd64) generateButterflyVecE4() {
 		f.ADDQ("$64", addrB)
 	})
 
-	f.RET()
+	f.RETAVX()
 }
 
 // e6FusedMulPrologue emits the setup shared by every per-E6 vector op that
@@ -952,7 +952,7 @@ func (_f *FFAmd64) generateMulVecElementE6() {
 		f.ADDQ("$32", addrB)
 	})
 
-	f.RET()
+	f.RETAVX()
 }
 
 func (_f *FFAmd64) generateMulAccVecElementE6() {
@@ -1008,7 +1008,7 @@ func (_f *FFAmd64) generateMulAccVecElementE6() {
 		f.ADDQ("$32", addrB)
 	})
 
-	f.RET()
+	f.RETAVX()
 }
 
 func (_f *FFAmd64) generateScalarMulAccByElementE6(acc bool) {
@@ -1079,7 +1079,7 @@ func (_f *FFAmd64) generateScalarMulAccByElementE6(acc bool) {
 		f.ADDQ("$32", addrA)
 	})
 
-	f.RET()
+	f.RETAVX()
 }
 
 // e6ReplStep describes how to build A_i for one output zmm g: replicate
@@ -1336,7 +1336,7 @@ func (_f *FFAmd64) generateScalarMulVecE6(mode e6ScalarMulMode) {
 		f.ADDQ("$192", addrRes) // 8 * E6 (24 bytes)
 	})
 
-	f.RET()
+	f.RETAVX()
 }
 
 func (_f *FFAmd64) generateDITWithTwiddlesVecE6() {
@@ -1393,7 +1393,7 @@ func (_f *FFAmd64) generateDITWithTwiddlesVecE6() {
 		f.ADDQ("$32", addrTwiddles)
 	})
 
-	f.RET()
+	f.RETAVX()
 }
 
 func (_f *FFAmd64) generateDIFWithTwiddlesVecE6() {
@@ -1450,7 +1450,7 @@ func (_f *FFAmd64) generateDIFWithTwiddlesVecE6() {
 		f.ADDQ("$32", addrTwiddles)
 	})
 
-	f.RET()
+	f.RETAVX()
 }
 
 func (_f *FFAmd64) generateMulVecElementE4() {
@@ -1521,7 +1521,7 @@ func (_f *FFAmd64) generateMulVecElementE4() {
 		f.ADDQ("$16", addrB)
 	})
 
-	f.RET()
+	f.RETAVX()
 }
 
 type e4VecOp int
@@ -1837,7 +1837,7 @@ func (_f *FFAmd64) generateMulVecE4(op e4VecOp) {
 		f.VMOVDQU64(accInnerProd[3].Y(), addrRes.At(24))
 	}
 
-	f.RET()
+	f.RETAVX()
 }
 
 type e6VecOp int
@@ -2062,7 +2062,7 @@ func (_f *FFAmd64) generateMulVecE6(op e6VecOp) {
 		f.ADDQ("$384", addrB)
 	})
 
-	f.RET()
+	f.RETAVX()
 }
 
 func (_f *FFAmd64) generateInnerProdByElementE4() {
@@ -2143,7 +2143,7 @@ func (_f *FFAmd64) generateInnerProdByElementE4() {
 	// store result
 	f.VMOVDQU32(vAcc.X(), addrRes.At(0))
 
-	f.RET()
+	f.RETAVX()
 
 }
 
@@ -2245,5 +2245,5 @@ func (_f *FFAmd64) generateMulAccByElement(acc bool) {
 		f.ADDQ("$16", addrScale)
 	})
 
-	f.RET()
+	f.RETAVX()
 }

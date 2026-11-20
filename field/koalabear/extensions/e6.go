@@ -698,19 +698,16 @@ func batchInvertE6Lanes(n int) int {
 	if !cpu.SupportAVX512 {
 		return 0
 	}
+	// measured on Sapphire Rapids (Xeon 8488C) with the kernels returning
+	// through VZEROUPPER: rows of batchInvertE6MinLanes pay off from 32
+	// elements, wider rows only for long inputs.
 	switch {
-	case n < 48:
-		// below this, inverting the chain products costs more than the
-		// chains save: the scalar path is the fastest.
+	case n < 32:
 		return 0
-	case n >= 8192:
+	case n >= 65536:
 		return 256
 	case n >= 1024:
-		return 128
-	case n >= 512:
 		return 64
-	case n >= 128:
-		return 32
 	default:
 		return batchInvertE6MinLanes
 	}
