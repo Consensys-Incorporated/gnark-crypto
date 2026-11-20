@@ -1041,6 +1041,8 @@ func randVectorFoldE6(n int) VectorE6 {
 
 {{template "batchInvertExtTests" dict "all" . "E" "E6" "V" "VectorE6"}}
 
+{{template "prefixProductTests" dict "E" "E6" "V" "VectorE6"}}
+
 func TestVectorE6MixedAdditive(t *testing.T) {
 	// lift embeds a base-field element in E6.
 	lift := func(x *fr.Element) E6 { return E6{B0: E2{A0: *x}} }

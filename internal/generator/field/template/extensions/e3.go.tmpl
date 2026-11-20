@@ -1,6 +1,7 @@
 import (
 	"math/big"
 	"sync"
+	"unsafe"
 
 	fr "{{ .FieldPackagePath }}"
 )
@@ -557,37 +558,6 @@ func (z *E3) Frobenius(x *E3) *E3 {
 
 // ---- Batch inverse -----------------------------------------------------------
 
-// BatchInvertE3 returns a new slice with every element in a inverted.
-// It uses the Montgomery batch inversion trick.
-// If a[i] == 0, result[i] == 0.
-func BatchInvertE3(a []E3) []E3 {
-	res := make([]E3, len(a))
-	if len(a) == 0 {
-		return res
-	}
+{{template "batchInvertExt" dict "all" . "E" "E3" "V" "VectorE3"}}
 
-	zeroes := make([]bool, len(a))
-	var accumulator E3
-	accumulator.SetOne()
-
-	for i := range a {
-		if a[i].IsZero() {
-			zeroes[i] = true
-			continue
-		}
-		res[i].Set(&accumulator)
-		accumulator.Mul(&accumulator, &a[i])
-	}
-
-	accumulator.Inverse(&accumulator)
-
-	for i := len(a) - 1; i >= 0; i-- {
-		if zeroes[i] {
-			continue
-		}
-		res[i].Mul(&res[i], &accumulator)
-		accumulator.Mul(&accumulator, &a[i])
-	}
-
-	return res
-}
+{{template "prefixProduct" dict "E" "E3" "V" "VectorE3"}}

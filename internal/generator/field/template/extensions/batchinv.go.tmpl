@@ -6,50 +6,94 @@
 //
 // if a[i] == 0, returns result[i] = a[i]
 func BatchInvert{{.E}}(a []{{.E}}) []{{.E}} {
-	res := make([]{{.E}}, len(a))
-	BatchInvert{{.E}}Into(res, a)
+	return {{.V}}(a).BatchInvert()
+}
+
+// BatchInvert{{.E}}Into sets res[i] to the inverse of a[i]; see
+// [{{.V}}.BatchInvertInto].
+func BatchInvert{{.E}}Into(res, a []{{.E}}) {
+	{{.V}}(res).BatchInvertInto(a)
+}
+
+// BatchInvert{{.E}}IntoScratch is BatchInvert{{.E}}Into with caller-provided
+// scratch space; see [{{.V}}.BatchInvertIntoScratch].
+func BatchInvert{{.E}}IntoScratch(res, a, scratch []{{.E}}) {
+	{{.V}}(res).BatchInvertIntoScratch(a, scratch)
+}
+
+// BatchInvert returns a new vector with every element of vector inverted,
+// using Montgomery batch inversion trick; zero elements stay zero.
+func (vector {{.V}}) BatchInvert() {{.V}} {
+	res := make({{.V}}, len(vector))
+	res.BatchInvertInto(vector)
 	return res
 }
 
-// BatchInvert{{.E}}Into sets res[i] to the inverse of a[i], using Montgomery batch
-// inversion trick; if a[i] == 0, res[i] = 0. res and a must have the same
+// BatchInvertInto sets vector[i] to the inverse of a[i], using Montgomery batch
+// inversion trick; if a[i] == 0, vector[i] = 0. vector and a must have the same
 // length.
 //
-// res may be the very same slice as a (in place), but must not otherwise
-// overlap it. When res and a are distinct, BatchInvert{{.E}}Into does not
-// allocate: res holds the running products. In place, it needs len(a) elements
-// of scratch space, which it takes from an internal pool (allocating only when
-// the pool has none large enough); use BatchInvert{{.E}}IntoScratch to provide
-// them.
+// vector may be the very same slice as a (in place), but must not otherwise
+// overlap it. When vector and a are distinct, BatchInvertInto does not
+// allocate: vector holds the running products. In place, it needs len(a)
+// elements of scratch space, which it takes from an internal pool (allocating
+// only when the pool has none large enough); use BatchInvertIntoScratch to
+// provide them.
 {{- if .all.IsKoalaBear}}
 //
-// For long inputs, BatchInvert{{.E}}IntoScratch is faster even when res and a are
+// For long inputs, BatchInvertIntoScratch is faster even when vector and a are
 // distinct, since keeping the running products apart saves a pass over a.
 {{- end}}
-func BatchInvert{{.E}}Into(res, a []{{.E}}) {
-	if len(res) != len(a) {
-		panic("BatchInvert{{.E}}Into: vectors don't have the same length")
+func (vector {{.V}}) BatchInvertInto(a {{.V}}) {
+	if len(vector) != len(a) {
+		panic("{{.V}}.BatchInvertInto: vectors don't have the same length")
 	}
 	if len(a) == 0 {
 		return
 	}
-	if &res[0] != &a[0] {
-		if batchInvert{{.E}}Overlap(res, a) {
-			panic("BatchInvert{{.E}}Into: res and a overlap without being the same slice")
+	if &vector[0] != &a[0] {
+		if batchInvert{{.E}}Overlap(vector, a) {
+			panic("{{.V}}.BatchInvertInto: vector and a overlap without being the same slice")
 		}
-		batchInvert{{.E}}(res, a, nil, batchInvert{{.E}}Lanes(len(a)))
+		batchInvert{{.E}}(vector, a, nil, batchInvert{{.E}}Lanes(len(a)))
 		return
 	}
 	if uintptr(len(a))*unsafe.Sizeof({{.E}}{}) > batchInvert{{.E}}PoolMaxBytes {
-		batchInvert{{.E}}(res, a, make([]{{.E}}, len(a)), batchInvert{{.E}}Lanes(len(a)))
+		batchInvert{{.E}}(vector, a, make([]{{.E}}, len(a)), batchInvert{{.E}}Lanes(len(a)))
 		return
 	}
 	scratch := batchInvert{{.E}}ScratchPool.Get().(*[]{{.E}})
 	if cap(*scratch) < len(a) {
 		*scratch = make([]{{.E}}, len(a))
 	}
-	batchInvert{{.E}}(res, a, (*scratch)[:len(a)], batchInvert{{.E}}Lanes(len(a)))
+	batchInvert{{.E}}(vector, a, (*scratch)[:len(a)], batchInvert{{.E}}Lanes(len(a)))
 	batchInvert{{.E}}ScratchPool.Put(scratch)
+}
+
+// BatchInvertIntoScratch is BatchInvertInto with caller-provided scratch
+// space, so that it never allocates, including in place (vector may be the
+// very same slice as a, but must not otherwise overlap it).
+//
+// scratch must have at least len(a) elements and must not overlap vector or
+// a; its content on return is unspecified.
+func (vector {{.V}}) BatchInvertIntoScratch(a, scratch {{.V}}) {
+	if len(vector) != len(a) {
+		panic("{{.V}}.BatchInvertIntoScratch: vectors don't have the same length")
+	}
+	if len(scratch) < len(a) {
+		panic("{{.V}}.BatchInvertIntoScratch: scratch is shorter than the input")
+	}
+	if len(a) == 0 {
+		return
+	}
+	scratch = scratch[:len(a)]
+	if batchInvert{{.E}}Overlap(scratch, vector) || batchInvert{{.E}}Overlap(scratch, a) {
+		panic("{{.V}}.BatchInvertIntoScratch: scratch overlaps vector or a")
+	}
+	if &vector[0] != &a[0] && batchInvert{{.E}}Overlap(vector, a) {
+		panic("{{.V}}.BatchInvertIntoScratch: vector and a overlap without being the same slice")
+	}
+	batchInvert{{.E}}(vector, a, scratch, batchInvert{{.E}}Lanes(len(a)))
 }
 
 // batchInvert{{.E}}PoolMaxBytes is the size of the largest scratch buffer kept in
@@ -65,35 +109,9 @@ func batchInvert{{.E}}Overlap(x, y []{{.E}}) bool {
 }
 
 // batchInvert{{.E}}ScratchPool holds the scratch space of in-place
-// BatchInvert{{.E}}Into calls.
+// {{.V}}.BatchInvertInto calls.
 var batchInvert{{.E}}ScratchPool = sync.Pool{
 	New: func() any { return new([]{{.E}}) },
-}
-
-// BatchInvert{{.E}}IntoScratch is BatchInvert{{.E}}Into with caller-provided scratch
-// space, so that it never allocates, including in place (res may be the very
-// same slice as a, but must not otherwise overlap it).
-//
-// scratch must have at least len(a) elements and must not overlap res or a;
-// its content on return is unspecified.
-func BatchInvert{{.E}}IntoScratch(res, a, scratch []{{.E}}) {
-	if len(res) != len(a) {
-		panic("BatchInvert{{.E}}IntoScratch: vectors don't have the same length")
-	}
-	if len(scratch) < len(a) {
-		panic("BatchInvert{{.E}}IntoScratch: scratch is shorter than the input")
-	}
-	if len(a) == 0 {
-		return
-	}
-	scratch = scratch[:len(a)]
-	if batchInvert{{.E}}Overlap(scratch, res) || batchInvert{{.E}}Overlap(scratch, a) {
-		panic("BatchInvert{{.E}}IntoScratch: scratch overlaps res or a")
-	}
-	if &res[0] != &a[0] && batchInvert{{.E}}Overlap(res, a) {
-		panic("BatchInvert{{.E}}IntoScratch: res and a overlap without being the same slice")
-	}
-	batchInvert{{.E}}(res, a, scratch, batchInvert{{.E}}Lanes(len(a)))
 }
 
 {{- if .all.IsKoalaBear}}
@@ -153,7 +171,7 @@ func batchInvert{{.E}}Lanes(int) int {
 }
 {{- end}}
 
-// batchInvert{{.E}} is the implementation of BatchInvert{{.E}}Into: the scalar
+// batchInvert{{.E}} is the implementation of {{.V}}.BatchInvertInto: the scalar
 // path (batchInvert{{.E}}Scalar) if lanes is 0{{if .all.IsKoalaBear}}, the interleaved product chains
 // (batchInvert{{.E}}Chains) otherwise{{end}}. len(a) must be > 0. scratch is
 // either nil, and then res and a are distinct, or len(a) elements disjoint
