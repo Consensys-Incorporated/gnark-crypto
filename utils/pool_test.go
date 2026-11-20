@@ -62,10 +62,19 @@ func TestPoolReusesDumpedSlice(t *testing.T) {
 	pool.Dump(b)
 }
 
+func TestPoolDumpWhilePausedUntracks(t *testing.T) {
+	pool := NewPool[int]()
+	pool.StartTrackingUndumped()
+	s := pool.Make(5)
+	pool.PauseTrackingUndumped()
+	pool.Dump(s)
+	require.Empty(t, pool.undumped)
+}
+
 func TestPoolConcurrentMakeDump(t *testing.T) {
 	const nbGoroutines, nbIterations, maxN = 8, 500, 256
 	pool := NewPool[uint64](maxN)
-	pool.StartStats()
+	pool.StartTrackingUndumped()
 
 	var wg sync.WaitGroup
 	for g := range nbGoroutines {
@@ -84,11 +93,5 @@ func TestPoolConcurrentMakeDump(t *testing.T) {
 	}
 	wg.Wait()
 
-	used := 0
-	for _, s := range pool.stats.subPools {
-		require.Zero(t, s.InUse)
-		used += s.Used
-	}
-	require.Equal(t, nbGoroutines*nbIterations, used)
-	require.Empty(t, pool.stats.allocatedFor)
+	require.Empty(t, pool.undumped)
 }
