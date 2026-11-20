@@ -229,9 +229,7 @@ func (vector VectorE3) AddElement(a VectorE3, b fr.Vector) {
 		return
 	}
 	for i := range vector {
-		r := a[i]
-		r.A0.Add(&r.A0, &b[i])
-		vector[i] = r
+		vector[i].AddElement(&a[i], &b[i])
 	}
 }
 
@@ -248,9 +246,7 @@ func (vector VectorE3) SubElement(a VectorE3, b fr.Vector) {
 		return
 	}
 	for i := range vector {
-		r := a[i]
-		r.A0.Sub(&r.A0, &b[i])
-		vector[i] = r
+		vector[i].SubElement(&a[i], &b[i])
 	}
 }
 
@@ -267,8 +263,7 @@ func (vector VectorE3) SubFromElement(a fr.Vector, b VectorE3) {
 		return
 	}
 	for i := range vector {
-		vector[i].Neg(&b[i])
-		vector[i].A0.Add(&vector[i].A0, &a[i])
+		vector[i].SubFromElement(&a[i], &b[i])
 	}
 }
 

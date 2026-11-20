@@ -45,7 +45,7 @@ const (
 //
 // computing res[i] = c + a[i] (extMixedAdd) or c - a[i] (extMixedSub).
 //
-// In both forms, embedding a base-field element in the extension Embedding b[i] in the extension
+// In both forms, embedding a base-field element in the extension
 // only touches the first coordinate of res[i], so each iteration expands
 // nbZmm*16/degree contiguous b values with zero-masked VPEXPANDD straight into
 // the first-coordinate lanes of nbZmm registers (all other lanes are zeroed)
@@ -160,7 +160,11 @@ func (_f *FFAmd64) generateMixedAddVecExt(name string, degree, nbZmm int, op ext
 		}
 	}
 
-	vA := registers.PopV()
+	// with a tiled scalar, vC holds the scalar operand and vA is not needed.
+	var vA amd64.VectorRegister
+	if !tiled {
+		vA = registers.PopV()
+	}
 	vB := registers.PopV()
 	vR := registers.PopV()
 
