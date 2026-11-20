@@ -14,8 +14,11 @@ import (
 	"sync"
 )
 
+// callSiteDepth is the number of frames recorded for each slice handed out by Make while tracking undumped slices.
+const callSiteDepth = 8
+
 // callSite is the call stack of a call to Make, as program counters. Unused trailing entries are 0.
-type callSite [2]uintptr
+type callSite [callSiteDepth]uintptr
 
 // Pool is a pool of slices of T, grouped by power-of-two capacity. Its copies share the same slices.
 // Dumped slices are retained for the lifetime of the Pool and are not evicted by the garbage collector,
