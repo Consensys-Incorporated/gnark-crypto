@@ -220,3 +220,33 @@ func mulByElement_avx512(alpha *E4, scale *fr.Element, res *E4, N uint64)
 
 //go:noescape
 func vectorInnerProductByElement_E6_avx512(res *[48]uint64, a *E6, b *fr.Element, N uint64)
+
+//go:noescape
+func vectorAddElement_avx512(res, a *E4, b *fr.Element, N uint64)
+
+//go:noescape
+func vectorSubElement_avx512(res, a *E4, b *fr.Element, N uint64)
+
+//go:noescape
+func vectorSubFromElement_avx512(res, a *E4, b *fr.Element, N uint64)
+
+//go:noescape
+func vectorAddElement_E6_avx512(res, a *E6, b *fr.Element, N uint64)
+
+//go:noescape
+func vectorSubElement_E6_avx512(res, a *E6, b *fr.Element, N uint64)
+
+//go:noescape
+func vectorSubFromElement_E6_avx512(res, a *E6, b *fr.Element, N uint64)
+
+//go:noescape
+func vectorScalarAddBase_avx512(res *E4, a *fr.Element, cTiled *fr.Element, N uint64)
+
+//go:noescape
+func vectorScalarSubFromBase_avx512(res *E4, a *fr.Element, cTiled *fr.Element, N uint64)
+
+//go:noescape
+func vectorScalarAddBase_E6_avx512(res *E6, a *fr.Element, cTiled *fr.Element, N uint64)
+
+//go:noescape
+func vectorScalarSubFromBase_E6_avx512(res *E6, a *fr.Element, cTiled *fr.Element, N uint64)
