@@ -178,3 +178,71 @@ done12:
 	VADD   V9.D2, V10.D2, V9.D2 // acc0 += acc1
 	VST1.P [V9.D2], 16(R0)      // store accumulator
 	RET
+
+// negVec(res, a *Element, n uint64) res[0...n] = -a[0...n]
+// n is the number of blocks of 4 uint32 to process
+TEXT ·negVec(SB), NOFRAME|NOSPLIT, $0-24
+	LDP   res+0(FP), (R0, R1)
+	VMOVS $const_q, V3
+	VDUP  V3.S[0], V3.S4         // broadcast q into V3
+	MOVD  n+16(FP), R2
+	VEOR  V2.B16, V2.B16, V2.B16 // c = 0
+
+loop13:
+	CBZ    R2, done14
+	SUB    $1, R2, R2
+	VLD1.P 16(R1), [V0.S4]
+	VSUB   V0.S4, V2.S4, V0.S4 // a = c - a
+	VADD   V0.S4, V3.S4, V1.S4 // t = a + q
+	VUMIN  V1.S4, V0.S4, V0.S4 // a = min(t, a)
+	VST1.P [V0.S4], 16(R0)     // res = a
+	JMP    loop13
+
+done14:
+	RET
+
+// scalarAddVec(res, a, c *Element, n uint64) res[0...n] = a[0...n] + c
+// n is the number of blocks of 4 uint32 to process
+TEXT ·scalarAddVec(SB), NOFRAME|NOSPLIT, $0-32
+	LDP   res+0(FP), (R0, R1)
+	VMOVS $const_q, V3
+	VDUP  V3.S[0], V3.S4      // broadcast q into V3
+	LDP   c+16(FP), (R3, R2)
+	MOVWU (R3), R4
+	VDUP  R4, V2.S4           // broadcast c
+
+loop15:
+	CBZ    R2, done16
+	SUB    $1, R2, R2
+	VLD1.P 16(R1), [V0.S4]
+	VADD   V0.S4, V2.S4, V0.S4 // a = a + c
+	VSUB   V3.S4, V0.S4, V1.S4 // t = a - q
+	VUMIN  V1.S4, V0.S4, V0.S4 // a = min(t, a)
+	VST1.P [V0.S4], 16(R0)     // res = a
+	JMP    loop15
+
+done16:
+	RET
+
+// scalarSubFromVec(res, a, c *Element, n uint64) res[0...n] = c - a[0...n]
+// n is the number of blocks of 4 uint32 to process
+TEXT ·scalarSubFromVec(SB), NOFRAME|NOSPLIT, $0-32
+	LDP   res+0(FP), (R0, R1)
+	VMOVS $const_q, V3
+	VDUP  V3.S[0], V3.S4      // broadcast q into V3
+	LDP   c+16(FP), (R3, R2)
+	MOVWU (R3), R4
+	VDUP  R4, V2.S4           // broadcast c
+
+loop17:
+	CBZ    R2, done18
+	SUB    $1, R2, R2
+	VLD1.P 16(R1), [V0.S4]
+	VSUB   V0.S4, V2.S4, V0.S4 // a = c - a
+	VADD   V0.S4, V3.S4, V1.S4 // t = a + q
+	VUMIN  V1.S4, V0.S4, V0.S4 // a = min(t, a)
+	VST1.P [V0.S4], 16(R0)     // res = a
+	JMP    loop17
+
+done18:
+	RET

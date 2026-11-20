@@ -38,107 +38,97 @@ func innerProdVec(t *uint64, a, b *Element, n uint64)
 
 // Add adds two vectors element-wise and stores the result in self.
 // It panics if the vectors don't have the same length.
-func (vector *Vector) Add(a, b Vector) {
-	if len(a) != len(b) || len(a) != len(*vector) {
+func (vector Vector) Add(a, b Vector) {
+	if len(a) != len(b) || len(a) != len(vector) {
 		panic("vector.Add: vectors don't have the same length")
 	}
-	n := uint64(len(a))
+	n := uint64(len(vector))
 	if n == 0 {
 		return
 	}
-	if !cpu.SupportAVX512 {
-		// call addVecGeneric
-		addVecGeneric(*vector, a, b)
+	const blockSize = 16
+	if !cpu.SupportAVX512 || n < blockSize {
+		addVecGeneric(vector, a, b)
 		return
 	}
-
-	const blockSize = 16
-	addVec(&(*vector)[0], &a[0], &b[0], n/blockSize)
+	addVec(&vector[0], &a[0], &b[0], n/blockSize)
 	if n%blockSize != 0 {
-		// call addVecGeneric on the rest
 		start := n - n%blockSize
-		addVecGeneric((*vector)[start:], a[start:], b[start:])
+		addVecGeneric(vector[start:], a[start:], b[start:])
 	}
 }
 
 // Sub subtracts two vectors element-wise and stores the result in self.
 // It panics if the vectors don't have the same length.
-func (vector *Vector) Sub(a, b Vector) {
-	if len(a) != len(b) || len(a) != len(*vector) {
+func (vector Vector) Sub(a, b Vector) {
+	if len(a) != len(b) || len(a) != len(vector) {
 		panic("vector.Sub: vectors don't have the same length")
 	}
-	n := uint64(len(a))
+	n := uint64(len(vector))
 	if n == 0 {
 		return
 	}
-	if !cpu.SupportAVX512 {
-		// call subVecGeneric
-		subVecGeneric(*vector, a, b)
+	const blockSize = 16
+	if !cpu.SupportAVX512 || n < blockSize {
+		subVecGeneric(vector, a, b)
 		return
 	}
-
-	const blockSize = 16
-	subVec(&(*vector)[0], &a[0], &b[0], n/blockSize)
+	subVec(&vector[0], &a[0], &b[0], n/blockSize)
 	if n%blockSize != 0 {
-		// call subVecGeneric on the rest
 		start := n - n%blockSize
-		subVecGeneric((*vector)[start:], a[start:], b[start:])
+		subVecGeneric(vector[start:], a[start:], b[start:])
 	}
 }
 
 // ScalarMul multiplies a vector by a scalar element-wise and stores the result in self.
 // It panics if the vectors don't have the same length.
-func (vector *Vector) ScalarMul(a Vector, b *Element) {
-	if !cpu.SupportAVX512 {
-		// call scalarMulVecGeneric
-		scalarMulVecGeneric(*vector, a, b)
-		return
-	}
-
-	if len(a) != len(*vector) {
+func (vector Vector) ScalarMul(a Vector, b *Element) {
+	if len(a) != len(vector) {
 		panic("vector.ScalarMul: vectors don't have the same length")
 	}
-	n := uint64(len(a))
+	n := uint64(len(vector))
 	if n == 0 {
 		return
 	}
-
 	const blockSize = 16
-	scalarMulVec(&(*vector)[0], &a[0], b, n/blockSize)
+	if !cpu.SupportAVX512 || n < blockSize {
+		scalarMulVecGeneric(vector, a, b)
+		return
+	}
+	scalarMulVec(&vector[0], &a[0], b, n/blockSize)
 	if n%blockSize != 0 {
-		// call scalarMulVecGeneric on the rest
 		start := n - n%blockSize
-		scalarMulVecGeneric((*vector)[start:], a[start:], b)
+		scalarMulVecGeneric(vector[start:], a[start:], b)
 	}
 }
 
 // Sum computes the sum of all elements in the vector.
-func (vector *Vector) Sum() (res Element) {
+func (vector Vector) Sum() (res Element) {
 	if !cpu.SupportAVX512 {
 		// call sumVecGeneric
-		sumVecGeneric(&res, *vector)
+		sumVecGeneric(&res, vector)
 		return
 	}
 
-	n := uint64(len(*vector))
+	n := uint64(len(vector))
 	switch n {
 	case 0:
 		return
 	case 16:
 		var t uint64
-		sumVec16_AVX512(&t, &(*vector)[0])
+		sumVec16_AVX512(&t, &vector[0])
 		res[0] = uint32(t % q)
 		return
 	case 24:
 		var t uint64
-		sumVec24_AVX512(&t, &(*vector)[0])
+		sumVec24_AVX512(&t, &vector[0])
 		res[0] = uint32(t % q)
 		return
 	}
 
 	const blockSize = 16
 	var t [8]uint64 // stores the accumulators (not reduced mod q)
-	sumVec(&t[0], &(*vector)[0], n/blockSize)
+	sumVec(&t[0], &vector[0], n/blockSize)
 	// we reduce the accumulators mod q and add to res
 	var v Element
 	for i := range 8 {
@@ -148,7 +138,7 @@ func (vector *Vector) Sum() (res Element) {
 	if n%blockSize != 0 {
 		// call sumVecGeneric on the rest
 		start := n - n%blockSize
-		sumVecGeneric(&res, (*vector)[start:])
+		sumVecGeneric(&res, vector[start:])
 	}
 
 	return
@@ -156,14 +146,14 @@ func (vector *Vector) Sum() (res Element) {
 
 // InnerProduct computes the inner product of two vectors.
 // It panics if the vectors don't have the same length.
-func (vector *Vector) InnerProduct(other Vector) (res Element) {
+func (vector Vector) InnerProduct(other Vector) (res Element) {
 	if !cpu.SupportAVX512 {
 		// call innerProductVecGeneric
-		innerProductVecGeneric(&res, *vector, other)
+		innerProductVecGeneric(&res, vector, other)
 		return
 	}
 
-	n := uint64(len(*vector))
+	n := uint64(len(vector))
 	if n != uint64(len(other)) {
 		panic("vector.InnerProduct: vectors don't have the same length")
 	}
@@ -173,7 +163,7 @@ func (vector *Vector) InnerProduct(other Vector) (res Element) {
 
 	const blockSize = 16
 	var t [8]uint64 // stores the accumulators (not reduced mod q)
-	innerProdVec(&t[0], &(*vector)[0], &other[0], n/blockSize)
+	innerProdVec(&t[0], &vector[0], &other[0], n/blockSize)
 	// we reduce the accumulators mod q and add to res
 	var v Element
 	for i := range 8 {
@@ -183,7 +173,7 @@ func (vector *Vector) InnerProduct(other Vector) (res Element) {
 	if n%blockSize != 0 {
 		// call innerProductVecGeneric on the rest
 		start := n - n%blockSize
-		innerProductVecGeneric(&res, (*vector)[start:], other[start:])
+		innerProductVecGeneric(&res, vector[start:], other[start:])
 	}
 
 	return
@@ -191,27 +181,23 @@ func (vector *Vector) InnerProduct(other Vector) (res Element) {
 
 // Mul multiplies two vectors element-wise and stores the result in self.
 // It panics if the vectors don't have the same length.
-func (vector *Vector) Mul(a, b Vector) {
-	if !cpu.SupportAVX512 {
-		// call mulVecGeneric
-		mulVecGeneric(*vector, a, b)
-		return
-	}
-
-	if len(a) != len(b) || len(a) != len(*vector) {
+func (vector Vector) Mul(a, b Vector) {
+	if len(a) != len(b) || len(a) != len(vector) {
 		panic("vector.Mul: vectors don't have the same length")
 	}
-	n := uint64(len(a))
+	n := uint64(len(vector))
 	if n == 0 {
 		return
 	}
-
 	const blockSize = 16
-	mulVec(&(*vector)[0], &a[0], &b[0], n/blockSize)
+	if !cpu.SupportAVX512 || n < blockSize {
+		mulVecGeneric(vector, a, b)
+		return
+	}
+	mulVec(&vector[0], &a[0], &b[0], n/blockSize)
 	if n%blockSize != 0 {
-		// call mulVecGeneric on the rest
 		start := n - n%blockSize
-		mulVecGeneric((*vector)[start:], a[start:], b[start:])
+		mulVecGeneric(vector[start:], a[start:], b[start:])
 	}
 }
 
@@ -308,4 +294,54 @@ func vectorScalarMulAdd(res, b Vector, c *Element) {
 	nr := n - n%blockSize
 	scalarMulAddVec(&res[0], &b[0], c, uint64(nr/blockSize))
 	scalarMulAddVecGeneric(res[nr:], b[nr:], c)
+}
+
+//go:noescape
+func negVec(res, a *Element, n uint64)
+
+//go:noescape
+func scalarAddVec(res, a, c *Element, n uint64)
+
+//go:noescape
+func scalarSubFromVec(res, a, c *Element, n uint64)
+
+// vectorNeg sets res[i] = -a[i]; lengths are checked by the caller.
+func vectorNeg(res, a Vector) {
+	const blockSize = 16
+	n := len(res)
+	if !cpu.SupportAVX512 || n < blockSize {
+		negVecGeneric(res, a)
+		return
+	}
+	nr := n - n%blockSize
+	negVec(&res[0], &a[0], uint64(nr/blockSize))
+	negVecGeneric(res[nr:], a[nr:])
+}
+
+// vectorScalarAdd sets res[i] = a[i] + c; lengths are checked and c is copied
+// by the caller.
+func vectorScalarAdd(res, a Vector, c *Element) {
+	const blockSize = 16
+	n := len(res)
+	if !cpu.SupportAVX512 || n < blockSize {
+		scalarAddVecGeneric(res, a, c)
+		return
+	}
+	nr := n - n%blockSize
+	scalarAddVec(&res[0], &a[0], c, uint64(nr/blockSize))
+	scalarAddVecGeneric(res[nr:], a[nr:], c)
+}
+
+// vectorScalarSubFrom sets res[i] = c - a[i]; lengths are checked and c is
+// copied by the caller.
+func vectorScalarSubFrom(res, a Vector, c *Element) {
+	const blockSize = 16
+	n := len(res)
+	if !cpu.SupportAVX512 || n < blockSize {
+		scalarSubFromVecGeneric(res, a, c)
+		return
+	}
+	nr := n - n%blockSize
+	scalarSubFromVec(&res[0], &a[0], c, uint64(nr/blockSize))
+	scalarSubFromVecGeneric(res[nr:], a[nr:], c)
 }

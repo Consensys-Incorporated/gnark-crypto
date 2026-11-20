@@ -54,8 +54,8 @@ func reduceLanes(res *Element, t *[blockSize]uint64) {
 
 // Add adds two vectors element-wise and stores the result in self.
 // It panics if the vectors don't have the same length.
-func (vector *Vector) Add(a, b Vector) {
-	if len(a) != len(b) || len(a) != len(*vector) {
+func (vector Vector) Add(a, b Vector) {
+	if len(a) != len(b) || len(a) != len(vector) {
 		panic("vector.Add: vectors don't have the same length")
 	}
 	n := uint64(len(a))
@@ -63,20 +63,20 @@ func (vector *Vector) Add(a, b Vector) {
 		return
 	}
 	if !cpu.SupportAVX512IFMA {
-		addVecGeneric(*vector, a, b)
+		addVecGeneric(vector, a, b)
 		return
 	}
-	addVec(&(*vector)[0], &a[0], &b[0], n/blockSize)
+	addVec(&vector[0], &a[0], &b[0], n/blockSize)
 	if n%blockSize != 0 {
 		start := n - n%blockSize
-		addVecGeneric((*vector)[start:], a[start:], b[start:])
+		addVecGeneric(vector[start:], a[start:], b[start:])
 	}
 }
 
 // Sub subtracts two vectors element-wise and stores the result in self.
 // It panics if the vectors don't have the same length.
-func (vector *Vector) Sub(a, b Vector) {
-	if len(a) != len(b) || len(a) != len(*vector) {
+func (vector Vector) Sub(a, b Vector) {
+	if len(a) != len(b) || len(a) != len(vector) {
 		panic("vector.Sub: vectors don't have the same length")
 	}
 	n := uint64(len(a))
@@ -84,20 +84,20 @@ func (vector *Vector) Sub(a, b Vector) {
 		return
 	}
 	if !cpu.SupportAVX512IFMA {
-		subVecGeneric(*vector, a, b)
+		subVecGeneric(vector, a, b)
 		return
 	}
-	subVec(&(*vector)[0], &a[0], &b[0], n/blockSize)
+	subVec(&vector[0], &a[0], &b[0], n/blockSize)
 	if n%blockSize != 0 {
 		start := n - n%blockSize
-		subVecGeneric((*vector)[start:], a[start:], b[start:])
+		subVecGeneric(vector[start:], a[start:], b[start:])
 	}
 }
 
 // ScalarMul multiplies a vector by a scalar element-wise and stores the result in self.
 // It panics if the vectors don't have the same length.
-func (vector *Vector) ScalarMul(a Vector, b *Element) {
-	if len(a) != len(*vector) {
+func (vector Vector) ScalarMul(a Vector, b *Element) {
+	if len(a) != len(vector) {
 		panic("vector.ScalarMul: vectors don't have the same length")
 	}
 	n := uint64(len(a))
@@ -105,24 +105,24 @@ func (vector *Vector) ScalarMul(a Vector, b *Element) {
 		return
 	}
 	if !cpu.SupportAVX512IFMA {
-		scalarMulVecGeneric(*vector, a, b)
+		scalarMulVecGeneric(vector, a, b)
 		return
 	}
-	scalarMulVec(&(*vector)[0], &a[0], b, n/blockSize)
+	scalarMulVec(&vector[0], &a[0], b, n/blockSize)
 	if n%blockSize != 0 {
 		start := n - n%blockSize
-		scalarMulVecGeneric((*vector)[start:], a[start:], b)
+		scalarMulVecGeneric(vector[start:], a[start:], b)
 	}
 }
 
 // Sum computes the sum of all elements in the vector.
-func (vector *Vector) Sum() (res Element) {
-	n := uint64(len(*vector))
+func (vector Vector) Sum() (res Element) {
+	n := uint64(len(vector))
 	if n == 0 {
 		return
 	}
 	if !cpu.SupportAVX512IFMA {
-		sumVecGeneric(&res, *vector)
+		sumVecGeneric(&res, vector)
 		return
 	}
 	// Process in chunks to prevent 64-bit accumulator overflow.
@@ -138,21 +138,21 @@ func (vector *Vector) Sum() (res Element) {
 		for i := range t {
 			t[i] = 0
 		}
-		sumVec(&t[0], &(*vector)[start*blockSize], chunk)
+		sumVec(&t[0], &vector[start*blockSize], chunk)
 		reduceLanes(&res, &t)
 		start += chunk
 	}
 	if n%blockSize != 0 {
 		startElem := fullBlocks * blockSize
-		sumVecGeneric(&res, (*vector)[startElem:])
+		sumVecGeneric(&res, vector[startElem:])
 	}
 	return
 }
 
 // InnerProduct computes the inner product of two vectors.
 // It panics if the vectors don't have the same length.
-func (vector *Vector) InnerProduct(other Vector) (res Element) {
-	n := uint64(len(*vector))
+func (vector Vector) InnerProduct(other Vector) (res Element) {
+	n := uint64(len(vector))
 	if n != uint64(len(other)) {
 		panic("vector.InnerProduct: vectors don't have the same length")
 	}
@@ -160,7 +160,7 @@ func (vector *Vector) InnerProduct(other Vector) (res Element) {
 		return
 	}
 	if !cpu.SupportAVX512IFMA {
-		innerProductVecGeneric(&res, *vector, other)
+		innerProductVecGeneric(&res, vector, other)
 		return
 	}
 	// Chunk-and-reduce to prevent 64-bit accumulator overflow.
@@ -174,21 +174,21 @@ func (vector *Vector) InnerProduct(other Vector) (res Element) {
 		for i := range t {
 			t[i] = 0
 		}
-		innerProdVec(&t[0], &(*vector)[start*blockSize], &other[start*blockSize], chunk)
+		innerProdVec(&t[0], &vector[start*blockSize], &other[start*blockSize], chunk)
 		reduceLanes(&res, &t)
 		start += chunk
 	}
 	if n%blockSize != 0 {
 		startElem := fullBlocks * blockSize
-		innerProductVecGeneric(&res, (*vector)[startElem:], other[startElem:])
+		innerProductVecGeneric(&res, vector[startElem:], other[startElem:])
 	}
 	return
 }
 
 // Mul multiplies two vectors element-wise and stores the result in self.
 // It panics if the vectors don't have the same length.
-func (vector *Vector) Mul(a, b Vector) {
-	if len(a) != len(b) || len(a) != len(*vector) {
+func (vector Vector) Mul(a, b Vector) {
+	if len(a) != len(b) || len(a) != len(vector) {
 		panic("vector.Mul: vectors don't have the same length")
 	}
 	n := uint64(len(a))
@@ -196,12 +196,12 @@ func (vector *Vector) Mul(a, b Vector) {
 		return
 	}
 	if !cpu.SupportAVX512IFMA {
-		mulVecGeneric(*vector, a, b)
+		mulVecGeneric(vector, a, b)
 		return
 	}
-	mulVec(&(*vector)[0], &a[0], &b[0], n/blockSize)
+	mulVec(&vector[0], &a[0], &b[0], n/blockSize)
 	if n%blockSize != 0 {
 		start := n - n%blockSize
-		mulVecGeneric((*vector)[start:], a[start:], b[start:])
+		mulVecGeneric(vector[start:], a[start:], b[start:])
 	}
 }
