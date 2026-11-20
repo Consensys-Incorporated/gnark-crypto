@@ -68,7 +68,27 @@ func TestPoolDumpWhilePausedUntracks(t *testing.T) {
 	s := pool.Make(5)
 	pool.PauseTrackingUndumped()
 	pool.Dump(s)
-	require.Empty(t, pool.undumped)
+	require.NoError(t, pool.CheckUndumped())
+}
+
+func TestPoolCheckUndumped(t *testing.T) {
+	pool := NewPool[int]()
+	pool.StartTrackingUndumped()
+
+	var made [][]int
+	for range 3 {
+		made = append(made, pool.Make(5))
+	}
+	made = append(made, pool.Make(5))
+
+	err := pool.CheckUndumped()
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "4 slices")
+	require.Contains(t, err.Error(), "2 call sites")
+	require.Contains(t, err.Error(), "TestPoolCheckUndumped")
+
+	pool.Dump(made...)
+	require.NoError(t, pool.CheckUndumped())
 }
 
 func TestPoolConcurrentMakeDump(t *testing.T) {
@@ -93,5 +113,5 @@ func TestPoolConcurrentMakeDump(t *testing.T) {
 	}
 	wg.Wait()
 
-	require.Empty(t, pool.undumped)
+	require.NoError(t, pool.CheckUndumped())
 }

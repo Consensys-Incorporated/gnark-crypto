@@ -4,11 +4,18 @@
 package utils
 
 import (
+	"cmp"
+	"errors"
 	"fmt"
 	"math/bits"
 	"runtime"
+	"slices"
+	"strings"
 	"sync"
 )
+
+// callSite is the call stack of a call to Make, as program counters. Unused trailing entries are 0.
+type callSite [2]uintptr
 
 // Pool is a pool of slices of T, grouped by power-of-two capacity. Its copies share the same slices.
 // Dumped slices are retained for the lifetime of the Pool and are not evicted by the garbage collector,
@@ -19,18 +26,18 @@ type Pool[T any] struct {
 
 type pool[T any] struct {
 	lock     sync.Mutex
-	subPools          [bits.UintSize][][]T
-	trackingUndumpted bool
-	undumped          map[*T][]uintptr // call stack of Make for each tracked slice not yet dumped, keyed by data pointer
+	subPools         [bits.UintSize][][]T
+	trackingUndumped bool
+	undumped         map[*T]callSite // call stack of Make for each tracked slice not yet dumped, keyed by data pointer
 }
 
 // StartTrackingUndumped starts recording the call site of every slice handed out by Make, until the slice is
-// dumped, so that PrintUndumped can report slices that were never dumped. It is a development aid for finding
+// dumped, so that CheckUndumped can report slices that were never dumped. It is a development aid for finding
 // missing calls to Dump.
 func (p *pool[T]) StartTrackingUndumped() {
 	p.lock.Lock()
 	defer p.lock.Unlock()
-	p.trackingUndumpted = true
+	p.trackingUndumped = true
 }
 
 // PauseTrackingUndumped stops recording slices handed out by Make. Slices already recorded are still removed
@@ -38,14 +45,14 @@ func (p *pool[T]) StartTrackingUndumped() {
 func (p *pool[T]) PauseTrackingUndumped() {
 	p.lock.Lock()
 	defer p.lock.Unlock()
-	p.trackingUndumpted = false
+	p.trackingUndumped = false
 }
 
 // NewPool returns a pool with a size class for every power of two. maxN is ignored; it is kept for compatibility.
 func NewPool[T any](maxN ...int) Pool[T] {
 	_ = maxN
 	p := new(pool[T])
-	p.undumped = make(map[*T][]uintptr)
+	p.undumped = make(map[*T]callSite)
 	return Pool[T]{p}
 }
 
@@ -62,14 +69,14 @@ func (p *pool[T]) Make(n int) []T {
 		last := len(stack) - 1
 		slice := stack[last]
 		p.subPools[poolI] = stack[:last]
-		if p.trackingUndumpted {
+		if p.trackingUndumped {
 			p.trackMake(slice)
 		}
 		p.lock.Unlock()
 		return slice[:n]
 	}
 
-	trackingUndumped := p.trackingUndumpted
+	trackingUndumped := p.trackingUndumped
 	p.lock.Unlock()
 
 	slice := make([]T, 0, 1<<poolI)
@@ -85,8 +92,9 @@ func (p *pool[T]) Make(n int) []T {
 
 // trackMake records the call site of Make for a slice it handed out. The caller must hold the lock.
 func (p *pool[T]) trackMake(slice []T) {
-	pcs := make([]uintptr, 2)
-	p.undumped[getDataPointer(slice)] = pcs[:runtime.Callers(3, pcs)]
+	var site callSite
+	runtime.Callers(3, site[:])
+	p.undumped[getDataPointer(slice)] = site
 }
 
 // Dump a set of slices into the pool. It doesn't need to have been created by the pool, but it must similarly
@@ -117,10 +125,6 @@ func (p *pool[T]) Dump(slices ...[]T) {
 	}
 }
 
-func printFrame(frame runtime.Frame) {
-	fmt.Printf("\t%s line %d, function %s\n", frame.File, frame.Line, frame.Function)
-}
-
 // ceilLog2 returns the smallest k such that 1<<k >= n. It requires n >= 1.
 func ceilLog2(n int) int {
 	return bits.Len(uint(n - 1))
@@ -131,23 +135,50 @@ func getDataPointer[T any](slice []T) *T {
 	return &slice[:1][0]
 }
 
-// PrintUndumped prints the call sites of Make for the slices handed out while trackingUndumpted that have not been dumped.
-func (p *pool[T]) PrintUndumped() {
+// CheckUndumped returns an error listing, by call site, the slices handed out by Make while tracking that have
+// not been dumped, or nil if there are none. Call it where every slice from Make should have been dumped.
+func (p *pool[T]) CheckUndumped() error {
 	p.lock.Lock()
 	defer p.lock.Unlock()
 
-	fmt.Printf("slices never dumped: %d\n", len(p.undumped))
-	for _, pcs := range p.undumped {
-		fmt.Println("-------------------------")
-
-		var frame runtime.Frame
-		frames := runtime.CallersFrames(pcs)
-		more := true
-		for more {
-			frame, more = frames.Next()
-			printFrame(frame)
-		}
+	if len(p.undumped) == 0 {
+		return nil
 	}
+
+	counts := make(map[callSite]int)
+	for _, site := range p.undumped {
+		counts[site]++
+	}
+
+	type siteReport struct {
+		count  int
+		frames string
+	}
+	reports := make([]siteReport, 0, len(counts))
+	for site, count := range counts {
+		n := slices.Index(site[:], 0)
+		if n < 0 {
+			n = len(site)
+		}
+		var frames strings.Builder
+		callersFrames := runtime.CallersFrames(site[:n])
+		for more := true; more; {
+			var frame runtime.Frame
+			frame, more = callersFrames.Next()
+			fmt.Fprintf(&frames, "\t%s line %d, function %s\n", frame.File, frame.Line, frame.Function)
+		}
+		reports = append(reports, siteReport{count, frames.String()})
+	}
+	slices.SortFunc(reports, func(a, b siteReport) int {
+		return cmp.Or(cmp.Compare(b.count, a.count), strings.Compare(a.frames, b.frames))
+	})
+
+	var msg strings.Builder
+	fmt.Fprintf(&msg, "%d slices from Make were never dumped, from %d call sites:\n", len(p.undumped), len(reports))
+	for _, report := range reports {
+		fmt.Fprintf(&msg, "%d made at:\n%s", report.count, report.frames)
+	}
+	return errors.New(strings.TrimSuffix(msg.String(), "\n"))
 }
 
 func (p *pool[T]) Clone(slice []T) []T {
