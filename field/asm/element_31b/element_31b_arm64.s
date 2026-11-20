@@ -16,9 +16,9 @@ loop1:
 	SUB    $1, R3, R3
 	VLD1.P 16(R1), [V0.S4]
 	VLD1.P 16(R2), [V1.S4]
-	VADD   V0.S4, V1.S4, V1.S4 // b = a + b
-	VSUB   V2.S4, V1.S4, V0.S4 // a = b - q
-	VUMIN  V0.S4, V1.S4, V1.S4 // b = min(a, b)
+	VADD   V0.S4, V1.S4, V1.S4 // dst = a + b
+	VSUB   V2.S4, V1.S4, V0.S4 // t = dst - q
+	VUMIN  V0.S4, V1.S4, V1.S4 // dst = min(t, dst)
 	VST1.P [V1.S4], 16(R0)     // res = b
 	JMP    loop1
 
@@ -38,9 +38,9 @@ loop3:
 	SUB    $1, R3, R3
 	VLD1.P 16(R1), [V0.S4]
 	VLD1.P 16(R2), [V1.S4]
-	VSUB   V1.S4, V0.S4, V1.S4 // b = a - b
-	VADD   V1.S4, V2.S4, V0.S4 // t = b + q
-	VUMIN  V0.S4, V1.S4, V1.S4 // b = min(t, b)
+	VSUB   V1.S4, V0.S4, V1.S4 // dst = a - b
+	VADD   V1.S4, V2.S4, V0.S4 // t = dst + q
+	VUMIN  V0.S4, V1.S4, V1.S4 // dst = min(t, dst)
 	VST1.P [V1.S4], 16(R0)     // res = b
 	JMP    loop3
 

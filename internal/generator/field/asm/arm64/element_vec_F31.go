@@ -4,6 +4,51 @@ import (
 	"github.com/consensys/bavard/arm64"
 )
 
+// modAddF31 emits dst = a + b mod q on 4-lane registers, for a, b in [0, q). q holds the broadcast modulus and t is
+// scratch. dst may be b, and t may be a.
+func (f *FFArm64) modAddF31(dst, a, b, q, t arm64.VectorRegister) {
+	f.VADD(a.S4(), b.S4(), dst.S4(), "dst = a + b")
+	f.VSUB(q.S4(), dst.S4(), t.S4(), "t = dst - q")
+	f.VUMIN(t.S4(), dst.S4(), dst.S4(), "dst = min(t, dst)")
+}
+
+// modSubF31 emits dst = a - b mod q on 4-lane registers, for a, b in [0, q). q holds the broadcast modulus and t is
+// scratch. dst may be b, and t may be a.
+func (f *FFArm64) modSubF31(dst, a, b, q, t arm64.VectorRegister) {
+	f.VSUB(b.S4(), a.S4(), dst.S4(), "dst = a - b")
+	f.VADD(dst.S4(), q.S4(), t.S4(), "t = dst + q")
+	f.VUMIN(t.S4(), dst.S4(), dst.S4(), "dst = min(t, dst)")
+}
+
+// montMulF31 emits d = a * b * R^-1 mod p on 4-lane registers, with R = 2^32, for a, b in [0, p). p and mu hold the
+// broadcast modulus and its Montgomery constant; cHi, q, qpHi and underflow are scratch. d must differ from the
+// other registers, which a and b only read.
+func (f *FFArm64) montMulF31(d, a, b, p, mu, cHi, q, qpHi, underflow arm64.VectorRegister) {
+	// Step 1: c_hi = (2 * a * b) >> 32 using SQDMULH
+	// SQDMULH computes (2*a*b) >> 32 with signed saturation
+	f.VSQDMULH(a, b, cHi, "c_hi = (2*a*b) >> 32")
+
+	// Step 2: q = (a * b * mu) mod 2^32
+	// First compute temp = a * b (low 32 bits)
+	// Then q = temp * mu (low 32 bits)
+	f.VMUL_S4(a, b, q, "q = a * b (low 32 bits)")
+	f.VMUL_S4(q, mu, q, "q = q * mu (low 32 bits)")
+
+	// Step 3: qp_hi = (2 * q * P) >> 32 using SQDMULH
+	f.VSQDMULH(q, p, qpHi, "qp_hi = (2*q*P) >> 32")
+
+	// Step 4: d = (c_hi - qp_hi) / 2 using SHSUB
+	// This computes the halving subtraction which accounts for the 2x factor in SQDMULH
+	f.VSHSUB(cHi, qpHi, d, "d = (c_hi - qp_hi) / 2")
+
+	// Step 5: Canonicalize - if d < 0 (negative), add P
+	// underflow mask: all 1s if qp_hi > c_hi (which means d is negative), else 0
+	f.VCMLT(cHi, qpHi, underflow, "underflow = (c_hi < qp_hi) ? all 1s : 0")
+
+	// d = d - underflow * P = d + P if underflow (since underflow is -1 when true)
+	f.VMLS(underflow, p, d, "d = d - underflow * P (adds P when d < 0)")
+}
+
 func (f *FFArm64) generateAddVecF31() {
 	f.Comment("addVec(res, a, b *Element, n uint64)")
 	f.Comment("n is the number of blocks of 4 uint32 to process")
@@ -33,9 +78,7 @@ func (f *FFArm64) generateAddVecF31() {
 		f.VLD1_P(offset, aPtr, a0.S4())
 		f.VLD1_P(offset, bPtr, b0.S4())
 
-		f.VADD(a0.S4(), b0.S4(), b0.S4(), "b = a + b")
-		f.VSUB(q.S4(), b0.S4(), a0.S4(), "a = b - q")
-		f.VUMIN(a0.S4(), b0.S4(), b0.S4(), "b = min(a, b)")
+		f.modAddF31(b0, a0, b0, q, a0)
 		f.VST1_P(b0.S4(), resPtr, offset, "res = b")
 	})
 
@@ -98,29 +141,7 @@ func (f *FFArm64) generateMulVecF31() {
 		f.VLD1_P(offset, aPtr, a.S4())
 		f.VLD1_P(offset, bPtr, b.S4())
 
-		// Step 1: c_hi = (2 * a * b) >> 32 using SQDMULH
-		// SQDMULH computes (2*a*b) >> 32 with signed saturation
-		f.VSQDMULH(a, b, cHi, "c_hi = (2*a*b) >> 32")
-
-		// Step 2: q = (a * b * mu) mod 2^32
-		// First compute temp = a * b (low 32 bits)
-		// Then q = temp * mu (low 32 bits)
-		f.VMUL_S4(a, b, q, "q = a * b (low 32 bits)")
-		f.VMUL_S4(q, mu, q, "q = q * mu (low 32 bits)")
-
-		// Step 3: qp_hi = (2 * q * P) >> 32 using SQDMULH
-		f.VSQDMULH(q, p, qpHi, "qp_hi = (2*q*P) >> 32")
-
-		// Step 4: d = (c_hi - qp_hi) / 2 using SHSUB
-		// This computes the halving subtraction which accounts for the 2x factor in SQDMULH
-		f.VSHSUB(cHi, qpHi, d, "d = (c_hi - qp_hi) / 2")
-
-		// Step 5: Canonicalize - if d < 0 (negative), add P
-		// underflow mask: all 1s if qp_hi > c_hi (which means d is negative), else 0
-		f.VCMLT(cHi, qpHi, underflow, "underflow = (c_hi < qp_hi) ? all 1s : 0")
-
-		// d = d - underflow * P = d + P if underflow (since underflow is -1 when true)
-		f.VMLS(underflow, p, d, "d = d - underflow * P (adds P when d < 0)")
+		f.montMulF31(d, a, b, p, mu, cHi, q, qpHi, underflow)
 
 		f.VST1_P(d.S4(), resPtr, offset, "res = d")
 	})
@@ -160,9 +181,7 @@ func (f *FFArm64) generateSubVecF31() {
 		f.VLD1_P(offset, aPtr, a0.S4())
 		f.VLD1_P(offset, bPtr, b0.S4())
 
-		f.VSUB(b0.S4(), a0.S4(), b0.S4(), "b = a - b")
-		f.VADD(b0.S4(), q.S4(), a0.S4(), "t = b + q")
-		f.VUMIN(a0.S4(), b0.S4(), b0.S4(), "b = min(t, b)")
+		f.modSubF31(b0, a0, b0, q, a0)
 		f.VST1_P(b0.S4(), resPtr, offset, "res = b")
 	})
 
