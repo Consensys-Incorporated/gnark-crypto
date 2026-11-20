@@ -70,6 +70,7 @@ loop_1:
 	JMP       loop_1
 
 done_2:
+	VZEROUPPER
 	RET
 
 TEXT ·vectorAdd_avx512(SB), NOSPLIT, $0-32
@@ -95,6 +96,7 @@ loop_3:
 	JMP       loop_3
 
 done_4:
+	VZEROUPPER
 	RET
 
 TEXT ·vectorSub_avx512(SB), NOSPLIT, $0-32
@@ -126,6 +128,7 @@ loop_5:
 	JMP       loop_5
 
 done_6:
+	VZEROUPPER
 	RET
 
 TEXT ·vectorMul_avx512(SB), NOSPLIT, $0-32
@@ -228,6 +231,7 @@ loop_7:
 	JMP         loop_7
 
 done_8:
+	VZEROUPPER
 	RET
 
 TEXT ·vectorScalarMul_avx512(SB), NOSPLIT, $0-32
@@ -329,6 +333,7 @@ loop_9:
 	JMP         loop_9
 
 done_10:
+	VZEROUPPER
 	RET
 
 TEXT ·vectorInnerProduct_avx512(SB), NOSPLIT, $0-32
@@ -468,6 +473,7 @@ done_12:
 	VMOVDQU64 Y12, 64(R13)
 	VMOVDQU64 Y13, 128(R13)
 	VMOVDQU64 Y14, 192(R13)
+	VZEROUPPER
 	RET
 
 TEXT ·vectorSum_avx512(SB), NOSPLIT, $0-24
@@ -490,6 +496,7 @@ done_14:
 	VEXTRACTI64X4 $1, Z0, Y2
 	VPADDQ        Y2, Y0, Y0
 	VMOVDQU64     Y0, 0(R13)
+	VZEROUPPER
 	RET
 
 TEXT ·vectorMulByElement_avx512(SB), NOSPLIT, $0-32
@@ -523,6 +530,7 @@ loop_15:
 	JMP       loop_15
 
 done_16:
+	VZEROUPPER
 	RET
 
 TEXT ·vectorMulByElement_E6_avx512(SB), NOSPLIT, $0-32
@@ -570,6 +578,7 @@ loop_17:
 	JMP       loop_17
 
 done_18:
+	VZEROUPPER
 	RET
 
 TEXT ·vectorMul_E6_avx512(SB), NOSPLIT, $0-32
@@ -756,6 +765,7 @@ loop_19:
 	JMP         loop_19
 
 done_20:
+	VZEROUPPER
 	RET
 
 TEXT ·vectorInnerProduct_E6_avx512(SB), NOSPLIT, $0-32
@@ -965,6 +975,7 @@ loop_21:
 	JMP           loop_21
 
 done_22:
+	VZEROUPPER
 	RET
 
 TEXT ·vectorMulAccByElement_E6_avx512(SB), NOSPLIT, $0-32
@@ -1018,6 +1029,7 @@ loop_23:
 	JMP       loop_23
 
 done_24:
+	VZEROUPPER
 	RET
 
 TEXT ·vectorScalarMulAccByElement_E6_avx512(SB), NOSPLIT, $0-32
@@ -1070,6 +1082,7 @@ loop_25:
 	JMP       loop_25
 
 done_26:
+	VZEROUPPER
 	RET
 
 TEXT ·vectorScalarMul_E6_avx512(SB), NOSPLIT, $0-32
@@ -1202,6 +1215,7 @@ loop_27:
 	JMP       loop_27
 
 done_28:
+	VZEROUPPER
 	RET
 
 TEXT ·vectorScalarMulAcc_E6_avx512(SB), NOSPLIT, $0-32
@@ -1335,6 +1349,7 @@ loop_29:
 	JMP       loop_29
 
 done_30:
+	VZEROUPPER
 	RET
 
 TEXT ·vectorButterfly_avx512(SB), NOSPLIT, $0-24
@@ -1360,6 +1375,7 @@ loop_31:
 	JMP       loop_31
 
 done_32:
+	VZEROUPPER
 	RET
 
 TEXT ·vectorButterflyPair_avx512(SB), NOSPLIT, $0-16
@@ -1394,6 +1410,7 @@ loop_33:
 	JMP       loop_33
 
 done_34:
+	VZEROUPPER
 	RET
 
 TEXT ·vectorButterflyPair_E6_avx512(SB), NOSPLIT, $0-16
@@ -1451,6 +1468,7 @@ loop_35:
 	JMP       loop_35
 
 done_36:
+	VZEROUPPER
 	RET
 
 TEXT ·vectorInnerProductByElement_avx512(SB), NOSPLIT, $0-32
@@ -1489,6 +1507,7 @@ done_38:
 	VEXTRACTI64X2 $1, Y14, X3
 	ADD(X14, X3, X4, X16, X3)
 	VMOVDQU32     X3, 0(R13)
+	VZEROUPPER
 	RET
 
 TEXT ·vectorDITWithTwiddles_E6_avx512(SB), NOSPLIT, $0-32
@@ -1548,6 +1567,7 @@ loop_39:
 	JMP       loop_39
 
 done_40:
+	VZEROUPPER
 	RET
 
 TEXT ·vectorDIFWithTwiddles_E6_avx512(SB), NOSPLIT, $0-32
@@ -1607,6 +1627,7 @@ loop_41:
 	JMP       loop_41
 
 done_42:
+	VZEROUPPER
 	RET
 
 TEXT ·vectorScalarAdd_avx512(SB), NOSPLIT, $0-32
@@ -1632,6 +1653,7 @@ loop_43:
 	JMP       loop_43
 
 done_44:
+	VZEROUPPER
 	RET
 
 TEXT ·vectorScalarSubFrom_avx512(SB), NOSPLIT, $0-32
@@ -1657,6 +1679,7 @@ loop_45:
 	JMP       loop_45
 
 done_46:
+	VZEROUPPER
 	RET
 
 TEXT ·vectorScalarAdd_E6_avx512(SB), NOSPLIT, $0-32
@@ -1690,6 +1713,7 @@ loop_47:
 	JMP       loop_47
 
 done_48:
+	VZEROUPPER
 	RET
 
 TEXT ·vectorScalarSubFrom_E6_avx512(SB), NOSPLIT, $0-32
@@ -1723,6 +1747,7 @@ loop_49:
 	JMP       loop_49
 
 done_50:
+	VZEROUPPER
 	RET
 
 TEXT ·vectorSum_E6_avx512(SB), NOSPLIT, $0-24
@@ -1757,6 +1782,7 @@ done_52:
 	VMOVDQU64 Z0, 0(R13)
 	VMOVDQU64 Z1, 64(R13)
 	VMOVDQU64 Z2, 128(R13)
+	VZEROUPPER
 	RET
 
 TEXT ·vectorFoldPairs_avx512(SB), NOSPLIT, $0-40
@@ -1906,6 +1932,7 @@ loop_53:
 	JMP          loop_53
 
 done_54:
+	VZEROUPPER
 	RET
 
 TEXT ·vectorFoldPairs_E6_avx512(SB), NOSPLIT, $0-40
@@ -2149,6 +2176,7 @@ loop_55:
 	JMP          loop_55
 
 done_56:
+	VZEROUPPER
 	RET
 
 TEXT ·vectorScalarMulBase_E6_avx512(SB), NOSPLIT, $0-32
@@ -2195,6 +2223,7 @@ loop_57:
 	JMP       loop_57
 
 done_58:
+	VZEROUPPER
 	RET
 
 TEXT ·vectorScalarMulAdd_E6_avx512(SB), NOSPLIT, $0-32
@@ -2328,6 +2357,7 @@ loop_59:
 	JMP       loop_59
 
 done_60:
+	VZEROUPPER
 	RET
 
 TEXT ·vectorScalarMulAddBase_E6_avx512(SB), NOSPLIT, $0-32
@@ -2467,6 +2497,7 @@ loop_61:
 	JMP         loop_61
 
 done_62:
+	VZEROUPPER
 	RET
 
 TEXT ·vectorMulAcc_E6_avx512(SB), NOSPLIT, $0-32
@@ -2665,6 +2696,7 @@ loop_63:
 	JMP         loop_63
 
 done_64:
+	VZEROUPPER
 	RET
 
 TEXT ·vectorMulAcc_avx512(SB), NOSPLIT, $0-32
@@ -2779,6 +2811,7 @@ loop_65:
 	JMP         loop_65
 
 done_66:
+	VZEROUPPER
 	RET
 
 TEXT ·vectorScalarMulAcc_avx512(SB), NOSPLIT, $0-32
@@ -2892,6 +2925,7 @@ loop_67:
 	JMP         loop_67
 
 done_68:
+	VZEROUPPER
 	RET
 
 TEXT ·vectorScalarMulAdd_avx512(SB), NOSPLIT, $0-32
@@ -3005,6 +3039,7 @@ loop_69:
 	JMP         loop_69
 
 done_70:
+	VZEROUPPER
 	RET
 
 TEXT ·vectorScalarMulAddBase_avx512(SB), NOSPLIT, $0-32
@@ -3108,6 +3143,7 @@ loop_71:
 	JMP         loop_71
 
 done_72:
+	VZEROUPPER
 	RET
 
 TEXT ·mulByElement_avx512(SB), NOSPLIT, $0-32
@@ -3146,6 +3182,7 @@ loop_73:
 	JMP          loop_73
 
 done_74:
+	VZEROUPPER
 	RET
 
 TEXT ·vectorInnerProductByElement_E6_avx512(SB), NOSPLIT, $0-32
@@ -3237,4 +3274,5 @@ done_76:
 	VMOVDQU64 Z8, 192(R13)
 	VMOVDQU64 Z9, 256(R13)
 	VMOVDQU64 Z10, 320(R13)
+	VZEROUPPER
 	RET

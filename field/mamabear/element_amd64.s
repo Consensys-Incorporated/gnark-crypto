@@ -56,6 +56,7 @@ loop_1:
 	JMP  loop_1
 
 done_2:
+	VZEROUPPER
 	RET
 
 // subVec(res, a, b *Element, n uint64)
@@ -85,6 +86,7 @@ loop_3:
 	JMP  loop_3
 
 done_4:
+	VZEROUPPER
 	RET
 
 // mulVec(res, a, b *Element, n uint64)
@@ -145,6 +147,7 @@ loop_5:
 	JMP  loop_5
 
 done_6:
+	VZEROUPPER
 	RET
 
 // scalarMulVec(res, a, b *Element, n uint64)
@@ -192,6 +195,7 @@ loop_7:
 	JMP  loop_7
 
 done_8:
+	VZEROUPPER
 	RET
 
 // sumVec(t *uint64, a *Element, n uint64)
@@ -215,6 +219,7 @@ loop_9:
 
 done_10:
 	VMOVDQU64 Z0, 0(R14)
+	VZEROUPPER
 	RET
 
 // innerProdVec(t *uint64, a, b *Element, n uint64)
@@ -267,4 +272,5 @@ loop_11:
 
 done_12:
 	VMOVDQU64 Z0, 0(R14)
+	VZEROUPPER
 	RET
