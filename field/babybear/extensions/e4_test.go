@@ -1774,7 +1774,7 @@ func TestVectorE4MulAccByElementDeprecated(t *testing.T) {
 		c.MustSetRandom()
 		want := slices.Clone(v)
 		want.ScalarMulAccBase(a, &c)
-		v.MulAccByElement(a, &c)
+		v.MulAccByElement(a, &c) //nolint:govet // exercises the deprecated wrapper
 		require.Equal(t, want, v, "size %d", size)
 	}
 }
@@ -1893,17 +1893,17 @@ func TestBatchInvertE4Deprecated(t *testing.T) {
 	a[7].SetZero()
 	expected := a.BatchInvert()
 
-	require.Equal(t, expected, VectorE4(BatchInvertE4(a)))
+	require.Equal(t, expected, VectorE4(BatchInvertE4(a))) //nolint:govet // exercises the deprecated wrapper
 	res := make(VectorE4, len(a))
-	BatchInvertE4Into(res, a)
+	BatchInvertE4Into(res, a) //nolint:govet // exercises the deprecated wrapper
 	require.Equal(t, expected, res)
 	res = make(VectorE4, len(a))
-	BatchInvertE4IntoScratch(res, a, make(VectorE4, len(a)))
+	BatchInvertE4IntoScratch(res, a, make(VectorE4, len(a))) //nolint:govet // exercises the deprecated wrapper
 	require.Equal(t, expected, res)
 	res = slices.Clone(a)
-	BatchInvertE4Into(res, res)
+	BatchInvertE4Into(res, res) //nolint:govet // exercises the deprecated wrapper
 	require.Equal(t, expected, res)
-	require.Panics(t, func() { BatchInvertE4Into(make(VectorE4, 3), a) })
+	require.Panics(t, func() { BatchInvertE4Into(make(VectorE4, 3), a) }) //nolint:govet // exercises the deprecated wrapper
 }
 
 // TestBatchInvertE4Lanes checks batchInvertE4 at every row width, whatever the

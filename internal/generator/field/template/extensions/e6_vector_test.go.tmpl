@@ -321,7 +321,7 @@ func TestVectorE6ScalarMulAccBase(t *testing.T) {
 
 			// the deprecated ScalarMulAccByElement forwards to ScalarMulAccBase
 			legacy := slices.Clone(dst)
-			VectorE6(legacy).ScalarMulAccByElement(a, &s)
+			VectorE6(legacy).ScalarMulAccByElement(a, &s) //nolint:govet // exercises the deprecated wrapper
 
 			VectorE6(dst).ScalarMulAccBase(a, &s)
 			for i := range expected {

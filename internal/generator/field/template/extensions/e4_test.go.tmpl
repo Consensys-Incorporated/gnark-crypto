@@ -1727,7 +1727,7 @@ func TestVectorE4MulAccByElementDeprecated(t *testing.T) {
 		c.MustSetRandom()
 		want := slices.Clone(v)
 		want.ScalarMulAccBase(a, &c)
-		v.MulAccByElement(a, &c)
+		v.MulAccByElement(a, &c) //nolint:govet // exercises the deprecated wrapper
 		require.Equal(t, want, v, "size %d", size)
 	}
 }

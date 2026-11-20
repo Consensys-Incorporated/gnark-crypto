@@ -329,7 +329,7 @@ func TestVectorE6ScalarMulAccBase(t *testing.T) {
 
 			// the deprecated ScalarMulAccByElement forwards to ScalarMulAccBase
 			legacy := slices.Clone(dst)
-			VectorE6(legacy).ScalarMulAccByElement(a, &s)
+			VectorE6(legacy).ScalarMulAccByElement(a, &s) //nolint:govet // exercises the deprecated wrapper
 
 			VectorE6(dst).ScalarMulAccBase(a, &s)
 			for i := range expected {
@@ -1166,17 +1166,17 @@ func TestBatchInvertE6Deprecated(t *testing.T) {
 	a[7].SetZero()
 	expected := a.BatchInvert()
 
-	require.Equal(t, expected, VectorE6(BatchInvertE6(a)))
+	require.Equal(t, expected, VectorE6(BatchInvertE6(a))) //nolint:govet // exercises the deprecated wrapper
 	res := make(VectorE6, len(a))
-	BatchInvertE6Into(res, a)
+	BatchInvertE6Into(res, a) //nolint:govet // exercises the deprecated wrapper
 	require.Equal(t, expected, res)
 	res = make(VectorE6, len(a))
-	BatchInvertE6IntoScratch(res, a, make(VectorE6, len(a)))
+	BatchInvertE6IntoScratch(res, a, make(VectorE6, len(a))) //nolint:govet // exercises the deprecated wrapper
 	require.Equal(t, expected, res)
 	res = slices.Clone(a)
-	BatchInvertE6Into(res, res)
+	BatchInvertE6Into(res, res) //nolint:govet // exercises the deprecated wrapper
 	require.Equal(t, expected, res)
-	require.Panics(t, func() { BatchInvertE6Into(make(VectorE6, 3), a) })
+	require.Panics(t, func() { BatchInvertE6Into(make(VectorE6, 3), a) }) //nolint:govet // exercises the deprecated wrapper
 }
 
 // TestBatchInvertE6Lanes checks batchInvertE6 at every row width, whatever the

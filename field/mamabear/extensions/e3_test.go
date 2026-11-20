@@ -348,17 +348,17 @@ func TestBatchInvertE3Deprecated(t *testing.T) {
 	a[7].SetZero()
 	expected := a.BatchInvert()
 
-	require.Equal(t, expected, VectorE3(BatchInvertE3(a)))
+	require.Equal(t, expected, VectorE3(BatchInvertE3(a))) //nolint:govet // exercises the deprecated wrapper
 	res := make(VectorE3, len(a))
-	BatchInvertE3Into(res, a)
+	BatchInvertE3Into(res, a) //nolint:govet // exercises the deprecated wrapper
 	require.Equal(t, expected, res)
 	res = make(VectorE3, len(a))
-	BatchInvertE3IntoScratch(res, a, make(VectorE3, len(a)))
+	BatchInvertE3IntoScratch(res, a, make(VectorE3, len(a))) //nolint:govet // exercises the deprecated wrapper
 	require.Equal(t, expected, res)
 	res = slices.Clone(a)
-	BatchInvertE3Into(res, res)
+	BatchInvertE3Into(res, res) //nolint:govet // exercises the deprecated wrapper
 	require.Equal(t, expected, res)
-	require.Panics(t, func() { BatchInvertE3Into(make(VectorE3, 3), a) })
+	require.Panics(t, func() { BatchInvertE3Into(make(VectorE3, 3), a) }) //nolint:govet // exercises the deprecated wrapper
 }
 
 // TestBatchInvertE3Lanes checks batchInvertE3 at every row width, whatever the
