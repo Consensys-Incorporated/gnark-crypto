@@ -236,6 +236,9 @@ func GenerateF31ASM(f *FFArm64, hasVector bool) error {
 	f.generateSumVecF31()
 	f.generateScalarMulVecF31()
 	f.generateInnerProdVecF31()
+	f.generateScalarVecF31(negVecOp)
+	f.generateScalarVecF31(scalarAddVecOp)
+	f.generateScalarVecF31(scalarSubFromVecOp)
 
 	return nil
 }
