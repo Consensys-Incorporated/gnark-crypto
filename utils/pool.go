@@ -9,7 +9,6 @@ import (
 	"math/bits"
 	"runtime"
 	"sync"
-	"unsafe"
 )
 
 type sizedPoolStats struct {
@@ -34,7 +33,7 @@ type Pool[T any] struct {
 
 type pool[T any] struct {
 	lock     sync.Mutex
-	subPools [64]map[*T]struct{}
+	subPools [64][][]T
 	stats    *poolStats[T]
 }
 
@@ -71,18 +70,18 @@ func (p *pool[T]) Make(n int) []T {
 	defer p.lock.Unlock()
 
 	poolI := ceilLog2(n)
-	var ptr *T
-	for k := range p.subPools[poolI] {
-		ptr = k
-		delete(p.subPools[poolI], k)
-		break
+	var slice []T
+	if stack := p.subPools[poolI]; len(stack) > 0 {
+		last := len(stack) - 1
+		slice = stack[last]
+		p.subPools[poolI] = stack[:last]
 	}
-	if ptr == nil {
+	if slice == nil {
 		if p.stats.recording {
 			p.stats.subPools[poolI].Allocated++
 		}
 		p.lock.Unlock()
-		ptr = getDataPointer(make([]T, 0, 1<<poolI))
+		slice = make([]T, 0, 1<<poolI)
 		p.lock.Lock()
 	}
 
@@ -99,10 +98,10 @@ func (p *pool[T]) Make(n int) []T {
 		}
 
 		pcs := make([]uintptr, 2)
-		p.stats.allocatedFor[ptr] = pcs[:runtime.Callers(2, pcs)]
+		p.stats.allocatedFor[getDataPointer(slice)] = pcs[:runtime.Callers(2, pcs)]
 	}
 
-	return unsafe.Slice(ptr, 1<<poolI)[:n]
+	return slice[:n]
 }
 
 // Dump a set of slices into the pool. It doesn't need to have been created by the pool, but it must similarly
@@ -122,13 +121,12 @@ func (p *pool[T]) Dump(slices ...[]T) {
 			panic("pool slice capacity must be a power of 2")
 		}
 
-		if _, ok := p.subPools[poolI][ptr]; ok {
-			panic("slice double-dumped")
+		for _, free := range p.subPools[poolI] {
+			if getDataPointer(free) == ptr {
+				panic("slice double-dumped")
+			}
 		}
-		if p.subPools[poolI] == nil {
-			p.subPools[poolI] = make(map[*T]struct{})
-		}
-		p.subPools[poolI][ptr] = struct{}{}
+		p.subPools[poolI] = append(p.subPools[poolI], slice[:0])
 
 		if p.stats.recording {
 			p.stats.subPools[poolI].InUse--
@@ -161,8 +159,9 @@ func ceilLog2(n int) int {
 	return bits.Len(uint(n - 1))
 }
 
+// getDataPointer returns a pointer to the first element of slice's underlying array. It requires cap(slice) ≥ 1.
 func getDataPointer[T any](slice []T) *T {
-	return unsafe.SliceData(slice)
+	return &slice[:1][0]
 }
 
 func (p *pool[T]) PrintPoolStats() {
