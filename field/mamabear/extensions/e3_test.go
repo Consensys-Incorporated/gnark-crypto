@@ -1114,3 +1114,165 @@ func randVectorFoldE3(n int) VectorE3 {
 	v.MustSetRandom()
 	return v
 }
+
+func TestVectorE3MixedAdditive(t *testing.T) {
+	// lift embeds a base-field element in E3.
+	lift := func(x *fr.Element) E3 { return E3{A0: *x} }
+	// VectorE3 is pure Go: the sizes cover the empty vector, short vectors and
+	// a long one.
+	for _, size := range []int{0, 1, 3, 4, 5, 7, 8, 9, 15, 16, 17, 33, 65, 1 << 10} {
+		t.Run(strconv.Itoa(size), func(t *testing.T) {
+			a := make(VectorE3, size)
+			a.MustSetRandom()
+			b := make(fr.Vector, size)
+			b.MustSetRandom()
+			var c E3
+			c.MustSetRandom()
+			if size > 3 {
+				// zero and q-1 edges, and a[i] == lift(b[i]) (zero difference)
+				b[1].SetZero()
+				a[2].SetZero()
+				b[3].SetOne()
+				b[3].Neg(&b[3])
+				a[0] = lift(&b[0])
+			}
+
+			wantAdd := make(VectorE3, size)
+			wantSub := make(VectorE3, size)
+			wantSubFrom := make(VectorE3, size)
+			wantSAdd := make(VectorE3, size)
+			wantSSub := make(VectorE3, size)
+			wantSSubFrom := make(VectorE3, size)
+			for i := range a {
+				bi := lift(&b[i])
+				wantAdd[i].Add(&a[i], &bi)
+				wantSub[i].Sub(&a[i], &bi)
+				wantSubFrom[i].Sub(&bi, &a[i])
+				wantSAdd[i].Add(&bi, &c)
+				wantSSub[i].Sub(&bi, &c)
+				wantSSubFrom[i].Sub(&c, &bi)
+			}
+
+			got := make(VectorE3, size)
+			got.AddElement(a, b)
+			require.Equal(t, wantAdd, got, "AddElement")
+			got.SubElement(a, b)
+			require.Equal(t, wantSub, got, "SubElement")
+			got.SubFromElement(b, a)
+			require.Equal(t, wantSubFrom, got, "SubFromElement")
+			got.ScalarAddBase(b, &c)
+			require.Equal(t, wantSAdd, got, "ScalarAddBase")
+			got.ScalarSubBase(b, &c)
+			require.Equal(t, wantSSub, got, "ScalarSubBase")
+			got.ScalarSubFromBase(&c, b)
+			require.Equal(t, wantSSubFrom, got, "ScalarSubFromBase")
+
+			// in place: vector == the extension operand
+			got = append(make(VectorE3, 0, size), a...)
+			got.AddElement(got, b)
+			require.Equal(t, wantAdd, got, "AddElement in place")
+			got = append(make(VectorE3, 0, size), a...)
+			got.SubElement(got, b)
+			require.Equal(t, wantSub, got, "SubElement in place")
+			got = append(make(VectorE3, 0, size), a...)
+			got.SubFromElement(b, got)
+			require.Equal(t, wantSubFrom, got, "SubFromElement in place")
+
+			allocs := testing.AllocsPerRun(10, func() {
+				got.AddElement(a, b)
+				got.SubElement(a, b)
+				got.SubFromElement(b, a)
+				got.ScalarAddBase(b, &c)
+				got.ScalarSubBase(b, &c)
+				got.ScalarSubFromBase(&c, b)
+			})
+			require.Zero(t, allocs, "allocations")
+
+			if size == 0 {
+				var v VectorE3
+				require.NotPanics(t, func() { v.ScalarAddBase(b, nil) }, "ScalarAddBase on empty vectors")
+				require.NotPanics(t, func() { v.ScalarSubBase(b, nil) }, "ScalarSubBase on empty vectors")
+				require.NotPanics(t, func() { v.ScalarSubFromBase(nil, b) }, "ScalarSubFromBase on empty vectors")
+				return
+			}
+			// scalar aliasing: c points into the vector being overwritten
+			c0 := a[0]
+			for i := range b {
+				bi := lift(&b[i])
+				wantSAdd[i].Add(&bi, &c0)
+				wantSSub[i].Sub(&bi, &c0)
+				wantSSubFrom[i].Sub(&c0, &bi)
+			}
+			got = append(make(VectorE3, 0, size), a...)
+			got.ScalarAddBase(b, &got[0])
+			require.Equal(t, wantSAdd, got, "ScalarAddBase scalar alias")
+			got = append(make(VectorE3, 0, size), a...)
+			got.ScalarSubBase(b, &got[0])
+			require.Equal(t, wantSSub, got, "ScalarSubBase scalar alias")
+			got = append(make(VectorE3, 0, size), a...)
+			got.ScalarSubFromBase(&got[0], b)
+			require.Equal(t, wantSSubFrom, got, "ScalarSubFromBase scalar alias")
+		})
+	}
+}
+
+func TestVectorE3MixedAdditiveLengthMismatch(t *testing.T) {
+	var c E3
+	v, a, b := make(VectorE3, 3), make(VectorE3, 3), make(fr.Vector, 4)
+	require.Panics(t, func() { v.AddElement(a, b) })
+	require.Panics(t, func() { v.SubElement(a, b) })
+	require.Panics(t, func() { v.SubFromElement(b, a) })
+	require.Panics(t, func() { v.ScalarAddBase(b, &c) })
+	require.Panics(t, func() { v.ScalarSubBase(b, &c) })
+	require.Panics(t, func() { v.ScalarSubFromBase(&c, b) })
+	b = make(fr.Vector, 3)
+	a = make(VectorE3, 4)
+	require.Panics(t, func() { v.AddElement(a, b) })
+	require.Panics(t, func() { v.SubElement(a, b) })
+	require.Panics(t, func() { v.SubFromElement(b, a) })
+	// an empty receiver still checks the length before returning early
+	var empty VectorE3
+	require.Panics(t, func() { empty.AddElement(a, b) })
+	require.Panics(t, func() { empty.ScalarAddBase(b, &c) })
+	require.Panics(t, func() { empty.ScalarSubFromBase(&c, b) })
+}
+
+func BenchmarkVectorE3MixedAdditive(b *testing.B) {
+	for _, N := range []int{1 << 12, 1 << 16} {
+		a := make(VectorE3, N)
+		a.MustSetRandom()
+		base := make(fr.Vector, N)
+		base.MustSetRandom()
+		var c E3
+		c.MustSetRandom()
+		res := make(VectorE3, N)
+		b.Run(fmt.Sprintf("AddElement/N=%d", N), func(b *testing.B) {
+			for b.Loop() {
+				res.AddElement(a, base)
+			}
+		})
+		b.Run(fmt.Sprintf("SubFromElement/N=%d", N), func(b *testing.B) {
+			for b.Loop() {
+				res.SubFromElement(base, a)
+			}
+		})
+		b.Run(fmt.Sprintf("AddElementGeneric/N=%d", N), func(b *testing.B) {
+			for b.Loop() {
+				for i := range res {
+					res[i] = a[i]
+					res[i].A0.Add(&a[i].A0, &base[i])
+				}
+			}
+		})
+		b.Run(fmt.Sprintf("ScalarAddBase/N=%d", N), func(b *testing.B) {
+			for b.Loop() {
+				res.ScalarAddBase(base, &c)
+			}
+		})
+		b.Run(fmt.Sprintf("ScalarSubFromBase/N=%d", N), func(b *testing.B) {
+			for b.Loop() {
+				res.ScalarSubFromBase(&c, base)
+			}
+		})
+	}
+}

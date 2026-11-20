@@ -216,6 +216,113 @@ func (vector VectorE3) ScalarSubFromElement(c *fr.Element, a VectorE3) {
 	}
 }
 
+// AddElement sets vector[i] = a[i] + b[i] for all i, where b[i] is an element
+// of the base field embedded in E3.
+//
+// vector may be identical to a; partially overlapping slices are not supported.
+func (vector VectorE3) AddElement(a VectorE3, b fr.Vector) {
+	N := len(vector)
+	if len(a) != N || len(b) != N {
+		panic("vector.AddElement: vectors don't have the same length")
+	}
+	if N == 0 {
+		return
+	}
+	for i := range vector {
+		vector[i].AddElement(&a[i], &b[i])
+	}
+}
+
+// SubElement sets vector[i] = a[i] - b[i] for all i, where b[i] is an element
+// of the base field embedded in E3.
+//
+// vector may be identical to a; partially overlapping slices are not supported.
+func (vector VectorE3) SubElement(a VectorE3, b fr.Vector) {
+	N := len(vector)
+	if len(a) != N || len(b) != N {
+		panic("vector.SubElement: vectors don't have the same length")
+	}
+	if N == 0 {
+		return
+	}
+	for i := range vector {
+		vector[i].SubElement(&a[i], &b[i])
+	}
+}
+
+// SubFromElement sets vector[i] = a[i] - b[i] for all i, where a[i] is an
+// element of the base field embedded in E3.
+//
+// vector may be identical to b; partially overlapping slices are not supported.
+func (vector VectorE3) SubFromElement(a fr.Vector, b VectorE3) {
+	N := len(vector)
+	if len(a) != N || len(b) != N {
+		panic("vector.SubFromElement: vectors don't have the same length")
+	}
+	if N == 0 {
+		return
+	}
+	for i := range vector {
+		vector[i].SubFromElement(&a[i], &b[i])
+	}
+}
+
+// ScalarAddBase sets vector[i] = a[i] + c for all i, where a[i] is an element
+// of the base field embedded in E3.
+//
+// c may point into vector; partially overlapping slices are not supported.
+func (vector VectorE3) ScalarAddBase(a fr.Vector, c *E3) {
+	if len(vector) != len(a) {
+		panic("vector.ScalarAddBase: vectors don't have the same length")
+	}
+	if len(vector) == 0 {
+		return
+	}
+	// embedding a[i] only touches the first coordinate: the others are copies
+	// of c.
+	cc := *c
+	for i := range vector {
+		r := cc
+		r.A0.Add(&cc.A0, &a[i])
+		vector[i] = r
+	}
+}
+
+// ScalarSubBase sets vector[i] = a[i] - c for all i, where a[i] is an element
+// of the base field embedded in E3.
+//
+// c may point into vector; partially overlapping slices are not supported.
+func (vector VectorE3) ScalarSubBase(a fr.Vector, c *E3) {
+	if len(vector) != len(a) {
+		panic("vector.ScalarSubBase: vectors don't have the same length")
+	}
+	if len(vector) == 0 {
+		return
+	}
+	var negC E3
+	negC.Neg(c)
+	vector.ScalarAddBase(a, &negC)
+}
+
+// ScalarSubFromBase sets vector[i] = c - a[i] for all i, where a[i] is an
+// element of the base field embedded in E3.
+//
+// c may point into vector; partially overlapping slices are not supported.
+func (vector VectorE3) ScalarSubFromBase(c *E3, a fr.Vector) {
+	if len(vector) != len(a) {
+		panic("vector.ScalarSubFromBase: vectors don't have the same length")
+	}
+	if len(vector) == 0 {
+		return
+	}
+	cc := *c
+	for i := range vector {
+		r := cc
+		r.A0.Sub(&cc.A0, &a[i])
+		vector[i] = r
+	}
+}
+
 // Sum returns the sum of all elements in the vector.
 func (vector VectorE3) Sum() E3 {
 	var sum E3

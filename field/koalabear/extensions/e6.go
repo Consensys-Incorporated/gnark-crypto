@@ -966,30 +966,72 @@ func (vector VectorE6) Neg(a VectorE6) {
 	v.Neg(asBaseVector(a))
 }
 
-// ScalarAddElement sets vector[i] = a[i] + c, where c is an element of the base field. vector may be identical to a, and c may point into vector; partially overlapping slices are not supported.
+// ScalarAddElement sets vector[i] = a[i] + c for all i, where c is an element
+// of the base field embedded in E6.
+//
+// vector may be identical to a, and c may point into vector; partially
+// overlapping slices are not supported.
 func (vector VectorE6) ScalarAddElement(a VectorE6, c *fr.Element) {
-	if len(a) != len(vector) {
+	N := len(vector)
+	if len(a) != N {
 		panic("vector.ScalarAddElement: vectors don't have the same length")
 	}
+	if N == 0 {
+		return
+	}
 	cc := *c
+	const blockSize = 8
+	if cpu.SupportAVX512 && N >= blockSize {
+		// the lift of c only has a nonzero first coordinate: the ScalarAdd
+		// kernel adds zero to the others.
+		nr := N - N%blockSize
+		var lift E6
+		lift.B0.A0 = cc
+		cTiled := tileE6Scalar(&lift)
+		vectorScalarAdd_E6_avx512(&vector[0], &a[0], &cTiled[0], uint64(nr))
+		vector, a = vector[nr:], a[nr:]
+	}
 	for i := range vector {
 		vector[i].AddElement(&a[i], &cc)
 	}
 }
 
-// ScalarSubElement sets vector[i] = a[i] - c, where c is an element of the base field. vector may be identical to a, and c may point into vector; partially overlapping slices are not supported.
+// ScalarSubElement sets vector[i] = a[i] - c for all i, where c is an element
+// of the base field embedded in E6.
+//
+// vector may be identical to a, and c may point into vector; partially
+// overlapping slices are not supported.
 func (vector VectorE6) ScalarSubElement(a VectorE6, c *fr.Element) {
 	var negC fr.Element
 	negC.Neg(c)
 	vector.ScalarAddElement(a, &negC)
 }
 
-// ScalarSubFromElement sets vector[i] = c - a[i], where c is an element of the base field. vector may be identical to a, and c may point into vector; partially overlapping slices are not supported.
+// ScalarSubFromElement sets vector[i] = c - a[i] for all i, where c is an
+// element of the base field embedded in E6.
+//
+// vector may be identical to a, and c may point into vector; partially
+// overlapping slices are not supported.
 func (vector VectorE6) ScalarSubFromElement(c *fr.Element, a VectorE6) {
-	if len(a) != len(vector) {
+	N := len(vector)
+	if len(a) != N {
 		panic("vector.ScalarSubFromElement: vectors don't have the same length")
 	}
+	if N == 0 {
+		return
+	}
 	cc := *c
+	const blockSize = 8
+	if cpu.SupportAVX512 && N >= blockSize {
+		// the lift of c only has a nonzero first coordinate: the ScalarSubFrom
+		// kernel negates the others.
+		nr := N - N%blockSize
+		var lift E6
+		lift.B0.A0 = cc
+		cTiled := tileE6Scalar(&lift)
+		vectorScalarSubFrom_E6_avx512(&vector[0], &a[0], &cTiled[0], uint64(nr))
+		vector, a = vector[nr:], a[nr:]
+	}
 	for i := range vector {
 		vector[i].SubFromElement(&cc, &a[i])
 	}
@@ -1111,6 +1153,145 @@ func (vector VectorE6) ScalarSubFrom(c *E6, a VectorE6) {
 	}
 	for i := range vector {
 		vector[i].Sub(&cc, &a[i])
+	}
+}
+
+// AddElement sets vector[i] = a[i] + b[i] for all i, where b[i] is an element
+// of the base field embedded in E6.
+//
+// vector may be identical to a; partially overlapping slices are not supported.
+func (vector VectorE6) AddElement(a VectorE6, b fr.Vector) {
+	N := len(vector)
+	if len(a) != N || len(b) != N {
+		panic("vectorE6.AddElement: vectors don't have the same length")
+	}
+	if N == 0 {
+		return
+	}
+	const blockSize = 8
+	if cpu.SupportAVX512 && N >= blockSize {
+		nr := N - N%blockSize
+		vectorAddElement_E6_avx512(&vector[0], &a[0], &b[0], uint64(nr))
+		vector, a, b = vector[nr:], a[nr:], b[nr:]
+	}
+	for i := range vector {
+		vector[i].AddElement(&a[i], &b[i])
+	}
+}
+
+// SubElement sets vector[i] = a[i] - b[i] for all i, where b[i] is an element
+// of the base field embedded in E6.
+//
+// vector may be identical to a; partially overlapping slices are not supported.
+func (vector VectorE6) SubElement(a VectorE6, b fr.Vector) {
+	N := len(vector)
+	if len(a) != N || len(b) != N {
+		panic("vectorE6.SubElement: vectors don't have the same length")
+	}
+	if N == 0 {
+		return
+	}
+	const blockSize = 8
+	if cpu.SupportAVX512 && N >= blockSize {
+		nr := N - N%blockSize
+		vectorSubElement_E6_avx512(&vector[0], &a[0], &b[0], uint64(nr))
+		vector, a, b = vector[nr:], a[nr:], b[nr:]
+	}
+	for i := range vector {
+		vector[i].SubElement(&a[i], &b[i])
+	}
+}
+
+// SubFromElement sets vector[i] = a[i] - b[i] for all i, where a[i] is an
+// element of the base field embedded in E6.
+//
+// vector may be identical to b; partially overlapping slices are not supported.
+func (vector VectorE6) SubFromElement(a fr.Vector, b VectorE6) {
+	N := len(vector)
+	if len(a) != N || len(b) != N {
+		panic("vectorE6.SubFromElement: vectors don't have the same length")
+	}
+	if N == 0 {
+		return
+	}
+	const blockSize = 8
+	if cpu.SupportAVX512 && N >= blockSize {
+		nr := N - N%blockSize
+		vectorSubFromElement_E6_avx512(&vector[0], &b[0], &a[0], uint64(nr))
+		vector, a, b = vector[nr:], a[nr:], b[nr:]
+	}
+	for i := range vector {
+		vector[i].SubFromElement(&a[i], &b[i])
+	}
+}
+
+// ScalarAddBase sets vector[i] = a[i] + c for all i, where a[i] is an element
+// of the base field embedded in E6.
+//
+// c may point into vector; partially overlapping slices are not supported.
+func (vector VectorE6) ScalarAddBase(a fr.Vector, c *E6) {
+	if len(vector) != len(a) {
+		panic("vectorE6.ScalarAddBase: vectors don't have the same length")
+	}
+	if len(vector) == 0 {
+		return
+	}
+	// embedding a[i] only touches the first coordinate: the others are copies
+	// of c.
+	cc := *c
+	const blockSize = 8
+	if cpu.SupportAVX512 && len(vector) >= blockSize {
+		nr := len(vector) - len(vector)%blockSize
+		cTiled := tileE6Scalar(&cc)
+		vectorScalarAddBase_E6_avx512(&vector[0], &a[0], &cTiled[0], uint64(nr))
+		vector, a = vector[nr:], a[nr:]
+	}
+	for i := range vector {
+		r := cc
+		r.B0.A0.Add(&cc.B0.A0, &a[i])
+		vector[i] = r
+	}
+}
+
+// ScalarSubBase sets vector[i] = a[i] - c for all i, where a[i] is an element
+// of the base field embedded in E6.
+//
+// c may point into vector; partially overlapping slices are not supported.
+func (vector VectorE6) ScalarSubBase(a fr.Vector, c *E6) {
+	if len(vector) != len(a) {
+		panic("vectorE6.ScalarSubBase: vectors don't have the same length")
+	}
+	if len(vector) == 0 {
+		return
+	}
+	var negC E6
+	negC.Neg(c)
+	vector.ScalarAddBase(a, &negC)
+}
+
+// ScalarSubFromBase sets vector[i] = c - a[i] for all i, where a[i] is an
+// element of the base field embedded in E6.
+//
+// c may point into vector; partially overlapping slices are not supported.
+func (vector VectorE6) ScalarSubFromBase(c *E6, a fr.Vector) {
+	if len(vector) != len(a) {
+		panic("vectorE6.ScalarSubFromBase: vectors don't have the same length")
+	}
+	if len(vector) == 0 {
+		return
+	}
+	cc := *c
+	const blockSize = 8
+	if cpu.SupportAVX512 && len(vector) >= blockSize {
+		nr := len(vector) - len(vector)%blockSize
+		cTiled := tileE6Scalar(&cc)
+		vectorScalarSubFromBase_E6_avx512(&vector[0], &a[0], &cTiled[0], uint64(nr))
+		vector, a = vector[nr:], a[nr:]
+	}
+	for i := range vector {
+		r := cc
+		r.B0.A0.Sub(&cc.B0.A0, &a[i])
+		vector[i] = r
 	}
 }
 
