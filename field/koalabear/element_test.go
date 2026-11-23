@@ -2415,6 +2415,50 @@ func TestElementBatchInvertChains(t *testing.T) {
 	}
 }
 
+// TestElementBatchInvertRows checks the row steps of
+// batchInvertChains against their generic implementations, on edge values
+// (zeros included) and with the documented aliasing.
+func TestElementBatchInvertRows(t *testing.T) {
+	for _, w := range []int{batchInvertMinLanes, 2 * batchInvertMinLanes, 5 * batchInvertMinLanes, batchInvertMaxLanes} {
+		for seed := range 3 {
+			t.Run(fmt.Sprintf("w=%d/seed=%d", w, seed), func(t *testing.T) {
+				a, acc0 := edgeVector(w, seed), edgeVector(w, seed+1)
+
+				// forward
+				wantAcc, wantPrefix, wantRow := cloneVector(acc0), make(Vector, w), make(Vector, w)
+				batchInvertRowForwardGeneric(wantAcc, wantPrefix, wantRow, a)
+
+				acc, prefix, row := cloneVector(acc0), make(Vector, w), make(Vector, w)
+				batchInvertRowForward(acc, prefix, row, a)
+				require.Equal(t, wantAcc, acc, "forward acc")
+				require.Equal(t, wantPrefix, prefix, "forward prefix")
+				require.Equal(t, wantRow, row, "forward row")
+
+				acc, prefix, row = cloneVector(acc0), make(Vector, w), cloneVector(a)
+				batchInvertRowForward(acc, prefix, row, row)
+				require.Equal(t, wantAcc, acc, "forward acc, row = a")
+				require.Equal(t, wantPrefix, prefix, "forward prefix, row = a")
+				require.Equal(t, wantRow, row, "forward row, row = a")
+
+				// backward, on a row with zeros
+				pre := edgeVector(w, seed+2)
+				wantAcc, wantRes := cloneVector(acc0), make(Vector, w)
+				batchInvertRowBackwardGeneric(wantAcc, wantRes, pre, a, make(Vector, w))
+
+				acc, res := cloneVector(acc0), make(Vector, w)
+				batchInvertRowBackward(acc, res, pre, a, make(Vector, w))
+				require.Equal(t, wantAcc, acc, "backward acc")
+				require.Equal(t, wantRes, res, "backward res")
+
+				acc, res = cloneVector(acc0), cloneVector(a)
+				batchInvertRowBackward(acc, res, pre, res, make(Vector, w))
+				require.Equal(t, wantAcc, acc, "backward acc, row = res")
+				require.Equal(t, wantRes, res, "backward res, row = res")
+			})
+		}
+	}
+}
+
 // BenchmarkElementBatchInvertLanes measures batchInvertChains
 // at every row width, against the scalar path (lanes=0), to set the
 // thresholds of batchInvertLanes.
