@@ -104,16 +104,14 @@ func (vector Vector) ScalarMul(a Vector, b *Element) {
 
 // Sum computes the sum of all elements in the vector.
 func (vector Vector) Sum() (res Element) {
-	if !cpu.SupportAVX512 {
-		// call sumVecGeneric
+	n := uint64(len(vector))
+	const blockSize = 16
+	if !cpu.SupportAVX512 || n < blockSize {
 		sumVecGeneric(&res, vector)
 		return
 	}
 
-	n := uint64(len(vector))
 	switch n {
-	case 0:
-		return
 	case 16:
 		var t uint64
 		sumVec16_AVX512(&t, &vector[0])
@@ -126,7 +124,6 @@ func (vector Vector) Sum() (res Element) {
 		return
 	}
 
-	const blockSize = 16
 	var t [8]uint64 // stores the accumulators (not reduced mod q)
 	sumVec(&t[0], &vector[0], n/blockSize)
 	// we reduce the accumulators mod q and add to res
@@ -147,12 +144,6 @@ func (vector Vector) Sum() (res Element) {
 // InnerProduct computes the inner product of two vectors.
 // It panics if the vectors don't have the same length.
 func (vector Vector) InnerProduct(other Vector) (res Element) {
-	if !cpu.SupportAVX512 {
-		// call innerProductVecGeneric
-		innerProductVecGeneric(&res, vector, other)
-		return
-	}
-
 	n := uint64(len(vector))
 	if n != uint64(len(other)) {
 		panic("vector.InnerProduct: vectors don't have the same length")
@@ -160,8 +151,12 @@ func (vector Vector) InnerProduct(other Vector) (res Element) {
 	if n == 0 {
 		return
 	}
-
 	const blockSize = 16
+	if !cpu.SupportAVX512 || n < blockSize {
+		innerProductVecGeneric(&res, vector, other)
+		return
+	}
+
 	var t [8]uint64 // stores the accumulators (not reduced mod q)
 	innerProdVec(&t[0], &vector[0], &other[0], n/blockSize)
 	// we reduce the accumulators mod q and add to res

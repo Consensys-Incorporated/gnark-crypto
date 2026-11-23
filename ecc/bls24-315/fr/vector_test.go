@@ -105,6 +105,12 @@ func TestVectorNegAndScalarOps(t *testing.T) {
 		}
 	}
 
+	// on empty vectors, the scalar is not read (it may be nil)
+	var empty Vector
+	require.NotPanics(t, func() { empty.ScalarAdd(nil, nil) }, "ScalarAdd")
+	require.NotPanics(t, func() { empty.ScalarSub(nil, nil) }, "ScalarSub")
+	require.NotPanics(t, func() { empty.ScalarSubFrom(nil, nil) }, "ScalarSubFrom")
+
 	// length mismatches panic, including for an empty receiver
 	var c Element
 	for _, op := range ops {

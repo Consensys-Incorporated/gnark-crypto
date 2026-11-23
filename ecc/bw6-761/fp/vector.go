@@ -397,6 +397,12 @@ func (vector Vector) ScalarAdd(a Vector, c *Element) {
 // overlapping slices are not supported. It panics if the vectors don't have
 // the same length.
 func (vector Vector) ScalarSub(a Vector, c *Element) {
+	if len(a) != len(vector) {
+		panic("vector.ScalarSub: vectors don't have the same length")
+	}
+	if len(vector) == 0 {
+		return
+	}
 	var negC Element
 	negC.Neg(c)
 	vector.ScalarAdd(a, &negC)

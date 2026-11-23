@@ -78,16 +78,13 @@ func (vector Vector) Sub(a, b Vector) {
 
 // Sum computes the sum of all elements in the vector.
 func (vector Vector) Sum() (res Element) {
-	if !cpu.SupportNEON {
+	n := uint64(len(vector))
+	const blockSize = 16
+	if !cpu.SupportNEON || n < blockSize {
 		sumVecGeneric(&res, vector)
 		return
 	}
-	n := uint64(len(vector))
-	if n == 0 {
-		return
-	}
 
-	const blockSize = 16
 	var t [2]uint64 // stores the accumulators (not reduced mod q)
 	sumVec(&t[0], &vector[0], n/blockSize)
 	// we reduce the accumulators mod q and add to res
@@ -137,12 +134,12 @@ func (vector Vector) InnerProduct(other Vector) (res Element) {
 	if n == 0 {
 		return
 	}
-	if !cpu.SupportNEON {
+	const blockSize = 4
+	if !cpu.SupportNEON || n < blockSize {
 		innerProductVecGeneric(&res, vector, other)
 		return
 	}
 
-	const blockSize = 4
 	var t [2]uint64 // stores the accumulators (not reduced mod q)
 	innerProdVec(&t[0], &vector[0], &other[0], n/blockSize)
 	// we reduce the accumulators mod q and add to res
