@@ -62,16 +62,17 @@ func (vector VectorE4) Mul(a, b VectorE4) {
 		panic("vector.Mul: vectors don't have the same length")
 	}
 	const blockSize = 16
-	if !cpu.SupportAVX512 || N < blockSize {
-		vectorMulGeneric(vector, a, b)
-		return
+	if cpu.SupportAVX512 && N >= blockSize {
+		nr := N - N%blockSize
+		vectorMul_avx512(&vector[0], &a[0], &b[0], uint64(nr))
+		vector, a, b = vector[nr:], a[nr:], b[nr:]
 	}
-	r := N % blockSize
-	nr := uint64(N - r)
-	vectorMul_avx512(&vector[0], &a[0], &b[0], nr)
-	if r != 0 {
-		vectorMulGeneric(vector[N-r:], a[N-r:], b[N-r:])
+	if cpu.SupportNEON && len(vector) >= 4 {
+		nr := len(vector) - len(vector)%4
+		vectorMul_E4_neon(&vector[0], &a[0], &b[0], uint64(nr))
+		vector, a, b = vector[nr:], a[nr:], b[nr:]
 	}
+	vectorMulGeneric(vector, a, b)
 }
 
 // ScalarMul sets vector[i] = a[i] * b for all i, where b ∈ E4.
@@ -88,16 +89,17 @@ func (vector VectorE4) ScalarMul(a VectorE4, b *E4) {
 	// copy b: it may point into vector, which the loop overwrites.
 	bb := *b
 	const blockSize = 16
-	if !cpu.SupportAVX512 || N < blockSize {
-		vectorScalarMulGeneric(vector, a, &bb)
-		return
+	if cpu.SupportAVX512 && N >= blockSize {
+		nr := N - N%blockSize
+		vectorScalarMul_avx512(&vector[0], &a[0], &bb, uint64(nr))
+		vector, a = vector[nr:], a[nr:]
 	}
-	r := N % blockSize
-	nr := uint64(N - r)
-	vectorScalarMul_avx512(&vector[0], &a[0], &bb, nr)
-	if r != 0 {
-		vectorScalarMulGeneric(vector[N-r:], a[N-r:], &bb)
+	if cpu.SupportNEON && len(vector) >= 4 {
+		nr := len(vector) - len(vector)%4
+		vectorScalarMul_E4_neon(&vector[0], &a[0], &bb, uint64(nr))
+		vector, a = vector[nr:], a[nr:]
 	}
+	vectorScalarMulGeneric(vector, a, &bb)
 }
 
 // Neg sets vector[i] = -a[i]. vector may be identical to a; partially overlapping slices are not supported.
@@ -211,18 +213,22 @@ func (vector VectorE4) InnerProductByElement(a fr.Vector) E4 {
 	if len(a) != N {
 		panic("vector.InnerProduct: vectors don't have the same length")
 	}
-	const blockSize = 4
-	if !cpu.SupportAVX512 || N < blockSize {
-		return vectorInnerProductByElementGeneric(vector, a)
-	}
-	r := N % blockSize
-	nr := uint64(N - r)
 	var res E4
-	vectorInnerProductByElement_avx512(&res, &vector[0], &a[0], nr)
-	if r != 0 {
-		partialResult := vectorInnerProductByElementGeneric(vector[N-r:], a[N-r:])
-		res.Add(&res, &partialResult)
+	const blockSize = 4
+	if cpu.SupportAVX512 && N >= blockSize {
+		nr := N - N%blockSize
+		vectorInnerProductByElement_avx512(&res, &vector[0], &a[0], uint64(nr))
+		vector, a = vector[nr:], a[nr:]
 	}
+	if cpu.SupportNEON && len(vector) >= 4 {
+		nr := len(vector) - len(vector)%4
+		var p E4
+		vectorInnerProductByElement_E4_neon(&p, &vector[0], &a[0], uint64(nr))
+		res.Add(&res, &p)
+		vector, a = vector[nr:], a[nr:]
+	}
+	partialResult := vectorInnerProductByElementGeneric(vector, a)
+	res.Add(&res, &partialResult)
 	return res
 }
 
@@ -231,40 +237,45 @@ func (vector VectorE4) InnerProduct(a VectorE4) E4 {
 	if len(a) != N {
 		panic("vector.InnerProduct: vectors don't have the same length")
 	}
-	const blockSize = 16
-	if !cpu.SupportAVX512 || N < blockSize {
-		return vectorInnerProductGeneric(vector, a)
-	}
-	var t [8 * 4]uint64 // accumulators
-	r := N % blockSize
-	nr := uint64(N - r)
-	vectorInnerProduct_avx512(&t, &vector[0], &a[0], nr)
-
-	// reduce accumulator
-	for i := 1; i < 8; i++ {
-		t[0] += (t[i] % q)
-	}
-	for i := 9; i < 16; i++ {
-		t[8] += (t[i] % q)
-	}
-	for i := 17; i < 24; i++ {
-		t[16] += (t[i] % q)
-	}
-	for i := 25; i < 32; i++ {
-		t[24] += (t[i] % q)
-	}
-
 	var res E4
-	res.B0.A0[0] = uint32(t[0] % q)
-	res.B0.A1[0] = uint32(t[8] % q)
-	res.B1.A0[0] = uint32(t[16] % q)
-	res.B1.A1[0] = uint32(t[24] % q)
+	const blockSize = 16
+	if cpu.SupportAVX512 && N >= blockSize {
+		var t [8 * 4]uint64 // accumulators
+		nr := N - N%blockSize
+		vectorInnerProduct_avx512(&t, &vector[0], &a[0], uint64(nr))
 
-	if r != 0 {
-		partialResult := vectorInnerProductGeneric(vector[N-r:], a[N-r:])
-		res.Add(&res, &partialResult)
+		// reduce accumulator
+		for i := 1; i < 8; i++ {
+			t[0] += (t[i] % q)
+		}
+		for i := 9; i < 16; i++ {
+			t[8] += (t[i] % q)
+		}
+		for i := 17; i < 24; i++ {
+			t[16] += (t[i] % q)
+		}
+		for i := 25; i < 32; i++ {
+			t[24] += (t[i] % q)
+		}
+
+		res.B0.A0[0] = uint32(t[0] % q)
+		res.B0.A1[0] = uint32(t[8] % q)
+		res.B1.A0[0] = uint32(t[16] % q)
+		res.B1.A1[0] = uint32(t[24] % q)
+		vector, a = vector[nr:], a[nr:]
 	}
-
+	if cpu.SupportNEON && len(vector) >= 4 {
+		nr := len(vector) - len(vector)%4
+		var t [4]uint64 // one (unreduced) partial sum per coordinate
+		vectorInnerProduct_E4_neon(&t, &vector[0], &a[0], uint64(nr))
+		var p E4
+		p.B0.A0[0], p.B0.A1[0] = uint32(t[0]%q), uint32(t[1]%q)
+		p.B1.A0[0], p.B1.A1[0] = uint32(t[2]%q), uint32(t[3]%q)
+		res.Add(&res, &p)
+		vector, a = vector[nr:], a[nr:]
+	}
+	partialResult := vectorInnerProductGeneric(vector, a)
+	res.Add(&res, &partialResult)
 	return res
 }
 
@@ -274,20 +285,17 @@ func (vector VectorE4) MulByElement(a VectorE4, b fr.Vector) {
 		panic("vector.MulByElement: vectors don't have the same length")
 	}
 	const blockSize = 4
-	if !cpu.SupportAVX512 || N < blockSize {
-		vectorMulByElementGeneric(vector, a, b)
-		return
+	if cpu.SupportAVX512 && N >= blockSize {
+		nr := N - N%blockSize
+		vectorMulByElement_avx512(&vector[0], &a[0], &b[0], uint64(nr))
+		vector, a, b = vector[nr:], a[nr:], b[nr:]
 	}
-
-	r := N % blockSize
-	nr := uint64(N - r)
-
-	vectorMulByElement_avx512(&vector[0], &a[0], &b[0], nr)
-	if r != 0 {
-		// call vectorMulByElementGeneric on the rest
-		start := N - r
-		vectorMulByElementGeneric(vector[start:], a[start:], b[start:])
+	if cpu.SupportNEON && len(vector) >= 4 {
+		nr := len(vector) - len(vector)%4
+		vectorMulByElement_E4_neon(&vector[0], &a[0], &b[0], uint64(nr))
+		vector, a, b = vector[nr:], a[nr:], b[nr:]
 	}
+	vectorMulByElementGeneric(vector, a, b)
 }
 
 // Butterfly computes the in-place butterfly operation on two vectors of E4 elements
@@ -598,6 +606,11 @@ func (vector VectorE4) FoldPairs(layer VectorE4, halfInvTwiddles fr.Vector, alph
 		vectorFoldPairs_avx512(&vector[0], &layer[0], &halfInvTwiddles[0], &K[0], uint64(nr))
 		vector, layer, halfInvTwiddles = vector[nr:], layer[2*nr:], halfInvTwiddles[nr:]
 	}
+	if cpu.SupportNEON && len(vector) >= 4 {
+		nr := len(vector) - len(vector)%4
+		vectorFoldPairs_E4_neon(&vector[0], &layer[0], &halfInvTwiddles[0], &aa, uint64(nr))
+		vector, layer, halfInvTwiddles = vector[nr:], layer[2*nr:], halfInvTwiddles[nr:]
+	}
 	foldPairsE4Generic(vector, layer, halfInvTwiddles, &aa)
 }
 
@@ -696,6 +709,11 @@ func (vector VectorE4) MulAccByElement(a VectorE4, b fr.Vector) {
 	if len(a) != len(vector) || len(b) != len(vector) {
 		panic("vector.MulAccByElement: length mismatch")
 	}
+	if cpu.SupportNEON && len(vector) >= 4 {
+		nr := len(vector) - len(vector)%4
+		vectorMulAccByElement_E4_neon(&vector[0], &a[0], &b[0], uint64(nr))
+		vector, a, b = vector[nr:], a[nr:], b[nr:]
+	}
 	var t E4
 	for i := range vector {
 		t.MulByElement(&a[i], &b[i])
@@ -723,6 +741,11 @@ func (vector VectorE4) ScalarMulAccBase(a fr.Vector, c *E4) {
 		mulAccByElement_avx512(&cc, &a[0], &vector[0], uint64(nr))
 		vector, a = vector[nr:], a[nr:]
 	}
+	if cpu.SupportNEON && len(vector) >= 4 {
+		nr := len(vector) - len(vector)%4
+		vectorScalarMulAccBase_E4_neon(&vector[0], &a[0], &cc, uint64(nr))
+		vector, a = vector[nr:], a[nr:]
+	}
 	vectorMulAccByElementGeneric(vector, a, &cc)
 }
 
@@ -746,6 +769,11 @@ func (vector VectorE4) ScalarMulAcc(a VectorE4, c *E4) {
 		vectorScalarMulAcc_avx512(&vector[0], &a[0], &cc, uint64(nr))
 		vector, a = vector[nr:], a[nr:]
 	}
+	if cpu.SupportNEON && len(vector) >= 4 {
+		nr := len(vector) - len(vector)%4
+		vectorScalarMulAcc_E4_neon(&vector[0], &a[0], &cc, uint64(nr))
+		vector, a = vector[nr:], a[nr:]
+	}
 	var t E4
 	for i := range vector {
 		t.Mul(&a[i], &cc)
@@ -767,6 +795,11 @@ func (vector VectorE4) MulAcc(a, b VectorE4) {
 		r := N % blockSize
 		nr := N - r
 		vectorMulAcc_avx512(&vector[0], &a[0], &b[0], uint64(nr))
+		vector, a, b = vector[nr:], a[nr:], b[nr:]
+	}
+	if cpu.SupportNEON && len(vector) >= 4 {
+		nr := len(vector) - len(vector)%4
+		vectorMulAcc_E4_neon(&vector[0], &a[0], &b[0], uint64(nr))
 		vector, a, b = vector[nr:], a[nr:], b[nr:]
 	}
 	var t E4
@@ -796,6 +829,11 @@ func (vector VectorE4) ScalarMulBase(a fr.Vector, c *E4) {
 		mulByElement_avx512(&cc, &a[0], &vector[0], uint64(nr))
 		vector, a = vector[nr:], a[nr:]
 	}
+	if cpu.SupportNEON && len(vector) >= 4 {
+		nr := len(vector) - len(vector)%4
+		vectorScalarMulBase_E4_neon(&vector[0], &a[0], &cc, uint64(nr))
+		vector, a = vector[nr:], a[nr:]
+	}
 	for i := range vector {
 		vector[i].MulByElement(&cc, &a[i])
 	}
@@ -820,6 +858,11 @@ func (vector VectorE4) ScalarMulAdd(b VectorE4, c *E4) {
 		r := N % blockSize
 		nr := N - r
 		vectorScalarMulAdd_avx512(&vector[0], &b[0], &cc, uint64(nr))
+		vector, b = vector[nr:], b[nr:]
+	}
+	if cpu.SupportNEON && len(vector) >= 4 {
+		nr := len(vector) - len(vector)%4
+		vectorScalarMulAdd_E4_neon(&vector[0], &b[0], &cc, uint64(nr))
 		vector, b = vector[nr:], b[nr:]
 	}
 	// compute into t first: b may alias vector.
@@ -854,6 +897,11 @@ func (vector VectorE4) ScalarMulAddBase(b fr.Vector, c *E4) {
 		r := N % blockSize
 		nr := N - r
 		vectorScalarMulAddBase_avx512(&vector[0], &b[0], &cc, uint64(nr))
+		vector, b = vector[nr:], b[nr:]
+	}
+	if cpu.SupportNEON && len(vector) >= 4 {
+		nr := len(vector) - len(vector)%4
+		vectorScalarMulAddBase_E4_neon(&vector[0], &b[0], &cc, uint64(nr))
 		vector, b = vector[nr:], b[nr:]
 	}
 	for i := range vector {

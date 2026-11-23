@@ -11,9 +11,9 @@ import (
 	fr "github.com/consensys/gnark-crypto/field/koalabear"
 )
 
-// NEON kernels for the E6 vector operations; see GenerateF31Ext in
+// NEON kernels for the E4 and E6 vector operations; see GenerateF31Ext in
 // internal/generator/field/asm/arm64 for the algorithms. They all process
-// N E6 with N % 4 == 0.
+// N E4 or E6 with N % 4 == 0.
 
 //go:noescape
 func vectorMul_E6_neon(res, a, b *E6, N uint64)
@@ -48,3 +48,48 @@ func vectorScalarMulBase_E6_neon(res *E6, a *fr.Element, b *fr.Element, N uint64
 //
 //go:noescape
 func vectorScalarMulAccBase_E6_neon(res *E6, a *fr.Element, b *fr.Element, N uint64)
+
+//go:noescape
+func vectorMul_E4_neon(res, a, b *E4, N uint64)
+
+//go:noescape
+func vectorMulAcc_E4_neon(res, a, b *E4, N uint64)
+
+// res[k] receives the (unreduced) sum of coordinate k of the products.
+//
+//go:noescape
+func vectorInnerProduct_E4_neon(res *[4]uint64, a, b *E4, N uint64)
+
+// b points to the E4 scalar.
+//
+//go:noescape
+func vectorScalarMul_E4_neon(res, a, b *E4, N uint64)
+
+//go:noescape
+func vectorScalarMulAcc_E4_neon(res, a, b *E4, N uint64)
+
+// res[i] = res[i]·b + a[i] (one Horner step).
+//
+//go:noescape
+func vectorScalarMulAdd_E4_neon(res, a, b *E4, N uint64)
+
+//go:noescape
+func vectorScalarMulAddBase_E4_neon(res *E4, a *fr.Element, b *E4, N uint64)
+
+//go:noescape
+func vectorMulByElement_E4_neon(res, a *E4, b *fr.Element, N uint64)
+
+//go:noescape
+func vectorMulAccByElement_E4_neon(res, a *E4, b *fr.Element, N uint64)
+
+//go:noescape
+func vectorScalarMulBase_E4_neon(res *E4, a *fr.Element, b *E4, N uint64)
+
+//go:noescape
+func vectorScalarMulAccBase_E4_neon(res *E4, a *fr.Element, b *E4, N uint64)
+
+//go:noescape
+func vectorInnerProductByElement_E4_neon(res, a *E4, b *fr.Element, N uint64)
+
+//go:noescape
+func vectorFoldPairs_E4_neon(res, layer *E4, tw *fr.Element, alpha *E4, N uint64)
