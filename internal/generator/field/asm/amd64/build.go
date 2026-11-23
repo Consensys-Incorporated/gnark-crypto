@@ -545,6 +545,9 @@ func GenerateF31ASM(f *FFAmd64, hasVector bool) error {
 	f.generateMulAccVecF31(mulAccVecOp)
 	f.generateMulAccVecF31(scalarMulAccVecOp)
 	f.generateMulAccVecF31(scalarMulAddVecOp)
+	f.generateScalarVecF31(negVecOp)
+	f.generateScalarVecF31(scalarAddVecOp)
+	f.generateScalarVecF31(scalarSubFromVecOp)
 	f.generateBatchInvertVecF31(true)
 	f.generateBatchInvertVecF31(false)
 
