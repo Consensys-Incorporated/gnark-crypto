@@ -32,15 +32,15 @@ const qRadix52_4 uint64 = 27959880731293
 
 // Add adds two vectors element-wise and stores the result in self.
 // It panics if the vectors don't have the same length.
-func (vector *Vector) Add(a, b Vector) {
-	if len(a) != len(b) || len(a) != len(*vector) {
+func (vector Vector) Add(a, b Vector) {
+	if len(a) != len(b) || len(a) != len(vector) {
 		panic("vector.Add: vectors don't have the same length")
 	}
 	n := uint64(len(a))
 	if n == 0 {
 		return
 	}
-	addVec(&(*vector)[0], &a[0], &b[0], n)
+	addVec(&vector[0], &a[0], &b[0], n)
 }
 
 //go:noescape
@@ -48,15 +48,15 @@ func addVec(res, a, b *Element, n uint64)
 
 // Sub subtracts two vectors element-wise and stores the result in self.
 // It panics if the vectors don't have the same length.
-func (vector *Vector) Sub(a, b Vector) {
-	if len(a) != len(b) || len(a) != len(*vector) {
+func (vector Vector) Sub(a, b Vector) {
+	if len(a) != len(b) || len(a) != len(vector) {
 		panic("vector.Sub: vectors don't have the same length")
 	}
 	n := uint64(len(a))
 	if n == 0 {
 		return
 	}
-	subVec(&(*vector)[0], &a[0], &b[0], n)
+	subVec(&vector[0], &a[0], &b[0], n)
 }
 
 //go:noescape
@@ -64,35 +64,36 @@ func subVec(res, a, b *Element, n uint64)
 
 // ScalarMul multiplies a vector by a scalar element-wise and stores the result in self.
 // It panics if the vectors don't have the same length.
-func (vector *Vector) ScalarMul(a Vector, b *Element) {
-	if len(a) != len(*vector) {
+func (vector Vector) ScalarMul(a Vector, b *Element) {
+	if len(a) != len(vector) {
 		panic("vector.ScalarMul: vectors don't have the same length")
 	}
 	n := uint64(len(a))
 	if n == 0 {
 		return
 	}
+	bb := *b // b may point into vector
 	const maxN = (1 << 32) - 1
 	// IFMA path (available on Ice Lake+, Zen4+)
 	// Uses AVX-512 IFMA instructions for fast vectorized multiplication
 	const blockSize = 8
 	if cpu.SupportAVX512IFMA && n >= blockSize && n < maxN {
-		scalarMulVec(&(*vector)[0], &a[0], b, n/blockSize)
+		scalarMulVec(&vector[0], &a[0], &bb, n/blockSize)
 		if n%blockSize != 0 {
 			start := n - n%blockSize
-			scalarMulVecGeneric((*vector)[start:], a[start:], b)
+			scalarMulVecGeneric(vector[start:], a[start:], &bb)
 		}
 		return
 	}
-	scalarMulVecGeneric(*vector, a, b)
+	scalarMulVecGeneric(vector, a, &bb)
 }
 
 //go:noescape
 func scalarMulVec(res, a, b *Element, n uint64)
 
 // Sum computes the sum of all elements in the vector.
-func (vector *Vector) Sum() (res Element) {
-	n := uint64(len(*vector))
+func (vector Vector) Sum() (res Element) {
+	n := uint64(len(vector))
 	if n == 0 {
 		return
 	}
@@ -100,10 +101,10 @@ func (vector *Vector) Sum() (res Element) {
 	const maxN = (1 << 32) - 1
 	if !cpu.SupportAVX512 || n <= minN || n >= maxN {
 		// call sumVecGeneric
-		sumVecGeneric(&res, *vector)
+		sumVecGeneric(&res, vector)
 		return
 	}
-	sumVec(&res, &(*vector)[0], uint64(len(*vector)))
+	sumVec(&res, &vector[0], uint64(len(vector)))
 	return
 }
 
@@ -112,8 +113,8 @@ func sumVec(res *Element, a *Element, n uint64)
 
 // InnerProduct computes the inner product of two vectors.
 // It panics if the vectors don't have the same length.
-func (vector *Vector) InnerProduct(other Vector) (res Element) {
-	n := uint64(len(*vector))
+func (vector Vector) InnerProduct(other Vector) (res Element) {
+	n := uint64(len(vector))
 	if n != uint64(len(other)) {
 		panic("vector.InnerProduct: vectors don't have the same length")
 	}
@@ -124,10 +125,10 @@ func (vector *Vector) InnerProduct(other Vector) (res Element) {
 	if !cpu.SupportAVX512 || n >= maxN {
 		// call innerProductVecGeneric
 		// note; we could split the vector into smaller chunks and call innerProductVec
-		innerProductVecGeneric(&res, *vector, other)
+		innerProductVecGeneric(&res, vector, other)
 		return
 	}
-	innerProdVec(&res[0], &(*vector)[0], &other[0], uint64(len(*vector)))
+	innerProdVec(&res[0], &vector[0], &other[0], uint64(len(vector)))
 
 	return
 }
@@ -137,8 +138,8 @@ func innerProdVec(res *uint64, a, b *Element, n uint64)
 
 // Mul multiplies two vectors element-wise and stores the result in self.
 // It panics if the vectors don't have the same length.
-func (vector *Vector) Mul(a, b Vector) {
-	if len(a) != len(b) || len(a) != len(*vector) {
+func (vector Vector) Mul(a, b Vector) {
+	if len(a) != len(b) || len(a) != len(vector) {
 		panic("vector.Mul: vectors don't have the same length")
 	}
 	n := uint64(len(a))
@@ -150,14 +151,14 @@ func (vector *Vector) Mul(a, b Vector) {
 	// Uses AVX-512 IFMA instructions for fast vectorized multiplication
 	const blockSize = 8
 	if cpu.SupportAVX512IFMA && n >= blockSize && n < maxN {
-		mulVec(&(*vector)[0], &a[0], &b[0], n/blockSize)
+		mulVec(&vector[0], &a[0], &b[0], n/blockSize)
 		if n%blockSize != 0 {
 			start := n - n%blockSize
-			mulVecGeneric((*vector)[start:], a[start:], b[start:])
+			mulVecGeneric(vector[start:], a[start:], b[start:])
 		}
 		return
 	}
-	mulVecGeneric(*vector, a, b)
+	mulVecGeneric(vector, a, b)
 }
 
 //go:noescape
