@@ -148,7 +148,7 @@ func TestE6Ops(t *testing.T) {
 	properties.Property("[babybear] BatchInvertE6 should output the same result as Inverse", prop.ForAll(
 		func(a, b, c E6) bool {
 
-			batch := BatchInvertE6([]E6{a, b, c})
+			batch := VectorE6{a, b, c}.BatchInvert()
 			a.Inverse(&a)
 			b.Inverse(&b)
 			c.Inverse(&c)

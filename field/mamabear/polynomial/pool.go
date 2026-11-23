@@ -13,7 +13,7 @@ import (
 // Pool is a pool of slices of mamabear.Element
 type Pool = utils.Pool[mamabear.Element]
 
-// NewPool returns a Pool whose sub-pools hold slices of capacity up to each of maxN
+// NewPool returns a Pool. maxN is ignored; it is kept for compatibility.
 func NewPool(maxN ...int) Pool {
 	return utils.NewPool[mamabear.Element](maxN...)
 }

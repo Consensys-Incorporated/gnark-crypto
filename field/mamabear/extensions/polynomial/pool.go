@@ -13,7 +13,7 @@ import (
 // PoolE3 is a pool of slices of extensions.E3
 type PoolE3 = utils.Pool[extensions.E3]
 
-// NewPoolE3 returns a PoolE3 whose sub-pools hold slices of capacity up to each of maxN
+// NewPoolE3 returns a PoolE3. maxN is ignored; it is kept for compatibility.
 func NewPoolE3(maxN ...int) PoolE3 {
 	return utils.NewPool[extensions.E3](maxN...)
 }
