@@ -95,5 +95,5 @@ func (_f *FFAmd64) generateScalarVecF31(op scalarVecOp) {
 		f.ADDQ("$64", addrRes)
 	})
 
-	f.RET()
+	f.RETAVX()
 }

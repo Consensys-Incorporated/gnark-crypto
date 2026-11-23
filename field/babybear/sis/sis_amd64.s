@@ -637,6 +637,7 @@ fft256_2:
 	JMP          fft256_2
 
 done_1:
+	VZEROUPPER
 	RET
 
 TEXT ·sisShuffle_avx512(SB), NOSPLIT, $0-24
@@ -663,6 +664,7 @@ loop_3:
 	JMP       loop_3
 
 done_4:
+	VZEROUPPER
 	RET
 
 TEXT ·sisUnshuffle_avx512(SB), NOSPLIT, $0-24
@@ -690,4 +692,5 @@ loop_5:
 	JMP        loop_5
 
 done_6:
+	VZEROUPPER
 	RET

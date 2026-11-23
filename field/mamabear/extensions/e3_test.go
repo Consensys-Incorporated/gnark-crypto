@@ -435,11 +435,14 @@ func BenchmarkBatchInvertE3(b *testing.B) {
 // BenchmarkBatchInvertE3Lanes measures batchInvertE3 at every row width, to
 // set the thresholds of batchInvertE3Lanes.
 func BenchmarkBatchInvertE3Lanes(b *testing.B) {
-	for _, n := range []int{64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384, 65536} {
+	for _, n := range []int{32, 48, 64, 96, 128, 192, 256, 384, 512, 768, 1024, 2048, 4096, 8192, 16384, 65536} {
 		x := randomBatchInvE3(n)
 		res := make(VectorE3, n)
 		scratch := make(VectorE3, n)
 		for _, lanes := range []int{0} {
+			if lanes > n/2 {
+				continue
+			}
 			b.Run(fmt.Sprintf("n=%d/lanes=%d/into", n, lanes), func(b *testing.B) {
 				for b.Loop() {
 					batchInvertE3(res, x, nil, lanes)

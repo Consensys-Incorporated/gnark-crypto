@@ -98,7 +98,7 @@ func (_f *FFAmd64) generateFoldPairsVecF31() {
 		f.ADDQ("$64", addrRes)
 	})
 
-	f.RET()
+	f.RETAVX()
 }
 
 // generateFoldPairsVecExt emits the FRI pair-folding kernel for an extension of
@@ -193,5 +193,5 @@ func (_f *FFAmd64) generateFoldPairsVecExt(name string, d int, gatherIdx, scatte
 		f.ADDQ(fmt.Sprintf("$%d", 16*d*4), addrRes)
 	})
 
-	f.RET()
+	f.RETAVX()
 }

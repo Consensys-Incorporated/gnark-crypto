@@ -856,11 +856,11 @@ const (
 )
 
 // batchInvertLanes returns the number of interleaved product chains batchInvert
-// runs for n elements, 0 meaning the scalar path (batchInvertScalar). A field
-// product is cheap enough that the per-call cost of the vectorised Vector.Mul only pays
-// off on long inputs, and wider rows keep more independent products in
-// flight, while every chain adds to the inversion of the chain products; the
-// thresholds are measured (BenchmarkElementBatchInvertLanes).
+// runs for n elements, 0 meaning the scalar path (batchInvertScalar). Wider
+// rows amortise the per-call cost of the vectorised row kernels and keep more
+// independent products in flight, while every chain adds to the inversion of
+// the chain products; the thresholds are measured
+// (BenchmarkElementBatchInvertLanes).
 // It must stay at most n/2, so that the chain products are fewer than n.
 func batchInvertLanes(n int) int {
 	// without the AVX-512 IFMA kernel, Vector.Mul is a plain loop and the
@@ -868,16 +868,14 @@ func batchInvertLanes(n int) int {
 	if !cpu.SupportAVX512IFMA {
 		return 0
 	}
-	switch {
-	case n >= 4096:
-		return 256
-	case n >= 1024:
-		return 128
-	case n >= 512:
-		return 64
-	default:
-		return 0
+	// measured on Sapphire Rapids (Xeon 8488C): 16 interleaved chains already
+	// hide the latency of the IFMA products, and wider rows only add to the
+	// inversion of the chain products (within 1% of the best width at every
+	// length measured, up to 2^18).
+	if n >= 64 {
+		return 16
 	}
+	return 0
 }
 
 // batchInvertChains runs the Montgomery batch inversion of a into res as

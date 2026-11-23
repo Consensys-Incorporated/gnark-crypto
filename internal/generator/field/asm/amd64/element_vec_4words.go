@@ -435,7 +435,7 @@ func (f *FFAmd64) generateSumVecW4() {
 
 	f.LABEL(done)
 
-	f.RET()
+	f.RETAVX()
 	f.Push(&registers, mu)
 	f.Push(&registers, w0l, w1l, w2l, w3l, w3h)
 }
@@ -743,5 +743,5 @@ func (f *FFAmd64) generateInnerProductW4() {
 	}
 
 	f.LABEL(done)
-	f.RET()
+	f.RETAVX()
 }

@@ -197,5 +197,5 @@ func (_f *FFAmd64) generateMixedAddVecExt(name string, degree, nbZmm int, op ext
 		f.ADDQ(fmt.Sprintf("$%d", blockSize*4), addrB)
 	})
 
-	f.RET()
+	f.RETAVX()
 }
