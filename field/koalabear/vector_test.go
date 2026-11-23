@@ -866,6 +866,32 @@ func BenchmarkVectorFoldPairs(b *testing.B) {
 	}
 }
 
+// TestVectorFoldPairsEdgeCases checks FoldPairs against the generic
+// implementation, at sizes around the block boundaries of the vectorised
+// kernels, on edge values and in place.
+func TestVectorFoldPairsEdgeCases(t *testing.T) {
+	for _, size := range []int{0, 1, 3, 4, 5, 7, 8, 15, 16, 17, 33, 100} {
+		for seed := range 3 {
+			t.Run(fmt.Sprintf("size=%d/seed=%d", size, seed), func(t *testing.T) {
+				layer, w := edgeVector(2*size, seed), edgeVector(size, seed+1)
+				for _, alpha := range edgeScalars() {
+					want := make(Vector, size)
+					foldPairsVecGeneric(want, layer, w, &alpha)
+
+					got := make(Vector, size)
+					got.FoldPairs(layer, w, &alpha)
+					require.Equal(t, want, got, "FoldPairs")
+
+					in := cloneVector(layer)
+					in[:size].FoldPairs(in, w, &alpha)
+					require.Equal(t, want, in[:size], "FoldPairs in place")
+					require.Equal(t, layer[size:], in[size:], "FoldPairs in place: upper half untouched")
+				}
+			})
+		}
+	}
+}
+
 func randVectorFold(n int) Vector {
 	v := make(Vector, n)
 	v.MustSetRandom()
@@ -934,6 +960,92 @@ func TestVectorMulAccHorner(t *testing.T) {
 	require.Panics(t, func() { v.MulAcc(v, a) })
 	require.Panics(t, func() { v.ScalarMulAcc(a, &c) })
 	require.Panics(t, func() { v.ScalarMulAdd(a, &c) })
+}
+
+// edgeVector returns a vector of n elements mixing the edge values 0, 1 and
+// q−1 (as field elements and as raw Montgomery words) with random elements;
+// seed shifts the pattern.
+func edgeVector(n, seed int) Vector {
+	var edges [5]Element
+	edges[1].SetOne()
+	edges[2].SetOne()
+	edges[2].Neg(&edges[2])
+	edges[3][0] = 1 // raw word 1
+	edges[4] = qElement
+	edges[4][0]-- // raw word q−1
+	v := make(Vector, n)
+	for i := range v {
+		if k := (i*7 + seed) % 9; k < len(edges) {
+			v[i] = edges[k]
+		} else {
+			v[i].MustSetRandom()
+		}
+	}
+	return v
+}
+
+// edgeScalars returns 0, 1, q−1 and a random element.
+func edgeScalars() []Element {
+	s := make([]Element, 4)
+	s[1].SetOne()
+	s[2].SetOne()
+	s[2].Neg(&s[2])
+	s[3].MustSetRandom()
+	return s
+}
+
+func cloneVector(x Vector) Vector {
+	return append(make(Vector, 0, len(x)), x...)
+}
+
+// TestVectorMulAccEdgeCases checks MulAcc, ScalarMulAcc and ScalarMulAdd
+// against the generic implementations, at sizes around the block boundaries of
+// the vectorised kernels, on edge values and with aliasing.
+func TestVectorMulAccEdgeCases(t *testing.T) {
+	for _, size := range []int{0, 1, 3, 4, 5, 7, 8, 15, 16, 17, 33, 100} {
+		for seed := range 3 {
+			t.Run(fmt.Sprintf("size=%d/seed=%d", size, seed), func(t *testing.T) {
+				a, b, v0 := edgeVector(size, seed), edgeVector(size, seed+1), edgeVector(size, seed+2)
+
+				got, want := cloneVector(v0), cloneVector(v0)
+				got.MulAcc(a, b)
+				mulAccVecGeneric(want, a, b)
+				require.Equal(t, want, got, "MulAcc")
+
+				got, want = cloneVector(v0), cloneVector(v0)
+				got.MulAcc(got, got)
+				mulAccVecGeneric(want, cloneVector(v0), cloneVector(v0))
+				require.Equal(t, want, got, "MulAcc alias")
+
+				got, want = cloneVector(v0), cloneVector(v0)
+				got.MulAcc(got, b)
+				mulAccVecGeneric(want, cloneVector(v0), b)
+				require.Equal(t, want, got, "MulAcc alias a")
+
+				for _, c := range edgeScalars() {
+					got, want = cloneVector(v0), cloneVector(v0)
+					got.ScalarMulAcc(a, &c)
+					scalarMulAccVecGeneric(want, a, &c)
+					require.Equal(t, want, got, "ScalarMulAcc")
+
+					got, want = cloneVector(v0), cloneVector(v0)
+					got.ScalarMulAcc(got, &c)
+					scalarMulAccVecGeneric(want, cloneVector(v0), &c)
+					require.Equal(t, want, got, "ScalarMulAcc alias")
+
+					got, want = cloneVector(v0), cloneVector(v0)
+					got.ScalarMulAdd(b, &c)
+					scalarMulAddVecGeneric(want, b, &c)
+					require.Equal(t, want, got, "ScalarMulAdd")
+
+					got, want = cloneVector(v0), cloneVector(v0)
+					got.ScalarMulAdd(got, &c)
+					scalarMulAddVecGeneric(want, cloneVector(v0), &c)
+					require.Equal(t, want, got, "ScalarMulAdd alias")
+				}
+			})
+		}
+	}
 }
 
 func BenchmarkVectorMulAccHorner(b *testing.B) {
