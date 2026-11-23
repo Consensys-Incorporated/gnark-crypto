@@ -10,8 +10,9 @@ import (
 	"github.com/consensys/bavard/arm64"
 )
 
-// GenerateF31Ext emits the NEON kernels of the koalabear degree-6 extension
-// vectors (field/koalabear/extensions/ext_arm64.s).
+// GenerateF31Ext emits the NEON kernels of the koalabear degree-4 and degree-6
+// extension vectors (field/koalabear/extensions/ext_arm64.s). The E4 kernels
+// are in element_vec_F31_ext_e4.go.
 //
 // q is the field modulus; it must be < 2³¹ (the Montgomery product below works
 // on signed 32-bit lanes). The tower is the koalabear one:
@@ -37,6 +38,8 @@ func GenerateF31Ext(w io.Writer, q uint64) error {
 	g.generateMulBaseE6(e6NeonMulAccByElement)
 	g.generateMulBaseE6(e6NeonScalarMulBase)
 	g.generateMulBaseE6(e6NeonScalarMulAccBase)
+
+	g.generateF31ExtE4()
 
 	return nil
 }
