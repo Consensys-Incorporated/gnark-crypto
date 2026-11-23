@@ -1265,7 +1265,7 @@ func (vector VectorE6) MulByElement(a VectorE6, b fr.Vector) {
 	if len(a) != N || len(b) != N {
 		panic("vectorE6.MulByElement: vectors don't have the same length")
 	}
-	for i := range N {
+	for i := range vector {
 		vector[i].MulByElement(&a[i], &b[i])
 	}
 }

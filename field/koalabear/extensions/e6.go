@@ -1396,6 +1396,11 @@ func (vector VectorE6) Mul(a, b VectorE6) {
 		vectorMul_E6_avx512(&vector[0], &a[0], &b[0], uint64(nr))
 		vector, a, b = vector[nr:], a[nr:], b[nr:]
 	}
+	if cpu.SupportNEON && len(vector) >= 4 {
+		nr := len(vector) - len(vector)%4
+		vectorMul_E6_neon(&vector[0], &a[0], &b[0], uint64(nr))
+		vector, a, b = vector[nr:], a[nr:], b[nr:]
+	}
 	for i := range vector {
 		vector[i].Mul(&a[i], &b[i])
 	}
@@ -1425,6 +1430,17 @@ func (vector VectorE6) InnerProduct(a VectorE6) E6 {
 		res.B0.A0[0], res.B0.A1[0] = c[0], c[1]
 		res.B1.A0[0], res.B1.A1[0] = c[2], c[3]
 		res.B2.A0[0], res.B2.A1[0] = c[4], c[5]
+		vector, a = vector[nr:], a[nr:]
+	}
+	if cpu.SupportNEON && len(vector) >= 4 {
+		nr := len(vector) - len(vector)%4
+		var t [6]uint64 // one (unreduced) partial sum per coordinate
+		vectorInnerProduct_E6_neon(&t, &vector[0], &a[0], uint64(nr))
+		var p E6
+		p.B0.A0[0], p.B0.A1[0] = uint32(t[0]%q), uint32(t[1]%q)
+		p.B1.A0[0], p.B1.A1[0] = uint32(t[2]%q), uint32(t[3]%q)
+		p.B2.A0[0], p.B2.A1[0] = uint32(t[4]%q), uint32(t[5]%q)
+		res.Add(&res, &p)
 		vector, a = vector[nr:], a[nr:]
 	}
 	var t E6
@@ -1646,16 +1662,17 @@ func (vector VectorE6) MulByElement(a VectorE6, b fr.Vector) {
 		panic("vectorE6.MulByElement: vectors don't have the same length")
 	}
 	const blockSize = 8
-	if !cpu.SupportAVX512 || N < blockSize {
-		for i := range N {
-			vector[i].MulByElement(&a[i], &b[i])
-		}
-		return
+	if cpu.SupportAVX512 && N >= blockSize {
+		nr := N - N%blockSize
+		vectorMulByElement_E6_avx512(&vector[0], &a[0], &b[0], uint64(nr))
+		vector, a, b = vector[nr:], a[nr:], b[nr:]
 	}
-	r := N % blockSize
-	nr := uint64(N - r)
-	vectorMulByElement_E6_avx512(&vector[0], &a[0], &b[0], nr)
-	for i := N - r; i < N; i++ {
+	if cpu.SupportNEON && len(vector) >= 4 {
+		nr := len(vector) - len(vector)%4
+		vectorMulByElement_E6_neon(&vector[0], &a[0], &b[0], uint64(nr))
+		vector, a, b = vector[nr:], a[nr:], b[nr:]
+	}
+	for i := range vector {
 		vector[i].MulByElement(&a[i], &b[i])
 	}
 }
@@ -1668,14 +1685,17 @@ func (vector VectorE6) MulAccByElement(a VectorE6, b fr.Vector) {
 		panic("vectorE6.MulAccByElement: vectors don't have the same length")
 	}
 	const blockSize = 8
-	if !cpu.SupportAVX512 || N < blockSize {
-		mulAccByElementE6Generic(vector, a, b)
-		return
+	if cpu.SupportAVX512 && N >= blockSize {
+		nr := N - N%blockSize
+		vectorMulAccByElement_E6_avx512(&vector[0], &a[0], &b[0], uint64(nr))
+		vector, a, b = vector[nr:], a[nr:], b[nr:]
 	}
-	r := N % blockSize
-	nr := uint64(N - r)
-	vectorMulAccByElement_E6_avx512(&vector[0], &a[0], &b[0], nr)
-	mulAccByElementE6Generic(vector[N-r:], a[N-r:], b[N-r:])
+	if cpu.SupportNEON && len(vector) >= 4 {
+		nr := len(vector) - len(vector)%4
+		vectorMulAccByElement_E6_neon(&vector[0], &a[0], &b[0], uint64(nr))
+		vector, a, b = vector[nr:], a[nr:], b[nr:]
+	}
+	mulAccByElementE6Generic(vector, a, b)
 }
 
 func mulAccByElementE6Generic(vector, a VectorE6, b fr.Vector) {
@@ -1735,6 +1755,12 @@ func (vector VectorE6) ScalarMulAccBase(a fr.Vector, c *E6) {
 		vectorScalarMulAccByElement_E6_avx512(&vector[0], &a[0], &sTiled[0], uint64(nr))
 		vector, a = vector[nr:], a[nr:]
 	}
+	if cpu.SupportNEON && len(vector) >= 4 {
+		nr := len(vector) - len(vector)%4
+		sTiled := tileE6Scalar(&cc)
+		vectorScalarMulAccBase_E6_neon(&vector[0], &a[0], &sTiled[0], uint64(nr))
+		vector, a = vector[nr:], a[nr:]
+	}
 	scalarMulAccByElementE6Generic(vector, a, &cc)
 }
 
@@ -1760,6 +1786,11 @@ func (vector VectorE6) MulAcc(a, b VectorE6) {
 		r := N % blockSize
 		nr := N - r
 		vectorMulAcc_E6_avx512(&vector[0], &a[0], &b[0], uint64(nr))
+		vector, a, b = vector[nr:], a[nr:], b[nr:]
+	}
+	if cpu.SupportNEON && len(vector) >= 4 {
+		nr := len(vector) - len(vector)%4
+		vectorMulAcc_E6_neon(&vector[0], &a[0], &b[0], uint64(nr))
 		vector, a, b = vector[nr:], a[nr:], b[nr:]
 	}
 	var t E6
@@ -1788,6 +1819,12 @@ func (vector VectorE6) ScalarMulBase(a fr.Vector, c *E6) {
 		nr := N - r
 		sTiled := tileE6Scalar(&cc)
 		vectorScalarMulBase_E6_avx512(&vector[0], &a[0], &sTiled[0], uint64(nr))
+		vector, a = vector[nr:], a[nr:]
+	}
+	if cpu.SupportNEON && len(vector) >= 4 {
+		nr := len(vector) - len(vector)%4
+		sTiled := tileE6Scalar(&cc)
+		vectorScalarMulBase_E6_neon(&vector[0], &a[0], &sTiled[0], uint64(nr))
 		vector, a = vector[nr:], a[nr:]
 	}
 	for i := range vector {
@@ -1878,6 +1915,11 @@ func (vector VectorE6) ScalarMulAcc(a VectorE6, s *E6) {
 		vectorScalarMulAcc_E6_avx512(&vector[0], &a[0], &Kcol[0], uint64(nr))
 		vector, a = vector[nr:], a[nr:]
 	}
+	if cpu.SupportNEON && len(vector) >= 4 {
+		nr := len(vector) - len(vector)%4
+		vectorScalarMulAcc_E6_neon(&vector[0], &a[0], &ss, uint64(nr))
+		vector, a = vector[nr:], a[nr:]
+	}
 	scalarMulAccE6Generic(vector, a, &ss)
 }
 
@@ -1907,6 +1949,11 @@ func (vector VectorE6) ScalarMul(a VectorE6, s *E6) {
 		nr := N - r
 		Kcol := e6ScalarMulKcol(&ss)
 		vectorScalarMul_E6_avx512(&vector[0], &a[0], &Kcol[0], uint64(nr))
+		vector, a = vector[nr:], a[nr:]
+	}
+	if cpu.SupportNEON && len(vector) >= 4 {
+		nr := len(vector) - len(vector)%4
+		vectorScalarMul_E6_neon(&vector[0], &a[0], &ss, uint64(nr))
 		vector, a = vector[nr:], a[nr:]
 	}
 	scalarMulE6Generic(vector, a, &ss)
