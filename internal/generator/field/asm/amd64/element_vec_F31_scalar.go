@@ -55,9 +55,8 @@ func (_f *FFAmd64) generateScalarVecF31(op scalarVecOp) {
 	}
 	_f.Comment("n is the number of blocks of 16 elements to process")
 
-	stackSize := _f.StackSize(_f.NbWords*2+4, 0, 0)
-	registers := _f.FnHeader(name, stackSize, argSize, amd64.AX)
-	defer _f.AssertCleanStack(stackSize, 0)
+	registers := _f.FnHeader(name, 0, argSize, amd64.AX)
+	defer _f.AssertCleanStack(0, 0)
 	f := &fieldHelper{FFAmd64: _f, registers: &registers}
 
 	addrRes := registers.Pop()

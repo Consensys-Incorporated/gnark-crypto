@@ -27,7 +27,7 @@ func (vector Vector) Add(a, b Vector) {
 	if len(a) != len(b) || len(a) != len(vector) {
 		panic("vector.Add: vectors don't have the same length")
 	}
-		n := uint64(len(a))
+	n := uint64(len(a))
 	if n == 0 {
 		return
 	}
