@@ -34,6 +34,15 @@ func vectorScalarMul_E6_neon(res, a, b *E6, N uint64)
 func vectorScalarMulAcc_E6_neon(res, a, b *E6, N uint64)
 
 //go:noescape
+func vectorScalarMulAdd_E6_neon(res, b, s *E6, N uint64)
+
+//go:noescape
+func vectorScalarMulAddBase_E6_neon(res *E6, b *fr.Element, s *E6, N uint64)
+
+//go:noescape
+func vectorFoldPairs_E6_neon(res, layer *E6, twiddles *fr.Element, alpha *E6, N uint64)
+
+//go:noescape
 func vectorMulByElement_E6_neon(res, a *E6, b *fr.Element, N uint64)
 
 //go:noescape
@@ -48,3 +57,52 @@ func vectorScalarMulBase_E6_neon(res *E6, a *fr.Element, b *fr.Element, N uint64
 //
 //go:noescape
 func vectorScalarMulAccBase_E6_neon(res *E6, a *fr.Element, b *fr.Element, N uint64)
+
+// cTiled points to the scalar tiled with period 6 (at least 12 fr.Element).
+//
+//go:noescape
+func vectorScalarAdd_E6_neon(res, a *E6, cTiled *fr.Element, N uint64)
+
+// cTiled points to the scalar tiled with period 6 (at least 12 fr.Element).
+//
+//go:noescape
+func vectorScalarSubFrom_E6_neon(res, a *E6, cTiled *fr.Element, N uint64)
+
+//go:noescape
+func vectorAddElement_E6_neon(res, a *E6, b *fr.Element, N uint64)
+
+//go:noescape
+func vectorSubElement_E6_neon(res, a *E6, b *fr.Element, N uint64)
+
+// res[i] = b[i] − a[i], b[i] embedded in E6.
+//
+//go:noescape
+func vectorSubFromElement_E6_neon(res, a *E6, b *fr.Element, N uint64)
+
+//go:noescape
+func vectorScalarAddBase_E6_neon(res *E6, a *fr.Element, cTiled *fr.Element, N uint64)
+
+//go:noescape
+func vectorScalarSubFromBase_E6_neon(res *E6, a *fr.Element, cTiled *fr.Element, N uint64)
+
+//go:noescape
+func vectorButterfly_E6_neon(a0, a1 *E6, N uint64)
+
+//go:noescape
+func vectorDITWithTwiddles_E6_neon(a0, a1 *E6, twiddles *fr.Element, N uint64)
+
+//go:noescape
+func vectorDIFWithTwiddles_E6_neon(a0, a1 *E6, twiddles *fr.Element, N uint64)
+
+//go:noescape
+func vectorButterflyPair_E6_neon(a *E6, N uint64)
+
+// res[4k+l] receives an (unreduced) partial sum of coordinate (4k+l) % 6.
+//
+//go:noescape
+func vectorSum_E6_neon(res *[12]uint64, a *E6, N uint64)
+
+// res[4k+l] receives an (unreduced) partial sum of coordinate (4k+l) % 6.
+//
+//go:noescape
+func vectorInnerProductByElement_E6_neon(res *[12]uint64, a *E6, b *fr.Element, N uint64)

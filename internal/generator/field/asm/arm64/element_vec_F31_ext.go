@@ -27,16 +27,21 @@ func GenerateF31Ext(w io.Writer, q uint64) error {
 
 	g := &e6Neon{FFArm64: f, q: uint32(q), mu: inverseMod2_32(uint32(q))}
 
+	// E6 × E6 (transposed)
 	g.generateMulE6(e6NeonMul)
 	g.generateMulE6(e6NeonMulAcc)
 	g.generateMulE6(e6NeonInnerProd)
 	g.generateMulE6(e6NeonScalarMul)
 	g.generateMulE6(e6NeonScalarMulAcc)
+	g.generateMulE6(e6NeonScalarMulAdd)
+	g.generateMulE6(e6NeonScalarMulAddBase)
+	g.generateFoldPairsE6()
 
-	g.generateMulBaseE6(e6NeonMulByElement)
-	g.generateMulBaseE6(e6NeonMulAccByElement)
-	g.generateMulBaseE6(e6NeonScalarMulBase)
-	g.generateMulBaseE6(e6NeonScalarMulAccBase)
+	// lane-wise (interleaved)
+	g.generateInterleavedE6()
+	g.generateButterflyPairE6()
+	g.generateSumE6(false)
+	g.generateSumE6(true)
 
 	return nil
 }
@@ -59,12 +64,14 @@ type e6Neon struct {
 	free  [32]bool
 }
 
+type vReg = arm64.VectorRegister
+
 const (
 	vP  = arm64.V0 // q broadcast
 	vMu = arm64.V1 // q⁻¹ mod 2³² broadcast
 )
 
-func vreg(i int) arm64.VectorRegister { return arm64.VectorRegister(fmt.Sprintf("V%d", i)) }
+func vreg(i int) vReg { return vReg(fmt.Sprintf("V%d", i)) }
 
 func (g *e6Neon) resetRegs() {
 	for i := range g.free {
@@ -80,7 +87,7 @@ func (g *e6Neon) assertCleanRegs() {
 	}
 }
 
-func (g *e6Neon) pop() arm64.VectorRegister {
+func (g *e6Neon) pop() vReg {
 	for i := 2; i < 32; i++ {
 		if g.free[i] {
 			g.free[i] = false
@@ -90,8 +97,8 @@ func (g *e6Neon) pop() arm64.VectorRegister {
 	panic("e6Neon: out of vector registers")
 }
 
-func (g *e6Neon) popN(n int) []arm64.VectorRegister {
-	r := make([]arm64.VectorRegister, n)
+func (g *e6Neon) popN(n int) []vReg {
+	r := make([]vReg, n)
 	for i := range r {
 		r[i] = g.pop()
 	}
@@ -99,17 +106,17 @@ func (g *e6Neon) popN(n int) []arm64.VectorRegister {
 }
 
 // popTriple returns three consecutive registers, as required by LD3/ST3.
-func (g *e6Neon) popTriple() [3]arm64.VectorRegister {
+func (g *e6Neon) popTriple() [3]vReg {
 	for i := 2; i+2 < 32; i++ {
 		if g.free[i] && g.free[i+1] && g.free[i+2] {
 			g.free[i], g.free[i+1], g.free[i+2] = false, false, false
-			return [3]arm64.VectorRegister{vreg(i), vreg(i + 1), vreg(i + 2)}
+			return [3]vReg{vreg(i), vreg(i + 1), vreg(i + 2)}
 		}
 	}
 	panic("e6Neon: no three consecutive vector registers available")
 }
 
-func (g *e6Neon) push(rs ...arm64.VectorRegister) {
+func (g *e6Neon) push(rs ...vReg) {
 	for _, r := range rs {
 		n := int(vRegNum(r))
 		if n < 2 || g.free[n] {
@@ -123,16 +130,53 @@ func (g *e6Neon) ins(format string, args ...any) {
 	g.WriteLn("\t" + fmt.Sprintf(format, args...))
 }
 
+// header emits the TEXT line and loads the pointer arguments (Go parameter
+// names args, each 8 bytes, followed by N) into R0, R1, …; the next register
+// receives N/4, the number of 4-E6 blocks. It also broadcasts q and μ.
+func (g *e6Neon) header(name, comment string, args ...string) (ptrs []arm64.Register, n arm64.Register) {
+	g.Comment(name + ": " + comment)
+	g.ins("")
+	g.WriteLn(fmt.Sprintf("TEXT ·%s(SB), NOFRAME|NOSPLIT, $0-%d", name, 8*(len(args)+1)))
+	g.resetRegs()
+	for i, a := range args {
+		r := arm64.Register(fmt.Sprintf("R%d", i))
+		g.ins("MOVD %s+%d(FP), %s", a, 8*i, r)
+		ptrs = append(ptrs, r)
+	}
+	n = arm64.Register(fmt.Sprintf("R%d", len(args)))
+	g.ins("MOVD N+%d(FP), %s", 8*len(args), n)
+	g.ins("LSR $2, %s, %s", n, n)
+	g.loadConstants(gpTmp)
+	return
+}
+
+// GP registers above the argument/pointer range, free in every kernel.
+const (
+	gpTmp  = arm64.R10
+	gpPtr0 = arm64.R11
+	gpPtr1 = arm64.R12
+	gpPtr2 = arm64.R13
+)
+
+func (g *e6Neon) footer() {
+	g.assertCleanRegs()
+	g.RET()
+	g.WriteLn("")
+}
+
 // loadConstants broadcasts q into V0 and μ = q⁻¹ mod 2³² into V1.
 func (g *e6Neon) loadConstants(tmp arm64.Register) {
-	g.ins("MOVD $%d, %s", g.q, tmp)
-	g.ins("VDUP %s, %s.S4", tmp, vP)
-	g.ins("MOVD $%d, %s", g.mu, tmp)
-	g.ins("VDUP %s, %s.S4", tmp, vMu)
+	g.broadcast(g.q, vP, tmp)
+	g.broadcast(g.mu, vMu, tmp)
+}
+
+func (g *e6Neon) broadcast(c uint32, v vReg, tmp arm64.Register) {
+	g.ins("MOVD $%d, %s", c, tmp)
+	g.ins("VDUP %s, %s.S4", tmp, v)
 }
 
 // add sets d = a + b mod q; a, b canonical. d may alias a or b.
-func (g *e6Neon) add(a, b, d arm64.VectorRegister) {
+func (g *e6Neon) add(a, b, d vReg) {
 	t := g.pop()
 	g.ins("VADD %s.S4, %s.S4, %s.S4", b, a, d)
 	g.ins("VSUB %s.S4, %s.S4, %s.S4", vP, d, t)
@@ -141,7 +185,7 @@ func (g *e6Neon) add(a, b, d arm64.VectorRegister) {
 }
 
 // sub sets d = a − b mod q; a, b canonical. d may alias a or b.
-func (g *e6Neon) sub(a, b, d arm64.VectorRegister) {
+func (g *e6Neon) sub(a, b, d vReg) {
 	t := g.pop()
 	g.ins("VSUB %s.S4, %s.S4, %s.S4", b, a, d)
 	g.ins("VADD %s.S4, %s.S4, %s.S4", vP, d, t)
@@ -157,10 +201,10 @@ func (g *e6Neon) sub(a, b, d arm64.VectorRegister) {
 // With c = (2ab) >> 32 and m = ab·μ mod 2³² (signed), ab − m·q ≡ 0 mod 2³²,
 // so d = (c − (2mq) >> 32) / 2 = (ab − mq) / 2³² exactly, and d ∈ (−q, q).
 // The final ADD/UMIN maps the negative values (≥ 2³¹ unsigned) to d + q.
-func (g *e6Neon) mul(a, b, d arm64.VectorRegister, bMu ...arm64.VectorRegister) {
+func (g *e6Neon) mul(a, b, d vReg, bMu ...vReg) {
 	c, m := g.pop(), g.pop()
 	g.VSQDMULH(a, b, c, "c = (2ab) >> 32")
-	if len(bMu) > 0 {
+	if len(bMu) > 0 && bMu[0] != "" {
 		g.VMUL_S4(a, bMu[0], m, "m = ab·μ")
 	} else {
 		g.VMUL_S4(a, b, m, "m = ab")
@@ -173,124 +217,78 @@ func (g *e6Neon) mul(a, b, d arm64.VectorRegister, bMu ...arm64.VectorRegister) 
 	g.push(c, m)
 }
 
-type e6NeonOp int
-
-const (
-	e6NeonMul e6NeonOp = iota
-	e6NeonMulAcc
-	e6NeonInnerProd
-	e6NeonScalarMul
-	e6NeonScalarMulAcc
-
-	e6NeonMulByElement
-	e6NeonMulAccByElement
-	e6NeonScalarMulBase
-	e6NeonScalarMulAccBase
-)
-
-func (op e6NeonOp) name() string {
-	switch op {
-	case e6NeonMul:
-		return "vectorMul_E6_neon"
-	case e6NeonMulAcc:
-		return "vectorMulAcc_E6_neon"
-	case e6NeonInnerProd:
-		return "vectorInnerProduct_E6_neon"
-	case e6NeonScalarMul:
-		return "vectorScalarMul_E6_neon"
-	case e6NeonScalarMulAcc:
-		return "vectorScalarMulAcc_E6_neon"
-	case e6NeonMulByElement:
-		return "vectorMulByElement_E6_neon"
-	case e6NeonMulAccByElement:
-		return "vectorMulAccByElement_E6_neon"
-	case e6NeonScalarMulBase:
-		return "vectorScalarMulBase_E6_neon"
-	case e6NeonScalarMulAccBase:
-		return "vectorScalarMulAccBase_E6_neon"
+// load4 reads 4 E6 at ptr (post-incremented by 96 bytes) into the 6 registers
+// x, register k holding coordinate k of the 4 E6: two LD3.2D split each pair
+// of E6 into its three E2 coefficients (one 64-bit lane per E6) and UZP1/UZP2
+// separate the real and imaginary parts.
+func (g *e6Neon) load4(ptr arm64.Register, x []vReg) {
+	lo := g.popTriple()
+	hi := g.popTriple()
+	g.ins("VLD3.P 48(%s), [%s.D2, %s.D2, %s.D2]", ptr, lo[0], lo[1], lo[2])
+	g.ins("VLD3.P 48(%s), [%s.D2, %s.D2, %s.D2]", ptr, hi[0], hi[1], hi[2])
+	for j := range 3 {
+		g.VUZP1(lo[j], hi[j], x[2*j])
+		g.VUZP2(lo[j], hi[j], x[2*j+1])
 	}
-	panic("invalid e6NeonOp")
+	g.push(lo[0], lo[1], lo[2], hi[0], hi[1], hi[2])
 }
 
-// generateMulE6 emits the E6 × E6 kernels:
-//
-//	vectorMul_E6_neon(res, a, b *E6, N uint64)           res[i]  = a[i]·b[i]
-//	vectorMulAcc_E6_neon(res, a, b *E6, N uint64)        res[i] += a[i]·b[i]
-//	vectorInnerProduct_E6_neon(res *[6]uint64, a, b *E6, N uint64)
-//	vectorScalarMul_E6_neon(res, a, s *E6, N uint64)     res[i]  = a[i]·s
-//	vectorScalarMulAcc_E6_neon(res, a, s *E6, N uint64)  res[i] += a[i]·s
-//
-// Each iteration handles 4 E6. Two LD3.2D split the 4 E6 into their three E2
-// coefficients (one 64-bit lane per E6), and UZP1/UZP2 then separate the real
-// and imaginary parts, so that register k holds coordinate k of the 4 E6. The
-// product is the AVX-512 one (Karatsuba at both tower levels, 18 base
-// products, every intermediate canonical): writing X = X0 + X1·v + X2·v²,
-// Tj = Xj·Yj,
+// store4 undoes load4: it writes the 6 coordinate registers c as 4 E6 at ptr
+// (post-incremented by 96 bytes). If addend is not nil, it is called with each
+// interleaved triple (E6 0,1 then 2,3) before the store, e.g. to add the old
+// content of memory, which can be done in the interleaved layout.
+func (g *e6Neon) store4(ptr arm64.Register, c []vReg, addend func(z [3]vReg)) {
+	for half := range 2 {
+		z := g.popTriple()
+		zip := "VZIP1"
+		if half == 1 {
+			zip = "VZIP2"
+		}
+		for j := range 3 {
+			g.ins("%s %s.S4, %s.S4, %s.S4", zip, c[2*j+1], c[2*j], z[j])
+		}
+		if addend != nil {
+			addend(z)
+		}
+		g.ins("VST3.P [%s.D2, %s.D2, %s.D2], 48(%s)", z[0], z[1], z[2], ptr)
+		g.push(z[0], z[1], z[2])
+	}
+}
+
+// addFrom returns an addend for store4 adding 2 E6 read at ptr (VLD3.2D,
+// post-incremented by 48 bytes if postInc).
+func (g *e6Neon) addFrom(ptr arm64.Register, postInc bool) func(z [3]vReg) {
+	return func(z [3]vReg) {
+		old := g.popTriple()
+		if postInc {
+			g.ins("VLD3.P 48(%s), [%s.D2, %s.D2, %s.D2]", ptr, old[0], old[1], old[2])
+		} else {
+			g.ins("VLD3 (%s), [%s.D2, %s.D2, %s.D2]", ptr, old[0], old[1], old[2])
+		}
+		for j := range 3 {
+			g.add(z[j], old[j], z[j])
+		}
+		g.push(old[0], old[1], old[2])
+	}
+}
+
+// e6Mul computes the product of the transposed E6 a and b (6 registers each)
+// as in the AVX-512 kernel: Karatsuba at both tower levels, 18 base products,
+// every intermediate canonical. Writing X = X0 + X1·v + X2·v², Tj = Xj·Yj,
 //
 //	c0 = T0 + ξ·((X1+X2)(Y1+Y2) − T1 − T2)
 //	c1 = (X0+X1)(Y0+Y1) − T0 − T1 + ξ·T2
 //	c2 = (X0+X2)(Y0+Y2) − T0 − T2 + T1
 //
-// ZIP1/ZIP2 and ST3.2D undo the transpose. The Acc variants load the old res
-// in the interleaved layout and add it there (addition is lane-wise).
-//
-// InnerProduct folds each E2 coefficient c_j of the 4 products with ADDP
-// (lanes < 2q < 2³²) and UADALP into one 2×uint64 accumulator: res[2j] and
-// res[2j+1] receive the partial sums of the real and imaginary parts. Each
-// lane grows by < 4q < 2³³ per iteration, so no overflow before N ≈ 2³³.
-//
-// Precondition: N % 4 == 0.
-func (g *e6Neon) generateMulE6(op e6NeonOp) {
-	scalar := op == e6NeonScalarMul || op == e6NeonScalarMulAcc
-	acc := op == e6NeonMulAcc || op == e6NeonScalarMulAcc
-
-	g.Comment(fmt.Sprintf("%s(res, a, b, N): see generateMulE6 in the generator", op.name()))
-	g.ins("")
-	g.WriteLn(fmt.Sprintf("TEXT ·%s(SB), NOFRAME|NOSPLIT, $0-32", op.name()))
-	g.resetRegs()
-
-	resPtr, aPtr, bPtr, n, tmp := arm64.R0, arm64.R1, arm64.R2, arm64.R3, arm64.R4
-	g.ins("MOVD res+0(FP), %s", resPtr)
-	g.ins("MOVD a+8(FP), %s", aPtr)
-	g.ins("MOVD b+16(FP), %s", bPtr)
-	g.ins("MOVD N+24(FP), %s", n)
-	g.ins("LSR $2, %s, %s", n, n)
-	g.loadConstants(tmp)
-
-	// load4 reads 4 E6 at ptr (post-incremented by 96 bytes) into 6 registers,
-	// register k holding coordinate k of the 4 E6.
-	load4 := func(ptr arm64.Register, x []arm64.VectorRegister) {
-		lo := g.popTriple()
-		hi := g.popTriple()
-		g.ins("VLD3.P 48(%s), [%s.D2, %s.D2, %s.D2]", ptr, lo[0], lo[1], lo[2])
-		g.ins("VLD3.P 48(%s), [%s.D2, %s.D2, %s.D2]", ptr, hi[0], hi[1], hi[2])
-		for j := range 3 {
-			g.VUZP1(lo[j], hi[j], x[2*j])
-			g.VUZP2(lo[j], hi[j], x[2*j+1])
-		}
-		g.push(lo[0], lo[1], lo[2], hi[0], hi[1], hi[2])
-	}
-
-	var accs []arm64.VectorRegister
-	if op == e6NeonInnerProd {
-		accs = g.popN(3)
-		for _, r := range accs {
-			g.ins("VEOR %s.B16, %s.B16, %s.B16", r, r, r)
-		}
-	}
-
-	var b []arm64.VectorRegister
-	if scalar {
-		// broadcast the 6 coordinates of s
-		b = g.popN(6)
-		for k := range 6 {
-			g.ins("MOVWU %d(%s), %s", 4*k, bPtr, tmp)
-			g.ins("VDUP %s, %s.S4", tmp, b[k])
-		}
-	}
-
+// a is released; b too if ownB (otherwise it is kept, e.g. a broadcast
+// scalar). Each coefficient j is passed to consume as soon as it is known; if
+// consume returns true it took ownership of the registers (e.g. folded them
+// into an accumulator and released them) and the entry of c is left empty.
+// This keeps at most 32 registers live with a resident scalar or 3
+// accumulators.
+func (g *e6Neon) e6Mul(a, b []vReg, ownB bool, consume func(j int, re, im vReg) bool) (c [6]vReg) {
 	// e2Mul sets (re, im) = (xr + xi·u)(yr + yi·u); x and y are kept.
-	e2Mul := func(xr, xi, yr, yi, re, im arm64.VectorRegister) {
+	e2Mul := func(xr, xi, yr, yi, re, im vReg) {
 		s1, s2 := g.pop(), g.pop()
 		g.mul(xr, yr, re) // m0
 		g.mul(xi, yi, s1) // m1
@@ -306,7 +304,7 @@ func (g *e6Neon) generateMulE6(op e6NeonOp) {
 	}
 
 	// e2MulInPlace sets (xr, xi) = (xr + xi·u)(yr + yi·u); y is clobbered.
-	e2MulInPlace := func(xr, xi, yr, yi arm64.VectorRegister) {
+	e2MulInPlace := func(xr, xi, yr, yi vReg) {
 		s1, s2 := g.pop(), g.pop()
 		g.mul(xr, yr, s1) // m0
 		g.mul(xi, yi, s2) // m1
@@ -321,125 +319,205 @@ func (g *e6Neon) generateMulE6(op e6NeonOp) {
 		g.push(s1, s2)
 	}
 
+	t := g.popN(6) // T0, T1, T2 as (re, im) pairs
+	for j := range 3 {
+		e2Mul(a[2*j], a[2*j+1], b[2*j], b[2*j+1], t[2*j], t[2*j+1])
+	}
+
+	// cross returns (Xp + Xq)(Yp + Yq) − Tp − Tq in two fresh registers.
+	cross := func(p, q int) (mr, mi vReg) {
+		mr, mi = g.pop(), g.pop()
+		yr, yi := g.pop(), g.pop()
+		g.add(a[2*p], a[2*q], mr)
+		g.add(a[2*p+1], a[2*q+1], mi)
+		g.add(b[2*p], b[2*q], yr)
+		g.add(b[2*p+1], b[2*q+1], yi)
+		e2MulInPlace(mr, mi, yr, yi)
+		g.push(yr, yi)
+		g.sub(mr, t[2*p], mr)
+		g.sub(mr, t[2*q], mr)
+		g.sub(mi, t[2*p+1], mi)
+		g.sub(mi, t[2*q+1], mi)
+		return
+	}
+
+	// mulByXiAdd sets (r, i) = ξ·(r + i·u) + (zr + zi·u)
+	//                        = (r + 3i + zr) + (r + i + zi)·u.
+	mulByXiAdd := func(r, i, zr, zi vReg) {
+		s := g.pop()
+		g.add(i, i, s)
+		g.add(s, i, s)  // 3i
+		g.add(r, i, i)  // r + i
+		g.add(r, s, r)  // r + 3i
+		g.add(r, zr, r) // + zr
+		g.add(i, zi, i) // + zi
+		g.push(s)
+	}
+
+	done := func(j int, re, im vReg) {
+		if consume != nil && consume(j, re, im) {
+			return
+		}
+		c[2*j], c[2*j+1] = re, im
+	}
+
+	// c0 = T0 + ξ·((X1+X2)(Y1+Y2) − T1 − T2)
+	c0r, c0i := cross(1, 2)
+	mulByXiAdd(c0r, c0i, t[0], t[1])
+	done(0, c0r, c0i)
+
+	// c1 = (X0+X1)(Y0+Y1) − T0 − T1 + ξ·T2; c2 still needs T2, so ξ·T2 is
+	// computed on a copy.
+	m1r, m1i := cross(0, 1)
+	c1r, c1i := g.pop(), g.pop()
+	g.ins("VMOV %s.B16, %s.B16", t[4], c1r)
+	g.ins("VMOV %s.B16, %s.B16", t[5], c1i)
+	mulByXiAdd(c1r, c1i, m1r, m1i)
+	g.push(m1r, m1i)
+	// X1, Y1 are no longer needed.
+	g.push(a[2], a[3])
+	if ownB {
+		g.push(b[2], b[3])
+	}
+	done(1, c1r, c1i)
+
+	// c2 = (X0+X2)(Y0+Y2) − T0 − T2 + T1
+	c2r, c2i := cross(0, 2)
+	g.add(c2r, t[2], c2r)
+	g.add(c2i, t[3], c2i)
+	g.push(t...)
+	g.push(a[0], a[1], a[4], a[5])
+	if ownB {
+		g.push(b[0], b[1], b[4], b[5])
+	}
+	done(2, c2r, c2i)
+	return
+}
+
+type e6NeonOp int
+
+const (
+	e6NeonMul e6NeonOp = iota
+	e6NeonMulAcc
+	e6NeonInnerProd
+	e6NeonScalarMul
+	e6NeonScalarMulAcc
+	e6NeonScalarMulAdd
+	e6NeonScalarMulAddBase
+)
+
+// generateMulE6 emits the transposed E6 × E6 kernels (N % 4 == 0):
+//
+//	vectorMul_E6_neon(res, a, b *E6, N)                  res[i]  = a[i]·b[i]
+//	vectorMulAcc_E6_neon(res, a, b *E6, N)               res[i] += a[i]·b[i]
+//	vectorInnerProduct_E6_neon(res *[6]uint64, a, b, N)  see below
+//	vectorScalarMul_E6_neon(res, a, b *E6, N)            res[i]  = a[i]·b[0]
+//	vectorScalarMulAcc_E6_neon(res, a, b *E6, N)         res[i] += a[i]·b[0]
+//	vectorScalarMulAdd_E6_neon(res, b, s *E6, N)         res[i]  = res[i]·s + b[i]
+//	vectorScalarMulAddBase_E6_neon(res *E6, b *fr.Element, s *E6, N)
+//	                                                     res[i]  = res[i]·s + b[i]
+//
+// Each iteration transposes 4 E6 with load4, multiplies with e6Mul and
+// transposes back with store4. The Acc / Horner (MulAdd) variants add the
+// E6 addend in the interleaved layout; MulAddBase adds the 4 base-field b[i]
+// to coordinate 0 before transposing back.
+//
+// InnerProduct folds each E2 coefficient c_j of the 4 products with ADDP
+// (lanes < 2q < 2³²) and UADALP into one 2×uint64 accumulator: res[2j] and
+// res[2j+1] receive the partial sums of the real and imaginary parts. Each
+// lane grows by < 4q < 2³³ per iteration, so no overflow before N ≈ 2³³.
+func (g *e6Neon) generateMulE6(op e6NeonOp) {
+	var name string
+	args := []string{"res", "a", "b"}
+	switch op {
+	case e6NeonMul:
+		name = "vectorMul_E6_neon"
+	case e6NeonMulAcc:
+		name = "vectorMulAcc_E6_neon"
+	case e6NeonInnerProd:
+		name = "vectorInnerProduct_E6_neon"
+	case e6NeonScalarMul:
+		name = "vectorScalarMul_E6_neon"
+	case e6NeonScalarMulAcc:
+		name = "vectorScalarMulAcc_E6_neon"
+	case e6NeonScalarMulAdd:
+		name = "vectorScalarMulAdd_E6_neon"
+		args = []string{"res", "b", "s"}
+	case e6NeonScalarMulAddBase:
+		name = "vectorScalarMulAddBase_E6_neon"
+		args = []string{"res", "b", "s"}
+	default:
+		panic("invalid e6NeonOp")
+	}
+	horner := op == e6NeonScalarMulAdd || op == e6NeonScalarMulAddBase
+	scalar := op == e6NeonScalarMul || op == e6NeonScalarMulAcc || horner
+	acc := op == e6NeonMulAcc || op == e6NeonScalarMulAcc
+
+	ptrs, n := g.header(name, "see generateMulE6 in the generator", args...)
+	resPtr, aPtr, bPtr := ptrs[0], ptrs[1], ptrs[2]
+	var addPtr arm64.Register
+	if horner {
+		// a is res itself; the addend is the second argument.
+		addPtr = aPtr
+		aPtr = gpPtr0
+		g.ins("MOVD %s, %s", resPtr, aPtr)
+	}
+
+	var accs []vReg
+	if op == e6NeonInnerProd {
+		accs = g.popN(3)
+		for _, r := range accs {
+			g.ins("VEOR %s.B16, %s.B16, %s.B16", r, r, r)
+		}
+	}
+
+	var b []vReg
+	if scalar {
+		// broadcast the 6 coordinates of the scalar
+		b = g.popN(6)
+		for k := range 6 {
+			g.ins("MOVWU %d(%s), %s", 4*k, bPtr, gpTmp)
+			g.ins("VDUP %s, %s.S4", gpTmp, b[k])
+		}
+	}
+
 	g.Loop(n, func() {
 		a := g.popN(6)
-		load4(aPtr, a)
+		g.load4(aPtr, a)
+		bb := b
 		if !scalar {
-			b = g.popN(6)
-			load4(bPtr, b)
-		}
-		t := g.popN(6) // T0, T1, T2 as (re, im) pairs
-		for j := range 3 {
-			e2Mul(a[2*j], a[2*j+1], b[2*j], b[2*j+1], t[2*j], t[2*j+1])
+			bb = g.popN(6)
+			g.load4(bPtr, bb)
 		}
 
-		// cross returns (Xp + Xq)(Yp + Yq) − Tp − Tq in two fresh registers.
-		cross := func(p, q int) (mr, mi arm64.VectorRegister) {
-			mr, mi = g.pop(), g.pop()
-			yr, yi := g.pop(), g.pop()
-			g.add(a[2*p], a[2*q], mr)
-			g.add(a[2*p+1], a[2*q+1], mi)
-			g.add(b[2*p], b[2*q], yr)
-			g.add(b[2*p+1], b[2*q+1], yi)
-			e2MulInPlace(mr, mi, yr, yi)
-			g.push(yr, yi)
-			g.sub(mr, t[2*p], mr)
-			g.sub(mr, t[2*q], mr)
-			g.sub(mi, t[2*p+1], mi)
-			g.sub(mi, t[2*q+1], mi)
+		var consume func(j int, re, im vReg) bool
+		if op == e6NeonInnerProd {
+			consume = func(j int, re, im vReg) bool {
+				s := g.pop()
+				g.VADDP(re, im, s, "lanes < 2q")
+				g.VUADALP(s, accs[j])
+				g.push(s, re, im)
+				return true
+			}
+		}
+		c := g.e6Mul(a, bb, !scalar, consume)
+		if op == e6NeonInnerProd {
 			return
 		}
 
-		// mulByXiAdd sets (r, i) = ξ·(r + i·u) + (zr + zi·u)
-		//                        = (r + 3i + zr) + (r + i + zi)·u.
-		mulByXiAdd := func(r, i, zr, zi arm64.VectorRegister) {
-			s := g.pop()
-			g.add(i, i, s)
-			g.add(s, i, s)  // 3i
-			g.add(r, i, i)  // r + i
-			g.add(r, s, r)  // r + 3i
-			g.add(r, zr, r) // + zr
-			g.add(i, zi, i) // + zi
-			g.push(s)
+		var addend func(z [3]vReg)
+		switch {
+		case acc:
+			addend = g.addFrom(resPtr, false)
+		case op == e6NeonScalarMulAdd:
+			addend = g.addFrom(addPtr, true)
+		case op == e6NeonScalarMulAddBase:
+			x := g.pop()
+			g.ins("VLD1.P 16(%s), [%s.S4]", addPtr, x)
+			g.add(c[0], x, c[0])
+			g.push(x)
 		}
-
-		// accumulate folds the E2 coefficient (re, im) into accs[j] (InnerProduct).
-		accumulate := func(j int, re, im arm64.VectorRegister) {
-			s := g.pop()
-			g.VADDP(re, im, s, "lanes < 2q")
-			g.VUADALP(s, accs[j])
-			g.push(s)
-		}
-
-		// c0 = T0 + ξ·((X1+X2)(Y1+Y2) − T1 − T2)
-		c0r, c0i := cross(1, 2)
-		mulByXiAdd(c0r, c0i, t[0], t[1])
-		if op == e6NeonInnerProd {
-			// release early: the accumulators leave no room for c0 below.
-			accumulate(0, c0r, c0i)
-			g.push(c0r, c0i)
-		}
-
-		// c1 = (X0+X1)(Y0+Y1) − T0 − T1 + ξ·T2
-		c1r, c1i := cross(0, 1)
-		{
-			// t[4], t[5] = ξ·T2 + c1, i.e. T2 is consumed here; c2 needs T2
-			// once more, so keep a copy.
-			x, y := g.pop(), g.pop()
-			g.ins("VMOV %s.B16, %s.B16", t[4], x)
-			g.ins("VMOV %s.B16, %s.B16", t[5], y)
-			mulByXiAdd(x, y, c1r, c1i)
-			g.push(c1r, c1i)
-			c1r, c1i = x, y
-		}
-		// X1, Y1 are no longer needed.
-		g.push(a[2], a[3])
-		if !scalar {
-			g.push(b[2], b[3])
-		}
-		if op == e6NeonInnerProd {
-			accumulate(1, c1r, c1i)
-			g.push(c1r, c1i)
-		}
-
-		// c2 = (X0+X2)(Y0+Y2) − T0 − T2 + T1
-		c2r, c2i := cross(0, 2)
-		g.add(c2r, t[2], c2r)
-		g.add(c2i, t[3], c2i)
-
-		g.push(t...)
-		g.push(a[0], a[1], a[4], a[5])
-		if !scalar {
-			g.push(b[0], b[1], b[4], b[5])
-		}
-
-		if op == e6NeonInnerProd {
-			accumulate(2, c2r, c2i)
-			g.push(c2r, c2i)
-			return
-		}
-
-		c := [6]arm64.VectorRegister{c0r, c0i, c1r, c1i, c2r, c2i}
-		for half := range 2 {
-			z := g.popTriple()
-			for j := range 3 {
-				if half == 0 {
-					g.ins("VZIP1 %s.S4, %s.S4, %s.S4", c[2*j+1], c[2*j], z[j])
-				} else {
-					g.ins("VZIP2 %s.S4, %s.S4, %s.S4", c[2*j+1], c[2*j], z[j])
-				}
-			}
-			if acc {
-				old := g.popTriple()
-				g.ins("VLD3 (%s), [%s.D2, %s.D2, %s.D2]", resPtr, old[0], old[1], old[2])
-				for j := range 3 {
-					g.add(z[j], old[j], z[j])
-				}
-				g.push(old[0], old[1], old[2])
-			}
-			g.ins("VST3.P [%s.D2, %s.D2, %s.D2], 48(%s)", z[0], z[1], z[2], resPtr)
-			g.push(z[0], z[1], z[2])
-		}
+		g.store4(resPtr, c[:], addend)
 		g.push(c[:]...)
 	})
 
@@ -452,100 +530,5 @@ func (g *e6Neon) generateMulE6(op e6NeonOp) {
 	if scalar {
 		g.push(b...)
 	}
-	g.assertCleanRegs()
-	g.RET()
-	g.WriteLn("")
-}
-
-// generateMulBaseE6 emits the E6 × base-field kernels, which never transpose:
-//
-//	vectorMulByElement_E6_neon(res, a *E6, b *fr.Element, N uint64)         res[i]  = a[i]·b[i]
-//	vectorMulAccByElement_E6_neon(res, a *E6, b *fr.Element, N uint64)      res[i] += a[i]·b[i]
-//	vectorScalarMulBase_E6_neon(res *E6, a, sTiled *fr.Element, N uint64)    res[i]  = s·a[i]
-//	vectorScalarMulAccBase_E6_neon(res *E6, a, sTiled *fr.Element, N uint64) res[i] += s·a[i]
-//
-// Each iteration handles 4 E6 = 24 contiguous fr, i.e. 6 registers. The 4
-// base-field scalars x = [x0, x1, x2, x3] are spread to match with DUP/ZIP:
-//
-//	[x0 x0 x0 x0] [x0 x0 x1 x1] [x1 x1 x1 x1] [x2 x2 x2 x2] [x2 x2 x3 x3] [x3 x3 x3 x3]
-//
-// For the scalar variants the E6 side is sTiled[0:12] (s tiled with period 6),
-// i.e. three constant registers reused for both halves, with s·μ precomputed.
-//
-// Precondition: N % 4 == 0.
-func (g *e6Neon) generateMulBaseE6(op e6NeonOp) {
-	scalar := op == e6NeonScalarMulBase || op == e6NeonScalarMulAccBase
-	acc := op == e6NeonMulAccByElement || op == e6NeonScalarMulAccBase
-
-	g.Comment(fmt.Sprintf("%s(res, a, b, N): see generateMulBaseE6 in the generator", op.name()))
-	g.ins("")
-	g.WriteLn(fmt.Sprintf("TEXT ·%s(SB), NOFRAME|NOSPLIT, $0-32", op.name()))
-	g.resetRegs()
-
-	resPtr, ePtr, xPtr, n, tmp, rdPtr := arm64.R0, arm64.R1, arm64.R2, arm64.R3, arm64.R4, arm64.R5
-	g.ins("MOVD res+0(FP), %s", resPtr)
-	if scalar {
-		// a is the base-field vector, b the tiled E6 scalar
-		g.ins("MOVD a+8(FP), %s", xPtr)
-		g.ins("MOVD b+16(FP), %s", ePtr)
-	} else {
-		g.ins("MOVD a+8(FP), %s", ePtr)
-		g.ins("MOVD b+16(FP), %s", xPtr)
-	}
-	g.ins("MOVD N+24(FP), %s", n)
-	g.ins("LSR $2, %s, %s", n, n)
-	g.loadConstants(tmp)
-	if acc {
-		g.ins("MOVD %s, %s", resPtr, rdPtr)
-	}
-
-	var tile, tileMu []arm64.VectorRegister
-	if scalar {
-		tile = g.popN(3)
-		tileMu = g.popN(3)
-		for j := range 3 {
-			g.ins("VLD1.P 16(%s), [%s.S4]", ePtr, tile[j])
-			g.VMUL_S4(tile[j], vMu, tileMu[j], "s·μ")
-		}
-	}
-
-	g.Loop(n, func() {
-		x := g.pop()
-		g.ins("VLD1.P 16(%s), [%s.S4]", xPtr, x)
-		pat := g.pop()
-		e := g.pop()
-		for k := range 6 {
-			// pattern k of x, see above
-			switch k {
-			case 0, 2, 3, 5:
-				g.ins("VDUP %s.S[%d], %s.S4", x, (k*4)/6, pat)
-			case 1:
-				g.ins("VZIP1 %s.S4, %s.S4, %s.S4", x, x, pat)
-			case 4:
-				g.ins("VZIP2 %s.S4, %s.S4, %s.S4", x, x, pat)
-			}
-			if scalar {
-				g.mul(pat, tile[k%3], e, tileMu[k%3])
-			} else {
-				g.ins("VLD1.P 16(%s), [%s.S4]", ePtr, e)
-				g.mul(e, pat, e)
-			}
-			if acc {
-				old := g.pop()
-				g.ins("VLD1.P 16(%s), [%s.S4]", rdPtr, old)
-				g.add(e, old, e)
-				g.push(old)
-			}
-			g.ins("VST1.P [%s.S4], 16(%s)", e, resPtr)
-		}
-		g.push(x, pat, e)
-	})
-
-	if scalar {
-		g.push(tile...)
-		g.push(tileMu...)
-	}
-	g.assertCleanRegs()
-	g.RET()
-	g.WriteLn("")
+	g.footer()
 }

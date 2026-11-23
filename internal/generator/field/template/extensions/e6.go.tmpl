@@ -634,6 +634,16 @@ func (vector VectorE6) ScalarAddElement(a VectorE6, c *fr.Element) {
 		vectorScalarAdd_E6_avx512(&vector[0], &a[0], &cTiled[0], uint64(nr))
 		vector, a = vector[nr:], a[nr:]
 	}
+	if cpu.SupportNEON && len(vector) >= 4 {
+		// the lift of c only has a nonzero first coordinate: the ScalarAdd
+		// kernel adds zero to the others.
+		nr := len(vector) - len(vector)%4
+		var lift E6
+		lift.B0.A0 = cc
+		cTiled := tileE6Scalar(&lift)
+		vectorScalarAdd_E6_neon(&vector[0], &a[0], &cTiled[0], uint64(nr))
+		vector, a = vector[nr:], a[nr:]
+	}
 {{- end }}
 	for i := range vector {
 		vector[i].AddElement(&a[i], &cc)
@@ -677,6 +687,16 @@ func (vector VectorE6) ScalarSubFromElement(c *fr.Element, a VectorE6) {
 		vectorScalarSubFrom_E6_avx512(&vector[0], &a[0], &cTiled[0], uint64(nr))
 		vector, a = vector[nr:], a[nr:]
 	}
+	if cpu.SupportNEON && len(vector) >= 4 {
+		// the lift of c only has a nonzero first coordinate: the ScalarSubFrom
+		// kernel negates the others.
+		nr := len(vector) - len(vector)%4
+		var lift E6
+		lift.B0.A0 = cc
+		cTiled := tileE6Scalar(&lift)
+		vectorScalarSubFrom_E6_neon(&vector[0], &a[0], &cTiled[0], uint64(nr))
+		vector, a = vector[nr:], a[nr:]
+	}
 {{- end }}
 	for i := range vector {
 		vector[i].SubFromElement(&cc, &a[i])
@@ -707,6 +727,14 @@ func (vector VectorE6) Sum() E6 {
 		sum.B1.A1[0] = uint32(c[3] % q)
 		sum.B2.A0[0] = uint32(c[4] % q)
 		sum.B2.A1[0] = uint32(c[5] % q)
+		vector = vector[nr:]
+	}
+	if cpu.SupportNEON && len(vector) >= 4 {
+		nr := len(vector) - len(vector)%4
+		var t [12]uint64 // t[p]: partial (unreduced) sum of coordinate p%6
+		vectorSum_E6_neon(&t, &vector[0], uint64(nr))
+		p := e6FromPartialSums(&t)
+		sum.Add(&sum, &p)
 		vector = vector[nr:]
 	}
 {{- end }}
@@ -758,6 +786,12 @@ func (vector VectorE6) ScalarAdd(a VectorE6, c *E6) {
 		vectorScalarAdd_E6_avx512(&vector[0], &a[0], &cTiled[0], uint64(nr))
 		vector, a = vector[nr:], a[nr:]
 	}
+	if cpu.SupportNEON && len(vector) >= 4 {
+		nr := len(vector) - len(vector)%4
+		cTiled := tileE6Scalar(&cc)
+		vectorScalarAdd_E6_neon(&vector[0], &a[0], &cTiled[0], uint64(nr))
+		vector, a = vector[nr:], a[nr:]
+	}
 {{- end }}
 	for i := range vector {
 		vector[i].Add(&a[i], &cc)
@@ -802,6 +836,12 @@ func (vector VectorE6) ScalarSubFrom(c *E6, a VectorE6) {
 		vectorScalarSubFrom_E6_avx512(&vector[0], &a[0], &cTiled[0], uint64(nr))
 		vector, a = vector[nr:], a[nr:]
 	}
+	if cpu.SupportNEON && len(vector) >= 4 {
+		nr := len(vector) - len(vector)%4
+		cTiled := tileE6Scalar(&cc)
+		vectorScalarSubFrom_E6_neon(&vector[0], &a[0], &cTiled[0], uint64(nr))
+		vector, a = vector[nr:], a[nr:]
+	}
 {{- end }}
 	for i := range vector {
 		vector[i].Sub(&cc, &a[i])
@@ -825,6 +865,11 @@ func (vector VectorE6) AddElement(a VectorE6, b fr.Vector) {
 	if cpu.SupportAVX512 && N >= blockSize {
 		nr := N - N%blockSize
 		vectorAddElement_E6_avx512(&vector[0], &a[0], &b[0], uint64(nr))
+		vector, a, b = vector[nr:], a[nr:], b[nr:]
+	}
+	if cpu.SupportNEON && len(vector) >= 4 {
+		nr := len(vector) - len(vector)%4
+		vectorAddElement_E6_neon(&vector[0], &a[0], &b[0], uint64(nr))
 		vector, a, b = vector[nr:], a[nr:], b[nr:]
 	}
 {{- end }}
@@ -852,6 +897,11 @@ func (vector VectorE6) SubElement(a VectorE6, b fr.Vector) {
 		vectorSubElement_E6_avx512(&vector[0], &a[0], &b[0], uint64(nr))
 		vector, a, b = vector[nr:], a[nr:], b[nr:]
 	}
+	if cpu.SupportNEON && len(vector) >= 4 {
+		nr := len(vector) - len(vector)%4
+		vectorSubElement_E6_neon(&vector[0], &a[0], &b[0], uint64(nr))
+		vector, a, b = vector[nr:], a[nr:], b[nr:]
+	}
 {{- end }}
 	for i := range vector {
 		vector[i].SubElement(&a[i], &b[i])
@@ -875,6 +925,11 @@ func (vector VectorE6) SubFromElement(a fr.Vector, b VectorE6) {
 	if cpu.SupportAVX512 && N >= blockSize {
 		nr := N - N%blockSize
 		vectorSubFromElement_E6_avx512(&vector[0], &b[0], &a[0], uint64(nr))
+		vector, a, b = vector[nr:], a[nr:], b[nr:]
+	}
+	if cpu.SupportNEON && len(vector) >= 4 {
+		nr := len(vector) - len(vector)%4
+		vectorSubFromElement_E6_neon(&vector[0], &b[0], &a[0], uint64(nr))
 		vector, a, b = vector[nr:], a[nr:], b[nr:]
 	}
 {{- end }}
@@ -903,6 +958,12 @@ func (vector VectorE6) ScalarAddBase(a fr.Vector, c *E6) {
 		nr := len(vector) - len(vector)%blockSize
 		cTiled := tileE6Scalar(&cc)
 		vectorScalarAddBase_E6_avx512(&vector[0], &a[0], &cTiled[0], uint64(nr))
+		vector, a = vector[nr:], a[nr:]
+	}
+	if cpu.SupportNEON && len(vector) >= 4 {
+		nr := len(vector) - len(vector)%4
+		cTiled := tileE6Scalar(&cc)
+		vectorScalarAddBase_E6_neon(&vector[0], &a[0], &cTiled[0], uint64(nr))
 		vector, a = vector[nr:], a[nr:]
 	}
 {{- end }}
@@ -947,6 +1008,12 @@ func (vector VectorE6) ScalarSubFromBase(c *E6, a fr.Vector) {
 		nr := len(vector) - len(vector)%blockSize
 		cTiled := tileE6Scalar(&cc)
 		vectorScalarSubFromBase_E6_avx512(&vector[0], &a[0], &cTiled[0], uint64(nr))
+		vector, a = vector[nr:], a[nr:]
+	}
+	if cpu.SupportNEON && len(vector) >= 4 {
+		nr := len(vector) - len(vector)%4
+		cTiled := tileE6Scalar(&cc)
+		vectorScalarSubFromBase_E6_neon(&vector[0], &a[0], &cTiled[0], uint64(nr))
 		vector, a = vector[nr:], a[nr:]
 	}
 {{- end }}
@@ -1059,6 +1126,11 @@ func (vector VectorE6) FoldPairs(layer VectorE6, halfInvTwiddles fr.Vector, alph
 		vectorFoldPairs_E6_avx512(&vector[0], &layer[0], &halfInvTwiddles[0], &K[0], uint64(nr))
 		vector, layer, halfInvTwiddles = vector[nr:], layer[2*nr:], halfInvTwiddles[nr:]
 	}
+	if cpu.SupportNEON && len(vector) >= 4 {
+		nr := len(vector) - len(vector)%4
+		vectorFoldPairs_E6_neon(&vector[0], &layer[0], &halfInvTwiddles[0], &aa, uint64(nr))
+		vector, layer, halfInvTwiddles = vector[nr:], layer[2*nr:], halfInvTwiddles[nr:]
+	}
 {{- end }}
 	foldPairsE6Generic(vector, layer, halfInvTwiddles, &aa)
 }
@@ -1109,6 +1181,14 @@ func (vector VectorE6) InnerProductByElement(a fr.Vector) E6 {
 		res.B2.A1[0] = uint32(c[5] % q)
 		vector, a = vector[nr:], a[nr:]
 	}
+	if cpu.SupportNEON && len(vector) >= 4 {
+		nr := len(vector) - len(vector)%4
+		var t [12]uint64 // t[p]: partial (unreduced) sum of coordinate p%6
+		vectorInnerProductByElement_E6_neon(&t, &vector[0], &a[0], uint64(nr))
+		p := e6FromPartialSums(&t)
+		res.Add(&res, &p)
+		vector, a = vector[nr:], a[nr:]
+	}
 {{- end }}
 	for i := range vector {
 		tmp.MulByElement(&vector[i], &a[i])
@@ -1131,20 +1211,21 @@ func (vector VectorE6) Butterfly(other VectorE6) {
 	// pair as a (3/2 N)-length E4 array and reuse it. Requires N % 8 == 0 so
 	// 6N/4 is a multiple of the kernel's 4-E4 inner block.
 	const blockSize = 8
-	if !cpu.SupportAVX512 || N < blockSize {
-		for i := range N {
-			ButterflyE6(&vector[i], &other[i])
-		}
-		return
+	if cpu.SupportAVX512 && N >= blockSize {
+		nr := N - N%blockSize
+		vectorButterfly_avx512(
+			(*E4)(unsafe.Pointer(&vector[0])),
+			(*E4)(unsafe.Pointer(&other[0])),
+			uint64(nr)*3/2,
+		)
+		vector, other = vector[nr:], other[nr:]
 	}
-	r := N % blockSize
-	nr := uint64(N - r)
-	vectorButterfly_avx512(
-		(*E4)(unsafe.Pointer(&vector[0])),
-		(*E4)(unsafe.Pointer(&other[0])),
-		nr*3/2,
-	)
-	for i := N - r; i < N; i++ {
+	if cpu.SupportNEON && len(vector) >= 4 {
+		nr := len(vector) - len(vector)%4
+		vectorButterfly_E6_neon(&vector[0], &other[0], uint64(nr))
+		vector, other = vector[nr:], other[nr:]
+	}
+	for i := range vector {
 		ButterflyE6(&vector[i], &other[i])
 	}
 {{- else }}
@@ -1172,6 +1253,13 @@ func (vector VectorE6) ButterflyPair() {
 			{{butterflyE6Coords "fr" "a" "b"}}
 		}
 		return
+	}
+	if cpu.SupportNEON && N >= 4 {
+		// N is even: the tail is 0 or 1 pair
+		nr := N - N%4
+		vectorButterflyPair_E6_neon(&vector[0], uint64(nr))
+		vector = vector[nr:]
+		N = len(vector)
 	}
 {{- end }}
 	// Hand-inlined: ButterflyE6 alone is 96 instructions which exceeds the
@@ -1201,6 +1289,12 @@ func (vector VectorE6) MulByElementThenButterfly(other VectorE6, twiddles fr.Vec
 		}
 		return
 	}
+	if cpu.SupportNEON && N >= 4 {
+		nr := N - N%4
+		vectorDITWithTwiddles_E6_neon(&vector[0], &other[0], &twiddles[0], uint64(nr))
+		vector, other, twiddles = vector[nr:], other[nr:], twiddles[nr:]
+		N = len(vector)
+	}
 {{- end }}
 	for i := range N {
 		other[i].MulByElement(&other[i], &twiddles[i])
@@ -1226,6 +1320,12 @@ func (vector VectorE6) ButterflyThenMulByElement(other VectorE6, twiddles fr.Vec
 			other[i].MulByElement(&other[i], &twiddles[i])
 		}
 		return
+	}
+	if cpu.SupportNEON && N >= 4 {
+		nr := N - N%4
+		vectorDIFWithTwiddles_E6_neon(&vector[0], &other[0], &twiddles[0], uint64(nr))
+		vector, other, twiddles = vector[nr:], other[nr:], twiddles[nr:]
+		N = len(vector)
 	}
 {{- end }}
 	for i := range N {
@@ -1445,6 +1545,11 @@ func (vector VectorE6) ScalarMulAdd(b VectorE6, c *E6) {
 		vectorScalarMulAdd_E6_avx512(&vector[0], &b[0], &Kcol[0], uint64(nr))
 		vector, b = vector[nr:], b[nr:]
 	}
+	if cpu.SupportNEON && len(vector) >= 4 {
+		nr := len(vector) - len(vector)%4
+		vectorScalarMulAdd_E6_neon(&vector[0], &b[0], &cc, uint64(nr))
+		vector, b = vector[nr:], b[nr:]
+	}
 {{- end }}
 	// compute into t first: b may alias vector.
 	var t E6
@@ -1480,6 +1585,11 @@ func (vector VectorE6) ScalarMulAddBase(b fr.Vector, c *E6) {
 		nr := N - r
 		Kcol := e6ScalarMulKcol(&cc)
 		vectorScalarMulAddBase_E6_avx512(&vector[0], &b[0], &Kcol[0], uint64(nr))
+		vector, b = vector[nr:], b[nr:]
+	}
+	if cpu.SupportNEON && len(vector) >= 4 {
+		nr := len(vector) - len(vector)%4
+		vectorScalarMulAddBase_E6_neon(&vector[0], &b[0], &cc, uint64(nr))
 		vector, b = vector[nr:], b[nr:]
 	}
 {{- end }}
@@ -1563,6 +1673,19 @@ func scalarMulE6Generic(vector, a VectorE6, s *E6) {
 	}
 }
 {{- if .IsKoalaBear }}
+
+// e6FromPartialSums reduces partial sums t[p] of coordinate p%6 (as returned
+// by the NEON Sum / InnerProductByElement kernels) into an E6.
+func e6FromPartialSums(t *[12]uint64) (r E6) {
+	var c [6]uint64
+	for p := range t {
+		c[p%6] += t[p] % q
+	}
+	r.B0.A0[0], r.B0.A1[0] = uint32(c[0]%q), uint32(c[1]%q)
+	r.B1.A0[0], r.B1.A1[0] = uint32(c[2]%q), uint32(c[3]%q)
+	r.B2.A0[0], r.B2.A1[0] = uint32(c[4]%q), uint32(c[5]%q)
+	return
+}
 
 // tileE6Scalar tiles the six fr coordinates of s across 48 lanes (period 6, the
 // 8-E6 = 3-zmm broadcast window consumed by vectorScalarMulAccByElement_E6_avx512,

@@ -22,6 +22,18 @@ func vectorScalarMulAcc_E6_neon(res, a, b *E6, N uint64) {
 	panic("vectorScalarMulAcc_E6_neon is not implemented")
 }
 
+func vectorScalarMulAdd_E6_neon(res, b, s *E6, N uint64) {
+	panic("vectorScalarMulAdd_E6_neon is not implemented")
+}
+
+func vectorScalarMulAddBase_E6_neon(res *E6, b *fr.Element, s *E6, N uint64) {
+	panic("vectorScalarMulAddBase_E6_neon is not implemented")
+}
+
+func vectorFoldPairs_E6_neon(res, layer *E6, twiddles *fr.Element, alpha *E6, N uint64) {
+	panic("vectorFoldPairs_E6_neon is not implemented")
+}
+
 func vectorMulByElement_E6_neon(res, a *E6, b *fr.Element, N uint64) {
 	panic("vectorMulByElement_E6_neon is not implemented")
 }
@@ -36,4 +48,56 @@ func vectorScalarMulBase_E6_neon(res *E6, a *fr.Element, b *fr.Element, N uint64
 
 func vectorScalarMulAccBase_E6_neon(res *E6, a *fr.Element, b *fr.Element, N uint64) {
 	panic("vectorScalarMulAccBase_E6_neon is not implemented")
+}
+
+func vectorScalarAdd_E6_neon(res, a *E6, cTiled *fr.Element, N uint64) {
+	panic("vectorScalarAdd_E6_neon is not implemented")
+}
+
+func vectorScalarSubFrom_E6_neon(res, a *E6, cTiled *fr.Element, N uint64) {
+	panic("vectorScalarSubFrom_E6_neon is not implemented")
+}
+
+func vectorAddElement_E6_neon(res, a *E6, b *fr.Element, N uint64) {
+	panic("vectorAddElement_E6_neon is not implemented")
+}
+
+func vectorSubElement_E6_neon(res, a *E6, b *fr.Element, N uint64) {
+	panic("vectorSubElement_E6_neon is not implemented")
+}
+
+func vectorSubFromElement_E6_neon(res, a *E6, b *fr.Element, N uint64) {
+	panic("vectorSubFromElement_E6_neon is not implemented")
+}
+
+func vectorScalarAddBase_E6_neon(res *E6, a *fr.Element, cTiled *fr.Element, N uint64) {
+	panic("vectorScalarAddBase_E6_neon is not implemented")
+}
+
+func vectorScalarSubFromBase_E6_neon(res *E6, a *fr.Element, cTiled *fr.Element, N uint64) {
+	panic("vectorScalarSubFromBase_E6_neon is not implemented")
+}
+
+func vectorButterfly_E6_neon(a0, a1 *E6, N uint64) {
+	panic("vectorButterfly_E6_neon is not implemented")
+}
+
+func vectorDITWithTwiddles_E6_neon(a0, a1 *E6, twiddles *fr.Element, N uint64) {
+	panic("vectorDITWithTwiddles_E6_neon is not implemented")
+}
+
+func vectorDIFWithTwiddles_E6_neon(a0, a1 *E6, twiddles *fr.Element, N uint64) {
+	panic("vectorDIFWithTwiddles_E6_neon is not implemented")
+}
+
+func vectorButterflyPair_E6_neon(a *E6, N uint64) {
+	panic("vectorButterflyPair_E6_neon is not implemented")
+}
+
+func vectorSum_E6_neon(res *[12]uint64, a *E6, N uint64) {
+	panic("vectorSum_E6_neon is not implemented")
+}
+
+func vectorInnerProductByElement_E6_neon(res *[12]uint64, a *E6, b *fr.Element, N uint64) {
+	panic("vectorInnerProductByElement_E6_neon is not implemented")
 }
