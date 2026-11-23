@@ -16,10 +16,10 @@ loop1:
 	SUB    $1, R3, R3
 	VLD1.P 16(R1), [V0.S4]
 	VLD1.P 16(R2), [V1.S4]
-	VADD   V0.S4, V1.S4, V1.S4 // dst = a + b
-	VSUB   V2.S4, V1.S4, V0.S4 // t = dst - q
-	VUMIN  V0.S4, V1.S4, V1.S4 // dst = min(t, dst)
-	VST1.P [V1.S4], 16(R0)     // res = b
+	VADD   V0.S4, V1.S4, V1.S4 // V1 = V0 + V1
+	VSUB   V2.S4, V1.S4, V0.S4 // V0 = V1 - V2
+	VUMIN  V0.S4, V1.S4, V1.S4 // V1 = min(V0, V1)
+	VST1.P [V1.S4], 16(R0)     // res = V1
 	JMP    loop1
 
 done2:
@@ -38,10 +38,10 @@ loop3:
 	SUB    $1, R3, R3
 	VLD1.P 16(R1), [V0.S4]
 	VLD1.P 16(R2), [V1.S4]
-	VSUB   V1.S4, V0.S4, V1.S4 // dst = a - b
-	VADD   V1.S4, V2.S4, V0.S4 // t = dst + q
-	VUMIN  V0.S4, V1.S4, V1.S4 // dst = min(t, dst)
-	VST1.P [V1.S4], 16(R0)     // res = b
+	VSUB   V1.S4, V0.S4, V1.S4 // V1 = V0 - V1
+	VADD   V1.S4, V2.S4, V0.S4 // V0 = V1 + V2
+	VUMIN  V0.S4, V1.S4, V1.S4 // V1 = min(V0, V1)
+	VST1.P [V1.S4], 16(R0)     // res = V1
 	JMP    loop3
 
 done4:
@@ -70,14 +70,14 @@ loop5:
 	SUB    $1, R3, R3
 	VLD1.P 16(R1), [V0.S4]
 	VLD1.P 16(R2), [V1.S4]
-	WORD   $0x4ea1b402     // SQDMULH V2.4S, V0.4S, V1.4S - c_hi = (2*a*b) >> 32
-	WORD   $0x4ea19c03     // MUL V3.4S, V0.4S, V1.4S - q = a * b (low 32 bits)
-	WORD   $0x4ea79c63     // MUL V3.4S, V3.4S, V7.4S - q = q * mu (low 32 bits)
-	WORD   $0x4ea6b464     // SQDMULH V4.4S, V3.4S, V6.4S - qp_hi = (2*q*P) >> 32
-	WORD   $0x4ea42445     // SHSUB V5.4S, V2.4S, V4.4S - d = (c_hi - qp_hi) / 2
-	WORD   $0x4ea23488     // CMGT V8.4S, V4.4S, V2.4S - underflow = (c_hi < qp_hi) ? all 1s : 0
-	WORD   $0x6ea69505     // MLS V5.4S, V8.4S, V6.4S - d = d - underflow * P (adds P when d < 0)
-	VST1.P [V5.S4], 16(R0) // res = d
+	WORD   $0x4ea1b402     // SQDMULH V2.4S, V0.4S, V1.4S - V2 = (2*V0*V1) >> 32
+	WORD   $0x4ea19c03     // MUL V3.4S, V0.4S, V1.4S - V3 = V0 * V1 (low 32 bits)
+	WORD   $0x4ea79c63     // MUL V3.4S, V3.4S, V7.4S - V3 = V3 * V7 (low 32 bits)
+	WORD   $0x4ea6b464     // SQDMULH V4.4S, V3.4S, V6.4S - V4 = (2*V3*V6) >> 32
+	WORD   $0x4ea42445     // SHSUB V5.4S, V2.4S, V4.4S - V5 = (V2 - V4) / 2
+	WORD   $0x4ea23488     // CMGT V8.4S, V4.4S, V2.4S - V8 = (V2 < V4) ? all 1s : 0
+	WORD   $0x6ea69505     // MLS V5.4S, V8.4S, V6.4S - V5 = V5 - V8 * V6 (adds p when V5 < 0)
+	VST1.P [V5.S4], 16(R0) // res = V5
 	JMP    loop5
 
 done6:
@@ -99,14 +99,14 @@ loop7:
 	CBZ    R2, done8
 	SUB    $1, R2, R2
 	VLD1.P 64(R0), [V0.S4, V1.S4, V2.S4, V3.S4]
-	VADD   V0.S4, V1.S4, V0.S4                  // a0 += a1
-	VADD   V2.S4, V3.S4, V2.S4                  // a2 += a3
-	WORD   $0x6ea06804                          // UADALP V4.2D, V0.4S - acc0 += pairwise_widen(a0)
-	WORD   $0x6ea06845                          // UADALP V5.2D, V2.4S - acc1 += pairwise_widen(a2)
+	VADD   V0.S4, V1.S4, V0.S4                  // V0 += V1
+	VADD   V2.S4, V3.S4, V2.S4                  // V2 += V3
+	WORD   $0x6ea06804                          // UADALP V4.2D, V0.4S - V4 += pairwise_widen(V0)
+	WORD   $0x6ea06845                          // UADALP V5.2D, V2.4S - V5 += pairwise_widen(V2)
 	JMP    loop7
 
 done8:
-	VADD   V4.D2, V5.D2, V4.D2 // acc0 += acc1
+	VADD   V4.D2, V5.D2, V4.D2 // V4 += V5
 	VST1.P [V4.D2], 0(R1)      // store accumulator
 	RET
 
@@ -123,19 +123,19 @@ TEXT ·scalarMulVec(SB), NOFRAME|NOSPLIT, $0-32
 	VDUP  R4, V7.S4           // broadcast MU
 	MOVWU 0(R2), R4
 	VDUP  R4, V1.S4           // broadcast scalar b
-	WORD  $0x4ea19ce9         // MUL V9.4S, V7.4S, V1.4S - muB = mu * b (precomputed)
+	WORD  $0x4ea19ce9         // MUL V9.4S, V7.4S, V1.4S - V9 = V7 * V1 (precomputed)
 
 loop9:
 	CBZ    R3, done10
 	SUB    $1, R3, R3
 	VLD1.P 16(R1), [V0.S4]
-	WORD   $0x4ea1b402     // SQDMULH V2.4S, V0.4S, V1.4S - c_hi = (2*a*b) >> 32
-	WORD   $0x4ea99c03     // MUL V3.4S, V0.4S, V9.4S - q = a * muB (low 32 bits)
-	WORD   $0x4ea6b464     // SQDMULH V4.4S, V3.4S, V6.4S - qp_hi = (2*q*P) >> 32
-	WORD   $0x4ea42445     // SHSUB V5.4S, V2.4S, V4.4S - d = (c_hi - qp_hi) / 2
-	WORD   $0x4ea23488     // CMGT V8.4S, V4.4S, V2.4S - underflow = (c_hi < qp_hi) ? all 1s : 0
-	WORD   $0x6ea69505     // MLS V5.4S, V8.4S, V6.4S - d = d - underflow * P (adds P when d < 0)
-	VST1.P [V5.S4], 16(R0) // res = d
+	WORD   $0x4ea1b402     // SQDMULH V2.4S, V0.4S, V1.4S - V2 = (2*V0*V1) >> 32
+	WORD   $0x4ea99c03     // MUL V3.4S, V0.4S, V9.4S - V3 = V0 * V9 (low 32 bits)
+	WORD   $0x4ea6b464     // SQDMULH V4.4S, V3.4S, V6.4S - V4 = (2*V3*V6) >> 32
+	WORD   $0x4ea42445     // SHSUB V5.4S, V2.4S, V4.4S - V5 = (V2 - V4) / 2
+	WORD   $0x4ea23488     // CMGT V8.4S, V4.4S, V2.4S - V8 = (V2 < V4) ? all 1s : 0
+	WORD   $0x6ea69505     // MLS V5.4S, V8.4S, V6.4S - V5 = V5 - V8 * V6 (adds p when V5 < 0)
+	VST1.P [V5.S4], 16(R0) // res = V5
 	JMP    loop9
 
 done10:
@@ -161,20 +161,20 @@ loop11:
 	SUB     $1, R3, R3
 	VLD1.P  16(R1), [V0.S4]
 	VLD1.P  16(R2), [V1.S4]
-	WORD    $0x4ea1b402            // SQDMULH V2.4S, V0.4S, V1.4S - c_hi = (2*a*b) >> 32
-	WORD    $0x4ea19c03            // MUL V3.4S, V0.4S, V1.4S - q = a * b (low 32 bits)
-	WORD    $0x4ea79c63            // MUL V3.4S, V3.4S, V7.4S - q = q * mu (low 32 bits)
-	WORD    $0x4ea6b464            // SQDMULH V4.4S, V3.4S, V6.4S - qp_hi = (2*q*P) >> 32
-	WORD    $0x4ea42445            // SHSUB V5.4S, V2.4S, V4.4S - d = (c_hi - qp_hi) / 2
-	WORD    $0x4ea23488            // CMGT V8.4S, V4.4S, V2.4S - underflow = (c_hi < qp_hi) ? all 1s : 0
-	WORD    $0x6ea69505            // MLS V5.4S, V8.4S, V6.4S - d = d - underflow * P (adds P when d < 0)
-	VUSHLL  $0, V5.S2, V11.D2      // tmp0 = extend(d[0,1])
-	VUSHLL2 $0, V5.S4, V12.D2      // tmp1 = extend(d[2,3])
-	VADD    V11.D2, V9.D2, V9.D2   // acc0 += tmp0
-	VADD    V12.D2, V10.D2, V10.D2 // acc1 += tmp1
+	WORD    $0x4ea1b402            // SQDMULH V2.4S, V0.4S, V1.4S - V2 = (2*V0*V1) >> 32
+	WORD    $0x4ea19c03            // MUL V3.4S, V0.4S, V1.4S - V3 = V0 * V1 (low 32 bits)
+	WORD    $0x4ea79c63            // MUL V3.4S, V3.4S, V7.4S - V3 = V3 * V7 (low 32 bits)
+	WORD    $0x4ea6b464            // SQDMULH V4.4S, V3.4S, V6.4S - V4 = (2*V3*V6) >> 32
+	WORD    $0x4ea42445            // SHSUB V5.4S, V2.4S, V4.4S - V5 = (V2 - V4) / 2
+	WORD    $0x4ea23488            // CMGT V8.4S, V4.4S, V2.4S - V8 = (V2 < V4) ? all 1s : 0
+	WORD    $0x6ea69505            // MLS V5.4S, V8.4S, V6.4S - V5 = V5 - V8 * V6 (adds p when V5 < 0)
+	VUSHLL  $0, V5.S2, V11.D2      // V11 = extend(V5[0,1])
+	VUSHLL2 $0, V5.S4, V12.D2      // V12 = extend(V5[2,3])
+	VADD    V11.D2, V9.D2, V9.D2   // V9 += V11
+	VADD    V12.D2, V10.D2, V10.D2 // V10 += V12
 	JMP     loop11
 
 done12:
-	VADD   V9.D2, V10.D2, V9.D2 // acc0 += acc1
+	VADD   V9.D2, V10.D2, V9.D2 // V9 += V10
 	VST1.P [V9.D2], 16(R0)      // store accumulator
 	RET

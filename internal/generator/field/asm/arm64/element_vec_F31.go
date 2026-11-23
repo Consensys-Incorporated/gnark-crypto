@@ -1,23 +1,25 @@
 package arm64
 
 import (
+	"fmt"
+
 	"github.com/consensys/bavard/arm64"
 )
 
 // modAddF31 emits dst = a + b mod q on 4-lane registers, for a, b in [0, q). q holds the broadcast modulus and t is
 // scratch. dst and t may each be a or b, but must differ from each other and from q.
 func (f *FFArm64) modAddF31(dst, a, b, q, t arm64.VectorRegister) {
-	f.VADD(a.S4(), b.S4(), dst.S4(), "dst = a + b")
-	f.VSUB(q.S4(), dst.S4(), t.S4(), "t = dst - q")
-	f.VUMIN(t.S4(), dst.S4(), dst.S4(), "dst = min(t, dst)")
+	f.VADD(a.S4(), b.S4(), dst.S4(), fmt.Sprintf("%s = %s + %s", dst, a, b))
+	f.VSUB(q.S4(), dst.S4(), t.S4(), fmt.Sprintf("%s = %s - %s", t, dst, q))
+	f.VUMIN(t.S4(), dst.S4(), dst.S4(), fmt.Sprintf("%s = min(%s, %s)", dst, t, dst))
 }
 
 // modSubF31 emits dst = a - b mod q on 4-lane registers, for a, b in [0, q). q holds the broadcast modulus and t is
 // scratch. dst and t may each be a or b, but must differ from each other and from q.
 func (f *FFArm64) modSubF31(dst, a, b, q, t arm64.VectorRegister) {
-	f.VSUB(b.S4(), a.S4(), dst.S4(), "dst = a - b")
-	f.VADD(dst.S4(), q.S4(), t.S4(), "t = dst + q")
-	f.VUMIN(t.S4(), dst.S4(), dst.S4(), "dst = min(t, dst)")
+	f.VSUB(b.S4(), a.S4(), dst.S4(), fmt.Sprintf("%s = %s - %s", dst, a, b))
+	f.VADD(dst.S4(), q.S4(), t.S4(), fmt.Sprintf("%s = %s + %s", t, dst, q))
+	f.VUMIN(t.S4(), dst.S4(), dst.S4(), fmt.Sprintf("%s = min(%s, %s)", dst, t, dst))
 }
 
 // montMulF31 emits d = a * b * R^-1 mod p on 4-lane registers, with R = 2^32, for a, b in [0, p). p holds the
@@ -26,27 +28,34 @@ func (f *FFArm64) modSubF31(dst, a, b, q, t arm64.VectorRegister) {
 func (f *FFArm64) montMulF31(d, a, b, p, mu, cHi, q, qpHi, underflow arm64.VectorRegister) {
 	// Step 1: c_hi = (2 * a * b) >> 32 using SQDMULH
 	// SQDMULH computes (2*a*b) >> 32 with signed saturation
-	f.VSQDMULH(a, b, cHi, "c_hi = (2*a*b) >> 32")
+	f.VSQDMULH(a, b, cHi, fmt.Sprintf("%s = (2*%s*%s) >> 32", cHi, a, b))
 
 	// Step 2: q = (a * b * mu) mod 2^32
 	// First compute temp = a * b (low 32 bits)
 	// Then q = temp * mu (low 32 bits)
-	f.VMUL_S4(a, b, q, "q = a * b (low 32 bits)")
-	f.VMUL_S4(q, mu, q, "q = q * mu (low 32 bits)")
+	f.VMUL_S4(a, b, q, fmt.Sprintf("%s = %s * %s (low 32 bits)", q, a, b))
+	f.VMUL_S4(q, mu, q, fmt.Sprintf("%s = %s * %s (low 32 bits)", q, q, mu))
 
+	f.montReduceF31(d, cHi, q, p, qpHi, underflow)
+}
+
+// montReduceF31 emits the second half of a Montgomery product on 4-lane registers: given cHi = (2 * a * b) >> 32 and
+// q = (a * b * mu) mod 2^32, it sets d = a * b * R^-1 mod p. p holds the broadcast modulus; qpHi and underflow are
+// scratch. d must differ from the other registers.
+func (f *FFArm64) montReduceF31(d, cHi, q, p, qpHi, underflow arm64.VectorRegister) {
 	// Step 3: qp_hi = (2 * q * P) >> 32 using SQDMULH
-	f.VSQDMULH(q, p, qpHi, "qp_hi = (2*q*P) >> 32")
+	f.VSQDMULH(q, p, qpHi, fmt.Sprintf("%s = (2*%s*%s) >> 32", qpHi, q, p))
 
 	// Step 4: d = (c_hi - qp_hi) / 2 using SHSUB
 	// This computes the halving subtraction which accounts for the 2x factor in SQDMULH
-	f.VSHSUB(cHi, qpHi, d, "d = (c_hi - qp_hi) / 2")
+	f.VSHSUB(cHi, qpHi, d, fmt.Sprintf("%s = (%s - %s) / 2", d, cHi, qpHi))
 
 	// Step 5: Canonicalize - if d < 0 (negative), add P
 	// underflow mask: all 1s if qp_hi > c_hi (which means d is negative), else 0
-	f.VCMLT(cHi, qpHi, underflow, "underflow = (c_hi < qp_hi) ? all 1s : 0")
+	f.VCMLT(cHi, qpHi, underflow, fmt.Sprintf("%s = (%s < %s) ? all 1s : 0", underflow, cHi, qpHi))
 
 	// d = d - underflow * P = d + P if underflow (since underflow is -1 when true)
-	f.VMLS(underflow, p, d, "d = d - underflow * P (adds P when d < 0)")
+	f.VMLS(underflow, p, d, fmt.Sprintf("%s = %s - %s * %s (adds p when %s < 0)", d, d, underflow, p, d))
 }
 
 func (f *FFArm64) generateAddVecF31() {
@@ -79,7 +88,7 @@ func (f *FFArm64) generateAddVecF31() {
 		f.VLD1_P(offset, bPtr, b0.S4())
 
 		f.modAddF31(b0, a0, b0, q, a0)
-		f.VST1_P(b0.S4(), resPtr, offset, "res = b")
+		f.VST1_P(b0.S4(), resPtr, offset, fmt.Sprintf("res = %s", b0))
 	})
 
 	registers.Push(resPtr, aPtr, bPtr, n)
@@ -143,7 +152,7 @@ func (f *FFArm64) generateMulVecF31() {
 
 		f.montMulF31(d, a, b, p, mu, cHi, q, qpHi, underflow)
 
-		f.VST1_P(d.S4(), resPtr, offset, "res = d")
+		f.VST1_P(d.S4(), resPtr, offset, fmt.Sprintf("res = %s", d))
 	})
 
 	registers.Push(resPtr, aPtr, bPtr, n)
@@ -182,7 +191,7 @@ func (f *FFArm64) generateSubVecF31() {
 		f.VLD1_P(offset, bPtr, b0.S4())
 
 		f.modSubF31(b0, a0, b0, q, a0)
-		f.VST1_P(b0.S4(), resPtr, offset, "res = b")
+		f.VST1_P(b0.S4(), resPtr, offset, fmt.Sprintf("res = %s", b0))
 	})
 
 	registers.Push(resPtr, aPtr, bPtr, n)
@@ -232,17 +241,17 @@ func (f *FFArm64) generateSumVecF31() {
 		f.VLD1_P_Multi(offset, aPtr, a0, a1, a2, a3)
 
 		// Add vectors pairwise: a0 += a1, a2 += a3
-		f.VADD(a0.S4(), a1.S4(), a0.S4(), "a0 += a1")
-		f.VADD(a2.S4(), a3.S4(), a2.S4(), "a2 += a3")
+		f.VADD(a0.S4(), a1.S4(), a0.S4(), fmt.Sprintf("%s += %s", a0, a1))
+		f.VADD(a2.S4(), a3.S4(), a2.S4(), fmt.Sprintf("%s += %s", a2, a3))
 
 		// UADALP: pairwise add adjacent 32-bit elements, widen to 64-bit, and accumulate
 		// This replaces VUSHLL + VADD with a single instruction
-		f.VUADALP(a0, acc0V, "acc0 += pairwise_widen(a0)")
-		f.VUADALP(a2, acc1V, "acc1 += pairwise_widen(a2)")
+		f.VUADALP(a0, acc0V, fmt.Sprintf("%s += pairwise_widen(%s)", acc0V, a0))
+		f.VUADALP(a2, acc1V, fmt.Sprintf("%s += pairwise_widen(%s)", acc1V, a2))
 	})
 
 	// Final reduction: combine the two accumulators
-	f.VADD(acc0, acc1, acc0, "acc0 += acc1")
+	f.VADD(acc0, acc1, acc0, fmt.Sprintf("%s += %s", acc0V, acc1V))
 
 	f.VST1_P(acc0, tPtr, 0, "store accumulator")
 
@@ -298,7 +307,7 @@ func (f *FFArm64) generateScalarMulVecF31() {
 	f.VDUP(tmp, b.S4(), "broadcast scalar b")
 
 	// Precompute mu * b for reuse in the loop
-	f.VMUL_S4(mu, b, muB, "muB = mu * b (precomputed)")
+	f.VMUL_S4(mu, b, muB, fmt.Sprintf("%s = %s * %s (precomputed)", muB, mu, b))
 	registers.Push(tmp)
 
 	f.Loop(n, func() {
@@ -307,25 +316,15 @@ func (f *FFArm64) generateScalarMulVecF31() {
 		f.VLD1_P(offset, aPtr, a.S4())
 
 		// Step 1: c_hi = (2 * a * b) >> 32 using SQDMULH
-		f.VSQDMULH(a, b, cHi, "c_hi = (2*a*b) >> 32")
+		f.VSQDMULH(a, b, cHi, fmt.Sprintf("%s = (2*%s*%s) >> 32", cHi, a, b))
 
 		// Step 2: q = (a * b * mu) mod 2^32 = a * (mu * b) mod 2^32
 		// Using precomputed muB = mu * b
-		f.VMUL_S4(a, muB, q, "q = a * muB (low 32 bits)")
+		f.VMUL_S4(a, muB, q, fmt.Sprintf("%s = %s * %s (low 32 bits)", q, a, muB))
 
-		// Step 3: qp_hi = (2 * q * P) >> 32 using SQDMULH
-		f.VSQDMULH(q, p, qpHi, "qp_hi = (2*q*P) >> 32")
+		f.montReduceF31(d, cHi, q, p, qpHi, underflow)
 
-		// Step 4: d = (c_hi - qp_hi) / 2 using SHSUB
-		f.VSHSUB(cHi, qpHi, d, "d = (c_hi - qp_hi) / 2")
-
-		// Step 5: Canonicalize - if d < 0 (negative), add P
-		f.VCMLT(cHi, qpHi, underflow, "underflow = (c_hi < qp_hi) ? all 1s : 0")
-
-		// d = d - underflow * P = d + P if underflow
-		f.VMLS(underflow, p, d, "d = d - underflow * P (adds P when d < 0)")
-
-		f.VST1_P(d.S4(), resPtr, offset, "res = d")
+		f.VST1_P(d.S4(), resPtr, offset, fmt.Sprintf("res = %s", d))
 	})
 
 	registers.Push(resPtr, aPtr, bPtr, n)
@@ -392,36 +391,19 @@ func (f *FFArm64) generateInnerProdVecF31() {
 		f.VLD1_P(offset, aPtr, a.S4())
 		f.VLD1_P(offset, bPtr, b.S4())
 
-		// Step 1: c_hi = (2 * a * b) >> 32 using SQDMULH
-		f.VSQDMULH(a, b, cHi, "c_hi = (2*a*b) >> 32")
-
-		// Step 2: q = (a * b * mu) mod 2^32
-		f.VMUL_S4(a, b, q, "q = a * b (low 32 bits)")
-		f.VMUL_S4(q, mu, q, "q = q * mu (low 32 bits)")
-
-		// Step 3: qp_hi = (2 * q * P) >> 32 using SQDMULH
-		f.VSQDMULH(q, p, qpHi, "qp_hi = (2*q*P) >> 32")
-
-		// Step 4: d = (c_hi - qp_hi) / 2 using SHSUB
-		f.VSHSUB(cHi, qpHi, d, "d = (c_hi - qp_hi) / 2")
-
-		// Step 5: Canonicalize - if d < 0 (negative), add P
-		f.VCMLT(cHi, qpHi, underflow, "underflow = (c_hi < qp_hi) ? all 1s : 0")
-
-		// d = d - underflow * P = d + P if underflow
-		f.VMLS(underflow, p, d, "d = d - underflow * P (adds P when d < 0)")
+		f.montMulF31(d, a, b, p, mu, cHi, q, qpHi, underflow)
 
 		// Extend to 64 bits and accumulate
-		f.VUSHLL(0, d.S2(), tmp0.D2(), "tmp0 = extend(d[0,1])")
-		f.VUSHLL2(0, d.S4(), tmp1.D2(), "tmp1 = extend(d[2,3])")
+		f.VUSHLL(0, d.S2(), tmp0.D2(), fmt.Sprintf("%s = extend(%s[0,1])", tmp0, d))
+		f.VUSHLL2(0, d.S4(), tmp1.D2(), fmt.Sprintf("%s = extend(%s[2,3])", tmp1, d))
 
 		// Accumulate
-		f.VADD(tmp0.D2(), acc0, acc0, "acc0 += tmp0")
-		f.VADD(tmp1.D2(), acc1, acc1, "acc1 += tmp1")
+		f.VADD(tmp0.D2(), acc0, acc0, fmt.Sprintf("%s += %s", baseReg(acc0), tmp0))
+		f.VADD(tmp1.D2(), acc1, acc1, fmt.Sprintf("%s += %s", baseReg(acc1), tmp1))
 	})
 
 	// Combine accumulators
-	f.VADD(acc0, acc1, acc0, "acc0 += acc1")
+	f.VADD(acc0, acc1, acc0, fmt.Sprintf("%s += %s", baseReg(acc0), baseReg(acc1)))
 
 	// Store result
 	f.VST1_P(acc0, tPtr, 16, "store accumulator")
