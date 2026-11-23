@@ -5,7 +5,7 @@ package arm64
 
 // generateFoldPairsE6 emits
 //
-//	vectorFoldPairs_E6_neon(res, layer *E6, twiddles *fr.Element, alpha *E6, N)
+//	vectorFoldPairs_E6_neon(res, layer *E6, twiddles *fr.Element, alpha *e6ScalarTable, N)
 //
 // res[j] = (p + q)/2 + alpha·tw[j]·(p − q), (p, q) = (layer[2j], layer[2j+1]),
 // for N outputs (N % 4 == 0), every operation canonical so that the result
@@ -15,8 +15,8 @@ package arm64
 // j, the register [p.re p.im q.re q.im]; two rounds of UZP1/UZP2 (across pairs
 // 0,1 and 2,3, then across the halves) transpose them into one register per
 // coordinate for the 4 p and the 4 q. The halved sum is stored right away (the
-// product needs all the registers), then (p − q)·tw is multiplied by the
-// broadcast alpha with e6Mul and added to it in memory.
+// product needs all the registers), then (p − q)·tw is multiplied by alpha
+// (given by its table, see e6Mul) and added to it in memory.
 //
 // res may be layer[:N]: an iteration reads its 4 pairs before writing its 4
 // outputs, which lie below the pairs read by the next iterations.
@@ -25,12 +25,6 @@ func (g *e6Neon) generateFoldPairsE6() {
 	resPtr, layerPtr, twPtr, alphaPtr := ptrs[0], ptrs[1], ptrs[2], ptrs[3]
 	accPtr := gpPtr0
 	g.ins("MOVD %s, %s", resPtr, accPtr)
-
-	alpha := g.popN(6)
-	for k := range 6 {
-		g.ins("MOVWU %d(%s), %s", 4*k, alphaPtr, gpTmp)
-		g.ins("VDUP %s, %s.S4", gpTmp, alpha[k])
-	}
 
 	g.Loop(n, func() {
 		// u[h][2j], u[h][2j+1]: [p.re q.re p'.re q'.re] and the same for im,
@@ -82,12 +76,11 @@ func (g *e6Neon) generateFoldPairsE6() {
 		g.store4(resPtr, P, nil)
 		g.push(P...)
 
-		c := g.e6Mul(Q, alpha, false, nil)
+		c := g.e6Mul(Q, nil, false, alphaPtr, nil)
 		g.store4(accPtr, c[:], g.addFrom(accPtr, false))
 		g.push(c[:]...)
 	})
 
-	g.push(alpha...)
 	g.footer()
 }
 

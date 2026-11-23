@@ -1128,7 +1128,8 @@ func (vector VectorE6) FoldPairs(layer VectorE6, halfInvTwiddles fr.Vector, alph
 	}
 	if cpu.SupportNEON && len(vector) >= 4 {
 		nr := len(vector) - len(vector)%4
-		vectorFoldPairs_E6_neon(&vector[0], &layer[0], &halfInvTwiddles[0], &aa, uint64(nr))
+		tbl := newE6ScalarTable(&aa)
+		vectorFoldPairs_E6_neon(&vector[0], &layer[0], &halfInvTwiddles[0], &tbl, uint64(nr))
 		vector, layer, halfInvTwiddles = vector[nr:], layer[2*nr:], halfInvTwiddles[nr:]
 	}
 {{- end }}
@@ -1547,7 +1548,8 @@ func (vector VectorE6) ScalarMulAdd(b VectorE6, c *E6) {
 	}
 	if cpu.SupportNEON && len(vector) >= 4 {
 		nr := len(vector) - len(vector)%4
-		vectorScalarMulAdd_E6_neon(&vector[0], &b[0], &cc, uint64(nr))
+		tbl := newE6ScalarTable(&cc)
+		vectorScalarMulAdd_E6_neon(&vector[0], &b[0], &tbl, uint64(nr))
 		vector, b = vector[nr:], b[nr:]
 	}
 {{- end }}
@@ -1589,7 +1591,8 @@ func (vector VectorE6) ScalarMulAddBase(b fr.Vector, c *E6) {
 	}
 	if cpu.SupportNEON && len(vector) >= 4 {
 		nr := len(vector) - len(vector)%4
-		vectorScalarMulAddBase_E6_neon(&vector[0], &b[0], &cc, uint64(nr))
+		tbl := newE6ScalarTable(&cc)
+		vectorScalarMulAddBase_E6_neon(&vector[0], &b[0], &tbl, uint64(nr))
 		vector, b = vector[nr:], b[nr:]
 	}
 {{- end }}
@@ -1622,7 +1625,8 @@ func (vector VectorE6) ScalarMulAcc(a VectorE6, s *E6) {
 	}
 	if cpu.SupportNEON && len(vector) >= 4 {
 		nr := len(vector) - len(vector)%4
-		vectorScalarMulAcc_E6_neon(&vector[0], &a[0], &ss, uint64(nr))
+		tbl := newE6ScalarTable(&ss)
+		vectorScalarMulAcc_E6_neon(&vector[0], &a[0], &tbl, uint64(nr))
 		vector, a = vector[nr:], a[nr:]
 	}
 {{- end }}
@@ -1660,7 +1664,8 @@ func (vector VectorE6) ScalarMul(a VectorE6, s *E6) {
 	}
 	if cpu.SupportNEON && len(vector) >= 4 {
 		nr := len(vector) - len(vector)%4
-		vectorScalarMul_E6_neon(&vector[0], &a[0], &ss, uint64(nr))
+		tbl := newE6ScalarTable(&ss)
+		vectorScalarMul_E6_neon(&vector[0], &a[0], &tbl, uint64(nr))
 		vector, a = vector[nr:], a[nr:]
 	}
 {{- end }}
@@ -1673,6 +1678,35 @@ func scalarMulE6Generic(vector, a VectorE6, s *E6) {
 	}
 }
 {{- if .IsKoalaBear }}
+
+// e6ScalarTable holds the operands that the NEON E6 product takes from a fixed
+// scalar s, so that the kernels load them instead of recomputing them for
+// every block: for each E2 factor y of the Karatsuba product on the s side
+// (s.B0, s.B1, s.B2, s.B1+s.B2, s.B0+s.B1, s.B0+s.B2, in the order the
+// kernels consume them), the vectors y.A0, y.A1, y.A0+y.A1 and their products
+// by q⁻¹ mod 2³², each broadcast to 4 lanes.
+type e6ScalarTable [36][4]uint32
+
+func newE6ScalarTable(s *E6) (t e6ScalarTable) {
+	const mu = 1<<32 - qInvNeg // q⁻¹ mod 2³²
+	var ys [6]E2
+	ys[0], ys[1], ys[2] = s.B0, s.B1, s.B2
+	ys[3].Add(&s.B1, &s.B2)
+	ys[4].Add(&s.B0, &s.B1)
+	ys[5].Add(&s.B0, &s.B2)
+	for i := range ys {
+		var sum fr.Element
+		sum.Add(&ys[i].A0, &ys[i].A1)
+		v := [6]uint32{ys[i].A0[0], ys[i].A1[0], sum[0]}
+		for k := range 3 {
+			v[3+k] = v[k] * mu
+		}
+		for k, x := range v {
+			t[6*i+k] = [4]uint32{x, x, x, x}
+		}
+	}
+	return
+}
 
 // e6FromPartialSums reduces partial sums t[p] of coordinate p%6 (as returned
 // by the NEON Sum / InnerProductByElement kernels) into an E6.

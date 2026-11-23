@@ -23,23 +23,23 @@ func vectorInnerProduct_E6_neon(res *[6]uint64, a, b *E6, N uint64) {
 	panic("vectorInnerProduct_E6_neon is not implemented")
 }
 
-func vectorScalarMul_E6_neon(res, a, b *E6, N uint64) {
+func vectorScalarMul_E6_neon(res, a *E6, b *e6ScalarTable, N uint64) {
 	panic("vectorScalarMul_E6_neon is not implemented")
 }
 
-func vectorScalarMulAcc_E6_neon(res, a, b *E6, N uint64) {
+func vectorScalarMulAcc_E6_neon(res, a *E6, b *e6ScalarTable, N uint64) {
 	panic("vectorScalarMulAcc_E6_neon is not implemented")
 }
 
-func vectorScalarMulAdd_E6_neon(res, b, s *E6, N uint64) {
+func vectorScalarMulAdd_E6_neon(res, b *E6, s *e6ScalarTable, N uint64) {
 	panic("vectorScalarMulAdd_E6_neon is not implemented")
 }
 
-func vectorScalarMulAddBase_E6_neon(res *E6, b *fr.Element, s *E6, N uint64) {
+func vectorScalarMulAddBase_E6_neon(res *E6, b *fr.Element, s *e6ScalarTable, N uint64) {
 	panic("vectorScalarMulAddBase_E6_neon is not implemented")
 }
 
-func vectorFoldPairs_E6_neon(res, layer *E6, twiddles *fr.Element, alpha *E6, N uint64) {
+func vectorFoldPairs_E6_neon(res, layer *E6, twiddles *fr.Element, alpha *e6ScalarTable, N uint64) {
 	panic("vectorFoldPairs_E6_neon is not implemented")
 }
 

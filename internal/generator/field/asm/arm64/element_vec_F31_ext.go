@@ -272,7 +272,7 @@ func (g *e6Neon) addFrom(ptr arm64.Register, postInc bool) func(z [3]vReg) {
 	}
 }
 
-// e6Mul computes the product of the transposed E6 a and b (6 registers each)
+// e6Mul computes the product of the transposed E6 a and Y (6 registers each)
 // as in the AVX-512 kernel: Karatsuba at both tower levels, 18 base products,
 // every intermediate canonical. Writing X = X0 + X1·v + X2·v², Tj = Xj·Yj,
 //
@@ -280,60 +280,94 @@ func (g *e6Neon) addFrom(ptr arm64.Register, postInc bool) func(z [3]vReg) {
 //	c1 = (X0+X1)(Y0+Y1) − T0 − T1 + ξ·T2
 //	c2 = (X0+X2)(Y0+Y2) − T0 − T2 + T1
 //
-// a is released; b too if ownB (otherwise it is kept, e.g. a broadcast
-// scalar). Each coefficient j is passed to consume as soon as it is known; if
-// consume returns true it took ownership of the registers (e.g. folded them
-// into an accumulator and released them) and the entry of c is left empty.
-// This keeps at most 32 registers live with a resident scalar or 3
-// accumulators.
-func (g *e6Neon) e6Mul(a, b []vReg, ownB bool, consume func(j int, re, im vReg) bool) (c [6]vReg) {
-	// e2Mul sets (re, im) = (xr + xi·u)(yr + yi·u); x and y are kept.
-	e2Mul := func(xr, xi, yr, yi, re, im vReg) {
-		s1, s2 := g.pop(), g.pop()
-		g.mul(xr, yr, re) // m0
-		g.mul(xi, yi, s1) // m1
-		g.add(xr, xi, s2)
-		g.add(yr, yi, im)
-		g.mul(s2, im, im) // m2
-		g.sub(im, re, im)
-		g.sub(im, s1, im) // im = m2 − m0 − m1
-		g.add(s1, s1, s2)
-		g.add(s2, s1, s2)
-		g.add(re, s2, re) // re = m0 + 3·m1
-		g.push(s1, s2)
+// Y is either the transposed registers b (released if ownB), or, if table is
+// set, a fixed scalar given by its precomputed table (see e6ScalarTable): for
+// each of the 6 E2 operands taken on the Y side (Y0, Y1, Y2, Y1+Y2, Y0+Y1,
+// Y0+Y2, in that order), the broadcast vectors yr, yi, yr+yi and their
+// products by μ, 96 bytes per operand. This saves all the Y-side additions
+// and one MUL per base product, and keeps no scalar register resident.
+//
+// a is released. Each coefficient j is passed to consume as soon as it is
+// known; if consume returns true it took ownership of the registers (e.g.
+// folded them into an accumulator and released them) and the entry of c is
+// left empty. This keeps at most 32 registers live.
+func (g *e6Neon) e6Mul(a, b []vReg, ownB bool, table arm64.Register, consume func(j int, re, im vReg) bool) (c [6]vReg) {
+	// e2y is an E2 operand on the Y side: (r + i·u), s = r + i, and the
+	// products by μ when known.
+	type e2y struct{ r, i, s, rMu, iMu, sMu vReg }
+	var tmps []vReg
+	if table != "" {
+		g.ins("MOVD %s, %s", table, gpPtr2)
 	}
+	getY := func(p, q int) (y e2y) {
+		if table != "" {
+			regs := g.popN(6)
+			for _, r := range regs {
+				g.ins("VLD1.P 16(%s), [%s.S4]", gpPtr2, r)
+			}
+			tmps = regs
+			return e2y{regs[0], regs[1], regs[2], regs[3], regs[4], regs[5]}
+		}
+		if q < 0 {
+			y.r, y.i = b[2*p], b[2*p+1]
+			y.s = g.pop()
+			tmps = []vReg{y.s}
+		} else {
+			y.r, y.i, y.s = g.pop(), g.pop(), g.pop()
+			g.add(b[2*p], b[2*q], y.r)
+			g.add(b[2*p+1], b[2*q+1], y.i)
+			tmps = []vReg{y.r, y.i, y.s}
+		}
+		g.add(y.r, y.i, y.s)
+		return
+	}
+	releaseY := func() { g.push(tmps...); tmps = nil }
 
-	// e2MulInPlace sets (xr, xi) = (xr + xi·u)(yr + yi·u); y is clobbered.
-	e2MulInPlace := func(xr, xi, yr, yi vReg) {
-		s1, s2 := g.pop(), g.pop()
-		g.mul(xr, yr, s1) // m0
-		g.mul(xi, yi, s2) // m1
-		g.add(xr, xi, xr)
-		g.add(yr, yi, yr)
-		g.mul(xr, yr, xi) // m2
-		g.sub(xi, s1, xi)
-		g.sub(xi, s2, xi) // im = m2 − m0 − m1
-		g.add(s2, s2, yr)
-		g.add(yr, s2, yr)
-		g.add(s1, yr, xr) // re = m0 + 3·m1
-		g.push(s1, s2)
+	// e2Mul sets (re, im) = (xr + xi·u)·y. Either (re, im) = (xr, xi), or
+	// re, im are fresh and x is kept.
+	e2Mul := func(xr, xi vReg, y e2y, re, im vReg) {
+		inPlace := re == xr
+		m0 := re
+		if inPlace {
+			m0 = g.pop()
+		}
+		m1 := g.pop()
+		g.mul(xr, y.r, m0, y.rMu)
+		g.mul(xi, y.i, m1, y.iMu)
+		xs := xr
+		if !inPlace {
+			xs = g.pop()
+		}
+		g.add(xr, xi, xs)
+		g.mul(xs, y.s, im, y.sMu) // m2
+		g.sub(im, m0, im)
+		g.sub(im, m1, im) // im = m2 − m0 − m1
+		g.add(m0, m1, re)
+		g.add(re, m1, re)
+		g.add(re, m1, re) // re = m0 + 3·m1
+		g.push(m1)
+		if inPlace {
+			g.push(m0)
+		} else {
+			g.push(xs)
+		}
 	}
 
 	t := g.popN(6) // T0, T1, T2 as (re, im) pairs
 	for j := range 3 {
-		e2Mul(a[2*j], a[2*j+1], b[2*j], b[2*j+1], t[2*j], t[2*j+1])
+		y := getY(j, -1)
+		e2Mul(a[2*j], a[2*j+1], y, t[2*j], t[2*j+1])
+		releaseY()
 	}
 
 	// cross returns (Xp + Xq)(Yp + Yq) − Tp − Tq in two fresh registers.
 	cross := func(p, q int) (mr, mi vReg) {
 		mr, mi = g.pop(), g.pop()
-		yr, yi := g.pop(), g.pop()
 		g.add(a[2*p], a[2*q], mr)
 		g.add(a[2*p+1], a[2*q+1], mi)
-		g.add(b[2*p], b[2*q], yr)
-		g.add(b[2*p+1], b[2*q+1], yi)
-		e2MulInPlace(mr, mi, yr, yi)
-		g.push(yr, yi)
+		y := getY(p, q)
+		e2Mul(mr, mi, y, mr, mi)
+		releaseY()
 		g.sub(mr, t[2*p], mr)
 		g.sub(mr, t[2*q], mr)
 		g.sub(mi, t[2*p+1], mi)
@@ -360,6 +394,8 @@ func (g *e6Neon) e6Mul(a, b []vReg, ownB bool, consume func(j int, re, im vReg) 
 		}
 		c[2*j], c[2*j+1] = re, im
 	}
+
+	// the order of the cross products is the order of the table.
 
 	// c0 = T0 + ξ·((X1+X2)(Y1+Y2) − T1 − T2)
 	c0r, c0i := cross(1, 2)
@@ -411,11 +447,13 @@ const (
 //	vectorMul_E6_neon(res, a, b *E6, N)                  res[i]  = a[i]·b[i]
 //	vectorMulAcc_E6_neon(res, a, b *E6, N)               res[i] += a[i]·b[i]
 //	vectorInnerProduct_E6_neon(res *[6]uint64, a, b, N)  see below
-//	vectorScalarMul_E6_neon(res, a, b *E6, N)            res[i]  = a[i]·b[0]
-//	vectorScalarMulAcc_E6_neon(res, a, b *E6, N)         res[i] += a[i]·b[0]
-//	vectorScalarMulAdd_E6_neon(res, b, s *E6, N)         res[i]  = res[i]·s + b[i]
-//	vectorScalarMulAddBase_E6_neon(res *E6, b *fr.Element, s *E6, N)
-//	                                                     res[i]  = res[i]·s + b[i]
+//	vectorScalarMul_E6_neon(res, a *E6, b *e6ScalarTable, N)     res[i]  = a[i]·s
+//	vectorScalarMulAcc_E6_neon(res, a *E6, b *e6ScalarTable, N)  res[i] += a[i]·s
+//	vectorScalarMulAdd_E6_neon(res, b *E6, s *e6ScalarTable, N)  res[i]  = res[i]·s + b[i]
+//	vectorScalarMulAddBase_E6_neon(res *E6, b *fr.Element, s *e6ScalarTable, N)
+//	                                                             res[i]  = res[i]·s + b[i]
+//
+// (for the scalar variants s is given by its table, see e6Mul)
 //
 // Each iteration transposes 4 E6 with load4, multiplies with e6Mul and
 // transposes back with store4. The Acc / Horner (MulAdd) variants add the
@@ -471,23 +509,16 @@ func (g *e6Neon) generateMulE6(op e6NeonOp) {
 		}
 	}
 
-	var b []vReg
-	if scalar {
-		// broadcast the 6 coordinates of the scalar
-		b = g.popN(6)
-		for k := range 6 {
-			g.ins("MOVWU %d(%s), %s", 4*k, bPtr, gpTmp)
-			g.ins("VDUP %s, %s.S4", gpTmp, b[k])
-		}
-	}
-
 	g.Loop(n, func() {
 		a := g.popN(6)
 		g.load4(aPtr, a)
-		bb := b
-		if !scalar {
-			bb = g.popN(6)
-			g.load4(bPtr, bb)
+		var b []vReg
+		var table arm64.Register
+		if scalar {
+			table = bPtr
+		} else {
+			b = g.popN(6)
+			g.load4(bPtr, b)
 		}
 
 		var consume func(j int, re, im vReg) bool
@@ -500,7 +531,7 @@ func (g *e6Neon) generateMulE6(op e6NeonOp) {
 				return true
 			}
 		}
-		c := g.e6Mul(a, bb, !scalar, consume)
+		c := g.e6Mul(a, b, !scalar, table, consume)
 		if op == e6NeonInnerProd {
 			return
 		}
@@ -526,9 +557,6 @@ func (g *e6Neon) generateMulE6(op e6NeonOp) {
 			g.ins("VST1.P [%s.D2], 16(%s)", accs[j], resPtr)
 		}
 		g.push(accs...)
-	}
-	if scalar {
-		g.push(b...)
 	}
 	g.footer()
 }

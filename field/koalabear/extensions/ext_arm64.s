@@ -34,6 +34,9 @@ loop1:
 	WORD   $0x4e9259eb                      // UZP2 V11.4S, V15.4S, V18.4S
 	WORD   $0x4e931a0c                      // UZP1 V12.4S, V16.4S, V19.4S
 	WORD   $0x4e935a0d                      // UZP2 V13.4S, V16.4S, V19.4S
+	VADD   V9.S4, V8.S4, V20.S4
+	VSUB   V0.S4, V20.S4, V21.S4
+	VUMIN  V21.S4, V20.S4, V20.S4
 	WORD   $0x4ea8b456                      // SQDMULH V22.4S, V2.4S, V8.4S - c = (2ab) >> 32
 	WORD   $0x4ea89c57                      // MUL V23.4S, V2.4S, V8.4S - m = ab
 	WORD   $0x4ea19ef7                      // MUL V23.4S, V23.4S, V1.4S - m = ab·μ
@@ -45,37 +48,37 @@ loop1:
 	WORD   $0x4ea99c77                      // MUL V23.4S, V3.4S, V9.4S - m = ab
 	WORD   $0x4ea19ef7                      // MUL V23.4S, V23.4S, V1.4S - m = ab·μ
 	WORD   $0x4ea0b6f7                      // SQDMULH V23.4S, V23.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4eb726d4                      // SHSUB V20.4S, V22.4S, V23.4S - d = (c − m) / 2
-	VADD   V0.S4, V20.S4, V22.S4
-	VUMIN  V22.S4, V20.S4, V20.S4
-	VADD   V3.S4, V2.S4, V21.S4
-	VSUB   V0.S4, V21.S4, V22.S4
+	WORD   $0x4eb726d5                      // SHSUB V21.4S, V22.4S, V23.4S - d = (c − m) / 2
+	VADD   V0.S4, V21.S4, V22.S4
 	VUMIN  V22.S4, V21.S4, V21.S4
-	VADD   V9.S4, V8.S4, V15.S4
-	VSUB   V0.S4, V15.S4, V22.S4
-	VUMIN  V22.S4, V15.S4, V15.S4
-	WORD   $0x4eafb6b6                      // SQDMULH V22.4S, V21.4S, V15.4S - c = (2ab) >> 32
-	WORD   $0x4eaf9eb7                      // MUL V23.4S, V21.4S, V15.4S - m = ab
-	WORD   $0x4ea19ef7                      // MUL V23.4S, V23.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b6f7                      // SQDMULH V23.4S, V23.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4eb726cf                      // SHSUB V15.4S, V22.4S, V23.4S - d = (c − m) / 2
-	VADD   V0.S4, V15.S4, V22.S4
-	VUMIN  V22.S4, V15.S4, V15.S4
+	VADD   V3.S4, V2.S4, V22.S4
+	VSUB   V0.S4, V22.S4, V23.S4
+	VUMIN  V23.S4, V22.S4, V22.S4
+	WORD   $0x4eb4b6d7                      // SQDMULH V23.4S, V22.4S, V20.4S - c = (2ab) >> 32
+	WORD   $0x4eb49ed8                      // MUL V24.4S, V22.4S, V20.4S - m = ab
+	WORD   $0x4ea19f18                      // MUL V24.4S, V24.4S, V1.4S - m = ab·μ
+	WORD   $0x4ea0b718                      // SQDMULH V24.4S, V24.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4eb826ef                      // SHSUB V15.4S, V23.4S, V24.4S - d = (c − m) / 2
+	VADD   V0.S4, V15.S4, V23.S4
+	VUMIN  V23.S4, V15.S4, V15.S4
 	VSUB   V14.S4, V15.S4, V15.S4
-	VADD   V0.S4, V15.S4, V22.S4
-	VUMIN  V22.S4, V15.S4, V15.S4
-	VSUB   V20.S4, V15.S4, V15.S4
-	VADD   V0.S4, V15.S4, V22.S4
-	VUMIN  V22.S4, V15.S4, V15.S4
-	VADD   V20.S4, V20.S4, V21.S4
-	VSUB   V0.S4, V21.S4, V22.S4
-	VUMIN  V22.S4, V21.S4, V21.S4
-	VADD   V20.S4, V21.S4, V21.S4
-	VSUB   V0.S4, V21.S4, V22.S4
-	VUMIN  V22.S4, V21.S4, V21.S4
+	VADD   V0.S4, V15.S4, V23.S4
+	VUMIN  V23.S4, V15.S4, V15.S4
+	VSUB   V21.S4, V15.S4, V15.S4
+	VADD   V0.S4, V15.S4, V23.S4
+	VUMIN  V23.S4, V15.S4, V15.S4
 	VADD   V21.S4, V14.S4, V14.S4
-	VSUB   V0.S4, V14.S4, V22.S4
-	VUMIN  V22.S4, V14.S4, V14.S4
+	VSUB   V0.S4, V14.S4, V23.S4
+	VUMIN  V23.S4, V14.S4, V14.S4
+	VADD   V21.S4, V14.S4, V14.S4
+	VSUB   V0.S4, V14.S4, V23.S4
+	VUMIN  V23.S4, V14.S4, V14.S4
+	VADD   V21.S4, V14.S4, V14.S4
+	VSUB   V0.S4, V14.S4, V23.S4
+	VUMIN  V23.S4, V14.S4, V14.S4
+	VADD   V11.S4, V10.S4, V20.S4
+	VSUB   V0.S4, V20.S4, V21.S4
+	VUMIN  V21.S4, V20.S4, V20.S4
 	WORD   $0x4eaab496                      // SQDMULH V22.4S, V4.4S, V10.4S - c = (2ab) >> 32
 	WORD   $0x4eaa9c97                      // MUL V23.4S, V4.4S, V10.4S - m = ab
 	WORD   $0x4ea19ef7                      // MUL V23.4S, V23.4S, V1.4S - m = ab·μ
@@ -87,37 +90,37 @@ loop1:
 	WORD   $0x4eab9cb7                      // MUL V23.4S, V5.4S, V11.4S - m = ab
 	WORD   $0x4ea19ef7                      // MUL V23.4S, V23.4S, V1.4S - m = ab·μ
 	WORD   $0x4ea0b6f7                      // SQDMULH V23.4S, V23.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4eb726d4                      // SHSUB V20.4S, V22.4S, V23.4S - d = (c − m) / 2
-	VADD   V0.S4, V20.S4, V22.S4
-	VUMIN  V22.S4, V20.S4, V20.S4
-	VADD   V5.S4, V4.S4, V21.S4
-	VSUB   V0.S4, V21.S4, V22.S4
+	WORD   $0x4eb726d5                      // SHSUB V21.4S, V22.4S, V23.4S - d = (c − m) / 2
+	VADD   V0.S4, V21.S4, V22.S4
 	VUMIN  V22.S4, V21.S4, V21.S4
-	VADD   V11.S4, V10.S4, V17.S4
-	VSUB   V0.S4, V17.S4, V22.S4
-	VUMIN  V22.S4, V17.S4, V17.S4
-	WORD   $0x4eb1b6b6                      // SQDMULH V22.4S, V21.4S, V17.4S - c = (2ab) >> 32
-	WORD   $0x4eb19eb7                      // MUL V23.4S, V21.4S, V17.4S - m = ab
-	WORD   $0x4ea19ef7                      // MUL V23.4S, V23.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b6f7                      // SQDMULH V23.4S, V23.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4eb726d1                      // SHSUB V17.4S, V22.4S, V23.4S - d = (c − m) / 2
-	VADD   V0.S4, V17.S4, V22.S4
-	VUMIN  V22.S4, V17.S4, V17.S4
+	VADD   V5.S4, V4.S4, V22.S4
+	VSUB   V0.S4, V22.S4, V23.S4
+	VUMIN  V23.S4, V22.S4, V22.S4
+	WORD   $0x4eb4b6d7                      // SQDMULH V23.4S, V22.4S, V20.4S - c = (2ab) >> 32
+	WORD   $0x4eb49ed8                      // MUL V24.4S, V22.4S, V20.4S - m = ab
+	WORD   $0x4ea19f18                      // MUL V24.4S, V24.4S, V1.4S - m = ab·μ
+	WORD   $0x4ea0b718                      // SQDMULH V24.4S, V24.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4eb826f1                      // SHSUB V17.4S, V23.4S, V24.4S - d = (c − m) / 2
+	VADD   V0.S4, V17.S4, V23.S4
+	VUMIN  V23.S4, V17.S4, V17.S4
 	VSUB   V16.S4, V17.S4, V17.S4
-	VADD   V0.S4, V17.S4, V22.S4
-	VUMIN  V22.S4, V17.S4, V17.S4
-	VSUB   V20.S4, V17.S4, V17.S4
-	VADD   V0.S4, V17.S4, V22.S4
-	VUMIN  V22.S4, V17.S4, V17.S4
-	VADD   V20.S4, V20.S4, V21.S4
-	VSUB   V0.S4, V21.S4, V22.S4
-	VUMIN  V22.S4, V21.S4, V21.S4
-	VADD   V20.S4, V21.S4, V21.S4
-	VSUB   V0.S4, V21.S4, V22.S4
-	VUMIN  V22.S4, V21.S4, V21.S4
+	VADD   V0.S4, V17.S4, V23.S4
+	VUMIN  V23.S4, V17.S4, V17.S4
+	VSUB   V21.S4, V17.S4, V17.S4
+	VADD   V0.S4, V17.S4, V23.S4
+	VUMIN  V23.S4, V17.S4, V17.S4
 	VADD   V21.S4, V16.S4, V16.S4
-	VSUB   V0.S4, V16.S4, V22.S4
-	VUMIN  V22.S4, V16.S4, V16.S4
+	VSUB   V0.S4, V16.S4, V23.S4
+	VUMIN  V23.S4, V16.S4, V16.S4
+	VADD   V21.S4, V16.S4, V16.S4
+	VSUB   V0.S4, V16.S4, V23.S4
+	VUMIN  V23.S4, V16.S4, V16.S4
+	VADD   V21.S4, V16.S4, V16.S4
+	VSUB   V0.S4, V16.S4, V23.S4
+	VUMIN  V23.S4, V16.S4, V16.S4
+	VADD   V13.S4, V12.S4, V20.S4
+	VSUB   V0.S4, V20.S4, V21.S4
+	VUMIN  V21.S4, V20.S4, V20.S4
 	WORD   $0x4eacb4d6                      // SQDMULH V22.4S, V6.4S, V12.4S - c = (2ab) >> 32
 	WORD   $0x4eac9cd7                      // MUL V23.4S, V6.4S, V12.4S - m = ab
 	WORD   $0x4ea19ef7                      // MUL V23.4S, V23.4S, V1.4S - m = ab·μ
@@ -129,91 +132,88 @@ loop1:
 	WORD   $0x4ead9cf7                      // MUL V23.4S, V7.4S, V13.4S - m = ab
 	WORD   $0x4ea19ef7                      // MUL V23.4S, V23.4S, V1.4S - m = ab·μ
 	WORD   $0x4ea0b6f7                      // SQDMULH V23.4S, V23.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4eb726d4                      // SHSUB V20.4S, V22.4S, V23.4S - d = (c − m) / 2
-	VADD   V0.S4, V20.S4, V22.S4
-	VUMIN  V22.S4, V20.S4, V20.S4
-	VADD   V7.S4, V6.S4, V21.S4
-	VSUB   V0.S4, V21.S4, V22.S4
+	WORD   $0x4eb726d5                      // SHSUB V21.4S, V22.4S, V23.4S - d = (c − m) / 2
+	VADD   V0.S4, V21.S4, V22.S4
 	VUMIN  V22.S4, V21.S4, V21.S4
-	VADD   V13.S4, V12.S4, V19.S4
-	VSUB   V0.S4, V19.S4, V22.S4
-	VUMIN  V22.S4, V19.S4, V19.S4
-	WORD   $0x4eb3b6b6                      // SQDMULH V22.4S, V21.4S, V19.4S - c = (2ab) >> 32
-	WORD   $0x4eb39eb7                      // MUL V23.4S, V21.4S, V19.4S - m = ab
-	WORD   $0x4ea19ef7                      // MUL V23.4S, V23.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b6f7                      // SQDMULH V23.4S, V23.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4eb726d3                      // SHSUB V19.4S, V22.4S, V23.4S - d = (c − m) / 2
-	VADD   V0.S4, V19.S4, V22.S4
-	VUMIN  V22.S4, V19.S4, V19.S4
+	VADD   V7.S4, V6.S4, V22.S4
+	VSUB   V0.S4, V22.S4, V23.S4
+	VUMIN  V23.S4, V22.S4, V22.S4
+	WORD   $0x4eb4b6d7                      // SQDMULH V23.4S, V22.4S, V20.4S - c = (2ab) >> 32
+	WORD   $0x4eb49ed8                      // MUL V24.4S, V22.4S, V20.4S - m = ab
+	WORD   $0x4ea19f18                      // MUL V24.4S, V24.4S, V1.4S - m = ab·μ
+	WORD   $0x4ea0b718                      // SQDMULH V24.4S, V24.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4eb826f3                      // SHSUB V19.4S, V23.4S, V24.4S - d = (c − m) / 2
+	VADD   V0.S4, V19.S4, V23.S4
+	VUMIN  V23.S4, V19.S4, V19.S4
 	VSUB   V18.S4, V19.S4, V19.S4
-	VADD   V0.S4, V19.S4, V22.S4
-	VUMIN  V22.S4, V19.S4, V19.S4
-	VSUB   V20.S4, V19.S4, V19.S4
-	VADD   V0.S4, V19.S4, V22.S4
-	VUMIN  V22.S4, V19.S4, V19.S4
-	VADD   V20.S4, V20.S4, V21.S4
-	VSUB   V0.S4, V21.S4, V22.S4
-	VUMIN  V22.S4, V21.S4, V21.S4
-	VADD   V20.S4, V21.S4, V21.S4
-	VSUB   V0.S4, V21.S4, V22.S4
-	VUMIN  V22.S4, V21.S4, V21.S4
+	VADD   V0.S4, V19.S4, V23.S4
+	VUMIN  V23.S4, V19.S4, V19.S4
+	VSUB   V21.S4, V19.S4, V19.S4
+	VADD   V0.S4, V19.S4, V23.S4
+	VUMIN  V23.S4, V19.S4, V19.S4
 	VADD   V21.S4, V18.S4, V18.S4
-	VSUB   V0.S4, V18.S4, V22.S4
-	VUMIN  V22.S4, V18.S4, V18.S4
+	VSUB   V0.S4, V18.S4, V23.S4
+	VUMIN  V23.S4, V18.S4, V18.S4
+	VADD   V21.S4, V18.S4, V18.S4
+	VSUB   V0.S4, V18.S4, V23.S4
+	VUMIN  V23.S4, V18.S4, V18.S4
+	VADD   V21.S4, V18.S4, V18.S4
+	VSUB   V0.S4, V18.S4, V23.S4
+	VUMIN  V23.S4, V18.S4, V18.S4
 	VADD   V6.S4, V4.S4, V20.S4
-	VSUB   V0.S4, V20.S4, V24.S4
-	VUMIN  V24.S4, V20.S4, V20.S4
+	VSUB   V0.S4, V20.S4, V22.S4
+	VUMIN  V22.S4, V20.S4, V20.S4
 	VADD   V7.S4, V5.S4, V21.S4
-	VSUB   V0.S4, V21.S4, V24.S4
-	VUMIN  V24.S4, V21.S4, V21.S4
+	VSUB   V0.S4, V21.S4, V22.S4
+	VUMIN  V22.S4, V21.S4, V21.S4
 	VADD   V12.S4, V10.S4, V22.S4
-	VSUB   V0.S4, V22.S4, V24.S4
-	VUMIN  V24.S4, V22.S4, V22.S4
+	VSUB   V0.S4, V22.S4, V25.S4
+	VUMIN  V25.S4, V22.S4, V22.S4
 	VADD   V13.S4, V11.S4, V23.S4
-	VSUB   V0.S4, V23.S4, V24.S4
-	VUMIN  V24.S4, V23.S4, V23.S4
-	WORD   $0x4eb6b69a                      // SQDMULH V26.4S, V20.4S, V22.4S - c = (2ab) >> 32
-	WORD   $0x4eb69e9b                      // MUL V27.4S, V20.4S, V22.4S - m = ab
-	WORD   $0x4ea19f7b                      // MUL V27.4S, V27.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b77b                      // SQDMULH V27.4S, V27.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4ebb2758                      // SHSUB V24.4S, V26.4S, V27.4S - d = (c − m) / 2
-	VADD   V0.S4, V24.S4, V26.S4
-	VUMIN  V26.S4, V24.S4, V24.S4
-	WORD   $0x4eb7b6ba                      // SQDMULH V26.4S, V21.4S, V23.4S - c = (2ab) >> 32
-	WORD   $0x4eb79ebb                      // MUL V27.4S, V21.4S, V23.4S - m = ab
-	WORD   $0x4ea19f7b                      // MUL V27.4S, V27.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b77b                      // SQDMULH V27.4S, V27.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4ebb2759                      // SHSUB V25.4S, V26.4S, V27.4S - d = (c − m) / 2
-	VADD   V0.S4, V25.S4, V26.S4
-	VUMIN  V26.S4, V25.S4, V25.S4
+	VSUB   V0.S4, V23.S4, V25.S4
+	VUMIN  V25.S4, V23.S4, V23.S4
+	VADD   V23.S4, V22.S4, V24.S4
+	VSUB   V0.S4, V24.S4, V25.S4
+	VUMIN  V25.S4, V24.S4, V24.S4
+	WORD   $0x4eb6b69b                      // SQDMULH V27.4S, V20.4S, V22.4S - c = (2ab) >> 32
+	WORD   $0x4eb69e9c                      // MUL V28.4S, V20.4S, V22.4S - m = ab
+	WORD   $0x4ea19f9c                      // MUL V28.4S, V28.4S, V1.4S - m = ab·μ
+	WORD   $0x4ea0b79c                      // SQDMULH V28.4S, V28.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4ebc2779                      // SHSUB V25.4S, V27.4S, V28.4S - d = (c − m) / 2
+	VADD   V0.S4, V25.S4, V27.S4
+	VUMIN  V27.S4, V25.S4, V25.S4
+	WORD   $0x4eb7b6bb                      // SQDMULH V27.4S, V21.4S, V23.4S - c = (2ab) >> 32
+	WORD   $0x4eb79ebc                      // MUL V28.4S, V21.4S, V23.4S - m = ab
+	WORD   $0x4ea19f9c                      // MUL V28.4S, V28.4S, V1.4S - m = ab·μ
+	WORD   $0x4ea0b79c                      // SQDMULH V28.4S, V28.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4ebc277a                      // SHSUB V26.4S, V27.4S, V28.4S - d = (c − m) / 2
+	VADD   V0.S4, V26.S4, V27.S4
+	VUMIN  V27.S4, V26.S4, V26.S4
 	VADD   V21.S4, V20.S4, V20.S4
-	VSUB   V0.S4, V20.S4, V26.S4
-	VUMIN  V26.S4, V20.S4, V20.S4
-	VADD   V23.S4, V22.S4, V22.S4
-	VSUB   V0.S4, V22.S4, V26.S4
-	VUMIN  V26.S4, V22.S4, V22.S4
-	WORD   $0x4eb6b69a                      // SQDMULH V26.4S, V20.4S, V22.4S - c = (2ab) >> 32
-	WORD   $0x4eb69e9b                      // MUL V27.4S, V20.4S, V22.4S - m = ab
-	WORD   $0x4ea19f7b                      // MUL V27.4S, V27.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b77b                      // SQDMULH V27.4S, V27.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4ebb2755                      // SHSUB V21.4S, V26.4S, V27.4S - d = (c − m) / 2
-	VADD   V0.S4, V21.S4, V26.S4
-	VUMIN  V26.S4, V21.S4, V21.S4
-	VSUB   V24.S4, V21.S4, V21.S4
-	VADD   V0.S4, V21.S4, V26.S4
-	VUMIN  V26.S4, V21.S4, V21.S4
+	VSUB   V0.S4, V20.S4, V27.S4
+	VUMIN  V27.S4, V20.S4, V20.S4
+	WORD   $0x4eb8b69b                      // SQDMULH V27.4S, V20.4S, V24.4S - c = (2ab) >> 32
+	WORD   $0x4eb89e9c                      // MUL V28.4S, V20.4S, V24.4S - m = ab
+	WORD   $0x4ea19f9c                      // MUL V28.4S, V28.4S, V1.4S - m = ab·μ
+	WORD   $0x4ea0b79c                      // SQDMULH V28.4S, V28.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4ebc2775                      // SHSUB V21.4S, V27.4S, V28.4S - d = (c − m) / 2
+	VADD   V0.S4, V21.S4, V27.S4
+	VUMIN  V27.S4, V21.S4, V21.S4
 	VSUB   V25.S4, V21.S4, V21.S4
-	VADD   V0.S4, V21.S4, V26.S4
-	VUMIN  V26.S4, V21.S4, V21.S4
-	VADD   V25.S4, V25.S4, V22.S4
-	VSUB   V0.S4, V22.S4, V26.S4
-	VUMIN  V26.S4, V22.S4, V22.S4
-	VADD   V25.S4, V22.S4, V22.S4
-	VSUB   V0.S4, V22.S4, V26.S4
-	VUMIN  V26.S4, V22.S4, V22.S4
-	VADD   V22.S4, V24.S4, V20.S4
-	VSUB   V0.S4, V20.S4, V26.S4
-	VUMIN  V26.S4, V20.S4, V20.S4
+	VADD   V0.S4, V21.S4, V27.S4
+	VUMIN  V27.S4, V21.S4, V21.S4
+	VSUB   V26.S4, V21.S4, V21.S4
+	VADD   V0.S4, V21.S4, V27.S4
+	VUMIN  V27.S4, V21.S4, V21.S4
+	VADD   V26.S4, V25.S4, V20.S4
+	VSUB   V0.S4, V20.S4, V27.S4
+	VUMIN  V27.S4, V20.S4, V20.S4
+	VADD   V26.S4, V20.S4, V20.S4
+	VSUB   V0.S4, V20.S4, V27.S4
+	VUMIN  V27.S4, V20.S4, V20.S4
+	VADD   V26.S4, V20.S4, V20.S4
+	VSUB   V0.S4, V20.S4, V27.S4
+	VUMIN  V27.S4, V20.S4, V20.S4
 	VSUB   V16.S4, V20.S4, V20.S4
 	VADD   V0.S4, V20.S4, V22.S4
 	VUMIN  V22.S4, V20.S4, V20.S4
@@ -245,59 +245,59 @@ loop1:
 	VSUB   V0.S4, V21.S4, V23.S4
 	VUMIN  V23.S4, V21.S4, V21.S4
 	VADD   V4.S4, V2.S4, V22.S4
-	VSUB   V0.S4, V22.S4, V26.S4
-	VUMIN  V26.S4, V22.S4, V22.S4
+	VSUB   V0.S4, V22.S4, V24.S4
+	VUMIN  V24.S4, V22.S4, V22.S4
 	VADD   V5.S4, V3.S4, V23.S4
-	VSUB   V0.S4, V23.S4, V26.S4
-	VUMIN  V26.S4, V23.S4, V23.S4
+	VSUB   V0.S4, V23.S4, V24.S4
+	VUMIN  V24.S4, V23.S4, V23.S4
 	VADD   V10.S4, V8.S4, V24.S4
-	VSUB   V0.S4, V24.S4, V26.S4
-	VUMIN  V26.S4, V24.S4, V24.S4
+	VSUB   V0.S4, V24.S4, V27.S4
+	VUMIN  V27.S4, V24.S4, V24.S4
 	VADD   V11.S4, V9.S4, V25.S4
-	VSUB   V0.S4, V25.S4, V26.S4
-	VUMIN  V26.S4, V25.S4, V25.S4
-	WORD   $0x4eb8b6dc                      // SQDMULH V28.4S, V22.4S, V24.4S - c = (2ab) >> 32
-	WORD   $0x4eb89edd                      // MUL V29.4S, V22.4S, V24.4S - m = ab
-	WORD   $0x4ea19fbd                      // MUL V29.4S, V29.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b7bd                      // SQDMULH V29.4S, V29.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4ebd279a                      // SHSUB V26.4S, V28.4S, V29.4S - d = (c − m) / 2
-	VADD   V0.S4, V26.S4, V28.S4
-	VUMIN  V28.S4, V26.S4, V26.S4
-	WORD   $0x4eb9b6fc                      // SQDMULH V28.4S, V23.4S, V25.4S - c = (2ab) >> 32
-	WORD   $0x4eb99efd                      // MUL V29.4S, V23.4S, V25.4S - m = ab
-	WORD   $0x4ea19fbd                      // MUL V29.4S, V29.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b7bd                      // SQDMULH V29.4S, V29.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4ebd279b                      // SHSUB V27.4S, V28.4S, V29.4S - d = (c − m) / 2
-	VADD   V0.S4, V27.S4, V28.S4
-	VUMIN  V28.S4, V27.S4, V27.S4
+	VSUB   V0.S4, V25.S4, V27.S4
+	VUMIN  V27.S4, V25.S4, V25.S4
+	VADD   V25.S4, V24.S4, V26.S4
+	VSUB   V0.S4, V26.S4, V27.S4
+	VUMIN  V27.S4, V26.S4, V26.S4
+	WORD   $0x4eb8b6dd                      // SQDMULH V29.4S, V22.4S, V24.4S - c = (2ab) >> 32
+	WORD   $0x4eb89ede                      // MUL V30.4S, V22.4S, V24.4S - m = ab
+	WORD   $0x4ea19fde                      // MUL V30.4S, V30.4S, V1.4S - m = ab·μ
+	WORD   $0x4ea0b7de                      // SQDMULH V30.4S, V30.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4ebe27bb                      // SHSUB V27.4S, V29.4S, V30.4S - d = (c − m) / 2
+	VADD   V0.S4, V27.S4, V29.S4
+	VUMIN  V29.S4, V27.S4, V27.S4
+	WORD   $0x4eb9b6fd                      // SQDMULH V29.4S, V23.4S, V25.4S - c = (2ab) >> 32
+	WORD   $0x4eb99efe                      // MUL V30.4S, V23.4S, V25.4S - m = ab
+	WORD   $0x4ea19fde                      // MUL V30.4S, V30.4S, V1.4S - m = ab·μ
+	WORD   $0x4ea0b7de                      // SQDMULH V30.4S, V30.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4ebe27bc                      // SHSUB V28.4S, V29.4S, V30.4S - d = (c − m) / 2
+	VADD   V0.S4, V28.S4, V29.S4
+	VUMIN  V29.S4, V28.S4, V28.S4
 	VADD   V23.S4, V22.S4, V22.S4
-	VSUB   V0.S4, V22.S4, V28.S4
-	VUMIN  V28.S4, V22.S4, V22.S4
-	VADD   V25.S4, V24.S4, V24.S4
-	VSUB   V0.S4, V24.S4, V28.S4
-	VUMIN  V28.S4, V24.S4, V24.S4
-	WORD   $0x4eb8b6dc                      // SQDMULH V28.4S, V22.4S, V24.4S - c = (2ab) >> 32
-	WORD   $0x4eb89edd                      // MUL V29.4S, V22.4S, V24.4S - m = ab
-	WORD   $0x4ea19fbd                      // MUL V29.4S, V29.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b7bd                      // SQDMULH V29.4S, V29.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4ebd2797                      // SHSUB V23.4S, V28.4S, V29.4S - d = (c − m) / 2
-	VADD   V0.S4, V23.S4, V28.S4
-	VUMIN  V28.S4, V23.S4, V23.S4
-	VSUB   V26.S4, V23.S4, V23.S4
-	VADD   V0.S4, V23.S4, V28.S4
-	VUMIN  V28.S4, V23.S4, V23.S4
+	VSUB   V0.S4, V22.S4, V29.S4
+	VUMIN  V29.S4, V22.S4, V22.S4
+	WORD   $0x4ebab6dd                      // SQDMULH V29.4S, V22.4S, V26.4S - c = (2ab) >> 32
+	WORD   $0x4eba9ede                      // MUL V30.4S, V22.4S, V26.4S - m = ab
+	WORD   $0x4ea19fde                      // MUL V30.4S, V30.4S, V1.4S - m = ab·μ
+	WORD   $0x4ea0b7de                      // SQDMULH V30.4S, V30.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4ebe27b7                      // SHSUB V23.4S, V29.4S, V30.4S - d = (c − m) / 2
+	VADD   V0.S4, V23.S4, V29.S4
+	VUMIN  V29.S4, V23.S4, V23.S4
 	VSUB   V27.S4, V23.S4, V23.S4
-	VADD   V0.S4, V23.S4, V28.S4
-	VUMIN  V28.S4, V23.S4, V23.S4
-	VADD   V27.S4, V27.S4, V24.S4
-	VSUB   V0.S4, V24.S4, V28.S4
-	VUMIN  V28.S4, V24.S4, V24.S4
-	VADD   V27.S4, V24.S4, V24.S4
-	VSUB   V0.S4, V24.S4, V28.S4
-	VUMIN  V28.S4, V24.S4, V24.S4
-	VADD   V24.S4, V26.S4, V22.S4
-	VSUB   V0.S4, V22.S4, V28.S4
-	VUMIN  V28.S4, V22.S4, V22.S4
+	VADD   V0.S4, V23.S4, V29.S4
+	VUMIN  V29.S4, V23.S4, V23.S4
+	VSUB   V28.S4, V23.S4, V23.S4
+	VADD   V0.S4, V23.S4, V29.S4
+	VUMIN  V29.S4, V23.S4, V23.S4
+	VADD   V28.S4, V27.S4, V22.S4
+	VSUB   V0.S4, V22.S4, V29.S4
+	VUMIN  V29.S4, V22.S4, V22.S4
+	VADD   V28.S4, V22.S4, V22.S4
+	VSUB   V0.S4, V22.S4, V29.S4
+	VUMIN  V29.S4, V22.S4, V22.S4
+	VADD   V28.S4, V22.S4, V22.S4
+	VSUB   V0.S4, V22.S4, V29.S4
+	VUMIN  V29.S4, V22.S4, V22.S4
 	VSUB   V14.S4, V22.S4, V22.S4
 	VADD   V0.S4, V22.S4, V24.S4
 	VUMIN  V24.S4, V22.S4, V22.S4
@@ -331,59 +331,59 @@ loop1:
 	VSUB   V0.S4, V25.S4, V27.S4
 	VUMIN  V27.S4, V25.S4, V25.S4
 	VADD   V6.S4, V2.S4, V4.S4
-	VSUB   V0.S4, V4.S4, V22.S4
-	VUMIN  V22.S4, V4.S4, V4.S4
+	VSUB   V0.S4, V4.S4, V10.S4
+	VUMIN  V10.S4, V4.S4, V4.S4
 	VADD   V7.S4, V3.S4, V5.S4
-	VSUB   V0.S4, V5.S4, V22.S4
-	VUMIN  V22.S4, V5.S4, V5.S4
+	VSUB   V0.S4, V5.S4, V10.S4
+	VUMIN  V10.S4, V5.S4, V5.S4
 	VADD   V12.S4, V8.S4, V10.S4
-	VSUB   V0.S4, V10.S4, V22.S4
-	VUMIN  V22.S4, V10.S4, V10.S4
+	VSUB   V0.S4, V10.S4, V23.S4
+	VUMIN  V23.S4, V10.S4, V10.S4
 	VADD   V13.S4, V9.S4, V11.S4
-	VSUB   V0.S4, V11.S4, V22.S4
-	VUMIN  V22.S4, V11.S4, V11.S4
-	WORD   $0x4eaab49a                      // SQDMULH V26.4S, V4.4S, V10.4S - c = (2ab) >> 32
-	WORD   $0x4eaa9c9b                      // MUL V27.4S, V4.4S, V10.4S - m = ab
-	WORD   $0x4ea19f7b                      // MUL V27.4S, V27.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b77b                      // SQDMULH V27.4S, V27.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4ebb2756                      // SHSUB V22.4S, V26.4S, V27.4S - d = (c − m) / 2
-	VADD   V0.S4, V22.S4, V26.S4
-	VUMIN  V26.S4, V22.S4, V22.S4
-	WORD   $0x4eabb4ba                      // SQDMULH V26.4S, V5.4S, V11.4S - c = (2ab) >> 32
-	WORD   $0x4eab9cbb                      // MUL V27.4S, V5.4S, V11.4S - m = ab
-	WORD   $0x4ea19f7b                      // MUL V27.4S, V27.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b77b                      // SQDMULH V27.4S, V27.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4ebb2757                      // SHSUB V23.4S, V26.4S, V27.4S - d = (c − m) / 2
-	VADD   V0.S4, V23.S4, V26.S4
-	VUMIN  V26.S4, V23.S4, V23.S4
+	VSUB   V0.S4, V11.S4, V23.S4
+	VUMIN  V23.S4, V11.S4, V11.S4
+	VADD   V11.S4, V10.S4, V22.S4
+	VSUB   V0.S4, V22.S4, V23.S4
+	VUMIN  V23.S4, V22.S4, V22.S4
+	WORD   $0x4eaab49b                      // SQDMULH V27.4S, V4.4S, V10.4S - c = (2ab) >> 32
+	WORD   $0x4eaa9c9c                      // MUL V28.4S, V4.4S, V10.4S - m = ab
+	WORD   $0x4ea19f9c                      // MUL V28.4S, V28.4S, V1.4S - m = ab·μ
+	WORD   $0x4ea0b79c                      // SQDMULH V28.4S, V28.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4ebc2777                      // SHSUB V23.4S, V27.4S, V28.4S - d = (c − m) / 2
+	VADD   V0.S4, V23.S4, V27.S4
+	VUMIN  V27.S4, V23.S4, V23.S4
+	WORD   $0x4eabb4bb                      // SQDMULH V27.4S, V5.4S, V11.4S - c = (2ab) >> 32
+	WORD   $0x4eab9cbc                      // MUL V28.4S, V5.4S, V11.4S - m = ab
+	WORD   $0x4ea19f9c                      // MUL V28.4S, V28.4S, V1.4S - m = ab·μ
+	WORD   $0x4ea0b79c                      // SQDMULH V28.4S, V28.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4ebc277a                      // SHSUB V26.4S, V27.4S, V28.4S - d = (c − m) / 2
+	VADD   V0.S4, V26.S4, V27.S4
+	VUMIN  V27.S4, V26.S4, V26.S4
 	VADD   V5.S4, V4.S4, V4.S4
-	VSUB   V0.S4, V4.S4, V26.S4
-	VUMIN  V26.S4, V4.S4, V4.S4
-	VADD   V11.S4, V10.S4, V10.S4
-	VSUB   V0.S4, V10.S4, V26.S4
-	VUMIN  V26.S4, V10.S4, V10.S4
-	WORD   $0x4eaab49a                      // SQDMULH V26.4S, V4.4S, V10.4S - c = (2ab) >> 32
-	WORD   $0x4eaa9c9b                      // MUL V27.4S, V4.4S, V10.4S - m = ab
-	WORD   $0x4ea19f7b                      // MUL V27.4S, V27.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b77b                      // SQDMULH V27.4S, V27.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4ebb2745                      // SHSUB V5.4S, V26.4S, V27.4S - d = (c − m) / 2
-	VADD   V0.S4, V5.S4, V26.S4
-	VUMIN  V26.S4, V5.S4, V5.S4
-	VSUB   V22.S4, V5.S4, V5.S4
-	VADD   V0.S4, V5.S4, V26.S4
-	VUMIN  V26.S4, V5.S4, V5.S4
+	VSUB   V0.S4, V4.S4, V27.S4
+	VUMIN  V27.S4, V4.S4, V4.S4
+	WORD   $0x4eb6b49b                      // SQDMULH V27.4S, V4.4S, V22.4S - c = (2ab) >> 32
+	WORD   $0x4eb69c9c                      // MUL V28.4S, V4.4S, V22.4S - m = ab
+	WORD   $0x4ea19f9c                      // MUL V28.4S, V28.4S, V1.4S - m = ab·μ
+	WORD   $0x4ea0b79c                      // SQDMULH V28.4S, V28.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4ebc2765                      // SHSUB V5.4S, V27.4S, V28.4S - d = (c − m) / 2
+	VADD   V0.S4, V5.S4, V27.S4
+	VUMIN  V27.S4, V5.S4, V5.S4
 	VSUB   V23.S4, V5.S4, V5.S4
-	VADD   V0.S4, V5.S4, V26.S4
-	VUMIN  V26.S4, V5.S4, V5.S4
-	VADD   V23.S4, V23.S4, V10.S4
-	VSUB   V0.S4, V10.S4, V26.S4
-	VUMIN  V26.S4, V10.S4, V10.S4
-	VADD   V23.S4, V10.S4, V10.S4
-	VSUB   V0.S4, V10.S4, V26.S4
-	VUMIN  V26.S4, V10.S4, V10.S4
-	VADD   V10.S4, V22.S4, V4.S4
-	VSUB   V0.S4, V4.S4, V26.S4
-	VUMIN  V26.S4, V4.S4, V4.S4
+	VADD   V0.S4, V5.S4, V27.S4
+	VUMIN  V27.S4, V5.S4, V5.S4
+	VSUB   V26.S4, V5.S4, V5.S4
+	VADD   V0.S4, V5.S4, V27.S4
+	VUMIN  V27.S4, V5.S4, V5.S4
+	VADD   V26.S4, V23.S4, V4.S4
+	VSUB   V0.S4, V4.S4, V27.S4
+	VUMIN  V27.S4, V4.S4, V4.S4
+	VADD   V26.S4, V4.S4, V4.S4
+	VSUB   V0.S4, V4.S4, V27.S4
+	VUMIN  V27.S4, V4.S4, V4.S4
+	VADD   V26.S4, V4.S4, V4.S4
+	VSUB   V0.S4, V4.S4, V27.S4
+	VUMIN  V27.S4, V4.S4, V4.S4
 	VSUB   V14.S4, V4.S4, V4.S4
 	VADD   V0.S4, V4.S4, V10.S4
 	VUMIN  V10.S4, V4.S4, V4.S4
@@ -447,6 +447,9 @@ loop3:
 	WORD   $0x4e9259eb                      // UZP2 V11.4S, V15.4S, V18.4S
 	WORD   $0x4e931a0c                      // UZP1 V12.4S, V16.4S, V19.4S
 	WORD   $0x4e935a0d                      // UZP2 V13.4S, V16.4S, V19.4S
+	VADD   V9.S4, V8.S4, V20.S4
+	VSUB   V0.S4, V20.S4, V21.S4
+	VUMIN  V21.S4, V20.S4, V20.S4
 	WORD   $0x4ea8b456                      // SQDMULH V22.4S, V2.4S, V8.4S - c = (2ab) >> 32
 	WORD   $0x4ea89c57                      // MUL V23.4S, V2.4S, V8.4S - m = ab
 	WORD   $0x4ea19ef7                      // MUL V23.4S, V23.4S, V1.4S - m = ab·μ
@@ -458,37 +461,37 @@ loop3:
 	WORD   $0x4ea99c77                      // MUL V23.4S, V3.4S, V9.4S - m = ab
 	WORD   $0x4ea19ef7                      // MUL V23.4S, V23.4S, V1.4S - m = ab·μ
 	WORD   $0x4ea0b6f7                      // SQDMULH V23.4S, V23.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4eb726d4                      // SHSUB V20.4S, V22.4S, V23.4S - d = (c − m) / 2
-	VADD   V0.S4, V20.S4, V22.S4
-	VUMIN  V22.S4, V20.S4, V20.S4
-	VADD   V3.S4, V2.S4, V21.S4
-	VSUB   V0.S4, V21.S4, V22.S4
+	WORD   $0x4eb726d5                      // SHSUB V21.4S, V22.4S, V23.4S - d = (c − m) / 2
+	VADD   V0.S4, V21.S4, V22.S4
 	VUMIN  V22.S4, V21.S4, V21.S4
-	VADD   V9.S4, V8.S4, V15.S4
-	VSUB   V0.S4, V15.S4, V22.S4
-	VUMIN  V22.S4, V15.S4, V15.S4
-	WORD   $0x4eafb6b6                      // SQDMULH V22.4S, V21.4S, V15.4S - c = (2ab) >> 32
-	WORD   $0x4eaf9eb7                      // MUL V23.4S, V21.4S, V15.4S - m = ab
-	WORD   $0x4ea19ef7                      // MUL V23.4S, V23.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b6f7                      // SQDMULH V23.4S, V23.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4eb726cf                      // SHSUB V15.4S, V22.4S, V23.4S - d = (c − m) / 2
-	VADD   V0.S4, V15.S4, V22.S4
-	VUMIN  V22.S4, V15.S4, V15.S4
+	VADD   V3.S4, V2.S4, V22.S4
+	VSUB   V0.S4, V22.S4, V23.S4
+	VUMIN  V23.S4, V22.S4, V22.S4
+	WORD   $0x4eb4b6d7                      // SQDMULH V23.4S, V22.4S, V20.4S - c = (2ab) >> 32
+	WORD   $0x4eb49ed8                      // MUL V24.4S, V22.4S, V20.4S - m = ab
+	WORD   $0x4ea19f18                      // MUL V24.4S, V24.4S, V1.4S - m = ab·μ
+	WORD   $0x4ea0b718                      // SQDMULH V24.4S, V24.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4eb826ef                      // SHSUB V15.4S, V23.4S, V24.4S - d = (c − m) / 2
+	VADD   V0.S4, V15.S4, V23.S4
+	VUMIN  V23.S4, V15.S4, V15.S4
 	VSUB   V14.S4, V15.S4, V15.S4
-	VADD   V0.S4, V15.S4, V22.S4
-	VUMIN  V22.S4, V15.S4, V15.S4
-	VSUB   V20.S4, V15.S4, V15.S4
-	VADD   V0.S4, V15.S4, V22.S4
-	VUMIN  V22.S4, V15.S4, V15.S4
-	VADD   V20.S4, V20.S4, V21.S4
-	VSUB   V0.S4, V21.S4, V22.S4
-	VUMIN  V22.S4, V21.S4, V21.S4
-	VADD   V20.S4, V21.S4, V21.S4
-	VSUB   V0.S4, V21.S4, V22.S4
-	VUMIN  V22.S4, V21.S4, V21.S4
+	VADD   V0.S4, V15.S4, V23.S4
+	VUMIN  V23.S4, V15.S4, V15.S4
+	VSUB   V21.S4, V15.S4, V15.S4
+	VADD   V0.S4, V15.S4, V23.S4
+	VUMIN  V23.S4, V15.S4, V15.S4
 	VADD   V21.S4, V14.S4, V14.S4
-	VSUB   V0.S4, V14.S4, V22.S4
-	VUMIN  V22.S4, V14.S4, V14.S4
+	VSUB   V0.S4, V14.S4, V23.S4
+	VUMIN  V23.S4, V14.S4, V14.S4
+	VADD   V21.S4, V14.S4, V14.S4
+	VSUB   V0.S4, V14.S4, V23.S4
+	VUMIN  V23.S4, V14.S4, V14.S4
+	VADD   V21.S4, V14.S4, V14.S4
+	VSUB   V0.S4, V14.S4, V23.S4
+	VUMIN  V23.S4, V14.S4, V14.S4
+	VADD   V11.S4, V10.S4, V20.S4
+	VSUB   V0.S4, V20.S4, V21.S4
+	VUMIN  V21.S4, V20.S4, V20.S4
 	WORD   $0x4eaab496                      // SQDMULH V22.4S, V4.4S, V10.4S - c = (2ab) >> 32
 	WORD   $0x4eaa9c97                      // MUL V23.4S, V4.4S, V10.4S - m = ab
 	WORD   $0x4ea19ef7                      // MUL V23.4S, V23.4S, V1.4S - m = ab·μ
@@ -500,37 +503,37 @@ loop3:
 	WORD   $0x4eab9cb7                      // MUL V23.4S, V5.4S, V11.4S - m = ab
 	WORD   $0x4ea19ef7                      // MUL V23.4S, V23.4S, V1.4S - m = ab·μ
 	WORD   $0x4ea0b6f7                      // SQDMULH V23.4S, V23.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4eb726d4                      // SHSUB V20.4S, V22.4S, V23.4S - d = (c − m) / 2
-	VADD   V0.S4, V20.S4, V22.S4
-	VUMIN  V22.S4, V20.S4, V20.S4
-	VADD   V5.S4, V4.S4, V21.S4
-	VSUB   V0.S4, V21.S4, V22.S4
+	WORD   $0x4eb726d5                      // SHSUB V21.4S, V22.4S, V23.4S - d = (c − m) / 2
+	VADD   V0.S4, V21.S4, V22.S4
 	VUMIN  V22.S4, V21.S4, V21.S4
-	VADD   V11.S4, V10.S4, V17.S4
-	VSUB   V0.S4, V17.S4, V22.S4
-	VUMIN  V22.S4, V17.S4, V17.S4
-	WORD   $0x4eb1b6b6                      // SQDMULH V22.4S, V21.4S, V17.4S - c = (2ab) >> 32
-	WORD   $0x4eb19eb7                      // MUL V23.4S, V21.4S, V17.4S - m = ab
-	WORD   $0x4ea19ef7                      // MUL V23.4S, V23.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b6f7                      // SQDMULH V23.4S, V23.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4eb726d1                      // SHSUB V17.4S, V22.4S, V23.4S - d = (c − m) / 2
-	VADD   V0.S4, V17.S4, V22.S4
-	VUMIN  V22.S4, V17.S4, V17.S4
+	VADD   V5.S4, V4.S4, V22.S4
+	VSUB   V0.S4, V22.S4, V23.S4
+	VUMIN  V23.S4, V22.S4, V22.S4
+	WORD   $0x4eb4b6d7                      // SQDMULH V23.4S, V22.4S, V20.4S - c = (2ab) >> 32
+	WORD   $0x4eb49ed8                      // MUL V24.4S, V22.4S, V20.4S - m = ab
+	WORD   $0x4ea19f18                      // MUL V24.4S, V24.4S, V1.4S - m = ab·μ
+	WORD   $0x4ea0b718                      // SQDMULH V24.4S, V24.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4eb826f1                      // SHSUB V17.4S, V23.4S, V24.4S - d = (c − m) / 2
+	VADD   V0.S4, V17.S4, V23.S4
+	VUMIN  V23.S4, V17.S4, V17.S4
 	VSUB   V16.S4, V17.S4, V17.S4
-	VADD   V0.S4, V17.S4, V22.S4
-	VUMIN  V22.S4, V17.S4, V17.S4
-	VSUB   V20.S4, V17.S4, V17.S4
-	VADD   V0.S4, V17.S4, V22.S4
-	VUMIN  V22.S4, V17.S4, V17.S4
-	VADD   V20.S4, V20.S4, V21.S4
-	VSUB   V0.S4, V21.S4, V22.S4
-	VUMIN  V22.S4, V21.S4, V21.S4
-	VADD   V20.S4, V21.S4, V21.S4
-	VSUB   V0.S4, V21.S4, V22.S4
-	VUMIN  V22.S4, V21.S4, V21.S4
+	VADD   V0.S4, V17.S4, V23.S4
+	VUMIN  V23.S4, V17.S4, V17.S4
+	VSUB   V21.S4, V17.S4, V17.S4
+	VADD   V0.S4, V17.S4, V23.S4
+	VUMIN  V23.S4, V17.S4, V17.S4
 	VADD   V21.S4, V16.S4, V16.S4
-	VSUB   V0.S4, V16.S4, V22.S4
-	VUMIN  V22.S4, V16.S4, V16.S4
+	VSUB   V0.S4, V16.S4, V23.S4
+	VUMIN  V23.S4, V16.S4, V16.S4
+	VADD   V21.S4, V16.S4, V16.S4
+	VSUB   V0.S4, V16.S4, V23.S4
+	VUMIN  V23.S4, V16.S4, V16.S4
+	VADD   V21.S4, V16.S4, V16.S4
+	VSUB   V0.S4, V16.S4, V23.S4
+	VUMIN  V23.S4, V16.S4, V16.S4
+	VADD   V13.S4, V12.S4, V20.S4
+	VSUB   V0.S4, V20.S4, V21.S4
+	VUMIN  V21.S4, V20.S4, V20.S4
 	WORD   $0x4eacb4d6                      // SQDMULH V22.4S, V6.4S, V12.4S - c = (2ab) >> 32
 	WORD   $0x4eac9cd7                      // MUL V23.4S, V6.4S, V12.4S - m = ab
 	WORD   $0x4ea19ef7                      // MUL V23.4S, V23.4S, V1.4S - m = ab·μ
@@ -542,91 +545,88 @@ loop3:
 	WORD   $0x4ead9cf7                      // MUL V23.4S, V7.4S, V13.4S - m = ab
 	WORD   $0x4ea19ef7                      // MUL V23.4S, V23.4S, V1.4S - m = ab·μ
 	WORD   $0x4ea0b6f7                      // SQDMULH V23.4S, V23.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4eb726d4                      // SHSUB V20.4S, V22.4S, V23.4S - d = (c − m) / 2
-	VADD   V0.S4, V20.S4, V22.S4
-	VUMIN  V22.S4, V20.S4, V20.S4
-	VADD   V7.S4, V6.S4, V21.S4
-	VSUB   V0.S4, V21.S4, V22.S4
+	WORD   $0x4eb726d5                      // SHSUB V21.4S, V22.4S, V23.4S - d = (c − m) / 2
+	VADD   V0.S4, V21.S4, V22.S4
 	VUMIN  V22.S4, V21.S4, V21.S4
-	VADD   V13.S4, V12.S4, V19.S4
-	VSUB   V0.S4, V19.S4, V22.S4
-	VUMIN  V22.S4, V19.S4, V19.S4
-	WORD   $0x4eb3b6b6                      // SQDMULH V22.4S, V21.4S, V19.4S - c = (2ab) >> 32
-	WORD   $0x4eb39eb7                      // MUL V23.4S, V21.4S, V19.4S - m = ab
-	WORD   $0x4ea19ef7                      // MUL V23.4S, V23.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b6f7                      // SQDMULH V23.4S, V23.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4eb726d3                      // SHSUB V19.4S, V22.4S, V23.4S - d = (c − m) / 2
-	VADD   V0.S4, V19.S4, V22.S4
-	VUMIN  V22.S4, V19.S4, V19.S4
+	VADD   V7.S4, V6.S4, V22.S4
+	VSUB   V0.S4, V22.S4, V23.S4
+	VUMIN  V23.S4, V22.S4, V22.S4
+	WORD   $0x4eb4b6d7                      // SQDMULH V23.4S, V22.4S, V20.4S - c = (2ab) >> 32
+	WORD   $0x4eb49ed8                      // MUL V24.4S, V22.4S, V20.4S - m = ab
+	WORD   $0x4ea19f18                      // MUL V24.4S, V24.4S, V1.4S - m = ab·μ
+	WORD   $0x4ea0b718                      // SQDMULH V24.4S, V24.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4eb826f3                      // SHSUB V19.4S, V23.4S, V24.4S - d = (c − m) / 2
+	VADD   V0.S4, V19.S4, V23.S4
+	VUMIN  V23.S4, V19.S4, V19.S4
 	VSUB   V18.S4, V19.S4, V19.S4
-	VADD   V0.S4, V19.S4, V22.S4
-	VUMIN  V22.S4, V19.S4, V19.S4
-	VSUB   V20.S4, V19.S4, V19.S4
-	VADD   V0.S4, V19.S4, V22.S4
-	VUMIN  V22.S4, V19.S4, V19.S4
-	VADD   V20.S4, V20.S4, V21.S4
-	VSUB   V0.S4, V21.S4, V22.S4
-	VUMIN  V22.S4, V21.S4, V21.S4
-	VADD   V20.S4, V21.S4, V21.S4
-	VSUB   V0.S4, V21.S4, V22.S4
-	VUMIN  V22.S4, V21.S4, V21.S4
+	VADD   V0.S4, V19.S4, V23.S4
+	VUMIN  V23.S4, V19.S4, V19.S4
+	VSUB   V21.S4, V19.S4, V19.S4
+	VADD   V0.S4, V19.S4, V23.S4
+	VUMIN  V23.S4, V19.S4, V19.S4
 	VADD   V21.S4, V18.S4, V18.S4
-	VSUB   V0.S4, V18.S4, V22.S4
-	VUMIN  V22.S4, V18.S4, V18.S4
+	VSUB   V0.S4, V18.S4, V23.S4
+	VUMIN  V23.S4, V18.S4, V18.S4
+	VADD   V21.S4, V18.S4, V18.S4
+	VSUB   V0.S4, V18.S4, V23.S4
+	VUMIN  V23.S4, V18.S4, V18.S4
+	VADD   V21.S4, V18.S4, V18.S4
+	VSUB   V0.S4, V18.S4, V23.S4
+	VUMIN  V23.S4, V18.S4, V18.S4
 	VADD   V6.S4, V4.S4, V20.S4
-	VSUB   V0.S4, V20.S4, V24.S4
-	VUMIN  V24.S4, V20.S4, V20.S4
+	VSUB   V0.S4, V20.S4, V22.S4
+	VUMIN  V22.S4, V20.S4, V20.S4
 	VADD   V7.S4, V5.S4, V21.S4
-	VSUB   V0.S4, V21.S4, V24.S4
-	VUMIN  V24.S4, V21.S4, V21.S4
+	VSUB   V0.S4, V21.S4, V22.S4
+	VUMIN  V22.S4, V21.S4, V21.S4
 	VADD   V12.S4, V10.S4, V22.S4
-	VSUB   V0.S4, V22.S4, V24.S4
-	VUMIN  V24.S4, V22.S4, V22.S4
+	VSUB   V0.S4, V22.S4, V25.S4
+	VUMIN  V25.S4, V22.S4, V22.S4
 	VADD   V13.S4, V11.S4, V23.S4
-	VSUB   V0.S4, V23.S4, V24.S4
-	VUMIN  V24.S4, V23.S4, V23.S4
-	WORD   $0x4eb6b69a                      // SQDMULH V26.4S, V20.4S, V22.4S - c = (2ab) >> 32
-	WORD   $0x4eb69e9b                      // MUL V27.4S, V20.4S, V22.4S - m = ab
-	WORD   $0x4ea19f7b                      // MUL V27.4S, V27.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b77b                      // SQDMULH V27.4S, V27.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4ebb2758                      // SHSUB V24.4S, V26.4S, V27.4S - d = (c − m) / 2
-	VADD   V0.S4, V24.S4, V26.S4
-	VUMIN  V26.S4, V24.S4, V24.S4
-	WORD   $0x4eb7b6ba                      // SQDMULH V26.4S, V21.4S, V23.4S - c = (2ab) >> 32
-	WORD   $0x4eb79ebb                      // MUL V27.4S, V21.4S, V23.4S - m = ab
-	WORD   $0x4ea19f7b                      // MUL V27.4S, V27.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b77b                      // SQDMULH V27.4S, V27.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4ebb2759                      // SHSUB V25.4S, V26.4S, V27.4S - d = (c − m) / 2
-	VADD   V0.S4, V25.S4, V26.S4
-	VUMIN  V26.S4, V25.S4, V25.S4
+	VSUB   V0.S4, V23.S4, V25.S4
+	VUMIN  V25.S4, V23.S4, V23.S4
+	VADD   V23.S4, V22.S4, V24.S4
+	VSUB   V0.S4, V24.S4, V25.S4
+	VUMIN  V25.S4, V24.S4, V24.S4
+	WORD   $0x4eb6b69b                      // SQDMULH V27.4S, V20.4S, V22.4S - c = (2ab) >> 32
+	WORD   $0x4eb69e9c                      // MUL V28.4S, V20.4S, V22.4S - m = ab
+	WORD   $0x4ea19f9c                      // MUL V28.4S, V28.4S, V1.4S - m = ab·μ
+	WORD   $0x4ea0b79c                      // SQDMULH V28.4S, V28.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4ebc2779                      // SHSUB V25.4S, V27.4S, V28.4S - d = (c − m) / 2
+	VADD   V0.S4, V25.S4, V27.S4
+	VUMIN  V27.S4, V25.S4, V25.S4
+	WORD   $0x4eb7b6bb                      // SQDMULH V27.4S, V21.4S, V23.4S - c = (2ab) >> 32
+	WORD   $0x4eb79ebc                      // MUL V28.4S, V21.4S, V23.4S - m = ab
+	WORD   $0x4ea19f9c                      // MUL V28.4S, V28.4S, V1.4S - m = ab·μ
+	WORD   $0x4ea0b79c                      // SQDMULH V28.4S, V28.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4ebc277a                      // SHSUB V26.4S, V27.4S, V28.4S - d = (c − m) / 2
+	VADD   V0.S4, V26.S4, V27.S4
+	VUMIN  V27.S4, V26.S4, V26.S4
 	VADD   V21.S4, V20.S4, V20.S4
-	VSUB   V0.S4, V20.S4, V26.S4
-	VUMIN  V26.S4, V20.S4, V20.S4
-	VADD   V23.S4, V22.S4, V22.S4
-	VSUB   V0.S4, V22.S4, V26.S4
-	VUMIN  V26.S4, V22.S4, V22.S4
-	WORD   $0x4eb6b69a                      // SQDMULH V26.4S, V20.4S, V22.4S - c = (2ab) >> 32
-	WORD   $0x4eb69e9b                      // MUL V27.4S, V20.4S, V22.4S - m = ab
-	WORD   $0x4ea19f7b                      // MUL V27.4S, V27.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b77b                      // SQDMULH V27.4S, V27.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4ebb2755                      // SHSUB V21.4S, V26.4S, V27.4S - d = (c − m) / 2
-	VADD   V0.S4, V21.S4, V26.S4
-	VUMIN  V26.S4, V21.S4, V21.S4
-	VSUB   V24.S4, V21.S4, V21.S4
-	VADD   V0.S4, V21.S4, V26.S4
-	VUMIN  V26.S4, V21.S4, V21.S4
+	VSUB   V0.S4, V20.S4, V27.S4
+	VUMIN  V27.S4, V20.S4, V20.S4
+	WORD   $0x4eb8b69b                      // SQDMULH V27.4S, V20.4S, V24.4S - c = (2ab) >> 32
+	WORD   $0x4eb89e9c                      // MUL V28.4S, V20.4S, V24.4S - m = ab
+	WORD   $0x4ea19f9c                      // MUL V28.4S, V28.4S, V1.4S - m = ab·μ
+	WORD   $0x4ea0b79c                      // SQDMULH V28.4S, V28.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4ebc2775                      // SHSUB V21.4S, V27.4S, V28.4S - d = (c − m) / 2
+	VADD   V0.S4, V21.S4, V27.S4
+	VUMIN  V27.S4, V21.S4, V21.S4
 	VSUB   V25.S4, V21.S4, V21.S4
-	VADD   V0.S4, V21.S4, V26.S4
-	VUMIN  V26.S4, V21.S4, V21.S4
-	VADD   V25.S4, V25.S4, V22.S4
-	VSUB   V0.S4, V22.S4, V26.S4
-	VUMIN  V26.S4, V22.S4, V22.S4
-	VADD   V25.S4, V22.S4, V22.S4
-	VSUB   V0.S4, V22.S4, V26.S4
-	VUMIN  V26.S4, V22.S4, V22.S4
-	VADD   V22.S4, V24.S4, V20.S4
-	VSUB   V0.S4, V20.S4, V26.S4
-	VUMIN  V26.S4, V20.S4, V20.S4
+	VADD   V0.S4, V21.S4, V27.S4
+	VUMIN  V27.S4, V21.S4, V21.S4
+	VSUB   V26.S4, V21.S4, V21.S4
+	VADD   V0.S4, V21.S4, V27.S4
+	VUMIN  V27.S4, V21.S4, V21.S4
+	VADD   V26.S4, V25.S4, V20.S4
+	VSUB   V0.S4, V20.S4, V27.S4
+	VUMIN  V27.S4, V20.S4, V20.S4
+	VADD   V26.S4, V20.S4, V20.S4
+	VSUB   V0.S4, V20.S4, V27.S4
+	VUMIN  V27.S4, V20.S4, V20.S4
+	VADD   V26.S4, V20.S4, V20.S4
+	VSUB   V0.S4, V20.S4, V27.S4
+	VUMIN  V27.S4, V20.S4, V20.S4
 	VSUB   V16.S4, V20.S4, V20.S4
 	VADD   V0.S4, V20.S4, V22.S4
 	VUMIN  V22.S4, V20.S4, V20.S4
@@ -658,59 +658,59 @@ loop3:
 	VSUB   V0.S4, V21.S4, V23.S4
 	VUMIN  V23.S4, V21.S4, V21.S4
 	VADD   V4.S4, V2.S4, V22.S4
-	VSUB   V0.S4, V22.S4, V26.S4
-	VUMIN  V26.S4, V22.S4, V22.S4
+	VSUB   V0.S4, V22.S4, V24.S4
+	VUMIN  V24.S4, V22.S4, V22.S4
 	VADD   V5.S4, V3.S4, V23.S4
-	VSUB   V0.S4, V23.S4, V26.S4
-	VUMIN  V26.S4, V23.S4, V23.S4
+	VSUB   V0.S4, V23.S4, V24.S4
+	VUMIN  V24.S4, V23.S4, V23.S4
 	VADD   V10.S4, V8.S4, V24.S4
-	VSUB   V0.S4, V24.S4, V26.S4
-	VUMIN  V26.S4, V24.S4, V24.S4
+	VSUB   V0.S4, V24.S4, V27.S4
+	VUMIN  V27.S4, V24.S4, V24.S4
 	VADD   V11.S4, V9.S4, V25.S4
-	VSUB   V0.S4, V25.S4, V26.S4
-	VUMIN  V26.S4, V25.S4, V25.S4
-	WORD   $0x4eb8b6dc                      // SQDMULH V28.4S, V22.4S, V24.4S - c = (2ab) >> 32
-	WORD   $0x4eb89edd                      // MUL V29.4S, V22.4S, V24.4S - m = ab
-	WORD   $0x4ea19fbd                      // MUL V29.4S, V29.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b7bd                      // SQDMULH V29.4S, V29.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4ebd279a                      // SHSUB V26.4S, V28.4S, V29.4S - d = (c − m) / 2
-	VADD   V0.S4, V26.S4, V28.S4
-	VUMIN  V28.S4, V26.S4, V26.S4
-	WORD   $0x4eb9b6fc                      // SQDMULH V28.4S, V23.4S, V25.4S - c = (2ab) >> 32
-	WORD   $0x4eb99efd                      // MUL V29.4S, V23.4S, V25.4S - m = ab
-	WORD   $0x4ea19fbd                      // MUL V29.4S, V29.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b7bd                      // SQDMULH V29.4S, V29.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4ebd279b                      // SHSUB V27.4S, V28.4S, V29.4S - d = (c − m) / 2
-	VADD   V0.S4, V27.S4, V28.S4
-	VUMIN  V28.S4, V27.S4, V27.S4
+	VSUB   V0.S4, V25.S4, V27.S4
+	VUMIN  V27.S4, V25.S4, V25.S4
+	VADD   V25.S4, V24.S4, V26.S4
+	VSUB   V0.S4, V26.S4, V27.S4
+	VUMIN  V27.S4, V26.S4, V26.S4
+	WORD   $0x4eb8b6dd                      // SQDMULH V29.4S, V22.4S, V24.4S - c = (2ab) >> 32
+	WORD   $0x4eb89ede                      // MUL V30.4S, V22.4S, V24.4S - m = ab
+	WORD   $0x4ea19fde                      // MUL V30.4S, V30.4S, V1.4S - m = ab·μ
+	WORD   $0x4ea0b7de                      // SQDMULH V30.4S, V30.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4ebe27bb                      // SHSUB V27.4S, V29.4S, V30.4S - d = (c − m) / 2
+	VADD   V0.S4, V27.S4, V29.S4
+	VUMIN  V29.S4, V27.S4, V27.S4
+	WORD   $0x4eb9b6fd                      // SQDMULH V29.4S, V23.4S, V25.4S - c = (2ab) >> 32
+	WORD   $0x4eb99efe                      // MUL V30.4S, V23.4S, V25.4S - m = ab
+	WORD   $0x4ea19fde                      // MUL V30.4S, V30.4S, V1.4S - m = ab·μ
+	WORD   $0x4ea0b7de                      // SQDMULH V30.4S, V30.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4ebe27bc                      // SHSUB V28.4S, V29.4S, V30.4S - d = (c − m) / 2
+	VADD   V0.S4, V28.S4, V29.S4
+	VUMIN  V29.S4, V28.S4, V28.S4
 	VADD   V23.S4, V22.S4, V22.S4
-	VSUB   V0.S4, V22.S4, V28.S4
-	VUMIN  V28.S4, V22.S4, V22.S4
-	VADD   V25.S4, V24.S4, V24.S4
-	VSUB   V0.S4, V24.S4, V28.S4
-	VUMIN  V28.S4, V24.S4, V24.S4
-	WORD   $0x4eb8b6dc                      // SQDMULH V28.4S, V22.4S, V24.4S - c = (2ab) >> 32
-	WORD   $0x4eb89edd                      // MUL V29.4S, V22.4S, V24.4S - m = ab
-	WORD   $0x4ea19fbd                      // MUL V29.4S, V29.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b7bd                      // SQDMULH V29.4S, V29.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4ebd2797                      // SHSUB V23.4S, V28.4S, V29.4S - d = (c − m) / 2
-	VADD   V0.S4, V23.S4, V28.S4
-	VUMIN  V28.S4, V23.S4, V23.S4
-	VSUB   V26.S4, V23.S4, V23.S4
-	VADD   V0.S4, V23.S4, V28.S4
-	VUMIN  V28.S4, V23.S4, V23.S4
+	VSUB   V0.S4, V22.S4, V29.S4
+	VUMIN  V29.S4, V22.S4, V22.S4
+	WORD   $0x4ebab6dd                      // SQDMULH V29.4S, V22.4S, V26.4S - c = (2ab) >> 32
+	WORD   $0x4eba9ede                      // MUL V30.4S, V22.4S, V26.4S - m = ab
+	WORD   $0x4ea19fde                      // MUL V30.4S, V30.4S, V1.4S - m = ab·μ
+	WORD   $0x4ea0b7de                      // SQDMULH V30.4S, V30.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4ebe27b7                      // SHSUB V23.4S, V29.4S, V30.4S - d = (c − m) / 2
+	VADD   V0.S4, V23.S4, V29.S4
+	VUMIN  V29.S4, V23.S4, V23.S4
 	VSUB   V27.S4, V23.S4, V23.S4
-	VADD   V0.S4, V23.S4, V28.S4
-	VUMIN  V28.S4, V23.S4, V23.S4
-	VADD   V27.S4, V27.S4, V24.S4
-	VSUB   V0.S4, V24.S4, V28.S4
-	VUMIN  V28.S4, V24.S4, V24.S4
-	VADD   V27.S4, V24.S4, V24.S4
-	VSUB   V0.S4, V24.S4, V28.S4
-	VUMIN  V28.S4, V24.S4, V24.S4
-	VADD   V24.S4, V26.S4, V22.S4
-	VSUB   V0.S4, V22.S4, V28.S4
-	VUMIN  V28.S4, V22.S4, V22.S4
+	VADD   V0.S4, V23.S4, V29.S4
+	VUMIN  V29.S4, V23.S4, V23.S4
+	VSUB   V28.S4, V23.S4, V23.S4
+	VADD   V0.S4, V23.S4, V29.S4
+	VUMIN  V29.S4, V23.S4, V23.S4
+	VADD   V28.S4, V27.S4, V22.S4
+	VSUB   V0.S4, V22.S4, V29.S4
+	VUMIN  V29.S4, V22.S4, V22.S4
+	VADD   V28.S4, V22.S4, V22.S4
+	VSUB   V0.S4, V22.S4, V29.S4
+	VUMIN  V29.S4, V22.S4, V22.S4
+	VADD   V28.S4, V22.S4, V22.S4
+	VSUB   V0.S4, V22.S4, V29.S4
+	VUMIN  V29.S4, V22.S4, V22.S4
 	VSUB   V14.S4, V22.S4, V22.S4
 	VADD   V0.S4, V22.S4, V24.S4
 	VUMIN  V24.S4, V22.S4, V22.S4
@@ -744,59 +744,59 @@ loop3:
 	VSUB   V0.S4, V25.S4, V27.S4
 	VUMIN  V27.S4, V25.S4, V25.S4
 	VADD   V6.S4, V2.S4, V4.S4
-	VSUB   V0.S4, V4.S4, V22.S4
-	VUMIN  V22.S4, V4.S4, V4.S4
+	VSUB   V0.S4, V4.S4, V10.S4
+	VUMIN  V10.S4, V4.S4, V4.S4
 	VADD   V7.S4, V3.S4, V5.S4
-	VSUB   V0.S4, V5.S4, V22.S4
-	VUMIN  V22.S4, V5.S4, V5.S4
+	VSUB   V0.S4, V5.S4, V10.S4
+	VUMIN  V10.S4, V5.S4, V5.S4
 	VADD   V12.S4, V8.S4, V10.S4
-	VSUB   V0.S4, V10.S4, V22.S4
-	VUMIN  V22.S4, V10.S4, V10.S4
+	VSUB   V0.S4, V10.S4, V23.S4
+	VUMIN  V23.S4, V10.S4, V10.S4
 	VADD   V13.S4, V9.S4, V11.S4
-	VSUB   V0.S4, V11.S4, V22.S4
-	VUMIN  V22.S4, V11.S4, V11.S4
-	WORD   $0x4eaab49a                      // SQDMULH V26.4S, V4.4S, V10.4S - c = (2ab) >> 32
-	WORD   $0x4eaa9c9b                      // MUL V27.4S, V4.4S, V10.4S - m = ab
-	WORD   $0x4ea19f7b                      // MUL V27.4S, V27.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b77b                      // SQDMULH V27.4S, V27.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4ebb2756                      // SHSUB V22.4S, V26.4S, V27.4S - d = (c − m) / 2
-	VADD   V0.S4, V22.S4, V26.S4
-	VUMIN  V26.S4, V22.S4, V22.S4
-	WORD   $0x4eabb4ba                      // SQDMULH V26.4S, V5.4S, V11.4S - c = (2ab) >> 32
-	WORD   $0x4eab9cbb                      // MUL V27.4S, V5.4S, V11.4S - m = ab
-	WORD   $0x4ea19f7b                      // MUL V27.4S, V27.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b77b                      // SQDMULH V27.4S, V27.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4ebb2757                      // SHSUB V23.4S, V26.4S, V27.4S - d = (c − m) / 2
-	VADD   V0.S4, V23.S4, V26.S4
-	VUMIN  V26.S4, V23.S4, V23.S4
+	VSUB   V0.S4, V11.S4, V23.S4
+	VUMIN  V23.S4, V11.S4, V11.S4
+	VADD   V11.S4, V10.S4, V22.S4
+	VSUB   V0.S4, V22.S4, V23.S4
+	VUMIN  V23.S4, V22.S4, V22.S4
+	WORD   $0x4eaab49b                      // SQDMULH V27.4S, V4.4S, V10.4S - c = (2ab) >> 32
+	WORD   $0x4eaa9c9c                      // MUL V28.4S, V4.4S, V10.4S - m = ab
+	WORD   $0x4ea19f9c                      // MUL V28.4S, V28.4S, V1.4S - m = ab·μ
+	WORD   $0x4ea0b79c                      // SQDMULH V28.4S, V28.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4ebc2777                      // SHSUB V23.4S, V27.4S, V28.4S - d = (c − m) / 2
+	VADD   V0.S4, V23.S4, V27.S4
+	VUMIN  V27.S4, V23.S4, V23.S4
+	WORD   $0x4eabb4bb                      // SQDMULH V27.4S, V5.4S, V11.4S - c = (2ab) >> 32
+	WORD   $0x4eab9cbc                      // MUL V28.4S, V5.4S, V11.4S - m = ab
+	WORD   $0x4ea19f9c                      // MUL V28.4S, V28.4S, V1.4S - m = ab·μ
+	WORD   $0x4ea0b79c                      // SQDMULH V28.4S, V28.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4ebc277a                      // SHSUB V26.4S, V27.4S, V28.4S - d = (c − m) / 2
+	VADD   V0.S4, V26.S4, V27.S4
+	VUMIN  V27.S4, V26.S4, V26.S4
 	VADD   V5.S4, V4.S4, V4.S4
-	VSUB   V0.S4, V4.S4, V26.S4
-	VUMIN  V26.S4, V4.S4, V4.S4
-	VADD   V11.S4, V10.S4, V10.S4
-	VSUB   V0.S4, V10.S4, V26.S4
-	VUMIN  V26.S4, V10.S4, V10.S4
-	WORD   $0x4eaab49a                      // SQDMULH V26.4S, V4.4S, V10.4S - c = (2ab) >> 32
-	WORD   $0x4eaa9c9b                      // MUL V27.4S, V4.4S, V10.4S - m = ab
-	WORD   $0x4ea19f7b                      // MUL V27.4S, V27.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b77b                      // SQDMULH V27.4S, V27.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4ebb2745                      // SHSUB V5.4S, V26.4S, V27.4S - d = (c − m) / 2
-	VADD   V0.S4, V5.S4, V26.S4
-	VUMIN  V26.S4, V5.S4, V5.S4
-	VSUB   V22.S4, V5.S4, V5.S4
-	VADD   V0.S4, V5.S4, V26.S4
-	VUMIN  V26.S4, V5.S4, V5.S4
+	VSUB   V0.S4, V4.S4, V27.S4
+	VUMIN  V27.S4, V4.S4, V4.S4
+	WORD   $0x4eb6b49b                      // SQDMULH V27.4S, V4.4S, V22.4S - c = (2ab) >> 32
+	WORD   $0x4eb69c9c                      // MUL V28.4S, V4.4S, V22.4S - m = ab
+	WORD   $0x4ea19f9c                      // MUL V28.4S, V28.4S, V1.4S - m = ab·μ
+	WORD   $0x4ea0b79c                      // SQDMULH V28.4S, V28.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4ebc2765                      // SHSUB V5.4S, V27.4S, V28.4S - d = (c − m) / 2
+	VADD   V0.S4, V5.S4, V27.S4
+	VUMIN  V27.S4, V5.S4, V5.S4
 	VSUB   V23.S4, V5.S4, V5.S4
-	VADD   V0.S4, V5.S4, V26.S4
-	VUMIN  V26.S4, V5.S4, V5.S4
-	VADD   V23.S4, V23.S4, V10.S4
-	VSUB   V0.S4, V10.S4, V26.S4
-	VUMIN  V26.S4, V10.S4, V10.S4
-	VADD   V23.S4, V10.S4, V10.S4
-	VSUB   V0.S4, V10.S4, V26.S4
-	VUMIN  V26.S4, V10.S4, V10.S4
-	VADD   V10.S4, V22.S4, V4.S4
-	VSUB   V0.S4, V4.S4, V26.S4
-	VUMIN  V26.S4, V4.S4, V4.S4
+	VADD   V0.S4, V5.S4, V27.S4
+	VUMIN  V27.S4, V5.S4, V5.S4
+	VSUB   V26.S4, V5.S4, V5.S4
+	VADD   V0.S4, V5.S4, V27.S4
+	VUMIN  V27.S4, V5.S4, V5.S4
+	VADD   V26.S4, V23.S4, V4.S4
+	VSUB   V0.S4, V4.S4, V27.S4
+	VUMIN  V27.S4, V4.S4, V4.S4
+	VADD   V26.S4, V4.S4, V4.S4
+	VSUB   V0.S4, V4.S4, V27.S4
+	VUMIN  V27.S4, V4.S4, V4.S4
+	VADD   V26.S4, V4.S4, V4.S4
+	VSUB   V0.S4, V4.S4, V27.S4
+	VUMIN  V27.S4, V4.S4, V4.S4
 	VSUB   V14.S4, V4.S4, V4.S4
 	VADD   V0.S4, V4.S4, V10.S4
 	VUMIN  V10.S4, V4.S4, V4.S4
@@ -883,6 +883,9 @@ loop5:
 	WORD   $0x4e955a4e                      // UZP2 V14.4S, V18.4S, V21.4S
 	WORD   $0x4e961a6f                      // UZP1 V15.4S, V19.4S, V22.4S
 	WORD   $0x4e965a70                      // UZP2 V16.4S, V19.4S, V22.4S
+	VADD   V12.S4, V11.S4, V23.S4
+	VSUB   V0.S4, V23.S4, V24.S4
+	VUMIN  V24.S4, V23.S4, V23.S4
 	WORD   $0x4eabb4b9                      // SQDMULH V25.4S, V5.4S, V11.4S - c = (2ab) >> 32
 	WORD   $0x4eab9cba                      // MUL V26.4S, V5.4S, V11.4S - m = ab
 	WORD   $0x4ea19f5a                      // MUL V26.4S, V26.4S, V1.4S - m = ab·μ
@@ -894,37 +897,37 @@ loop5:
 	WORD   $0x4eac9cda                      // MUL V26.4S, V6.4S, V12.4S - m = ab
 	WORD   $0x4ea19f5a                      // MUL V26.4S, V26.4S, V1.4S - m = ab·μ
 	WORD   $0x4ea0b75a                      // SQDMULH V26.4S, V26.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4eba2737                      // SHSUB V23.4S, V25.4S, V26.4S - d = (c − m) / 2
-	VADD   V0.S4, V23.S4, V25.S4
-	VUMIN  V25.S4, V23.S4, V23.S4
-	VADD   V6.S4, V5.S4, V24.S4
-	VSUB   V0.S4, V24.S4, V25.S4
+	WORD   $0x4eba2738                      // SHSUB V24.4S, V25.4S, V26.4S - d = (c − m) / 2
+	VADD   V0.S4, V24.S4, V25.S4
 	VUMIN  V25.S4, V24.S4, V24.S4
-	VADD   V12.S4, V11.S4, V18.S4
-	VSUB   V0.S4, V18.S4, V25.S4
-	VUMIN  V25.S4, V18.S4, V18.S4
-	WORD   $0x4eb2b719                      // SQDMULH V25.4S, V24.4S, V18.4S - c = (2ab) >> 32
-	WORD   $0x4eb29f1a                      // MUL V26.4S, V24.4S, V18.4S - m = ab
-	WORD   $0x4ea19f5a                      // MUL V26.4S, V26.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b75a                      // SQDMULH V26.4S, V26.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4eba2732                      // SHSUB V18.4S, V25.4S, V26.4S - d = (c − m) / 2
-	VADD   V0.S4, V18.S4, V25.S4
-	VUMIN  V25.S4, V18.S4, V18.S4
+	VADD   V6.S4, V5.S4, V25.S4
+	VSUB   V0.S4, V25.S4, V26.S4
+	VUMIN  V26.S4, V25.S4, V25.S4
+	WORD   $0x4eb7b73a                      // SQDMULH V26.4S, V25.4S, V23.4S - c = (2ab) >> 32
+	WORD   $0x4eb79f3b                      // MUL V27.4S, V25.4S, V23.4S - m = ab
+	WORD   $0x4ea19f7b                      // MUL V27.4S, V27.4S, V1.4S - m = ab·μ
+	WORD   $0x4ea0b77b                      // SQDMULH V27.4S, V27.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4ebb2752                      // SHSUB V18.4S, V26.4S, V27.4S - d = (c − m) / 2
+	VADD   V0.S4, V18.S4, V26.S4
+	VUMIN  V26.S4, V18.S4, V18.S4
 	VSUB   V17.S4, V18.S4, V18.S4
-	VADD   V0.S4, V18.S4, V25.S4
-	VUMIN  V25.S4, V18.S4, V18.S4
-	VSUB   V23.S4, V18.S4, V18.S4
-	VADD   V0.S4, V18.S4, V25.S4
-	VUMIN  V25.S4, V18.S4, V18.S4
-	VADD   V23.S4, V23.S4, V24.S4
-	VSUB   V0.S4, V24.S4, V25.S4
-	VUMIN  V25.S4, V24.S4, V24.S4
-	VADD   V23.S4, V24.S4, V24.S4
-	VSUB   V0.S4, V24.S4, V25.S4
-	VUMIN  V25.S4, V24.S4, V24.S4
+	VADD   V0.S4, V18.S4, V26.S4
+	VUMIN  V26.S4, V18.S4, V18.S4
+	VSUB   V24.S4, V18.S4, V18.S4
+	VADD   V0.S4, V18.S4, V26.S4
+	VUMIN  V26.S4, V18.S4, V18.S4
 	VADD   V24.S4, V17.S4, V17.S4
-	VSUB   V0.S4, V17.S4, V25.S4
-	VUMIN  V25.S4, V17.S4, V17.S4
+	VSUB   V0.S4, V17.S4, V26.S4
+	VUMIN  V26.S4, V17.S4, V17.S4
+	VADD   V24.S4, V17.S4, V17.S4
+	VSUB   V0.S4, V17.S4, V26.S4
+	VUMIN  V26.S4, V17.S4, V17.S4
+	VADD   V24.S4, V17.S4, V17.S4
+	VSUB   V0.S4, V17.S4, V26.S4
+	VUMIN  V26.S4, V17.S4, V17.S4
+	VADD   V14.S4, V13.S4, V23.S4
+	VSUB   V0.S4, V23.S4, V24.S4
+	VUMIN  V24.S4, V23.S4, V23.S4
 	WORD   $0x4eadb4f9                      // SQDMULH V25.4S, V7.4S, V13.4S - c = (2ab) >> 32
 	WORD   $0x4ead9cfa                      // MUL V26.4S, V7.4S, V13.4S - m = ab
 	WORD   $0x4ea19f5a                      // MUL V26.4S, V26.4S, V1.4S - m = ab·μ
@@ -936,37 +939,37 @@ loop5:
 	WORD   $0x4eae9d1a                      // MUL V26.4S, V8.4S, V14.4S - m = ab
 	WORD   $0x4ea19f5a                      // MUL V26.4S, V26.4S, V1.4S - m = ab·μ
 	WORD   $0x4ea0b75a                      // SQDMULH V26.4S, V26.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4eba2737                      // SHSUB V23.4S, V25.4S, V26.4S - d = (c − m) / 2
-	VADD   V0.S4, V23.S4, V25.S4
-	VUMIN  V25.S4, V23.S4, V23.S4
-	VADD   V8.S4, V7.S4, V24.S4
-	VSUB   V0.S4, V24.S4, V25.S4
+	WORD   $0x4eba2738                      // SHSUB V24.4S, V25.4S, V26.4S - d = (c − m) / 2
+	VADD   V0.S4, V24.S4, V25.S4
 	VUMIN  V25.S4, V24.S4, V24.S4
-	VADD   V14.S4, V13.S4, V20.S4
-	VSUB   V0.S4, V20.S4, V25.S4
-	VUMIN  V25.S4, V20.S4, V20.S4
-	WORD   $0x4eb4b719                      // SQDMULH V25.4S, V24.4S, V20.4S - c = (2ab) >> 32
-	WORD   $0x4eb49f1a                      // MUL V26.4S, V24.4S, V20.4S - m = ab
-	WORD   $0x4ea19f5a                      // MUL V26.4S, V26.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b75a                      // SQDMULH V26.4S, V26.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4eba2734                      // SHSUB V20.4S, V25.4S, V26.4S - d = (c − m) / 2
-	VADD   V0.S4, V20.S4, V25.S4
-	VUMIN  V25.S4, V20.S4, V20.S4
+	VADD   V8.S4, V7.S4, V25.S4
+	VSUB   V0.S4, V25.S4, V26.S4
+	VUMIN  V26.S4, V25.S4, V25.S4
+	WORD   $0x4eb7b73a                      // SQDMULH V26.4S, V25.4S, V23.4S - c = (2ab) >> 32
+	WORD   $0x4eb79f3b                      // MUL V27.4S, V25.4S, V23.4S - m = ab
+	WORD   $0x4ea19f7b                      // MUL V27.4S, V27.4S, V1.4S - m = ab·μ
+	WORD   $0x4ea0b77b                      // SQDMULH V27.4S, V27.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4ebb2754                      // SHSUB V20.4S, V26.4S, V27.4S - d = (c − m) / 2
+	VADD   V0.S4, V20.S4, V26.S4
+	VUMIN  V26.S4, V20.S4, V20.S4
 	VSUB   V19.S4, V20.S4, V20.S4
-	VADD   V0.S4, V20.S4, V25.S4
-	VUMIN  V25.S4, V20.S4, V20.S4
-	VSUB   V23.S4, V20.S4, V20.S4
-	VADD   V0.S4, V20.S4, V25.S4
-	VUMIN  V25.S4, V20.S4, V20.S4
-	VADD   V23.S4, V23.S4, V24.S4
-	VSUB   V0.S4, V24.S4, V25.S4
-	VUMIN  V25.S4, V24.S4, V24.S4
-	VADD   V23.S4, V24.S4, V24.S4
-	VSUB   V0.S4, V24.S4, V25.S4
-	VUMIN  V25.S4, V24.S4, V24.S4
+	VADD   V0.S4, V20.S4, V26.S4
+	VUMIN  V26.S4, V20.S4, V20.S4
+	VSUB   V24.S4, V20.S4, V20.S4
+	VADD   V0.S4, V20.S4, V26.S4
+	VUMIN  V26.S4, V20.S4, V20.S4
 	VADD   V24.S4, V19.S4, V19.S4
-	VSUB   V0.S4, V19.S4, V25.S4
-	VUMIN  V25.S4, V19.S4, V19.S4
+	VSUB   V0.S4, V19.S4, V26.S4
+	VUMIN  V26.S4, V19.S4, V19.S4
+	VADD   V24.S4, V19.S4, V19.S4
+	VSUB   V0.S4, V19.S4, V26.S4
+	VUMIN  V26.S4, V19.S4, V19.S4
+	VADD   V24.S4, V19.S4, V19.S4
+	VSUB   V0.S4, V19.S4, V26.S4
+	VUMIN  V26.S4, V19.S4, V19.S4
+	VADD   V16.S4, V15.S4, V23.S4
+	VSUB   V0.S4, V23.S4, V24.S4
+	VUMIN  V24.S4, V23.S4, V23.S4
 	WORD   $0x4eafb539                      // SQDMULH V25.4S, V9.4S, V15.4S - c = (2ab) >> 32
 	WORD   $0x4eaf9d3a                      // MUL V26.4S, V9.4S, V15.4S - m = ab
 	WORD   $0x4ea19f5a                      // MUL V26.4S, V26.4S, V1.4S - m = ab·μ
@@ -978,91 +981,88 @@ loop5:
 	WORD   $0x4eb09d5a                      // MUL V26.4S, V10.4S, V16.4S - m = ab
 	WORD   $0x4ea19f5a                      // MUL V26.4S, V26.4S, V1.4S - m = ab·μ
 	WORD   $0x4ea0b75a                      // SQDMULH V26.4S, V26.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4eba2737                      // SHSUB V23.4S, V25.4S, V26.4S - d = (c − m) / 2
-	VADD   V0.S4, V23.S4, V25.S4
-	VUMIN  V25.S4, V23.S4, V23.S4
-	VADD   V10.S4, V9.S4, V24.S4
-	VSUB   V0.S4, V24.S4, V25.S4
+	WORD   $0x4eba2738                      // SHSUB V24.4S, V25.4S, V26.4S - d = (c − m) / 2
+	VADD   V0.S4, V24.S4, V25.S4
 	VUMIN  V25.S4, V24.S4, V24.S4
-	VADD   V16.S4, V15.S4, V22.S4
-	VSUB   V0.S4, V22.S4, V25.S4
-	VUMIN  V25.S4, V22.S4, V22.S4
-	WORD   $0x4eb6b719                      // SQDMULH V25.4S, V24.4S, V22.4S - c = (2ab) >> 32
-	WORD   $0x4eb69f1a                      // MUL V26.4S, V24.4S, V22.4S - m = ab
-	WORD   $0x4ea19f5a                      // MUL V26.4S, V26.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b75a                      // SQDMULH V26.4S, V26.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4eba2736                      // SHSUB V22.4S, V25.4S, V26.4S - d = (c − m) / 2
-	VADD   V0.S4, V22.S4, V25.S4
-	VUMIN  V25.S4, V22.S4, V22.S4
+	VADD   V10.S4, V9.S4, V25.S4
+	VSUB   V0.S4, V25.S4, V26.S4
+	VUMIN  V26.S4, V25.S4, V25.S4
+	WORD   $0x4eb7b73a                      // SQDMULH V26.4S, V25.4S, V23.4S - c = (2ab) >> 32
+	WORD   $0x4eb79f3b                      // MUL V27.4S, V25.4S, V23.4S - m = ab
+	WORD   $0x4ea19f7b                      // MUL V27.4S, V27.4S, V1.4S - m = ab·μ
+	WORD   $0x4ea0b77b                      // SQDMULH V27.4S, V27.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4ebb2756                      // SHSUB V22.4S, V26.4S, V27.4S - d = (c − m) / 2
+	VADD   V0.S4, V22.S4, V26.S4
+	VUMIN  V26.S4, V22.S4, V22.S4
 	VSUB   V21.S4, V22.S4, V22.S4
-	VADD   V0.S4, V22.S4, V25.S4
-	VUMIN  V25.S4, V22.S4, V22.S4
-	VSUB   V23.S4, V22.S4, V22.S4
-	VADD   V0.S4, V22.S4, V25.S4
-	VUMIN  V25.S4, V22.S4, V22.S4
-	VADD   V23.S4, V23.S4, V24.S4
-	VSUB   V0.S4, V24.S4, V25.S4
-	VUMIN  V25.S4, V24.S4, V24.S4
-	VADD   V23.S4, V24.S4, V24.S4
-	VSUB   V0.S4, V24.S4, V25.S4
-	VUMIN  V25.S4, V24.S4, V24.S4
+	VADD   V0.S4, V22.S4, V26.S4
+	VUMIN  V26.S4, V22.S4, V22.S4
+	VSUB   V24.S4, V22.S4, V22.S4
+	VADD   V0.S4, V22.S4, V26.S4
+	VUMIN  V26.S4, V22.S4, V22.S4
 	VADD   V24.S4, V21.S4, V21.S4
-	VSUB   V0.S4, V21.S4, V25.S4
-	VUMIN  V25.S4, V21.S4, V21.S4
+	VSUB   V0.S4, V21.S4, V26.S4
+	VUMIN  V26.S4, V21.S4, V21.S4
+	VADD   V24.S4, V21.S4, V21.S4
+	VSUB   V0.S4, V21.S4, V26.S4
+	VUMIN  V26.S4, V21.S4, V21.S4
+	VADD   V24.S4, V21.S4, V21.S4
+	VSUB   V0.S4, V21.S4, V26.S4
+	VUMIN  V26.S4, V21.S4, V21.S4
 	VADD   V9.S4, V7.S4, V23.S4
-	VSUB   V0.S4, V23.S4, V27.S4
-	VUMIN  V27.S4, V23.S4, V23.S4
+	VSUB   V0.S4, V23.S4, V25.S4
+	VUMIN  V25.S4, V23.S4, V23.S4
 	VADD   V10.S4, V8.S4, V24.S4
-	VSUB   V0.S4, V24.S4, V27.S4
-	VUMIN  V27.S4, V24.S4, V24.S4
+	VSUB   V0.S4, V24.S4, V25.S4
+	VUMIN  V25.S4, V24.S4, V24.S4
 	VADD   V15.S4, V13.S4, V25.S4
-	VSUB   V0.S4, V25.S4, V27.S4
-	VUMIN  V27.S4, V25.S4, V25.S4
+	VSUB   V0.S4, V25.S4, V28.S4
+	VUMIN  V28.S4, V25.S4, V25.S4
 	VADD   V16.S4, V14.S4, V26.S4
-	VSUB   V0.S4, V26.S4, V27.S4
-	VUMIN  V27.S4, V26.S4, V26.S4
-	WORD   $0x4eb9b6fd                      // SQDMULH V29.4S, V23.4S, V25.4S - c = (2ab) >> 32
-	WORD   $0x4eb99efe                      // MUL V30.4S, V23.4S, V25.4S - m = ab
-	WORD   $0x4ea19fde                      // MUL V30.4S, V30.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b7de                      // SQDMULH V30.4S, V30.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4ebe27bb                      // SHSUB V27.4S, V29.4S, V30.4S - d = (c − m) / 2
-	VADD   V0.S4, V27.S4, V29.S4
-	VUMIN  V29.S4, V27.S4, V27.S4
-	WORD   $0x4ebab71d                      // SQDMULH V29.4S, V24.4S, V26.4S - c = (2ab) >> 32
-	WORD   $0x4eba9f1e                      // MUL V30.4S, V24.4S, V26.4S - m = ab
-	WORD   $0x4ea19fde                      // MUL V30.4S, V30.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b7de                      // SQDMULH V30.4S, V30.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4ebe27bc                      // SHSUB V28.4S, V29.4S, V30.4S - d = (c − m) / 2
-	VADD   V0.S4, V28.S4, V29.S4
-	VUMIN  V29.S4, V28.S4, V28.S4
+	VSUB   V0.S4, V26.S4, V28.S4
+	VUMIN  V28.S4, V26.S4, V26.S4
+	VADD   V26.S4, V25.S4, V27.S4
+	VSUB   V0.S4, V27.S4, V28.S4
+	VUMIN  V28.S4, V27.S4, V27.S4
+	WORD   $0x4eb9b6fe                      // SQDMULH V30.4S, V23.4S, V25.4S - c = (2ab) >> 32
+	WORD   $0x4eb99eff                      // MUL V31.4S, V23.4S, V25.4S - m = ab
+	WORD   $0x4ea19fff                      // MUL V31.4S, V31.4S, V1.4S - m = ab·μ
+	WORD   $0x4ea0b7ff                      // SQDMULH V31.4S, V31.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4ebf27dc                      // SHSUB V28.4S, V30.4S, V31.4S - d = (c − m) / 2
+	VADD   V0.S4, V28.S4, V30.S4
+	VUMIN  V30.S4, V28.S4, V28.S4
+	WORD   $0x4ebab71e                      // SQDMULH V30.4S, V24.4S, V26.4S - c = (2ab) >> 32
+	WORD   $0x4eba9f1f                      // MUL V31.4S, V24.4S, V26.4S - m = ab
+	WORD   $0x4ea19fff                      // MUL V31.4S, V31.4S, V1.4S - m = ab·μ
+	WORD   $0x4ea0b7ff                      // SQDMULH V31.4S, V31.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4ebf27dd                      // SHSUB V29.4S, V30.4S, V31.4S - d = (c − m) / 2
+	VADD   V0.S4, V29.S4, V30.S4
+	VUMIN  V30.S4, V29.S4, V29.S4
 	VADD   V24.S4, V23.S4, V23.S4
-	VSUB   V0.S4, V23.S4, V29.S4
-	VUMIN  V29.S4, V23.S4, V23.S4
-	VADD   V26.S4, V25.S4, V25.S4
-	VSUB   V0.S4, V25.S4, V29.S4
-	VUMIN  V29.S4, V25.S4, V25.S4
-	WORD   $0x4eb9b6fd                      // SQDMULH V29.4S, V23.4S, V25.4S - c = (2ab) >> 32
-	WORD   $0x4eb99efe                      // MUL V30.4S, V23.4S, V25.4S - m = ab
-	WORD   $0x4ea19fde                      // MUL V30.4S, V30.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b7de                      // SQDMULH V30.4S, V30.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4ebe27b8                      // SHSUB V24.4S, V29.4S, V30.4S - d = (c − m) / 2
-	VADD   V0.S4, V24.S4, V29.S4
-	VUMIN  V29.S4, V24.S4, V24.S4
-	VSUB   V27.S4, V24.S4, V24.S4
-	VADD   V0.S4, V24.S4, V29.S4
-	VUMIN  V29.S4, V24.S4, V24.S4
+	VSUB   V0.S4, V23.S4, V30.S4
+	VUMIN  V30.S4, V23.S4, V23.S4
+	WORD   $0x4ebbb6fe                      // SQDMULH V30.4S, V23.4S, V27.4S - c = (2ab) >> 32
+	WORD   $0x4ebb9eff                      // MUL V31.4S, V23.4S, V27.4S - m = ab
+	WORD   $0x4ea19fff                      // MUL V31.4S, V31.4S, V1.4S - m = ab·μ
+	WORD   $0x4ea0b7ff                      // SQDMULH V31.4S, V31.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4ebf27d8                      // SHSUB V24.4S, V30.4S, V31.4S - d = (c − m) / 2
+	VADD   V0.S4, V24.S4, V30.S4
+	VUMIN  V30.S4, V24.S4, V24.S4
 	VSUB   V28.S4, V24.S4, V24.S4
-	VADD   V0.S4, V24.S4, V29.S4
-	VUMIN  V29.S4, V24.S4, V24.S4
-	VADD   V28.S4, V28.S4, V25.S4
-	VSUB   V0.S4, V25.S4, V29.S4
-	VUMIN  V29.S4, V25.S4, V25.S4
-	VADD   V28.S4, V25.S4, V25.S4
-	VSUB   V0.S4, V25.S4, V29.S4
-	VUMIN  V29.S4, V25.S4, V25.S4
-	VADD   V25.S4, V27.S4, V23.S4
-	VSUB   V0.S4, V23.S4, V29.S4
-	VUMIN  V29.S4, V23.S4, V23.S4
+	VADD   V0.S4, V24.S4, V30.S4
+	VUMIN  V30.S4, V24.S4, V24.S4
+	VSUB   V29.S4, V24.S4, V24.S4
+	VADD   V0.S4, V24.S4, V30.S4
+	VUMIN  V30.S4, V24.S4, V24.S4
+	VADD   V29.S4, V28.S4, V23.S4
+	VSUB   V0.S4, V23.S4, V30.S4
+	VUMIN  V30.S4, V23.S4, V23.S4
+	VADD   V29.S4, V23.S4, V23.S4
+	VSUB   V0.S4, V23.S4, V30.S4
+	VUMIN  V30.S4, V23.S4, V23.S4
+	VADD   V29.S4, V23.S4, V23.S4
+	VSUB   V0.S4, V23.S4, V30.S4
+	VUMIN  V30.S4, V23.S4, V23.S4
 	VSUB   V19.S4, V23.S4, V23.S4
 	VADD   V0.S4, V23.S4, V25.S4
 	VUMIN  V25.S4, V23.S4, V23.S4
@@ -1096,59 +1096,59 @@ loop5:
 	WORD   $0x4eb8bef9                      // ADDP V25.4S, V23.4S, V24.4S - lanes < 2q
 	WORD   $0x6ea06b22                      // UADALP V2.2D, V25.4S
 	VADD   V7.S4, V5.S4, V23.S4
-	VSUB   V0.S4, V23.S4, V27.S4
-	VUMIN  V27.S4, V23.S4, V23.S4
+	VSUB   V0.S4, V23.S4, V25.S4
+	VUMIN  V25.S4, V23.S4, V23.S4
 	VADD   V8.S4, V6.S4, V24.S4
-	VSUB   V0.S4, V24.S4, V27.S4
-	VUMIN  V27.S4, V24.S4, V24.S4
+	VSUB   V0.S4, V24.S4, V25.S4
+	VUMIN  V25.S4, V24.S4, V24.S4
 	VADD   V13.S4, V11.S4, V25.S4
-	VSUB   V0.S4, V25.S4, V27.S4
-	VUMIN  V27.S4, V25.S4, V25.S4
+	VSUB   V0.S4, V25.S4, V28.S4
+	VUMIN  V28.S4, V25.S4, V25.S4
 	VADD   V14.S4, V12.S4, V26.S4
-	VSUB   V0.S4, V26.S4, V27.S4
-	VUMIN  V27.S4, V26.S4, V26.S4
-	WORD   $0x4eb9b6fd                      // SQDMULH V29.4S, V23.4S, V25.4S - c = (2ab) >> 32
-	WORD   $0x4eb99efe                      // MUL V30.4S, V23.4S, V25.4S - m = ab
-	WORD   $0x4ea19fde                      // MUL V30.4S, V30.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b7de                      // SQDMULH V30.4S, V30.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4ebe27bb                      // SHSUB V27.4S, V29.4S, V30.4S - d = (c − m) / 2
-	VADD   V0.S4, V27.S4, V29.S4
-	VUMIN  V29.S4, V27.S4, V27.S4
-	WORD   $0x4ebab71d                      // SQDMULH V29.4S, V24.4S, V26.4S - c = (2ab) >> 32
-	WORD   $0x4eba9f1e                      // MUL V30.4S, V24.4S, V26.4S - m = ab
-	WORD   $0x4ea19fde                      // MUL V30.4S, V30.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b7de                      // SQDMULH V30.4S, V30.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4ebe27bc                      // SHSUB V28.4S, V29.4S, V30.4S - d = (c − m) / 2
-	VADD   V0.S4, V28.S4, V29.S4
-	VUMIN  V29.S4, V28.S4, V28.S4
+	VSUB   V0.S4, V26.S4, V28.S4
+	VUMIN  V28.S4, V26.S4, V26.S4
+	VADD   V26.S4, V25.S4, V27.S4
+	VSUB   V0.S4, V27.S4, V28.S4
+	VUMIN  V28.S4, V27.S4, V27.S4
+	WORD   $0x4eb9b6fe                      // SQDMULH V30.4S, V23.4S, V25.4S - c = (2ab) >> 32
+	WORD   $0x4eb99eff                      // MUL V31.4S, V23.4S, V25.4S - m = ab
+	WORD   $0x4ea19fff                      // MUL V31.4S, V31.4S, V1.4S - m = ab·μ
+	WORD   $0x4ea0b7ff                      // SQDMULH V31.4S, V31.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4ebf27dc                      // SHSUB V28.4S, V30.4S, V31.4S - d = (c − m) / 2
+	VADD   V0.S4, V28.S4, V30.S4
+	VUMIN  V30.S4, V28.S4, V28.S4
+	WORD   $0x4ebab71e                      // SQDMULH V30.4S, V24.4S, V26.4S - c = (2ab) >> 32
+	WORD   $0x4eba9f1f                      // MUL V31.4S, V24.4S, V26.4S - m = ab
+	WORD   $0x4ea19fff                      // MUL V31.4S, V31.4S, V1.4S - m = ab·μ
+	WORD   $0x4ea0b7ff                      // SQDMULH V31.4S, V31.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4ebf27dd                      // SHSUB V29.4S, V30.4S, V31.4S - d = (c − m) / 2
+	VADD   V0.S4, V29.S4, V30.S4
+	VUMIN  V30.S4, V29.S4, V29.S4
 	VADD   V24.S4, V23.S4, V23.S4
-	VSUB   V0.S4, V23.S4, V29.S4
-	VUMIN  V29.S4, V23.S4, V23.S4
-	VADD   V26.S4, V25.S4, V25.S4
-	VSUB   V0.S4, V25.S4, V29.S4
-	VUMIN  V29.S4, V25.S4, V25.S4
-	WORD   $0x4eb9b6fd                      // SQDMULH V29.4S, V23.4S, V25.4S - c = (2ab) >> 32
-	WORD   $0x4eb99efe                      // MUL V30.4S, V23.4S, V25.4S - m = ab
-	WORD   $0x4ea19fde                      // MUL V30.4S, V30.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b7de                      // SQDMULH V30.4S, V30.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4ebe27b8                      // SHSUB V24.4S, V29.4S, V30.4S - d = (c − m) / 2
-	VADD   V0.S4, V24.S4, V29.S4
-	VUMIN  V29.S4, V24.S4, V24.S4
-	VSUB   V27.S4, V24.S4, V24.S4
-	VADD   V0.S4, V24.S4, V29.S4
-	VUMIN  V29.S4, V24.S4, V24.S4
+	VSUB   V0.S4, V23.S4, V30.S4
+	VUMIN  V30.S4, V23.S4, V23.S4
+	WORD   $0x4ebbb6fe                      // SQDMULH V30.4S, V23.4S, V27.4S - c = (2ab) >> 32
+	WORD   $0x4ebb9eff                      // MUL V31.4S, V23.4S, V27.4S - m = ab
+	WORD   $0x4ea19fff                      // MUL V31.4S, V31.4S, V1.4S - m = ab·μ
+	WORD   $0x4ea0b7ff                      // SQDMULH V31.4S, V31.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4ebf27d8                      // SHSUB V24.4S, V30.4S, V31.4S - d = (c − m) / 2
+	VADD   V0.S4, V24.S4, V30.S4
+	VUMIN  V30.S4, V24.S4, V24.S4
 	VSUB   V28.S4, V24.S4, V24.S4
-	VADD   V0.S4, V24.S4, V29.S4
-	VUMIN  V29.S4, V24.S4, V24.S4
-	VADD   V28.S4, V28.S4, V25.S4
-	VSUB   V0.S4, V25.S4, V29.S4
-	VUMIN  V29.S4, V25.S4, V25.S4
-	VADD   V28.S4, V25.S4, V25.S4
-	VSUB   V0.S4, V25.S4, V29.S4
-	VUMIN  V29.S4, V25.S4, V25.S4
-	VADD   V25.S4, V27.S4, V23.S4
-	VSUB   V0.S4, V23.S4, V29.S4
-	VUMIN  V29.S4, V23.S4, V23.S4
+	VADD   V0.S4, V24.S4, V30.S4
+	VUMIN  V30.S4, V24.S4, V24.S4
+	VSUB   V29.S4, V24.S4, V24.S4
+	VADD   V0.S4, V24.S4, V30.S4
+	VUMIN  V30.S4, V24.S4, V24.S4
+	VADD   V29.S4, V28.S4, V23.S4
+	VSUB   V0.S4, V23.S4, V30.S4
+	VUMIN  V30.S4, V23.S4, V23.S4
+	VADD   V29.S4, V23.S4, V23.S4
+	VSUB   V0.S4, V23.S4, V30.S4
+	VUMIN  V30.S4, V23.S4, V23.S4
+	VADD   V29.S4, V23.S4, V23.S4
+	VSUB   V0.S4, V23.S4, V30.S4
+	VUMIN  V30.S4, V23.S4, V23.S4
 	VSUB   V17.S4, V23.S4, V23.S4
 	VADD   V0.S4, V23.S4, V25.S4
 	VUMIN  V25.S4, V23.S4, V23.S4
@@ -1184,59 +1184,59 @@ loop5:
 	WORD   $0x4ebabf27                      // ADDP V7.4S, V25.4S, V26.4S - lanes < 2q
 	WORD   $0x6ea068e3                      // UADALP V3.2D, V7.4S
 	VADD   V9.S4, V5.S4, V7.S4
-	VSUB   V0.S4, V7.S4, V23.S4
-	VUMIN  V23.S4, V7.S4, V7.S4
+	VSUB   V0.S4, V7.S4, V13.S4
+	VUMIN  V13.S4, V7.S4, V7.S4
 	VADD   V10.S4, V6.S4, V8.S4
-	VSUB   V0.S4, V8.S4, V23.S4
-	VUMIN  V23.S4, V8.S4, V8.S4
+	VSUB   V0.S4, V8.S4, V13.S4
+	VUMIN  V13.S4, V8.S4, V8.S4
 	VADD   V15.S4, V11.S4, V13.S4
-	VSUB   V0.S4, V13.S4, V23.S4
-	VUMIN  V23.S4, V13.S4, V13.S4
+	VSUB   V0.S4, V13.S4, V24.S4
+	VUMIN  V24.S4, V13.S4, V13.S4
 	VADD   V16.S4, V12.S4, V14.S4
-	VSUB   V0.S4, V14.S4, V23.S4
-	VUMIN  V23.S4, V14.S4, V14.S4
-	WORD   $0x4eadb4f9                      // SQDMULH V25.4S, V7.4S, V13.4S - c = (2ab) >> 32
-	WORD   $0x4ead9cfa                      // MUL V26.4S, V7.4S, V13.4S - m = ab
-	WORD   $0x4ea19f5a                      // MUL V26.4S, V26.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b75a                      // SQDMULH V26.4S, V26.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4eba2737                      // SHSUB V23.4S, V25.4S, V26.4S - d = (c − m) / 2
-	VADD   V0.S4, V23.S4, V25.S4
-	VUMIN  V25.S4, V23.S4, V23.S4
-	WORD   $0x4eaeb519                      // SQDMULH V25.4S, V8.4S, V14.4S - c = (2ab) >> 32
-	WORD   $0x4eae9d1a                      // MUL V26.4S, V8.4S, V14.4S - m = ab
-	WORD   $0x4ea19f5a                      // MUL V26.4S, V26.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b75a                      // SQDMULH V26.4S, V26.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4eba2738                      // SHSUB V24.4S, V25.4S, V26.4S - d = (c − m) / 2
-	VADD   V0.S4, V24.S4, V25.S4
-	VUMIN  V25.S4, V24.S4, V24.S4
+	VSUB   V0.S4, V14.S4, V24.S4
+	VUMIN  V24.S4, V14.S4, V14.S4
+	VADD   V14.S4, V13.S4, V23.S4
+	VSUB   V0.S4, V23.S4, V24.S4
+	VUMIN  V24.S4, V23.S4, V23.S4
+	WORD   $0x4eadb4fa                      // SQDMULH V26.4S, V7.4S, V13.4S - c = (2ab) >> 32
+	WORD   $0x4ead9cfb                      // MUL V27.4S, V7.4S, V13.4S - m = ab
+	WORD   $0x4ea19f7b                      // MUL V27.4S, V27.4S, V1.4S - m = ab·μ
+	WORD   $0x4ea0b77b                      // SQDMULH V27.4S, V27.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4ebb2758                      // SHSUB V24.4S, V26.4S, V27.4S - d = (c − m) / 2
+	VADD   V0.S4, V24.S4, V26.S4
+	VUMIN  V26.S4, V24.S4, V24.S4
+	WORD   $0x4eaeb51a                      // SQDMULH V26.4S, V8.4S, V14.4S - c = (2ab) >> 32
+	WORD   $0x4eae9d1b                      // MUL V27.4S, V8.4S, V14.4S - m = ab
+	WORD   $0x4ea19f7b                      // MUL V27.4S, V27.4S, V1.4S - m = ab·μ
+	WORD   $0x4ea0b77b                      // SQDMULH V27.4S, V27.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4ebb2759                      // SHSUB V25.4S, V26.4S, V27.4S - d = (c − m) / 2
+	VADD   V0.S4, V25.S4, V26.S4
+	VUMIN  V26.S4, V25.S4, V25.S4
 	VADD   V8.S4, V7.S4, V7.S4
-	VSUB   V0.S4, V7.S4, V25.S4
-	VUMIN  V25.S4, V7.S4, V7.S4
-	VADD   V14.S4, V13.S4, V13.S4
-	VSUB   V0.S4, V13.S4, V25.S4
-	VUMIN  V25.S4, V13.S4, V13.S4
-	WORD   $0x4eadb4f9                      // SQDMULH V25.4S, V7.4S, V13.4S - c = (2ab) >> 32
-	WORD   $0x4ead9cfa                      // MUL V26.4S, V7.4S, V13.4S - m = ab
-	WORD   $0x4ea19f5a                      // MUL V26.4S, V26.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b75a                      // SQDMULH V26.4S, V26.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4eba2728                      // SHSUB V8.4S, V25.4S, V26.4S - d = (c − m) / 2
-	VADD   V0.S4, V8.S4, V25.S4
-	VUMIN  V25.S4, V8.S4, V8.S4
-	VSUB   V23.S4, V8.S4, V8.S4
-	VADD   V0.S4, V8.S4, V25.S4
-	VUMIN  V25.S4, V8.S4, V8.S4
+	VSUB   V0.S4, V7.S4, V26.S4
+	VUMIN  V26.S4, V7.S4, V7.S4
+	WORD   $0x4eb7b4fa                      // SQDMULH V26.4S, V7.4S, V23.4S - c = (2ab) >> 32
+	WORD   $0x4eb79cfb                      // MUL V27.4S, V7.4S, V23.4S - m = ab
+	WORD   $0x4ea19f7b                      // MUL V27.4S, V27.4S, V1.4S - m = ab·μ
+	WORD   $0x4ea0b77b                      // SQDMULH V27.4S, V27.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4ebb2748                      // SHSUB V8.4S, V26.4S, V27.4S - d = (c − m) / 2
+	VADD   V0.S4, V8.S4, V26.S4
+	VUMIN  V26.S4, V8.S4, V8.S4
 	VSUB   V24.S4, V8.S4, V8.S4
-	VADD   V0.S4, V8.S4, V25.S4
-	VUMIN  V25.S4, V8.S4, V8.S4
-	VADD   V24.S4, V24.S4, V13.S4
-	VSUB   V0.S4, V13.S4, V25.S4
-	VUMIN  V25.S4, V13.S4, V13.S4
-	VADD   V24.S4, V13.S4, V13.S4
-	VSUB   V0.S4, V13.S4, V25.S4
-	VUMIN  V25.S4, V13.S4, V13.S4
-	VADD   V13.S4, V23.S4, V7.S4
-	VSUB   V0.S4, V7.S4, V25.S4
-	VUMIN  V25.S4, V7.S4, V7.S4
+	VADD   V0.S4, V8.S4, V26.S4
+	VUMIN  V26.S4, V8.S4, V8.S4
+	VSUB   V25.S4, V8.S4, V8.S4
+	VADD   V0.S4, V8.S4, V26.S4
+	VUMIN  V26.S4, V8.S4, V8.S4
+	VADD   V25.S4, V24.S4, V7.S4
+	VSUB   V0.S4, V7.S4, V26.S4
+	VUMIN  V26.S4, V7.S4, V7.S4
+	VADD   V25.S4, V7.S4, V7.S4
+	VSUB   V0.S4, V7.S4, V26.S4
+	VUMIN  V26.S4, V7.S4, V7.S4
+	VADD   V25.S4, V7.S4, V7.S4
+	VSUB   V0.S4, V7.S4, V26.S4
+	VUMIN  V26.S4, V7.S4, V7.S4
 	VSUB   V17.S4, V7.S4, V7.S4
 	VADD   V0.S4, V7.S4, V13.S4
 	VUMIN  V13.S4, V7.S4, V7.S4
@@ -1268,415 +1268,386 @@ done6:
 // vectorScalarMul_E6_neon: see generateMulE6 in the generator
 
 TEXT ·vectorScalarMul_E6_neon(SB), NOFRAME|NOSPLIT, $0-32
-	MOVD  res+0(FP), R0
-	MOVD  a+8(FP), R1
-	MOVD  b+16(FP), R2
-	MOVD  N+24(FP), R3
-	LSR   $2, R3, R3
-	MOVD  $2130706433, R10
-	VDUP  R10, V0.S4
-	MOVD  $2164260865, R10
-	VDUP  R10, V1.S4
-	MOVWU 0(R2), R10
-	VDUP  R10, V2.S4
-	MOVWU 4(R2), R10
-	VDUP  R10, V3.S4
-	MOVWU 8(R2), R10
-	VDUP  R10, V4.S4
-	MOVWU 12(R2), R10
-	VDUP  R10, V5.S4
-	MOVWU 16(R2), R10
-	VDUP  R10, V6.S4
-	MOVWU 20(R2), R10
-	VDUP  R10, V7.S4
+	MOVD res+0(FP), R0
+	MOVD a+8(FP), R1
+	MOVD b+16(FP), R2
+	MOVD N+24(FP), R3
+	LSR  $2, R3, R3
+	MOVD $2130706433, R10
+	VDUP R10, V0.S4
+	MOVD $2164260865, R10
+	VDUP R10, V1.S4
 
 loop7:
 	CBZ    R3, done8
 	SUB    $1, R3, R3
-	VLD3.P 48(R1), [V14.D2, V15.D2, V16.D2]
-	VLD3.P 48(R1), [V17.D2, V18.D2, V19.D2]
-	WORD   $0x4e9119c8                      // UZP1 V8.4S, V14.4S, V17.4S
-	WORD   $0x4e9159c9                      // UZP2 V9.4S, V14.4S, V17.4S
-	WORD   $0x4e9219ea                      // UZP1 V10.4S, V15.4S, V18.4S
-	WORD   $0x4e9259eb                      // UZP2 V11.4S, V15.4S, V18.4S
-	WORD   $0x4e931a0c                      // UZP1 V12.4S, V16.4S, V19.4S
-	WORD   $0x4e935a0d                      // UZP2 V13.4S, V16.4S, V19.4S
-	WORD   $0x4ea2b516                      // SQDMULH V22.4S, V8.4S, V2.4S - c = (2ab) >> 32
-	WORD   $0x4ea29d17                      // MUL V23.4S, V8.4S, V2.4S - m = ab
-	WORD   $0x4ea19ef7                      // MUL V23.4S, V23.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b6f7                      // SQDMULH V23.4S, V23.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4eb726ce                      // SHSUB V14.4S, V22.4S, V23.4S - d = (c − m) / 2
-	VADD   V0.S4, V14.S4, V22.S4
-	VUMIN  V22.S4, V14.S4, V14.S4
-	WORD   $0x4ea3b536                      // SQDMULH V22.4S, V9.4S, V3.4S - c = (2ab) >> 32
-	WORD   $0x4ea39d37                      // MUL V23.4S, V9.4S, V3.4S - m = ab
-	WORD   $0x4ea19ef7                      // MUL V23.4S, V23.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b6f7                      // SQDMULH V23.4S, V23.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4eb726d4                      // SHSUB V20.4S, V22.4S, V23.4S - d = (c − m) / 2
-	VADD   V0.S4, V20.S4, V22.S4
-	VUMIN  V22.S4, V20.S4, V20.S4
-	VADD   V9.S4, V8.S4, V21.S4
+	VLD3.P 48(R1), [V8.D2, V9.D2, V10.D2]
+	VLD3.P 48(R1), [V11.D2, V12.D2, V13.D2]
+	WORD   $0x4e8b1902                      // UZP1 V2.4S, V8.4S, V11.4S
+	WORD   $0x4e8b5903                      // UZP2 V3.4S, V8.4S, V11.4S
+	WORD   $0x4e8c1924                      // UZP1 V4.4S, V9.4S, V12.4S
+	WORD   $0x4e8c5925                      // UZP2 V5.4S, V9.4S, V12.4S
+	WORD   $0x4e8d1946                      // UZP1 V6.4S, V10.4S, V13.4S
+	WORD   $0x4e8d5947                      // UZP2 V7.4S, V10.4S, V13.4S
+	MOVD   R2, R13
+	VLD1.P 16(R13), [V14.S4]
+	VLD1.P 16(R13), [V15.S4]
+	VLD1.P 16(R13), [V16.S4]
+	VLD1.P 16(R13), [V17.S4]
+	VLD1.P 16(R13), [V18.S4]
+	VLD1.P 16(R13), [V19.S4]
+	WORD   $0x4eaeb455                      // SQDMULH V21.4S, V2.4S, V14.4S - c = (2ab) >> 32
+	WORD   $0x4eb19c56                      // MUL V22.4S, V2.4S, V17.4S - m = ab·μ
+	WORD   $0x4ea0b6d6                      // SQDMULH V22.4S, V22.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4eb626a8                      // SHSUB V8.4S, V21.4S, V22.4S - d = (c − m) / 2
+	VADD   V0.S4, V8.S4, V21.S4
+	VUMIN  V21.S4, V8.S4, V8.S4
+	WORD   $0x4eafb475                      // SQDMULH V21.4S, V3.4S, V15.4S - c = (2ab) >> 32
+	WORD   $0x4eb29c76                      // MUL V22.4S, V3.4S, V18.4S - m = ab·μ
+	WORD   $0x4ea0b6d6                      // SQDMULH V22.4S, V22.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4eb626b4                      // SHSUB V20.4S, V21.4S, V22.4S - d = (c − m) / 2
+	VADD   V0.S4, V20.S4, V21.S4
+	VUMIN  V21.S4, V20.S4, V20.S4
+	VADD   V3.S4, V2.S4, V21.S4
 	VSUB   V0.S4, V21.S4, V22.S4
 	VUMIN  V22.S4, V21.S4, V21.S4
-	VADD   V3.S4, V2.S4, V15.S4
-	VSUB   V0.S4, V15.S4, V22.S4
-	VUMIN  V22.S4, V15.S4, V15.S4
-	WORD   $0x4eafb6b6                      // SQDMULH V22.4S, V21.4S, V15.4S - c = (2ab) >> 32
-	WORD   $0x4eaf9eb7                      // MUL V23.4S, V21.4S, V15.4S - m = ab
-	WORD   $0x4ea19ef7                      // MUL V23.4S, V23.4S, V1.4S - m = ab·μ
+	WORD   $0x4eb0b6b6                      // SQDMULH V22.4S, V21.4S, V16.4S - c = (2ab) >> 32
+	WORD   $0x4eb39eb7                      // MUL V23.4S, V21.4S, V19.4S - m = ab·μ
 	WORD   $0x4ea0b6f7                      // SQDMULH V23.4S, V23.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4eb726cf                      // SHSUB V15.4S, V22.4S, V23.4S - d = (c − m) / 2
-	VADD   V0.S4, V15.S4, V22.S4
-	VUMIN  V22.S4, V15.S4, V15.S4
-	VSUB   V14.S4, V15.S4, V15.S4
-	VADD   V0.S4, V15.S4, V22.S4
-	VUMIN  V22.S4, V15.S4, V15.S4
-	VSUB   V20.S4, V15.S4, V15.S4
-	VADD   V0.S4, V15.S4, V22.S4
-	VUMIN  V22.S4, V15.S4, V15.S4
-	VADD   V20.S4, V20.S4, V21.S4
+	WORD   $0x4eb726c9                      // SHSUB V9.4S, V22.4S, V23.4S - d = (c − m) / 2
+	VADD   V0.S4, V9.S4, V22.S4
+	VUMIN  V22.S4, V9.S4, V9.S4
+	VSUB   V8.S4, V9.S4, V9.S4
+	VADD   V0.S4, V9.S4, V22.S4
+	VUMIN  V22.S4, V9.S4, V9.S4
+	VSUB   V20.S4, V9.S4, V9.S4
+	VADD   V0.S4, V9.S4, V22.S4
+	VUMIN  V22.S4, V9.S4, V9.S4
+	VADD   V20.S4, V8.S4, V8.S4
+	VSUB   V0.S4, V8.S4, V22.S4
+	VUMIN  V22.S4, V8.S4, V8.S4
+	VADD   V20.S4, V8.S4, V8.S4
+	VSUB   V0.S4, V8.S4, V22.S4
+	VUMIN  V22.S4, V8.S4, V8.S4
+	VADD   V20.S4, V8.S4, V8.S4
+	VSUB   V0.S4, V8.S4, V22.S4
+	VUMIN  V22.S4, V8.S4, V8.S4
+	VLD1.P 16(R13), [V14.S4]
+	VLD1.P 16(R13), [V15.S4]
+	VLD1.P 16(R13), [V16.S4]
+	VLD1.P 16(R13), [V17.S4]
+	VLD1.P 16(R13), [V18.S4]
+	VLD1.P 16(R13), [V19.S4]
+	WORD   $0x4eaeb495                      // SQDMULH V21.4S, V4.4S, V14.4S - c = (2ab) >> 32
+	WORD   $0x4eb19c96                      // MUL V22.4S, V4.4S, V17.4S - m = ab·μ
+	WORD   $0x4ea0b6d6                      // SQDMULH V22.4S, V22.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4eb626aa                      // SHSUB V10.4S, V21.4S, V22.4S - d = (c − m) / 2
+	VADD   V0.S4, V10.S4, V21.S4
+	VUMIN  V21.S4, V10.S4, V10.S4
+	WORD   $0x4eafb4b5                      // SQDMULH V21.4S, V5.4S, V15.4S - c = (2ab) >> 32
+	WORD   $0x4eb29cb6                      // MUL V22.4S, V5.4S, V18.4S - m = ab·μ
+	WORD   $0x4ea0b6d6                      // SQDMULH V22.4S, V22.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4eb626b4                      // SHSUB V20.4S, V21.4S, V22.4S - d = (c − m) / 2
+	VADD   V0.S4, V20.S4, V21.S4
+	VUMIN  V21.S4, V20.S4, V20.S4
+	VADD   V5.S4, V4.S4, V21.S4
 	VSUB   V0.S4, V21.S4, V22.S4
 	VUMIN  V22.S4, V21.S4, V21.S4
-	VADD   V20.S4, V21.S4, V21.S4
-	VSUB   V0.S4, V21.S4, V22.S4
-	VUMIN  V22.S4, V21.S4, V21.S4
-	VADD   V21.S4, V14.S4, V14.S4
-	VSUB   V0.S4, V14.S4, V22.S4
-	VUMIN  V22.S4, V14.S4, V14.S4
-	WORD   $0x4ea4b556                      // SQDMULH V22.4S, V10.4S, V4.4S - c = (2ab) >> 32
-	WORD   $0x4ea49d57                      // MUL V23.4S, V10.4S, V4.4S - m = ab
-	WORD   $0x4ea19ef7                      // MUL V23.4S, V23.4S, V1.4S - m = ab·μ
+	WORD   $0x4eb0b6b6                      // SQDMULH V22.4S, V21.4S, V16.4S - c = (2ab) >> 32
+	WORD   $0x4eb39eb7                      // MUL V23.4S, V21.4S, V19.4S - m = ab·μ
 	WORD   $0x4ea0b6f7                      // SQDMULH V23.4S, V23.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4eb726d0                      // SHSUB V16.4S, V22.4S, V23.4S - d = (c − m) / 2
-	VADD   V0.S4, V16.S4, V22.S4
-	VUMIN  V22.S4, V16.S4, V16.S4
-	WORD   $0x4ea5b576                      // SQDMULH V22.4S, V11.4S, V5.4S - c = (2ab) >> 32
-	WORD   $0x4ea59d77                      // MUL V23.4S, V11.4S, V5.4S - m = ab
-	WORD   $0x4ea19ef7                      // MUL V23.4S, V23.4S, V1.4S - m = ab·μ
+	WORD   $0x4eb726cb                      // SHSUB V11.4S, V22.4S, V23.4S - d = (c − m) / 2
+	VADD   V0.S4, V11.S4, V22.S4
+	VUMIN  V22.S4, V11.S4, V11.S4
+	VSUB   V10.S4, V11.S4, V11.S4
+	VADD   V0.S4, V11.S4, V22.S4
+	VUMIN  V22.S4, V11.S4, V11.S4
+	VSUB   V20.S4, V11.S4, V11.S4
+	VADD   V0.S4, V11.S4, V22.S4
+	VUMIN  V22.S4, V11.S4, V11.S4
+	VADD   V20.S4, V10.S4, V10.S4
+	VSUB   V0.S4, V10.S4, V22.S4
+	VUMIN  V22.S4, V10.S4, V10.S4
+	VADD   V20.S4, V10.S4, V10.S4
+	VSUB   V0.S4, V10.S4, V22.S4
+	VUMIN  V22.S4, V10.S4, V10.S4
+	VADD   V20.S4, V10.S4, V10.S4
+	VSUB   V0.S4, V10.S4, V22.S4
+	VUMIN  V22.S4, V10.S4, V10.S4
+	VLD1.P 16(R13), [V14.S4]
+	VLD1.P 16(R13), [V15.S4]
+	VLD1.P 16(R13), [V16.S4]
+	VLD1.P 16(R13), [V17.S4]
+	VLD1.P 16(R13), [V18.S4]
+	VLD1.P 16(R13), [V19.S4]
+	WORD   $0x4eaeb4d5                      // SQDMULH V21.4S, V6.4S, V14.4S - c = (2ab) >> 32
+	WORD   $0x4eb19cd6                      // MUL V22.4S, V6.4S, V17.4S - m = ab·μ
+	WORD   $0x4ea0b6d6                      // SQDMULH V22.4S, V22.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4eb626ac                      // SHSUB V12.4S, V21.4S, V22.4S - d = (c − m) / 2
+	VADD   V0.S4, V12.S4, V21.S4
+	VUMIN  V21.S4, V12.S4, V12.S4
+	WORD   $0x4eafb4f5                      // SQDMULH V21.4S, V7.4S, V15.4S - c = (2ab) >> 32
+	WORD   $0x4eb29cf6                      // MUL V22.4S, V7.4S, V18.4S - m = ab·μ
+	WORD   $0x4ea0b6d6                      // SQDMULH V22.4S, V22.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4eb626b4                      // SHSUB V20.4S, V21.4S, V22.4S - d = (c − m) / 2
+	VADD   V0.S4, V20.S4, V21.S4
+	VUMIN  V21.S4, V20.S4, V20.S4
+	VADD   V7.S4, V6.S4, V21.S4
+	VSUB   V0.S4, V21.S4, V22.S4
+	VUMIN  V22.S4, V21.S4, V21.S4
+	WORD   $0x4eb0b6b6                      // SQDMULH V22.4S, V21.4S, V16.4S - c = (2ab) >> 32
+	WORD   $0x4eb39eb7                      // MUL V23.4S, V21.4S, V19.4S - m = ab·μ
 	WORD   $0x4ea0b6f7                      // SQDMULH V23.4S, V23.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4eb726d4                      // SHSUB V20.4S, V22.4S, V23.4S - d = (c − m) / 2
-	VADD   V0.S4, V20.S4, V22.S4
-	VUMIN  V22.S4, V20.S4, V20.S4
-	VADD   V11.S4, V10.S4, V21.S4
-	VSUB   V0.S4, V21.S4, V22.S4
-	VUMIN  V22.S4, V21.S4, V21.S4
-	VADD   V5.S4, V4.S4, V17.S4
-	VSUB   V0.S4, V17.S4, V22.S4
-	VUMIN  V22.S4, V17.S4, V17.S4
-	WORD   $0x4eb1b6b6                      // SQDMULH V22.4S, V21.4S, V17.4S - c = (2ab) >> 32
-	WORD   $0x4eb19eb7                      // MUL V23.4S, V21.4S, V17.4S - m = ab
-	WORD   $0x4ea19ef7                      // MUL V23.4S, V23.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b6f7                      // SQDMULH V23.4S, V23.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4eb726d1                      // SHSUB V17.4S, V22.4S, V23.4S - d = (c − m) / 2
-	VADD   V0.S4, V17.S4, V22.S4
-	VUMIN  V22.S4, V17.S4, V17.S4
-	VSUB   V16.S4, V17.S4, V17.S4
-	VADD   V0.S4, V17.S4, V22.S4
-	VUMIN  V22.S4, V17.S4, V17.S4
-	VSUB   V20.S4, V17.S4, V17.S4
-	VADD   V0.S4, V17.S4, V22.S4
-	VUMIN  V22.S4, V17.S4, V17.S4
-	VADD   V20.S4, V20.S4, V21.S4
-	VSUB   V0.S4, V21.S4, V22.S4
-	VUMIN  V22.S4, V21.S4, V21.S4
-	VADD   V20.S4, V21.S4, V21.S4
-	VSUB   V0.S4, V21.S4, V22.S4
-	VUMIN  V22.S4, V21.S4, V21.S4
-	VADD   V21.S4, V16.S4, V16.S4
-	VSUB   V0.S4, V16.S4, V22.S4
-	VUMIN  V22.S4, V16.S4, V16.S4
-	WORD   $0x4ea6b596                      // SQDMULH V22.4S, V12.4S, V6.4S - c = (2ab) >> 32
-	WORD   $0x4ea69d97                      // MUL V23.4S, V12.4S, V6.4S - m = ab
-	WORD   $0x4ea19ef7                      // MUL V23.4S, V23.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b6f7                      // SQDMULH V23.4S, V23.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4eb726d2                      // SHSUB V18.4S, V22.4S, V23.4S - d = (c − m) / 2
-	VADD   V0.S4, V18.S4, V22.S4
-	VUMIN  V22.S4, V18.S4, V18.S4
-	WORD   $0x4ea7b5b6                      // SQDMULH V22.4S, V13.4S, V7.4S - c = (2ab) >> 32
-	WORD   $0x4ea79db7                      // MUL V23.4S, V13.4S, V7.4S - m = ab
-	WORD   $0x4ea19ef7                      // MUL V23.4S, V23.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b6f7                      // SQDMULH V23.4S, V23.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4eb726d4                      // SHSUB V20.4S, V22.4S, V23.4S - d = (c − m) / 2
-	VADD   V0.S4, V20.S4, V22.S4
-	VUMIN  V22.S4, V20.S4, V20.S4
-	VADD   V13.S4, V12.S4, V21.S4
-	VSUB   V0.S4, V21.S4, V22.S4
-	VUMIN  V22.S4, V21.S4, V21.S4
-	VADD   V7.S4, V6.S4, V19.S4
-	VSUB   V0.S4, V19.S4, V22.S4
-	VUMIN  V22.S4, V19.S4, V19.S4
-	WORD   $0x4eb3b6b6                      // SQDMULH V22.4S, V21.4S, V19.4S - c = (2ab) >> 32
-	WORD   $0x4eb39eb7                      // MUL V23.4S, V21.4S, V19.4S - m = ab
-	WORD   $0x4ea19ef7                      // MUL V23.4S, V23.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b6f7                      // SQDMULH V23.4S, V23.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4eb726d3                      // SHSUB V19.4S, V22.4S, V23.4S - d = (c − m) / 2
-	VADD   V0.S4, V19.S4, V22.S4
-	VUMIN  V22.S4, V19.S4, V19.S4
-	VSUB   V18.S4, V19.S4, V19.S4
-	VADD   V0.S4, V19.S4, V22.S4
-	VUMIN  V22.S4, V19.S4, V19.S4
-	VSUB   V20.S4, V19.S4, V19.S4
-	VADD   V0.S4, V19.S4, V22.S4
-	VUMIN  V22.S4, V19.S4, V19.S4
-	VADD   V20.S4, V20.S4, V21.S4
-	VSUB   V0.S4, V21.S4, V22.S4
-	VUMIN  V22.S4, V21.S4, V21.S4
-	VADD   V20.S4, V21.S4, V21.S4
-	VSUB   V0.S4, V21.S4, V22.S4
-	VUMIN  V22.S4, V21.S4, V21.S4
-	VADD   V21.S4, V18.S4, V18.S4
-	VSUB   V0.S4, V18.S4, V22.S4
-	VUMIN  V22.S4, V18.S4, V18.S4
-	VADD   V12.S4, V10.S4, V20.S4
-	VSUB   V0.S4, V20.S4, V24.S4
-	VUMIN  V24.S4, V20.S4, V20.S4
-	VADD   V13.S4, V11.S4, V21.S4
-	VSUB   V0.S4, V21.S4, V24.S4
-	VUMIN  V24.S4, V21.S4, V21.S4
-	VADD   V6.S4, V4.S4, V22.S4
-	VSUB   V0.S4, V22.S4, V24.S4
+	WORD   $0x4eb726cd                      // SHSUB V13.4S, V22.4S, V23.4S - d = (c − m) / 2
+	VADD   V0.S4, V13.S4, V22.S4
+	VUMIN  V22.S4, V13.S4, V13.S4
+	VSUB   V12.S4, V13.S4, V13.S4
+	VADD   V0.S4, V13.S4, V22.S4
+	VUMIN  V22.S4, V13.S4, V13.S4
+	VSUB   V20.S4, V13.S4, V13.S4
+	VADD   V0.S4, V13.S4, V22.S4
+	VUMIN  V22.S4, V13.S4, V13.S4
+	VADD   V20.S4, V12.S4, V12.S4
+	VSUB   V0.S4, V12.S4, V22.S4
+	VUMIN  V22.S4, V12.S4, V12.S4
+	VADD   V20.S4, V12.S4, V12.S4
+	VSUB   V0.S4, V12.S4, V22.S4
+	VUMIN  V22.S4, V12.S4, V12.S4
+	VADD   V20.S4, V12.S4, V12.S4
+	VSUB   V0.S4, V12.S4, V22.S4
+	VUMIN  V22.S4, V12.S4, V12.S4
+	VADD   V6.S4, V4.S4, V14.S4
+	VSUB   V0.S4, V14.S4, V16.S4
+	VUMIN  V16.S4, V14.S4, V14.S4
+	VADD   V7.S4, V5.S4, V15.S4
+	VSUB   V0.S4, V15.S4, V16.S4
+	VUMIN  V16.S4, V15.S4, V15.S4
+	VLD1.P 16(R13), [V16.S4]
+	VLD1.P 16(R13), [V17.S4]
+	VLD1.P 16(R13), [V18.S4]
+	VLD1.P 16(R13), [V19.S4]
+	VLD1.P 16(R13), [V20.S4]
+	VLD1.P 16(R13), [V21.S4]
+	WORD   $0x4eb0b5d8                      // SQDMULH V24.4S, V14.4S, V16.4S - c = (2ab) >> 32
+	WORD   $0x4eb39dd9                      // MUL V25.4S, V14.4S, V19.4S - m = ab·μ
+	WORD   $0x4ea0b739                      // SQDMULH V25.4S, V25.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4eb92716                      // SHSUB V22.4S, V24.4S, V25.4S - d = (c − m) / 2
+	VADD   V0.S4, V22.S4, V24.S4
 	VUMIN  V24.S4, V22.S4, V22.S4
-	VADD   V7.S4, V5.S4, V23.S4
-	VSUB   V0.S4, V23.S4, V24.S4
+	WORD   $0x4eb1b5f8                      // SQDMULH V24.4S, V15.4S, V17.4S - c = (2ab) >> 32
+	WORD   $0x4eb49df9                      // MUL V25.4S, V15.4S, V20.4S - m = ab·μ
+	WORD   $0x4ea0b739                      // SQDMULH V25.4S, V25.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4eb92717                      // SHSUB V23.4S, V24.4S, V25.4S - d = (c − m) / 2
+	VADD   V0.S4, V23.S4, V24.S4
 	VUMIN  V24.S4, V23.S4, V23.S4
-	WORD   $0x4eb6b69a                      // SQDMULH V26.4S, V20.4S, V22.4S - c = (2ab) >> 32
-	WORD   $0x4eb69e9b                      // MUL V27.4S, V20.4S, V22.4S - m = ab
-	WORD   $0x4ea19f7b                      // MUL V27.4S, V27.4S, V1.4S - m = ab·μ
+	VADD   V15.S4, V14.S4, V14.S4
+	VSUB   V0.S4, V14.S4, V24.S4
+	VUMIN  V24.S4, V14.S4, V14.S4
+	WORD   $0x4eb2b5d8                      // SQDMULH V24.4S, V14.4S, V18.4S - c = (2ab) >> 32
+	WORD   $0x4eb59dd9                      // MUL V25.4S, V14.4S, V21.4S - m = ab·μ
+	WORD   $0x4ea0b739                      // SQDMULH V25.4S, V25.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4eb9270f                      // SHSUB V15.4S, V24.4S, V25.4S - d = (c − m) / 2
+	VADD   V0.S4, V15.S4, V24.S4
+	VUMIN  V24.S4, V15.S4, V15.S4
+	VSUB   V22.S4, V15.S4, V15.S4
+	VADD   V0.S4, V15.S4, V24.S4
+	VUMIN  V24.S4, V15.S4, V15.S4
+	VSUB   V23.S4, V15.S4, V15.S4
+	VADD   V0.S4, V15.S4, V24.S4
+	VUMIN  V24.S4, V15.S4, V15.S4
+	VADD   V23.S4, V22.S4, V14.S4
+	VSUB   V0.S4, V14.S4, V24.S4
+	VUMIN  V24.S4, V14.S4, V14.S4
+	VADD   V23.S4, V14.S4, V14.S4
+	VSUB   V0.S4, V14.S4, V24.S4
+	VUMIN  V24.S4, V14.S4, V14.S4
+	VADD   V23.S4, V14.S4, V14.S4
+	VSUB   V0.S4, V14.S4, V24.S4
+	VUMIN  V24.S4, V14.S4, V14.S4
+	VSUB   V10.S4, V14.S4, V14.S4
+	VADD   V0.S4, V14.S4, V16.S4
+	VUMIN  V16.S4, V14.S4, V14.S4
+	VSUB   V12.S4, V14.S4, V14.S4
+	VADD   V0.S4, V14.S4, V16.S4
+	VUMIN  V16.S4, V14.S4, V14.S4
+	VSUB   V11.S4, V15.S4, V15.S4
+	VADD   V0.S4, V15.S4, V16.S4
+	VUMIN  V16.S4, V15.S4, V15.S4
+	VSUB   V13.S4, V15.S4, V15.S4
+	VADD   V0.S4, V15.S4, V16.S4
+	VUMIN  V16.S4, V15.S4, V15.S4
+	VADD   V15.S4, V15.S4, V16.S4
+	VSUB   V0.S4, V16.S4, V17.S4
+	VUMIN  V17.S4, V16.S4, V16.S4
+	VADD   V15.S4, V16.S4, V16.S4
+	VSUB   V0.S4, V16.S4, V17.S4
+	VUMIN  V17.S4, V16.S4, V16.S4
+	VADD   V15.S4, V14.S4, V15.S4
+	VSUB   V0.S4, V15.S4, V17.S4
+	VUMIN  V17.S4, V15.S4, V15.S4
+	VADD   V16.S4, V14.S4, V14.S4
+	VSUB   V0.S4, V14.S4, V17.S4
+	VUMIN  V17.S4, V14.S4, V14.S4
+	VADD   V8.S4, V14.S4, V14.S4
+	VSUB   V0.S4, V14.S4, V17.S4
+	VUMIN  V17.S4, V14.S4, V14.S4
+	VADD   V9.S4, V15.S4, V15.S4
+	VSUB   V0.S4, V15.S4, V17.S4
+	VUMIN  V17.S4, V15.S4, V15.S4
+	VADD   V4.S4, V2.S4, V16.S4
+	VSUB   V0.S4, V16.S4, V18.S4
+	VUMIN  V18.S4, V16.S4, V16.S4
+	VADD   V5.S4, V3.S4, V17.S4
+	VSUB   V0.S4, V17.S4, V18.S4
+	VUMIN  V18.S4, V17.S4, V17.S4
+	VLD1.P 16(R13), [V18.S4]
+	VLD1.P 16(R13), [V19.S4]
+	VLD1.P 16(R13), [V20.S4]
+	VLD1.P 16(R13), [V21.S4]
+	VLD1.P 16(R13), [V22.S4]
+	VLD1.P 16(R13), [V23.S4]
+	WORD   $0x4eb2b61a                      // SQDMULH V26.4S, V16.4S, V18.4S - c = (2ab) >> 32
+	WORD   $0x4eb59e1b                      // MUL V27.4S, V16.4S, V21.4S - m = ab·μ
 	WORD   $0x4ea0b77b                      // SQDMULH V27.4S, V27.4S, V0.4S - m = (2mq) >> 32
 	WORD   $0x4ebb2758                      // SHSUB V24.4S, V26.4S, V27.4S - d = (c − m) / 2
 	VADD   V0.S4, V24.S4, V26.S4
 	VUMIN  V26.S4, V24.S4, V24.S4
-	WORD   $0x4eb7b6ba                      // SQDMULH V26.4S, V21.4S, V23.4S - c = (2ab) >> 32
-	WORD   $0x4eb79ebb                      // MUL V27.4S, V21.4S, V23.4S - m = ab
-	WORD   $0x4ea19f7b                      // MUL V27.4S, V27.4S, V1.4S - m = ab·μ
+	WORD   $0x4eb3b63a                      // SQDMULH V26.4S, V17.4S, V19.4S - c = (2ab) >> 32
+	WORD   $0x4eb69e3b                      // MUL V27.4S, V17.4S, V22.4S - m = ab·μ
 	WORD   $0x4ea0b77b                      // SQDMULH V27.4S, V27.4S, V0.4S - m = (2mq) >> 32
 	WORD   $0x4ebb2759                      // SHSUB V25.4S, V26.4S, V27.4S - d = (c − m) / 2
 	VADD   V0.S4, V25.S4, V26.S4
 	VUMIN  V26.S4, V25.S4, V25.S4
-	VADD   V21.S4, V20.S4, V20.S4
-	VSUB   V0.S4, V20.S4, V26.S4
-	VUMIN  V26.S4, V20.S4, V20.S4
-	VADD   V23.S4, V22.S4, V22.S4
-	VSUB   V0.S4, V22.S4, V26.S4
-	VUMIN  V26.S4, V22.S4, V22.S4
-	WORD   $0x4eb6b69a                      // SQDMULH V26.4S, V20.4S, V22.4S - c = (2ab) >> 32
-	WORD   $0x4eb69e9b                      // MUL V27.4S, V20.4S, V22.4S - m = ab
-	WORD   $0x4ea19f7b                      // MUL V27.4S, V27.4S, V1.4S - m = ab·μ
+	VADD   V17.S4, V16.S4, V16.S4
+	VSUB   V0.S4, V16.S4, V26.S4
+	VUMIN  V26.S4, V16.S4, V16.S4
+	WORD   $0x4eb4b61a                      // SQDMULH V26.4S, V16.4S, V20.4S - c = (2ab) >> 32
+	WORD   $0x4eb79e1b                      // MUL V27.4S, V16.4S, V23.4S - m = ab·μ
 	WORD   $0x4ea0b77b                      // SQDMULH V27.4S, V27.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4ebb2755                      // SHSUB V21.4S, V26.4S, V27.4S - d = (c − m) / 2
-	VADD   V0.S4, V21.S4, V26.S4
-	VUMIN  V26.S4, V21.S4, V21.S4
-	VSUB   V24.S4, V21.S4, V21.S4
-	VADD   V0.S4, V21.S4, V26.S4
-	VUMIN  V26.S4, V21.S4, V21.S4
-	VSUB   V25.S4, V21.S4, V21.S4
-	VADD   V0.S4, V21.S4, V26.S4
-	VUMIN  V26.S4, V21.S4, V21.S4
-	VADD   V25.S4, V25.S4, V22.S4
-	VSUB   V0.S4, V22.S4, V26.S4
-	VUMIN  V26.S4, V22.S4, V22.S4
-	VADD   V25.S4, V22.S4, V22.S4
-	VSUB   V0.S4, V22.S4, V26.S4
-	VUMIN  V26.S4, V22.S4, V22.S4
-	VADD   V22.S4, V24.S4, V20.S4
-	VSUB   V0.S4, V20.S4, V26.S4
-	VUMIN  V26.S4, V20.S4, V20.S4
-	VSUB   V16.S4, V20.S4, V20.S4
-	VADD   V0.S4, V20.S4, V22.S4
-	VUMIN  V22.S4, V20.S4, V20.S4
-	VSUB   V18.S4, V20.S4, V20.S4
-	VADD   V0.S4, V20.S4, V22.S4
-	VUMIN  V22.S4, V20.S4, V20.S4
-	VSUB   V17.S4, V21.S4, V21.S4
-	VADD   V0.S4, V21.S4, V22.S4
-	VUMIN  V22.S4, V21.S4, V21.S4
-	VSUB   V19.S4, V21.S4, V21.S4
-	VADD   V0.S4, V21.S4, V22.S4
-	VUMIN  V22.S4, V21.S4, V21.S4
-	VADD   V21.S4, V21.S4, V22.S4
-	VSUB   V0.S4, V22.S4, V23.S4
-	VUMIN  V23.S4, V22.S4, V22.S4
-	VADD   V21.S4, V22.S4, V22.S4
-	VSUB   V0.S4, V22.S4, V23.S4
-	VUMIN  V23.S4, V22.S4, V22.S4
-	VADD   V21.S4, V20.S4, V21.S4
-	VSUB   V0.S4, V21.S4, V23.S4
-	VUMIN  V23.S4, V21.S4, V21.S4
-	VADD   V22.S4, V20.S4, V20.S4
-	VSUB   V0.S4, V20.S4, V23.S4
-	VUMIN  V23.S4, V20.S4, V20.S4
-	VADD   V14.S4, V20.S4, V20.S4
-	VSUB   V0.S4, V20.S4, V23.S4
-	VUMIN  V23.S4, V20.S4, V20.S4
-	VADD   V15.S4, V21.S4, V21.S4
-	VSUB   V0.S4, V21.S4, V23.S4
-	VUMIN  V23.S4, V21.S4, V21.S4
-	VADD   V10.S4, V8.S4, V22.S4
-	VSUB   V0.S4, V22.S4, V26.S4
-	VUMIN  V26.S4, V22.S4, V22.S4
-	VADD   V11.S4, V9.S4, V23.S4
-	VSUB   V0.S4, V23.S4, V26.S4
-	VUMIN  V26.S4, V23.S4, V23.S4
-	VADD   V4.S4, V2.S4, V24.S4
-	VSUB   V0.S4, V24.S4, V26.S4
+	WORD   $0x4ebb2751                      // SHSUB V17.4S, V26.4S, V27.4S - d = (c − m) / 2
+	VADD   V0.S4, V17.S4, V26.S4
+	VUMIN  V26.S4, V17.S4, V17.S4
+	VSUB   V24.S4, V17.S4, V17.S4
+	VADD   V0.S4, V17.S4, V26.S4
+	VUMIN  V26.S4, V17.S4, V17.S4
+	VSUB   V25.S4, V17.S4, V17.S4
+	VADD   V0.S4, V17.S4, V26.S4
+	VUMIN  V26.S4, V17.S4, V17.S4
+	VADD   V25.S4, V24.S4, V16.S4
+	VSUB   V0.S4, V16.S4, V26.S4
+	VUMIN  V26.S4, V16.S4, V16.S4
+	VADD   V25.S4, V16.S4, V16.S4
+	VSUB   V0.S4, V16.S4, V26.S4
+	VUMIN  V26.S4, V16.S4, V16.S4
+	VADD   V25.S4, V16.S4, V16.S4
+	VSUB   V0.S4, V16.S4, V26.S4
+	VUMIN  V26.S4, V16.S4, V16.S4
+	VSUB   V8.S4, V16.S4, V16.S4
+	VADD   V0.S4, V16.S4, V18.S4
+	VUMIN  V18.S4, V16.S4, V16.S4
+	VSUB   V10.S4, V16.S4, V16.S4
+	VADD   V0.S4, V16.S4, V18.S4
+	VUMIN  V18.S4, V16.S4, V16.S4
+	VSUB   V9.S4, V17.S4, V17.S4
+	VADD   V0.S4, V17.S4, V18.S4
+	VUMIN  V18.S4, V17.S4, V17.S4
+	VSUB   V11.S4, V17.S4, V17.S4
+	VADD   V0.S4, V17.S4, V18.S4
+	VUMIN  V18.S4, V17.S4, V17.S4
+	VMOV   V12.B16, V18.B16
+	VMOV   V13.B16, V19.B16
+	VADD   V19.S4, V19.S4, V20.S4
+	VSUB   V0.S4, V20.S4, V21.S4
+	VUMIN  V21.S4, V20.S4, V20.S4
+	VADD   V19.S4, V20.S4, V20.S4
+	VSUB   V0.S4, V20.S4, V21.S4
+	VUMIN  V21.S4, V20.S4, V20.S4
+	VADD   V19.S4, V18.S4, V19.S4
+	VSUB   V0.S4, V19.S4, V21.S4
+	VUMIN  V21.S4, V19.S4, V19.S4
+	VADD   V20.S4, V18.S4, V18.S4
+	VSUB   V0.S4, V18.S4, V21.S4
+	VUMIN  V21.S4, V18.S4, V18.S4
+	VADD   V16.S4, V18.S4, V18.S4
+	VSUB   V0.S4, V18.S4, V21.S4
+	VUMIN  V21.S4, V18.S4, V18.S4
+	VADD   V17.S4, V19.S4, V19.S4
+	VSUB   V0.S4, V19.S4, V21.S4
+	VUMIN  V21.S4, V19.S4, V19.S4
+	VADD   V6.S4, V2.S4, V4.S4
+	VSUB   V0.S4, V4.S4, V16.S4
+	VUMIN  V16.S4, V4.S4, V4.S4
+	VADD   V7.S4, V3.S4, V5.S4
+	VSUB   V0.S4, V5.S4, V16.S4
+	VUMIN  V16.S4, V5.S4, V5.S4
+	VLD1.P 16(R13), [V16.S4]
+	VLD1.P 16(R13), [V17.S4]
+	VLD1.P 16(R13), [V20.S4]
+	VLD1.P 16(R13), [V21.S4]
+	VLD1.P 16(R13), [V22.S4]
+	VLD1.P 16(R13), [V23.S4]
+	WORD   $0x4eb0b49a                      // SQDMULH V26.4S, V4.4S, V16.4S - c = (2ab) >> 32
+	WORD   $0x4eb59c9b                      // MUL V27.4S, V4.4S, V21.4S - m = ab·μ
+	WORD   $0x4ea0b77b                      // SQDMULH V27.4S, V27.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4ebb2758                      // SHSUB V24.4S, V26.4S, V27.4S - d = (c − m) / 2
+	VADD   V0.S4, V24.S4, V26.S4
 	VUMIN  V26.S4, V24.S4, V24.S4
-	VADD   V5.S4, V3.S4, V25.S4
-	VSUB   V0.S4, V25.S4, V26.S4
+	WORD   $0x4eb1b4ba                      // SQDMULH V26.4S, V5.4S, V17.4S - c = (2ab) >> 32
+	WORD   $0x4eb69cbb                      // MUL V27.4S, V5.4S, V22.4S - m = ab·μ
+	WORD   $0x4ea0b77b                      // SQDMULH V27.4S, V27.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4ebb2759                      // SHSUB V25.4S, V26.4S, V27.4S - d = (c − m) / 2
+	VADD   V0.S4, V25.S4, V26.S4
 	VUMIN  V26.S4, V25.S4, V25.S4
-	WORD   $0x4eb8b6dc                      // SQDMULH V28.4S, V22.4S, V24.4S - c = (2ab) >> 32
-	WORD   $0x4eb89edd                      // MUL V29.4S, V22.4S, V24.4S - m = ab
-	WORD   $0x4ea19fbd                      // MUL V29.4S, V29.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b7bd                      // SQDMULH V29.4S, V29.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4ebd279a                      // SHSUB V26.4S, V28.4S, V29.4S - d = (c − m) / 2
-	VADD   V0.S4, V26.S4, V28.S4
-	VUMIN  V28.S4, V26.S4, V26.S4
-	WORD   $0x4eb9b6fc                      // SQDMULH V28.4S, V23.4S, V25.4S - c = (2ab) >> 32
-	WORD   $0x4eb99efd                      // MUL V29.4S, V23.4S, V25.4S - m = ab
-	WORD   $0x4ea19fbd                      // MUL V29.4S, V29.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b7bd                      // SQDMULH V29.4S, V29.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4ebd279b                      // SHSUB V27.4S, V28.4S, V29.4S - d = (c − m) / 2
-	VADD   V0.S4, V27.S4, V28.S4
-	VUMIN  V28.S4, V27.S4, V27.S4
-	VADD   V23.S4, V22.S4, V22.S4
-	VSUB   V0.S4, V22.S4, V28.S4
-	VUMIN  V28.S4, V22.S4, V22.S4
-	VADD   V25.S4, V24.S4, V24.S4
-	VSUB   V0.S4, V24.S4, V28.S4
-	VUMIN  V28.S4, V24.S4, V24.S4
-	WORD   $0x4eb8b6dc                      // SQDMULH V28.4S, V22.4S, V24.4S - c = (2ab) >> 32
-	WORD   $0x4eb89edd                      // MUL V29.4S, V22.4S, V24.4S - m = ab
-	WORD   $0x4ea19fbd                      // MUL V29.4S, V29.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b7bd                      // SQDMULH V29.4S, V29.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4ebd2797                      // SHSUB V23.4S, V28.4S, V29.4S - d = (c − m) / 2
-	VADD   V0.S4, V23.S4, V28.S4
-	VUMIN  V28.S4, V23.S4, V23.S4
-	VSUB   V26.S4, V23.S4, V23.S4
-	VADD   V0.S4, V23.S4, V28.S4
-	VUMIN  V28.S4, V23.S4, V23.S4
-	VSUB   V27.S4, V23.S4, V23.S4
-	VADD   V0.S4, V23.S4, V28.S4
-	VUMIN  V28.S4, V23.S4, V23.S4
-	VADD   V27.S4, V27.S4, V24.S4
-	VSUB   V0.S4, V24.S4, V28.S4
-	VUMIN  V28.S4, V24.S4, V24.S4
-	VADD   V27.S4, V24.S4, V24.S4
-	VSUB   V0.S4, V24.S4, V28.S4
-	VUMIN  V28.S4, V24.S4, V24.S4
-	VADD   V24.S4, V26.S4, V22.S4
-	VSUB   V0.S4, V22.S4, V28.S4
-	VUMIN  V28.S4, V22.S4, V22.S4
-	VSUB   V14.S4, V22.S4, V22.S4
-	VADD   V0.S4, V22.S4, V24.S4
-	VUMIN  V24.S4, V22.S4, V22.S4
-	VSUB   V16.S4, V22.S4, V22.S4
-	VADD   V0.S4, V22.S4, V24.S4
-	VUMIN  V24.S4, V22.S4, V22.S4
-	VSUB   V15.S4, V23.S4, V23.S4
-	VADD   V0.S4, V23.S4, V24.S4
-	VUMIN  V24.S4, V23.S4, V23.S4
-	VSUB   V17.S4, V23.S4, V23.S4
-	VADD   V0.S4, V23.S4, V24.S4
-	VUMIN  V24.S4, V23.S4, V23.S4
-	VMOV   V18.B16, V24.B16
-	VMOV   V19.B16, V25.B16
-	VADD   V25.S4, V25.S4, V26.S4
-	VSUB   V0.S4, V26.S4, V27.S4
-	VUMIN  V27.S4, V26.S4, V26.S4
-	VADD   V25.S4, V26.S4, V26.S4
-	VSUB   V0.S4, V26.S4, V27.S4
-	VUMIN  V27.S4, V26.S4, V26.S4
-	VADD   V25.S4, V24.S4, V25.S4
-	VSUB   V0.S4, V25.S4, V27.S4
-	VUMIN  V27.S4, V25.S4, V25.S4
-	VADD   V26.S4, V24.S4, V24.S4
-	VSUB   V0.S4, V24.S4, V27.S4
-	VUMIN  V27.S4, V24.S4, V24.S4
-	VADD   V22.S4, V24.S4, V24.S4
-	VSUB   V0.S4, V24.S4, V27.S4
-	VUMIN  V27.S4, V24.S4, V24.S4
-	VADD   V23.S4, V25.S4, V25.S4
-	VSUB   V0.S4, V25.S4, V27.S4
-	VUMIN  V27.S4, V25.S4, V25.S4
-	VADD   V12.S4, V8.S4, V10.S4
-	VSUB   V0.S4, V10.S4, V26.S4
-	VUMIN  V26.S4, V10.S4, V10.S4
-	VADD   V13.S4, V9.S4, V11.S4
-	VSUB   V0.S4, V11.S4, V26.S4
-	VUMIN  V26.S4, V11.S4, V11.S4
-	VADD   V6.S4, V2.S4, V22.S4
-	VSUB   V0.S4, V22.S4, V26.S4
-	VUMIN  V26.S4, V22.S4, V22.S4
-	VADD   V7.S4, V3.S4, V23.S4
-	VSUB   V0.S4, V23.S4, V26.S4
-	VUMIN  V26.S4, V23.S4, V23.S4
-	WORD   $0x4eb6b55c                      // SQDMULH V28.4S, V10.4S, V22.4S - c = (2ab) >> 32
-	WORD   $0x4eb69d5d                      // MUL V29.4S, V10.4S, V22.4S - m = ab
-	WORD   $0x4ea19fbd                      // MUL V29.4S, V29.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b7bd                      // SQDMULH V29.4S, V29.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4ebd279a                      // SHSUB V26.4S, V28.4S, V29.4S - d = (c − m) / 2
-	VADD   V0.S4, V26.S4, V28.S4
-	VUMIN  V28.S4, V26.S4, V26.S4
-	WORD   $0x4eb7b57c                      // SQDMULH V28.4S, V11.4S, V23.4S - c = (2ab) >> 32
-	WORD   $0x4eb79d7d                      // MUL V29.4S, V11.4S, V23.4S - m = ab
-	WORD   $0x4ea19fbd                      // MUL V29.4S, V29.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b7bd                      // SQDMULH V29.4S, V29.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4ebd279b                      // SHSUB V27.4S, V28.4S, V29.4S - d = (c − m) / 2
-	VADD   V0.S4, V27.S4, V28.S4
-	VUMIN  V28.S4, V27.S4, V27.S4
-	VADD   V11.S4, V10.S4, V10.S4
-	VSUB   V0.S4, V10.S4, V28.S4
-	VUMIN  V28.S4, V10.S4, V10.S4
-	VADD   V23.S4, V22.S4, V22.S4
-	VSUB   V0.S4, V22.S4, V28.S4
-	VUMIN  V28.S4, V22.S4, V22.S4
-	WORD   $0x4eb6b55c                      // SQDMULH V28.4S, V10.4S, V22.4S - c = (2ab) >> 32
-	WORD   $0x4eb69d5d                      // MUL V29.4S, V10.4S, V22.4S - m = ab
-	WORD   $0x4ea19fbd                      // MUL V29.4S, V29.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b7bd                      // SQDMULH V29.4S, V29.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4ebd278b                      // SHSUB V11.4S, V28.4S, V29.4S - d = (c − m) / 2
-	VADD   V0.S4, V11.S4, V28.S4
-	VUMIN  V28.S4, V11.S4, V11.S4
-	VSUB   V26.S4, V11.S4, V11.S4
-	VADD   V0.S4, V11.S4, V28.S4
-	VUMIN  V28.S4, V11.S4, V11.S4
-	VSUB   V27.S4, V11.S4, V11.S4
-	VADD   V0.S4, V11.S4, V28.S4
-	VUMIN  V28.S4, V11.S4, V11.S4
-	VADD   V27.S4, V27.S4, V22.S4
-	VSUB   V0.S4, V22.S4, V28.S4
-	VUMIN  V28.S4, V22.S4, V22.S4
-	VADD   V27.S4, V22.S4, V22.S4
-	VSUB   V0.S4, V22.S4, V28.S4
-	VUMIN  V28.S4, V22.S4, V22.S4
-	VADD   V22.S4, V26.S4, V10.S4
-	VSUB   V0.S4, V10.S4, V28.S4
-	VUMIN  V28.S4, V10.S4, V10.S4
-	VSUB   V14.S4, V10.S4, V10.S4
-	VADD   V0.S4, V10.S4, V22.S4
-	VUMIN  V22.S4, V10.S4, V10.S4
-	VSUB   V18.S4, V10.S4, V10.S4
-	VADD   V0.S4, V10.S4, V22.S4
-	VUMIN  V22.S4, V10.S4, V10.S4
-	VSUB   V15.S4, V11.S4, V11.S4
-	VADD   V0.S4, V11.S4, V22.S4
-	VUMIN  V22.S4, V11.S4, V11.S4
-	VSUB   V19.S4, V11.S4, V11.S4
-	VADD   V0.S4, V11.S4, V22.S4
-	VUMIN  V22.S4, V11.S4, V11.S4
-	VADD   V16.S4, V10.S4, V10.S4
-	VSUB   V0.S4, V10.S4, V22.S4
-	VUMIN  V22.S4, V10.S4, V10.S4
-	VADD   V17.S4, V11.S4, V11.S4
-	VSUB   V0.S4, V11.S4, V22.S4
-	VUMIN  V22.S4, V11.S4, V11.S4
-	VZIP1  V21.S4, V20.S4, V12.S4
-	VZIP1  V25.S4, V24.S4, V13.S4
-	VZIP1  V11.S4, V10.S4, V14.S4
-	VST3.P [V12.D2, V13.D2, V14.D2], 48(R0)
-	VZIP2  V21.S4, V20.S4, V12.S4
-	VZIP2  V25.S4, V24.S4, V13.S4
-	VZIP2  V11.S4, V10.S4, V14.S4
-	VST3.P [V12.D2, V13.D2, V14.D2], 48(R0)
+	VADD   V5.S4, V4.S4, V4.S4
+	VSUB   V0.S4, V4.S4, V26.S4
+	VUMIN  V26.S4, V4.S4, V4.S4
+	WORD   $0x4eb4b49a                      // SQDMULH V26.4S, V4.4S, V20.4S - c = (2ab) >> 32
+	WORD   $0x4eb79c9b                      // MUL V27.4S, V4.4S, V23.4S - m = ab·μ
+	WORD   $0x4ea0b77b                      // SQDMULH V27.4S, V27.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4ebb2745                      // SHSUB V5.4S, V26.4S, V27.4S - d = (c − m) / 2
+	VADD   V0.S4, V5.S4, V26.S4
+	VUMIN  V26.S4, V5.S4, V5.S4
+	VSUB   V24.S4, V5.S4, V5.S4
+	VADD   V0.S4, V5.S4, V26.S4
+	VUMIN  V26.S4, V5.S4, V5.S4
+	VSUB   V25.S4, V5.S4, V5.S4
+	VADD   V0.S4, V5.S4, V26.S4
+	VUMIN  V26.S4, V5.S4, V5.S4
+	VADD   V25.S4, V24.S4, V4.S4
+	VSUB   V0.S4, V4.S4, V26.S4
+	VUMIN  V26.S4, V4.S4, V4.S4
+	VADD   V25.S4, V4.S4, V4.S4
+	VSUB   V0.S4, V4.S4, V26.S4
+	VUMIN  V26.S4, V4.S4, V4.S4
+	VADD   V25.S4, V4.S4, V4.S4
+	VSUB   V0.S4, V4.S4, V26.S4
+	VUMIN  V26.S4, V4.S4, V4.S4
+	VSUB   V8.S4, V4.S4, V4.S4
+	VADD   V0.S4, V4.S4, V16.S4
+	VUMIN  V16.S4, V4.S4, V4.S4
+	VSUB   V12.S4, V4.S4, V4.S4
+	VADD   V0.S4, V4.S4, V16.S4
+	VUMIN  V16.S4, V4.S4, V4.S4
+	VSUB   V9.S4, V5.S4, V5.S4
+	VADD   V0.S4, V5.S4, V16.S4
+	VUMIN  V16.S4, V5.S4, V5.S4
+	VSUB   V13.S4, V5.S4, V5.S4
+	VADD   V0.S4, V5.S4, V16.S4
+	VUMIN  V16.S4, V5.S4, V5.S4
+	VADD   V10.S4, V4.S4, V4.S4
+	VSUB   V0.S4, V4.S4, V16.S4
+	VUMIN  V16.S4, V4.S4, V4.S4
+	VADD   V11.S4, V5.S4, V5.S4
+	VSUB   V0.S4, V5.S4, V16.S4
+	VUMIN  V16.S4, V5.S4, V5.S4
+	VZIP1  V15.S4, V14.S4, V6.S4
+	VZIP1  V19.S4, V18.S4, V7.S4
+	VZIP1  V5.S4, V4.S4, V8.S4
+	VST3.P [V6.D2, V7.D2, V8.D2], 48(R0)
+	VZIP2  V15.S4, V14.S4, V6.S4
+	VZIP2  V19.S4, V18.S4, V7.S4
+	VZIP2  V5.S4, V4.S4, V8.S4
+	VST3.P [V6.D2, V7.D2, V8.D2], 48(R0)
 	JMP    loop7
 
 done8:
@@ -1685,435 +1656,406 @@ done8:
 // vectorScalarMulAcc_E6_neon: see generateMulE6 in the generator
 
 TEXT ·vectorScalarMulAcc_E6_neon(SB), NOFRAME|NOSPLIT, $0-32
-	MOVD  res+0(FP), R0
-	MOVD  a+8(FP), R1
-	MOVD  b+16(FP), R2
-	MOVD  N+24(FP), R3
-	LSR   $2, R3, R3
-	MOVD  $2130706433, R10
-	VDUP  R10, V0.S4
-	MOVD  $2164260865, R10
-	VDUP  R10, V1.S4
-	MOVWU 0(R2), R10
-	VDUP  R10, V2.S4
-	MOVWU 4(R2), R10
-	VDUP  R10, V3.S4
-	MOVWU 8(R2), R10
-	VDUP  R10, V4.S4
-	MOVWU 12(R2), R10
-	VDUP  R10, V5.S4
-	MOVWU 16(R2), R10
-	VDUP  R10, V6.S4
-	MOVWU 20(R2), R10
-	VDUP  R10, V7.S4
+	MOVD res+0(FP), R0
+	MOVD a+8(FP), R1
+	MOVD b+16(FP), R2
+	MOVD N+24(FP), R3
+	LSR  $2, R3, R3
+	MOVD $2130706433, R10
+	VDUP R10, V0.S4
+	MOVD $2164260865, R10
+	VDUP R10, V1.S4
 
 loop9:
 	CBZ    R3, done10
 	SUB    $1, R3, R3
-	VLD3.P 48(R1), [V14.D2, V15.D2, V16.D2]
-	VLD3.P 48(R1), [V17.D2, V18.D2, V19.D2]
-	WORD   $0x4e9119c8                      // UZP1 V8.4S, V14.4S, V17.4S
-	WORD   $0x4e9159c9                      // UZP2 V9.4S, V14.4S, V17.4S
-	WORD   $0x4e9219ea                      // UZP1 V10.4S, V15.4S, V18.4S
-	WORD   $0x4e9259eb                      // UZP2 V11.4S, V15.4S, V18.4S
-	WORD   $0x4e931a0c                      // UZP1 V12.4S, V16.4S, V19.4S
-	WORD   $0x4e935a0d                      // UZP2 V13.4S, V16.4S, V19.4S
-	WORD   $0x4ea2b516                      // SQDMULH V22.4S, V8.4S, V2.4S - c = (2ab) >> 32
-	WORD   $0x4ea29d17                      // MUL V23.4S, V8.4S, V2.4S - m = ab
-	WORD   $0x4ea19ef7                      // MUL V23.4S, V23.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b6f7                      // SQDMULH V23.4S, V23.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4eb726ce                      // SHSUB V14.4S, V22.4S, V23.4S - d = (c − m) / 2
-	VADD   V0.S4, V14.S4, V22.S4
-	VUMIN  V22.S4, V14.S4, V14.S4
-	WORD   $0x4ea3b536                      // SQDMULH V22.4S, V9.4S, V3.4S - c = (2ab) >> 32
-	WORD   $0x4ea39d37                      // MUL V23.4S, V9.4S, V3.4S - m = ab
-	WORD   $0x4ea19ef7                      // MUL V23.4S, V23.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b6f7                      // SQDMULH V23.4S, V23.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4eb726d4                      // SHSUB V20.4S, V22.4S, V23.4S - d = (c − m) / 2
-	VADD   V0.S4, V20.S4, V22.S4
-	VUMIN  V22.S4, V20.S4, V20.S4
-	VADD   V9.S4, V8.S4, V21.S4
+	VLD3.P 48(R1), [V8.D2, V9.D2, V10.D2]
+	VLD3.P 48(R1), [V11.D2, V12.D2, V13.D2]
+	WORD   $0x4e8b1902                      // UZP1 V2.4S, V8.4S, V11.4S
+	WORD   $0x4e8b5903                      // UZP2 V3.4S, V8.4S, V11.4S
+	WORD   $0x4e8c1924                      // UZP1 V4.4S, V9.4S, V12.4S
+	WORD   $0x4e8c5925                      // UZP2 V5.4S, V9.4S, V12.4S
+	WORD   $0x4e8d1946                      // UZP1 V6.4S, V10.4S, V13.4S
+	WORD   $0x4e8d5947                      // UZP2 V7.4S, V10.4S, V13.4S
+	MOVD   R2, R13
+	VLD1.P 16(R13), [V14.S4]
+	VLD1.P 16(R13), [V15.S4]
+	VLD1.P 16(R13), [V16.S4]
+	VLD1.P 16(R13), [V17.S4]
+	VLD1.P 16(R13), [V18.S4]
+	VLD1.P 16(R13), [V19.S4]
+	WORD   $0x4eaeb455                      // SQDMULH V21.4S, V2.4S, V14.4S - c = (2ab) >> 32
+	WORD   $0x4eb19c56                      // MUL V22.4S, V2.4S, V17.4S - m = ab·μ
+	WORD   $0x4ea0b6d6                      // SQDMULH V22.4S, V22.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4eb626a8                      // SHSUB V8.4S, V21.4S, V22.4S - d = (c − m) / 2
+	VADD   V0.S4, V8.S4, V21.S4
+	VUMIN  V21.S4, V8.S4, V8.S4
+	WORD   $0x4eafb475                      // SQDMULH V21.4S, V3.4S, V15.4S - c = (2ab) >> 32
+	WORD   $0x4eb29c76                      // MUL V22.4S, V3.4S, V18.4S - m = ab·μ
+	WORD   $0x4ea0b6d6                      // SQDMULH V22.4S, V22.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4eb626b4                      // SHSUB V20.4S, V21.4S, V22.4S - d = (c − m) / 2
+	VADD   V0.S4, V20.S4, V21.S4
+	VUMIN  V21.S4, V20.S4, V20.S4
+	VADD   V3.S4, V2.S4, V21.S4
 	VSUB   V0.S4, V21.S4, V22.S4
 	VUMIN  V22.S4, V21.S4, V21.S4
-	VADD   V3.S4, V2.S4, V15.S4
-	VSUB   V0.S4, V15.S4, V22.S4
-	VUMIN  V22.S4, V15.S4, V15.S4
-	WORD   $0x4eafb6b6                      // SQDMULH V22.4S, V21.4S, V15.4S - c = (2ab) >> 32
-	WORD   $0x4eaf9eb7                      // MUL V23.4S, V21.4S, V15.4S - m = ab
-	WORD   $0x4ea19ef7                      // MUL V23.4S, V23.4S, V1.4S - m = ab·μ
+	WORD   $0x4eb0b6b6                      // SQDMULH V22.4S, V21.4S, V16.4S - c = (2ab) >> 32
+	WORD   $0x4eb39eb7                      // MUL V23.4S, V21.4S, V19.4S - m = ab·μ
 	WORD   $0x4ea0b6f7                      // SQDMULH V23.4S, V23.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4eb726cf                      // SHSUB V15.4S, V22.4S, V23.4S - d = (c − m) / 2
-	VADD   V0.S4, V15.S4, V22.S4
-	VUMIN  V22.S4, V15.S4, V15.S4
-	VSUB   V14.S4, V15.S4, V15.S4
-	VADD   V0.S4, V15.S4, V22.S4
-	VUMIN  V22.S4, V15.S4, V15.S4
-	VSUB   V20.S4, V15.S4, V15.S4
-	VADD   V0.S4, V15.S4, V22.S4
-	VUMIN  V22.S4, V15.S4, V15.S4
-	VADD   V20.S4, V20.S4, V21.S4
+	WORD   $0x4eb726c9                      // SHSUB V9.4S, V22.4S, V23.4S - d = (c − m) / 2
+	VADD   V0.S4, V9.S4, V22.S4
+	VUMIN  V22.S4, V9.S4, V9.S4
+	VSUB   V8.S4, V9.S4, V9.S4
+	VADD   V0.S4, V9.S4, V22.S4
+	VUMIN  V22.S4, V9.S4, V9.S4
+	VSUB   V20.S4, V9.S4, V9.S4
+	VADD   V0.S4, V9.S4, V22.S4
+	VUMIN  V22.S4, V9.S4, V9.S4
+	VADD   V20.S4, V8.S4, V8.S4
+	VSUB   V0.S4, V8.S4, V22.S4
+	VUMIN  V22.S4, V8.S4, V8.S4
+	VADD   V20.S4, V8.S4, V8.S4
+	VSUB   V0.S4, V8.S4, V22.S4
+	VUMIN  V22.S4, V8.S4, V8.S4
+	VADD   V20.S4, V8.S4, V8.S4
+	VSUB   V0.S4, V8.S4, V22.S4
+	VUMIN  V22.S4, V8.S4, V8.S4
+	VLD1.P 16(R13), [V14.S4]
+	VLD1.P 16(R13), [V15.S4]
+	VLD1.P 16(R13), [V16.S4]
+	VLD1.P 16(R13), [V17.S4]
+	VLD1.P 16(R13), [V18.S4]
+	VLD1.P 16(R13), [V19.S4]
+	WORD   $0x4eaeb495                      // SQDMULH V21.4S, V4.4S, V14.4S - c = (2ab) >> 32
+	WORD   $0x4eb19c96                      // MUL V22.4S, V4.4S, V17.4S - m = ab·μ
+	WORD   $0x4ea0b6d6                      // SQDMULH V22.4S, V22.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4eb626aa                      // SHSUB V10.4S, V21.4S, V22.4S - d = (c − m) / 2
+	VADD   V0.S4, V10.S4, V21.S4
+	VUMIN  V21.S4, V10.S4, V10.S4
+	WORD   $0x4eafb4b5                      // SQDMULH V21.4S, V5.4S, V15.4S - c = (2ab) >> 32
+	WORD   $0x4eb29cb6                      // MUL V22.4S, V5.4S, V18.4S - m = ab·μ
+	WORD   $0x4ea0b6d6                      // SQDMULH V22.4S, V22.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4eb626b4                      // SHSUB V20.4S, V21.4S, V22.4S - d = (c − m) / 2
+	VADD   V0.S4, V20.S4, V21.S4
+	VUMIN  V21.S4, V20.S4, V20.S4
+	VADD   V5.S4, V4.S4, V21.S4
 	VSUB   V0.S4, V21.S4, V22.S4
 	VUMIN  V22.S4, V21.S4, V21.S4
-	VADD   V20.S4, V21.S4, V21.S4
-	VSUB   V0.S4, V21.S4, V22.S4
-	VUMIN  V22.S4, V21.S4, V21.S4
-	VADD   V21.S4, V14.S4, V14.S4
-	VSUB   V0.S4, V14.S4, V22.S4
-	VUMIN  V22.S4, V14.S4, V14.S4
-	WORD   $0x4ea4b556                      // SQDMULH V22.4S, V10.4S, V4.4S - c = (2ab) >> 32
-	WORD   $0x4ea49d57                      // MUL V23.4S, V10.4S, V4.4S - m = ab
-	WORD   $0x4ea19ef7                      // MUL V23.4S, V23.4S, V1.4S - m = ab·μ
+	WORD   $0x4eb0b6b6                      // SQDMULH V22.4S, V21.4S, V16.4S - c = (2ab) >> 32
+	WORD   $0x4eb39eb7                      // MUL V23.4S, V21.4S, V19.4S - m = ab·μ
 	WORD   $0x4ea0b6f7                      // SQDMULH V23.4S, V23.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4eb726d0                      // SHSUB V16.4S, V22.4S, V23.4S - d = (c − m) / 2
-	VADD   V0.S4, V16.S4, V22.S4
-	VUMIN  V22.S4, V16.S4, V16.S4
-	WORD   $0x4ea5b576                      // SQDMULH V22.4S, V11.4S, V5.4S - c = (2ab) >> 32
-	WORD   $0x4ea59d77                      // MUL V23.4S, V11.4S, V5.4S - m = ab
-	WORD   $0x4ea19ef7                      // MUL V23.4S, V23.4S, V1.4S - m = ab·μ
+	WORD   $0x4eb726cb                      // SHSUB V11.4S, V22.4S, V23.4S - d = (c − m) / 2
+	VADD   V0.S4, V11.S4, V22.S4
+	VUMIN  V22.S4, V11.S4, V11.S4
+	VSUB   V10.S4, V11.S4, V11.S4
+	VADD   V0.S4, V11.S4, V22.S4
+	VUMIN  V22.S4, V11.S4, V11.S4
+	VSUB   V20.S4, V11.S4, V11.S4
+	VADD   V0.S4, V11.S4, V22.S4
+	VUMIN  V22.S4, V11.S4, V11.S4
+	VADD   V20.S4, V10.S4, V10.S4
+	VSUB   V0.S4, V10.S4, V22.S4
+	VUMIN  V22.S4, V10.S4, V10.S4
+	VADD   V20.S4, V10.S4, V10.S4
+	VSUB   V0.S4, V10.S4, V22.S4
+	VUMIN  V22.S4, V10.S4, V10.S4
+	VADD   V20.S4, V10.S4, V10.S4
+	VSUB   V0.S4, V10.S4, V22.S4
+	VUMIN  V22.S4, V10.S4, V10.S4
+	VLD1.P 16(R13), [V14.S4]
+	VLD1.P 16(R13), [V15.S4]
+	VLD1.P 16(R13), [V16.S4]
+	VLD1.P 16(R13), [V17.S4]
+	VLD1.P 16(R13), [V18.S4]
+	VLD1.P 16(R13), [V19.S4]
+	WORD   $0x4eaeb4d5                      // SQDMULH V21.4S, V6.4S, V14.4S - c = (2ab) >> 32
+	WORD   $0x4eb19cd6                      // MUL V22.4S, V6.4S, V17.4S - m = ab·μ
+	WORD   $0x4ea0b6d6                      // SQDMULH V22.4S, V22.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4eb626ac                      // SHSUB V12.4S, V21.4S, V22.4S - d = (c − m) / 2
+	VADD   V0.S4, V12.S4, V21.S4
+	VUMIN  V21.S4, V12.S4, V12.S4
+	WORD   $0x4eafb4f5                      // SQDMULH V21.4S, V7.4S, V15.4S - c = (2ab) >> 32
+	WORD   $0x4eb29cf6                      // MUL V22.4S, V7.4S, V18.4S - m = ab·μ
+	WORD   $0x4ea0b6d6                      // SQDMULH V22.4S, V22.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4eb626b4                      // SHSUB V20.4S, V21.4S, V22.4S - d = (c − m) / 2
+	VADD   V0.S4, V20.S4, V21.S4
+	VUMIN  V21.S4, V20.S4, V20.S4
+	VADD   V7.S4, V6.S4, V21.S4
+	VSUB   V0.S4, V21.S4, V22.S4
+	VUMIN  V22.S4, V21.S4, V21.S4
+	WORD   $0x4eb0b6b6                      // SQDMULH V22.4S, V21.4S, V16.4S - c = (2ab) >> 32
+	WORD   $0x4eb39eb7                      // MUL V23.4S, V21.4S, V19.4S - m = ab·μ
 	WORD   $0x4ea0b6f7                      // SQDMULH V23.4S, V23.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4eb726d4                      // SHSUB V20.4S, V22.4S, V23.4S - d = (c − m) / 2
-	VADD   V0.S4, V20.S4, V22.S4
-	VUMIN  V22.S4, V20.S4, V20.S4
-	VADD   V11.S4, V10.S4, V21.S4
-	VSUB   V0.S4, V21.S4, V22.S4
-	VUMIN  V22.S4, V21.S4, V21.S4
-	VADD   V5.S4, V4.S4, V17.S4
-	VSUB   V0.S4, V17.S4, V22.S4
-	VUMIN  V22.S4, V17.S4, V17.S4
-	WORD   $0x4eb1b6b6                      // SQDMULH V22.4S, V21.4S, V17.4S - c = (2ab) >> 32
-	WORD   $0x4eb19eb7                      // MUL V23.4S, V21.4S, V17.4S - m = ab
-	WORD   $0x4ea19ef7                      // MUL V23.4S, V23.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b6f7                      // SQDMULH V23.4S, V23.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4eb726d1                      // SHSUB V17.4S, V22.4S, V23.4S - d = (c − m) / 2
-	VADD   V0.S4, V17.S4, V22.S4
-	VUMIN  V22.S4, V17.S4, V17.S4
-	VSUB   V16.S4, V17.S4, V17.S4
-	VADD   V0.S4, V17.S4, V22.S4
-	VUMIN  V22.S4, V17.S4, V17.S4
-	VSUB   V20.S4, V17.S4, V17.S4
-	VADD   V0.S4, V17.S4, V22.S4
-	VUMIN  V22.S4, V17.S4, V17.S4
-	VADD   V20.S4, V20.S4, V21.S4
-	VSUB   V0.S4, V21.S4, V22.S4
-	VUMIN  V22.S4, V21.S4, V21.S4
-	VADD   V20.S4, V21.S4, V21.S4
-	VSUB   V0.S4, V21.S4, V22.S4
-	VUMIN  V22.S4, V21.S4, V21.S4
-	VADD   V21.S4, V16.S4, V16.S4
-	VSUB   V0.S4, V16.S4, V22.S4
-	VUMIN  V22.S4, V16.S4, V16.S4
-	WORD   $0x4ea6b596                      // SQDMULH V22.4S, V12.4S, V6.4S - c = (2ab) >> 32
-	WORD   $0x4ea69d97                      // MUL V23.4S, V12.4S, V6.4S - m = ab
-	WORD   $0x4ea19ef7                      // MUL V23.4S, V23.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b6f7                      // SQDMULH V23.4S, V23.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4eb726d2                      // SHSUB V18.4S, V22.4S, V23.4S - d = (c − m) / 2
-	VADD   V0.S4, V18.S4, V22.S4
-	VUMIN  V22.S4, V18.S4, V18.S4
-	WORD   $0x4ea7b5b6                      // SQDMULH V22.4S, V13.4S, V7.4S - c = (2ab) >> 32
-	WORD   $0x4ea79db7                      // MUL V23.4S, V13.4S, V7.4S - m = ab
-	WORD   $0x4ea19ef7                      // MUL V23.4S, V23.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b6f7                      // SQDMULH V23.4S, V23.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4eb726d4                      // SHSUB V20.4S, V22.4S, V23.4S - d = (c − m) / 2
-	VADD   V0.S4, V20.S4, V22.S4
-	VUMIN  V22.S4, V20.S4, V20.S4
-	VADD   V13.S4, V12.S4, V21.S4
-	VSUB   V0.S4, V21.S4, V22.S4
-	VUMIN  V22.S4, V21.S4, V21.S4
-	VADD   V7.S4, V6.S4, V19.S4
-	VSUB   V0.S4, V19.S4, V22.S4
-	VUMIN  V22.S4, V19.S4, V19.S4
-	WORD   $0x4eb3b6b6                      // SQDMULH V22.4S, V21.4S, V19.4S - c = (2ab) >> 32
-	WORD   $0x4eb39eb7                      // MUL V23.4S, V21.4S, V19.4S - m = ab
-	WORD   $0x4ea19ef7                      // MUL V23.4S, V23.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b6f7                      // SQDMULH V23.4S, V23.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4eb726d3                      // SHSUB V19.4S, V22.4S, V23.4S - d = (c − m) / 2
-	VADD   V0.S4, V19.S4, V22.S4
-	VUMIN  V22.S4, V19.S4, V19.S4
-	VSUB   V18.S4, V19.S4, V19.S4
-	VADD   V0.S4, V19.S4, V22.S4
-	VUMIN  V22.S4, V19.S4, V19.S4
-	VSUB   V20.S4, V19.S4, V19.S4
-	VADD   V0.S4, V19.S4, V22.S4
-	VUMIN  V22.S4, V19.S4, V19.S4
-	VADD   V20.S4, V20.S4, V21.S4
-	VSUB   V0.S4, V21.S4, V22.S4
-	VUMIN  V22.S4, V21.S4, V21.S4
-	VADD   V20.S4, V21.S4, V21.S4
-	VSUB   V0.S4, V21.S4, V22.S4
-	VUMIN  V22.S4, V21.S4, V21.S4
-	VADD   V21.S4, V18.S4, V18.S4
-	VSUB   V0.S4, V18.S4, V22.S4
-	VUMIN  V22.S4, V18.S4, V18.S4
-	VADD   V12.S4, V10.S4, V20.S4
-	VSUB   V0.S4, V20.S4, V24.S4
-	VUMIN  V24.S4, V20.S4, V20.S4
-	VADD   V13.S4, V11.S4, V21.S4
-	VSUB   V0.S4, V21.S4, V24.S4
-	VUMIN  V24.S4, V21.S4, V21.S4
-	VADD   V6.S4, V4.S4, V22.S4
-	VSUB   V0.S4, V22.S4, V24.S4
+	WORD   $0x4eb726cd                      // SHSUB V13.4S, V22.4S, V23.4S - d = (c − m) / 2
+	VADD   V0.S4, V13.S4, V22.S4
+	VUMIN  V22.S4, V13.S4, V13.S4
+	VSUB   V12.S4, V13.S4, V13.S4
+	VADD   V0.S4, V13.S4, V22.S4
+	VUMIN  V22.S4, V13.S4, V13.S4
+	VSUB   V20.S4, V13.S4, V13.S4
+	VADD   V0.S4, V13.S4, V22.S4
+	VUMIN  V22.S4, V13.S4, V13.S4
+	VADD   V20.S4, V12.S4, V12.S4
+	VSUB   V0.S4, V12.S4, V22.S4
+	VUMIN  V22.S4, V12.S4, V12.S4
+	VADD   V20.S4, V12.S4, V12.S4
+	VSUB   V0.S4, V12.S4, V22.S4
+	VUMIN  V22.S4, V12.S4, V12.S4
+	VADD   V20.S4, V12.S4, V12.S4
+	VSUB   V0.S4, V12.S4, V22.S4
+	VUMIN  V22.S4, V12.S4, V12.S4
+	VADD   V6.S4, V4.S4, V14.S4
+	VSUB   V0.S4, V14.S4, V16.S4
+	VUMIN  V16.S4, V14.S4, V14.S4
+	VADD   V7.S4, V5.S4, V15.S4
+	VSUB   V0.S4, V15.S4, V16.S4
+	VUMIN  V16.S4, V15.S4, V15.S4
+	VLD1.P 16(R13), [V16.S4]
+	VLD1.P 16(R13), [V17.S4]
+	VLD1.P 16(R13), [V18.S4]
+	VLD1.P 16(R13), [V19.S4]
+	VLD1.P 16(R13), [V20.S4]
+	VLD1.P 16(R13), [V21.S4]
+	WORD   $0x4eb0b5d8                      // SQDMULH V24.4S, V14.4S, V16.4S - c = (2ab) >> 32
+	WORD   $0x4eb39dd9                      // MUL V25.4S, V14.4S, V19.4S - m = ab·μ
+	WORD   $0x4ea0b739                      // SQDMULH V25.4S, V25.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4eb92716                      // SHSUB V22.4S, V24.4S, V25.4S - d = (c − m) / 2
+	VADD   V0.S4, V22.S4, V24.S4
 	VUMIN  V24.S4, V22.S4, V22.S4
-	VADD   V7.S4, V5.S4, V23.S4
-	VSUB   V0.S4, V23.S4, V24.S4
+	WORD   $0x4eb1b5f8                      // SQDMULH V24.4S, V15.4S, V17.4S - c = (2ab) >> 32
+	WORD   $0x4eb49df9                      // MUL V25.4S, V15.4S, V20.4S - m = ab·μ
+	WORD   $0x4ea0b739                      // SQDMULH V25.4S, V25.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4eb92717                      // SHSUB V23.4S, V24.4S, V25.4S - d = (c − m) / 2
+	VADD   V0.S4, V23.S4, V24.S4
 	VUMIN  V24.S4, V23.S4, V23.S4
-	WORD   $0x4eb6b69a                      // SQDMULH V26.4S, V20.4S, V22.4S - c = (2ab) >> 32
-	WORD   $0x4eb69e9b                      // MUL V27.4S, V20.4S, V22.4S - m = ab
-	WORD   $0x4ea19f7b                      // MUL V27.4S, V27.4S, V1.4S - m = ab·μ
+	VADD   V15.S4, V14.S4, V14.S4
+	VSUB   V0.S4, V14.S4, V24.S4
+	VUMIN  V24.S4, V14.S4, V14.S4
+	WORD   $0x4eb2b5d8                      // SQDMULH V24.4S, V14.4S, V18.4S - c = (2ab) >> 32
+	WORD   $0x4eb59dd9                      // MUL V25.4S, V14.4S, V21.4S - m = ab·μ
+	WORD   $0x4ea0b739                      // SQDMULH V25.4S, V25.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4eb9270f                      // SHSUB V15.4S, V24.4S, V25.4S - d = (c − m) / 2
+	VADD   V0.S4, V15.S4, V24.S4
+	VUMIN  V24.S4, V15.S4, V15.S4
+	VSUB   V22.S4, V15.S4, V15.S4
+	VADD   V0.S4, V15.S4, V24.S4
+	VUMIN  V24.S4, V15.S4, V15.S4
+	VSUB   V23.S4, V15.S4, V15.S4
+	VADD   V0.S4, V15.S4, V24.S4
+	VUMIN  V24.S4, V15.S4, V15.S4
+	VADD   V23.S4, V22.S4, V14.S4
+	VSUB   V0.S4, V14.S4, V24.S4
+	VUMIN  V24.S4, V14.S4, V14.S4
+	VADD   V23.S4, V14.S4, V14.S4
+	VSUB   V0.S4, V14.S4, V24.S4
+	VUMIN  V24.S4, V14.S4, V14.S4
+	VADD   V23.S4, V14.S4, V14.S4
+	VSUB   V0.S4, V14.S4, V24.S4
+	VUMIN  V24.S4, V14.S4, V14.S4
+	VSUB   V10.S4, V14.S4, V14.S4
+	VADD   V0.S4, V14.S4, V16.S4
+	VUMIN  V16.S4, V14.S4, V14.S4
+	VSUB   V12.S4, V14.S4, V14.S4
+	VADD   V0.S4, V14.S4, V16.S4
+	VUMIN  V16.S4, V14.S4, V14.S4
+	VSUB   V11.S4, V15.S4, V15.S4
+	VADD   V0.S4, V15.S4, V16.S4
+	VUMIN  V16.S4, V15.S4, V15.S4
+	VSUB   V13.S4, V15.S4, V15.S4
+	VADD   V0.S4, V15.S4, V16.S4
+	VUMIN  V16.S4, V15.S4, V15.S4
+	VADD   V15.S4, V15.S4, V16.S4
+	VSUB   V0.S4, V16.S4, V17.S4
+	VUMIN  V17.S4, V16.S4, V16.S4
+	VADD   V15.S4, V16.S4, V16.S4
+	VSUB   V0.S4, V16.S4, V17.S4
+	VUMIN  V17.S4, V16.S4, V16.S4
+	VADD   V15.S4, V14.S4, V15.S4
+	VSUB   V0.S4, V15.S4, V17.S4
+	VUMIN  V17.S4, V15.S4, V15.S4
+	VADD   V16.S4, V14.S4, V14.S4
+	VSUB   V0.S4, V14.S4, V17.S4
+	VUMIN  V17.S4, V14.S4, V14.S4
+	VADD   V8.S4, V14.S4, V14.S4
+	VSUB   V0.S4, V14.S4, V17.S4
+	VUMIN  V17.S4, V14.S4, V14.S4
+	VADD   V9.S4, V15.S4, V15.S4
+	VSUB   V0.S4, V15.S4, V17.S4
+	VUMIN  V17.S4, V15.S4, V15.S4
+	VADD   V4.S4, V2.S4, V16.S4
+	VSUB   V0.S4, V16.S4, V18.S4
+	VUMIN  V18.S4, V16.S4, V16.S4
+	VADD   V5.S4, V3.S4, V17.S4
+	VSUB   V0.S4, V17.S4, V18.S4
+	VUMIN  V18.S4, V17.S4, V17.S4
+	VLD1.P 16(R13), [V18.S4]
+	VLD1.P 16(R13), [V19.S4]
+	VLD1.P 16(R13), [V20.S4]
+	VLD1.P 16(R13), [V21.S4]
+	VLD1.P 16(R13), [V22.S4]
+	VLD1.P 16(R13), [V23.S4]
+	WORD   $0x4eb2b61a                      // SQDMULH V26.4S, V16.4S, V18.4S - c = (2ab) >> 32
+	WORD   $0x4eb59e1b                      // MUL V27.4S, V16.4S, V21.4S - m = ab·μ
 	WORD   $0x4ea0b77b                      // SQDMULH V27.4S, V27.4S, V0.4S - m = (2mq) >> 32
 	WORD   $0x4ebb2758                      // SHSUB V24.4S, V26.4S, V27.4S - d = (c − m) / 2
 	VADD   V0.S4, V24.S4, V26.S4
 	VUMIN  V26.S4, V24.S4, V24.S4
-	WORD   $0x4eb7b6ba                      // SQDMULH V26.4S, V21.4S, V23.4S - c = (2ab) >> 32
-	WORD   $0x4eb79ebb                      // MUL V27.4S, V21.4S, V23.4S - m = ab
-	WORD   $0x4ea19f7b                      // MUL V27.4S, V27.4S, V1.4S - m = ab·μ
+	WORD   $0x4eb3b63a                      // SQDMULH V26.4S, V17.4S, V19.4S - c = (2ab) >> 32
+	WORD   $0x4eb69e3b                      // MUL V27.4S, V17.4S, V22.4S - m = ab·μ
 	WORD   $0x4ea0b77b                      // SQDMULH V27.4S, V27.4S, V0.4S - m = (2mq) >> 32
 	WORD   $0x4ebb2759                      // SHSUB V25.4S, V26.4S, V27.4S - d = (c − m) / 2
 	VADD   V0.S4, V25.S4, V26.S4
 	VUMIN  V26.S4, V25.S4, V25.S4
-	VADD   V21.S4, V20.S4, V20.S4
-	VSUB   V0.S4, V20.S4, V26.S4
-	VUMIN  V26.S4, V20.S4, V20.S4
-	VADD   V23.S4, V22.S4, V22.S4
-	VSUB   V0.S4, V22.S4, V26.S4
-	VUMIN  V26.S4, V22.S4, V22.S4
-	WORD   $0x4eb6b69a                      // SQDMULH V26.4S, V20.4S, V22.4S - c = (2ab) >> 32
-	WORD   $0x4eb69e9b                      // MUL V27.4S, V20.4S, V22.4S - m = ab
-	WORD   $0x4ea19f7b                      // MUL V27.4S, V27.4S, V1.4S - m = ab·μ
+	VADD   V17.S4, V16.S4, V16.S4
+	VSUB   V0.S4, V16.S4, V26.S4
+	VUMIN  V26.S4, V16.S4, V16.S4
+	WORD   $0x4eb4b61a                      // SQDMULH V26.4S, V16.4S, V20.4S - c = (2ab) >> 32
+	WORD   $0x4eb79e1b                      // MUL V27.4S, V16.4S, V23.4S - m = ab·μ
 	WORD   $0x4ea0b77b                      // SQDMULH V27.4S, V27.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4ebb2755                      // SHSUB V21.4S, V26.4S, V27.4S - d = (c − m) / 2
-	VADD   V0.S4, V21.S4, V26.S4
-	VUMIN  V26.S4, V21.S4, V21.S4
-	VSUB   V24.S4, V21.S4, V21.S4
-	VADD   V0.S4, V21.S4, V26.S4
-	VUMIN  V26.S4, V21.S4, V21.S4
-	VSUB   V25.S4, V21.S4, V21.S4
-	VADD   V0.S4, V21.S4, V26.S4
-	VUMIN  V26.S4, V21.S4, V21.S4
-	VADD   V25.S4, V25.S4, V22.S4
-	VSUB   V0.S4, V22.S4, V26.S4
-	VUMIN  V26.S4, V22.S4, V22.S4
-	VADD   V25.S4, V22.S4, V22.S4
-	VSUB   V0.S4, V22.S4, V26.S4
-	VUMIN  V26.S4, V22.S4, V22.S4
-	VADD   V22.S4, V24.S4, V20.S4
-	VSUB   V0.S4, V20.S4, V26.S4
-	VUMIN  V26.S4, V20.S4, V20.S4
-	VSUB   V16.S4, V20.S4, V20.S4
-	VADD   V0.S4, V20.S4, V22.S4
-	VUMIN  V22.S4, V20.S4, V20.S4
-	VSUB   V18.S4, V20.S4, V20.S4
-	VADD   V0.S4, V20.S4, V22.S4
-	VUMIN  V22.S4, V20.S4, V20.S4
-	VSUB   V17.S4, V21.S4, V21.S4
-	VADD   V0.S4, V21.S4, V22.S4
-	VUMIN  V22.S4, V21.S4, V21.S4
-	VSUB   V19.S4, V21.S4, V21.S4
-	VADD   V0.S4, V21.S4, V22.S4
-	VUMIN  V22.S4, V21.S4, V21.S4
-	VADD   V21.S4, V21.S4, V22.S4
-	VSUB   V0.S4, V22.S4, V23.S4
-	VUMIN  V23.S4, V22.S4, V22.S4
-	VADD   V21.S4, V22.S4, V22.S4
-	VSUB   V0.S4, V22.S4, V23.S4
-	VUMIN  V23.S4, V22.S4, V22.S4
-	VADD   V21.S4, V20.S4, V21.S4
-	VSUB   V0.S4, V21.S4, V23.S4
-	VUMIN  V23.S4, V21.S4, V21.S4
-	VADD   V22.S4, V20.S4, V20.S4
-	VSUB   V0.S4, V20.S4, V23.S4
-	VUMIN  V23.S4, V20.S4, V20.S4
-	VADD   V14.S4, V20.S4, V20.S4
-	VSUB   V0.S4, V20.S4, V23.S4
-	VUMIN  V23.S4, V20.S4, V20.S4
-	VADD   V15.S4, V21.S4, V21.S4
-	VSUB   V0.S4, V21.S4, V23.S4
-	VUMIN  V23.S4, V21.S4, V21.S4
-	VADD   V10.S4, V8.S4, V22.S4
-	VSUB   V0.S4, V22.S4, V26.S4
-	VUMIN  V26.S4, V22.S4, V22.S4
-	VADD   V11.S4, V9.S4, V23.S4
-	VSUB   V0.S4, V23.S4, V26.S4
-	VUMIN  V26.S4, V23.S4, V23.S4
-	VADD   V4.S4, V2.S4, V24.S4
-	VSUB   V0.S4, V24.S4, V26.S4
+	WORD   $0x4ebb2751                      // SHSUB V17.4S, V26.4S, V27.4S - d = (c − m) / 2
+	VADD   V0.S4, V17.S4, V26.S4
+	VUMIN  V26.S4, V17.S4, V17.S4
+	VSUB   V24.S4, V17.S4, V17.S4
+	VADD   V0.S4, V17.S4, V26.S4
+	VUMIN  V26.S4, V17.S4, V17.S4
+	VSUB   V25.S4, V17.S4, V17.S4
+	VADD   V0.S4, V17.S4, V26.S4
+	VUMIN  V26.S4, V17.S4, V17.S4
+	VADD   V25.S4, V24.S4, V16.S4
+	VSUB   V0.S4, V16.S4, V26.S4
+	VUMIN  V26.S4, V16.S4, V16.S4
+	VADD   V25.S4, V16.S4, V16.S4
+	VSUB   V0.S4, V16.S4, V26.S4
+	VUMIN  V26.S4, V16.S4, V16.S4
+	VADD   V25.S4, V16.S4, V16.S4
+	VSUB   V0.S4, V16.S4, V26.S4
+	VUMIN  V26.S4, V16.S4, V16.S4
+	VSUB   V8.S4, V16.S4, V16.S4
+	VADD   V0.S4, V16.S4, V18.S4
+	VUMIN  V18.S4, V16.S4, V16.S4
+	VSUB   V10.S4, V16.S4, V16.S4
+	VADD   V0.S4, V16.S4, V18.S4
+	VUMIN  V18.S4, V16.S4, V16.S4
+	VSUB   V9.S4, V17.S4, V17.S4
+	VADD   V0.S4, V17.S4, V18.S4
+	VUMIN  V18.S4, V17.S4, V17.S4
+	VSUB   V11.S4, V17.S4, V17.S4
+	VADD   V0.S4, V17.S4, V18.S4
+	VUMIN  V18.S4, V17.S4, V17.S4
+	VMOV   V12.B16, V18.B16
+	VMOV   V13.B16, V19.B16
+	VADD   V19.S4, V19.S4, V20.S4
+	VSUB   V0.S4, V20.S4, V21.S4
+	VUMIN  V21.S4, V20.S4, V20.S4
+	VADD   V19.S4, V20.S4, V20.S4
+	VSUB   V0.S4, V20.S4, V21.S4
+	VUMIN  V21.S4, V20.S4, V20.S4
+	VADD   V19.S4, V18.S4, V19.S4
+	VSUB   V0.S4, V19.S4, V21.S4
+	VUMIN  V21.S4, V19.S4, V19.S4
+	VADD   V20.S4, V18.S4, V18.S4
+	VSUB   V0.S4, V18.S4, V21.S4
+	VUMIN  V21.S4, V18.S4, V18.S4
+	VADD   V16.S4, V18.S4, V18.S4
+	VSUB   V0.S4, V18.S4, V21.S4
+	VUMIN  V21.S4, V18.S4, V18.S4
+	VADD   V17.S4, V19.S4, V19.S4
+	VSUB   V0.S4, V19.S4, V21.S4
+	VUMIN  V21.S4, V19.S4, V19.S4
+	VADD   V6.S4, V2.S4, V4.S4
+	VSUB   V0.S4, V4.S4, V16.S4
+	VUMIN  V16.S4, V4.S4, V4.S4
+	VADD   V7.S4, V3.S4, V5.S4
+	VSUB   V0.S4, V5.S4, V16.S4
+	VUMIN  V16.S4, V5.S4, V5.S4
+	VLD1.P 16(R13), [V16.S4]
+	VLD1.P 16(R13), [V17.S4]
+	VLD1.P 16(R13), [V20.S4]
+	VLD1.P 16(R13), [V21.S4]
+	VLD1.P 16(R13), [V22.S4]
+	VLD1.P 16(R13), [V23.S4]
+	WORD   $0x4eb0b49a                      // SQDMULH V26.4S, V4.4S, V16.4S - c = (2ab) >> 32
+	WORD   $0x4eb59c9b                      // MUL V27.4S, V4.4S, V21.4S - m = ab·μ
+	WORD   $0x4ea0b77b                      // SQDMULH V27.4S, V27.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4ebb2758                      // SHSUB V24.4S, V26.4S, V27.4S - d = (c − m) / 2
+	VADD   V0.S4, V24.S4, V26.S4
 	VUMIN  V26.S4, V24.S4, V24.S4
-	VADD   V5.S4, V3.S4, V25.S4
-	VSUB   V0.S4, V25.S4, V26.S4
+	WORD   $0x4eb1b4ba                      // SQDMULH V26.4S, V5.4S, V17.4S - c = (2ab) >> 32
+	WORD   $0x4eb69cbb                      // MUL V27.4S, V5.4S, V22.4S - m = ab·μ
+	WORD   $0x4ea0b77b                      // SQDMULH V27.4S, V27.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4ebb2759                      // SHSUB V25.4S, V26.4S, V27.4S - d = (c − m) / 2
+	VADD   V0.S4, V25.S4, V26.S4
 	VUMIN  V26.S4, V25.S4, V25.S4
-	WORD   $0x4eb8b6dc                      // SQDMULH V28.4S, V22.4S, V24.4S - c = (2ab) >> 32
-	WORD   $0x4eb89edd                      // MUL V29.4S, V22.4S, V24.4S - m = ab
-	WORD   $0x4ea19fbd                      // MUL V29.4S, V29.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b7bd                      // SQDMULH V29.4S, V29.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4ebd279a                      // SHSUB V26.4S, V28.4S, V29.4S - d = (c − m) / 2
-	VADD   V0.S4, V26.S4, V28.S4
-	VUMIN  V28.S4, V26.S4, V26.S4
-	WORD   $0x4eb9b6fc                      // SQDMULH V28.4S, V23.4S, V25.4S - c = (2ab) >> 32
-	WORD   $0x4eb99efd                      // MUL V29.4S, V23.4S, V25.4S - m = ab
-	WORD   $0x4ea19fbd                      // MUL V29.4S, V29.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b7bd                      // SQDMULH V29.4S, V29.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4ebd279b                      // SHSUB V27.4S, V28.4S, V29.4S - d = (c − m) / 2
-	VADD   V0.S4, V27.S4, V28.S4
-	VUMIN  V28.S4, V27.S4, V27.S4
-	VADD   V23.S4, V22.S4, V22.S4
-	VSUB   V0.S4, V22.S4, V28.S4
-	VUMIN  V28.S4, V22.S4, V22.S4
-	VADD   V25.S4, V24.S4, V24.S4
-	VSUB   V0.S4, V24.S4, V28.S4
-	VUMIN  V28.S4, V24.S4, V24.S4
-	WORD   $0x4eb8b6dc                      // SQDMULH V28.4S, V22.4S, V24.4S - c = (2ab) >> 32
-	WORD   $0x4eb89edd                      // MUL V29.4S, V22.4S, V24.4S - m = ab
-	WORD   $0x4ea19fbd                      // MUL V29.4S, V29.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b7bd                      // SQDMULH V29.4S, V29.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4ebd2797                      // SHSUB V23.4S, V28.4S, V29.4S - d = (c − m) / 2
-	VADD   V0.S4, V23.S4, V28.S4
-	VUMIN  V28.S4, V23.S4, V23.S4
-	VSUB   V26.S4, V23.S4, V23.S4
-	VADD   V0.S4, V23.S4, V28.S4
-	VUMIN  V28.S4, V23.S4, V23.S4
-	VSUB   V27.S4, V23.S4, V23.S4
-	VADD   V0.S4, V23.S4, V28.S4
-	VUMIN  V28.S4, V23.S4, V23.S4
-	VADD   V27.S4, V27.S4, V24.S4
-	VSUB   V0.S4, V24.S4, V28.S4
-	VUMIN  V28.S4, V24.S4, V24.S4
-	VADD   V27.S4, V24.S4, V24.S4
-	VSUB   V0.S4, V24.S4, V28.S4
-	VUMIN  V28.S4, V24.S4, V24.S4
-	VADD   V24.S4, V26.S4, V22.S4
-	VSUB   V0.S4, V22.S4, V28.S4
-	VUMIN  V28.S4, V22.S4, V22.S4
-	VSUB   V14.S4, V22.S4, V22.S4
-	VADD   V0.S4, V22.S4, V24.S4
-	VUMIN  V24.S4, V22.S4, V22.S4
-	VSUB   V16.S4, V22.S4, V22.S4
-	VADD   V0.S4, V22.S4, V24.S4
-	VUMIN  V24.S4, V22.S4, V22.S4
-	VSUB   V15.S4, V23.S4, V23.S4
-	VADD   V0.S4, V23.S4, V24.S4
-	VUMIN  V24.S4, V23.S4, V23.S4
-	VSUB   V17.S4, V23.S4, V23.S4
-	VADD   V0.S4, V23.S4, V24.S4
-	VUMIN  V24.S4, V23.S4, V23.S4
-	VMOV   V18.B16, V24.B16
-	VMOV   V19.B16, V25.B16
-	VADD   V25.S4, V25.S4, V26.S4
-	VSUB   V0.S4, V26.S4, V27.S4
-	VUMIN  V27.S4, V26.S4, V26.S4
-	VADD   V25.S4, V26.S4, V26.S4
-	VSUB   V0.S4, V26.S4, V27.S4
-	VUMIN  V27.S4, V26.S4, V26.S4
-	VADD   V25.S4, V24.S4, V25.S4
-	VSUB   V0.S4, V25.S4, V27.S4
-	VUMIN  V27.S4, V25.S4, V25.S4
-	VADD   V26.S4, V24.S4, V24.S4
-	VSUB   V0.S4, V24.S4, V27.S4
-	VUMIN  V27.S4, V24.S4, V24.S4
-	VADD   V22.S4, V24.S4, V24.S4
-	VSUB   V0.S4, V24.S4, V27.S4
-	VUMIN  V27.S4, V24.S4, V24.S4
-	VADD   V23.S4, V25.S4, V25.S4
-	VSUB   V0.S4, V25.S4, V27.S4
-	VUMIN  V27.S4, V25.S4, V25.S4
-	VADD   V12.S4, V8.S4, V10.S4
-	VSUB   V0.S4, V10.S4, V26.S4
-	VUMIN  V26.S4, V10.S4, V10.S4
-	VADD   V13.S4, V9.S4, V11.S4
-	VSUB   V0.S4, V11.S4, V26.S4
-	VUMIN  V26.S4, V11.S4, V11.S4
-	VADD   V6.S4, V2.S4, V22.S4
-	VSUB   V0.S4, V22.S4, V26.S4
-	VUMIN  V26.S4, V22.S4, V22.S4
-	VADD   V7.S4, V3.S4, V23.S4
-	VSUB   V0.S4, V23.S4, V26.S4
-	VUMIN  V26.S4, V23.S4, V23.S4
-	WORD   $0x4eb6b55c                      // SQDMULH V28.4S, V10.4S, V22.4S - c = (2ab) >> 32
-	WORD   $0x4eb69d5d                      // MUL V29.4S, V10.4S, V22.4S - m = ab
-	WORD   $0x4ea19fbd                      // MUL V29.4S, V29.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b7bd                      // SQDMULH V29.4S, V29.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4ebd279a                      // SHSUB V26.4S, V28.4S, V29.4S - d = (c − m) / 2
-	VADD   V0.S4, V26.S4, V28.S4
-	VUMIN  V28.S4, V26.S4, V26.S4
-	WORD   $0x4eb7b57c                      // SQDMULH V28.4S, V11.4S, V23.4S - c = (2ab) >> 32
-	WORD   $0x4eb79d7d                      // MUL V29.4S, V11.4S, V23.4S - m = ab
-	WORD   $0x4ea19fbd                      // MUL V29.4S, V29.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b7bd                      // SQDMULH V29.4S, V29.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4ebd279b                      // SHSUB V27.4S, V28.4S, V29.4S - d = (c − m) / 2
-	VADD   V0.S4, V27.S4, V28.S4
-	VUMIN  V28.S4, V27.S4, V27.S4
-	VADD   V11.S4, V10.S4, V10.S4
-	VSUB   V0.S4, V10.S4, V28.S4
-	VUMIN  V28.S4, V10.S4, V10.S4
-	VADD   V23.S4, V22.S4, V22.S4
-	VSUB   V0.S4, V22.S4, V28.S4
-	VUMIN  V28.S4, V22.S4, V22.S4
-	WORD   $0x4eb6b55c                      // SQDMULH V28.4S, V10.4S, V22.4S - c = (2ab) >> 32
-	WORD   $0x4eb69d5d                      // MUL V29.4S, V10.4S, V22.4S - m = ab
-	WORD   $0x4ea19fbd                      // MUL V29.4S, V29.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b7bd                      // SQDMULH V29.4S, V29.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4ebd278b                      // SHSUB V11.4S, V28.4S, V29.4S - d = (c − m) / 2
-	VADD   V0.S4, V11.S4, V28.S4
-	VUMIN  V28.S4, V11.S4, V11.S4
-	VSUB   V26.S4, V11.S4, V11.S4
-	VADD   V0.S4, V11.S4, V28.S4
-	VUMIN  V28.S4, V11.S4, V11.S4
-	VSUB   V27.S4, V11.S4, V11.S4
-	VADD   V0.S4, V11.S4, V28.S4
-	VUMIN  V28.S4, V11.S4, V11.S4
-	VADD   V27.S4, V27.S4, V22.S4
-	VSUB   V0.S4, V22.S4, V28.S4
-	VUMIN  V28.S4, V22.S4, V22.S4
-	VADD   V27.S4, V22.S4, V22.S4
-	VSUB   V0.S4, V22.S4, V28.S4
-	VUMIN  V28.S4, V22.S4, V22.S4
-	VADD   V22.S4, V26.S4, V10.S4
-	VSUB   V0.S4, V10.S4, V28.S4
-	VUMIN  V28.S4, V10.S4, V10.S4
-	VSUB   V14.S4, V10.S4, V10.S4
-	VADD   V0.S4, V10.S4, V22.S4
-	VUMIN  V22.S4, V10.S4, V10.S4
-	VSUB   V18.S4, V10.S4, V10.S4
-	VADD   V0.S4, V10.S4, V22.S4
-	VUMIN  V22.S4, V10.S4, V10.S4
-	VSUB   V15.S4, V11.S4, V11.S4
-	VADD   V0.S4, V11.S4, V22.S4
-	VUMIN  V22.S4, V11.S4, V11.S4
-	VSUB   V19.S4, V11.S4, V11.S4
-	VADD   V0.S4, V11.S4, V22.S4
-	VUMIN  V22.S4, V11.S4, V11.S4
-	VADD   V16.S4, V10.S4, V10.S4
-	VSUB   V0.S4, V10.S4, V22.S4
-	VUMIN  V22.S4, V10.S4, V10.S4
-	VADD   V17.S4, V11.S4, V11.S4
-	VSUB   V0.S4, V11.S4, V22.S4
-	VUMIN  V22.S4, V11.S4, V11.S4
-	VZIP1  V21.S4, V20.S4, V12.S4
-	VZIP1  V25.S4, V24.S4, V13.S4
-	VZIP1  V11.S4, V10.S4, V14.S4
-	VLD3   (R0), [V15.D2, V16.D2, V17.D2]
-	VADD   V15.S4, V12.S4, V12.S4
-	VSUB   V0.S4, V12.S4, V8.S4
-	VUMIN  V8.S4, V12.S4, V12.S4
-	VADD   V16.S4, V13.S4, V13.S4
-	VSUB   V0.S4, V13.S4, V8.S4
-	VUMIN  V8.S4, V13.S4, V13.S4
-	VADD   V17.S4, V14.S4, V14.S4
-	VSUB   V0.S4, V14.S4, V8.S4
-	VUMIN  V8.S4, V14.S4, V14.S4
-	VST3.P [V12.D2, V13.D2, V14.D2], 48(R0)
-	VZIP2  V21.S4, V20.S4, V12.S4
-	VZIP2  V25.S4, V24.S4, V13.S4
-	VZIP2  V11.S4, V10.S4, V14.S4
-	VLD3   (R0), [V15.D2, V16.D2, V17.D2]
-	VADD   V15.S4, V12.S4, V12.S4
-	VSUB   V0.S4, V12.S4, V8.S4
-	VUMIN  V8.S4, V12.S4, V12.S4
-	VADD   V16.S4, V13.S4, V13.S4
-	VSUB   V0.S4, V13.S4, V8.S4
-	VUMIN  V8.S4, V13.S4, V13.S4
-	VADD   V17.S4, V14.S4, V14.S4
-	VSUB   V0.S4, V14.S4, V8.S4
-	VUMIN  V8.S4, V14.S4, V14.S4
-	VST3.P [V12.D2, V13.D2, V14.D2], 48(R0)
+	VADD   V5.S4, V4.S4, V4.S4
+	VSUB   V0.S4, V4.S4, V26.S4
+	VUMIN  V26.S4, V4.S4, V4.S4
+	WORD   $0x4eb4b49a                      // SQDMULH V26.4S, V4.4S, V20.4S - c = (2ab) >> 32
+	WORD   $0x4eb79c9b                      // MUL V27.4S, V4.4S, V23.4S - m = ab·μ
+	WORD   $0x4ea0b77b                      // SQDMULH V27.4S, V27.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4ebb2745                      // SHSUB V5.4S, V26.4S, V27.4S - d = (c − m) / 2
+	VADD   V0.S4, V5.S4, V26.S4
+	VUMIN  V26.S4, V5.S4, V5.S4
+	VSUB   V24.S4, V5.S4, V5.S4
+	VADD   V0.S4, V5.S4, V26.S4
+	VUMIN  V26.S4, V5.S4, V5.S4
+	VSUB   V25.S4, V5.S4, V5.S4
+	VADD   V0.S4, V5.S4, V26.S4
+	VUMIN  V26.S4, V5.S4, V5.S4
+	VADD   V25.S4, V24.S4, V4.S4
+	VSUB   V0.S4, V4.S4, V26.S4
+	VUMIN  V26.S4, V4.S4, V4.S4
+	VADD   V25.S4, V4.S4, V4.S4
+	VSUB   V0.S4, V4.S4, V26.S4
+	VUMIN  V26.S4, V4.S4, V4.S4
+	VADD   V25.S4, V4.S4, V4.S4
+	VSUB   V0.S4, V4.S4, V26.S4
+	VUMIN  V26.S4, V4.S4, V4.S4
+	VSUB   V8.S4, V4.S4, V4.S4
+	VADD   V0.S4, V4.S4, V16.S4
+	VUMIN  V16.S4, V4.S4, V4.S4
+	VSUB   V12.S4, V4.S4, V4.S4
+	VADD   V0.S4, V4.S4, V16.S4
+	VUMIN  V16.S4, V4.S4, V4.S4
+	VSUB   V9.S4, V5.S4, V5.S4
+	VADD   V0.S4, V5.S4, V16.S4
+	VUMIN  V16.S4, V5.S4, V5.S4
+	VSUB   V13.S4, V5.S4, V5.S4
+	VADD   V0.S4, V5.S4, V16.S4
+	VUMIN  V16.S4, V5.S4, V5.S4
+	VADD   V10.S4, V4.S4, V4.S4
+	VSUB   V0.S4, V4.S4, V16.S4
+	VUMIN  V16.S4, V4.S4, V4.S4
+	VADD   V11.S4, V5.S4, V5.S4
+	VSUB   V0.S4, V5.S4, V16.S4
+	VUMIN  V16.S4, V5.S4, V5.S4
+	VZIP1  V15.S4, V14.S4, V6.S4
+	VZIP1  V19.S4, V18.S4, V7.S4
+	VZIP1  V5.S4, V4.S4, V8.S4
+	VLD3   (R0), [V9.D2, V10.D2, V11.D2]
+	VADD   V9.S4, V6.S4, V6.S4
+	VSUB   V0.S4, V6.S4, V2.S4
+	VUMIN  V2.S4, V6.S4, V6.S4
+	VADD   V10.S4, V7.S4, V7.S4
+	VSUB   V0.S4, V7.S4, V2.S4
+	VUMIN  V2.S4, V7.S4, V7.S4
+	VADD   V11.S4, V8.S4, V8.S4
+	VSUB   V0.S4, V8.S4, V2.S4
+	VUMIN  V2.S4, V8.S4, V8.S4
+	VST3.P [V6.D2, V7.D2, V8.D2], 48(R0)
+	VZIP2  V15.S4, V14.S4, V6.S4
+	VZIP2  V19.S4, V18.S4, V7.S4
+	VZIP2  V5.S4, V4.S4, V8.S4
+	VLD3   (R0), [V9.D2, V10.D2, V11.D2]
+	VADD   V9.S4, V6.S4, V6.S4
+	VSUB   V0.S4, V6.S4, V2.S4
+	VUMIN  V2.S4, V6.S4, V6.S4
+	VADD   V10.S4, V7.S4, V7.S4
+	VSUB   V0.S4, V7.S4, V2.S4
+	VUMIN  V2.S4, V7.S4, V7.S4
+	VADD   V11.S4, V8.S4, V8.S4
+	VSUB   V0.S4, V8.S4, V2.S4
+	VUMIN  V2.S4, V8.S4, V8.S4
+	VST3.P [V6.D2, V7.D2, V8.D2], 48(R0)
 	JMP    loop9
 
 done10:
@@ -2122,436 +2064,407 @@ done10:
 // vectorScalarMulAdd_E6_neon: see generateMulE6 in the generator
 
 TEXT ·vectorScalarMulAdd_E6_neon(SB), NOFRAME|NOSPLIT, $0-32
-	MOVD  res+0(FP), R0
-	MOVD  b+8(FP), R1
-	MOVD  s+16(FP), R2
-	MOVD  N+24(FP), R3
-	LSR   $2, R3, R3
-	MOVD  $2130706433, R10
-	VDUP  R10, V0.S4
-	MOVD  $2164260865, R10
-	VDUP  R10, V1.S4
-	MOVD  R0, R11
-	MOVWU 0(R2), R10
-	VDUP  R10, V2.S4
-	MOVWU 4(R2), R10
-	VDUP  R10, V3.S4
-	MOVWU 8(R2), R10
-	VDUP  R10, V4.S4
-	MOVWU 12(R2), R10
-	VDUP  R10, V5.S4
-	MOVWU 16(R2), R10
-	VDUP  R10, V6.S4
-	MOVWU 20(R2), R10
-	VDUP  R10, V7.S4
+	MOVD res+0(FP), R0
+	MOVD b+8(FP), R1
+	MOVD s+16(FP), R2
+	MOVD N+24(FP), R3
+	LSR  $2, R3, R3
+	MOVD $2130706433, R10
+	VDUP R10, V0.S4
+	MOVD $2164260865, R10
+	VDUP R10, V1.S4
+	MOVD R0, R11
 
 loop11:
 	CBZ    R3, done12
 	SUB    $1, R3, R3
-	VLD3.P 48(R11), [V14.D2, V15.D2, V16.D2]
-	VLD3.P 48(R11), [V17.D2, V18.D2, V19.D2]
-	WORD   $0x4e9119c8                       // UZP1 V8.4S, V14.4S, V17.4S
-	WORD   $0x4e9159c9                       // UZP2 V9.4S, V14.4S, V17.4S
-	WORD   $0x4e9219ea                       // UZP1 V10.4S, V15.4S, V18.4S
-	WORD   $0x4e9259eb                       // UZP2 V11.4S, V15.4S, V18.4S
-	WORD   $0x4e931a0c                       // UZP1 V12.4S, V16.4S, V19.4S
-	WORD   $0x4e935a0d                       // UZP2 V13.4S, V16.4S, V19.4S
-	WORD   $0x4ea2b516                       // SQDMULH V22.4S, V8.4S, V2.4S - c = (2ab) >> 32
-	WORD   $0x4ea29d17                       // MUL V23.4S, V8.4S, V2.4S - m = ab
-	WORD   $0x4ea19ef7                       // MUL V23.4S, V23.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b6f7                       // SQDMULH V23.4S, V23.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4eb726ce                       // SHSUB V14.4S, V22.4S, V23.4S - d = (c − m) / 2
-	VADD   V0.S4, V14.S4, V22.S4
-	VUMIN  V22.S4, V14.S4, V14.S4
-	WORD   $0x4ea3b536                       // SQDMULH V22.4S, V9.4S, V3.4S - c = (2ab) >> 32
-	WORD   $0x4ea39d37                       // MUL V23.4S, V9.4S, V3.4S - m = ab
-	WORD   $0x4ea19ef7                       // MUL V23.4S, V23.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b6f7                       // SQDMULH V23.4S, V23.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4eb726d4                       // SHSUB V20.4S, V22.4S, V23.4S - d = (c − m) / 2
-	VADD   V0.S4, V20.S4, V22.S4
-	VUMIN  V22.S4, V20.S4, V20.S4
-	VADD   V9.S4, V8.S4, V21.S4
+	VLD3.P 48(R11), [V8.D2, V9.D2, V10.D2]
+	VLD3.P 48(R11), [V11.D2, V12.D2, V13.D2]
+	WORD   $0x4e8b1902                       // UZP1 V2.4S, V8.4S, V11.4S
+	WORD   $0x4e8b5903                       // UZP2 V3.4S, V8.4S, V11.4S
+	WORD   $0x4e8c1924                       // UZP1 V4.4S, V9.4S, V12.4S
+	WORD   $0x4e8c5925                       // UZP2 V5.4S, V9.4S, V12.4S
+	WORD   $0x4e8d1946                       // UZP1 V6.4S, V10.4S, V13.4S
+	WORD   $0x4e8d5947                       // UZP2 V7.4S, V10.4S, V13.4S
+	MOVD   R2, R13
+	VLD1.P 16(R13), [V14.S4]
+	VLD1.P 16(R13), [V15.S4]
+	VLD1.P 16(R13), [V16.S4]
+	VLD1.P 16(R13), [V17.S4]
+	VLD1.P 16(R13), [V18.S4]
+	VLD1.P 16(R13), [V19.S4]
+	WORD   $0x4eaeb455                       // SQDMULH V21.4S, V2.4S, V14.4S - c = (2ab) >> 32
+	WORD   $0x4eb19c56                       // MUL V22.4S, V2.4S, V17.4S - m = ab·μ
+	WORD   $0x4ea0b6d6                       // SQDMULH V22.4S, V22.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4eb626a8                       // SHSUB V8.4S, V21.4S, V22.4S - d = (c − m) / 2
+	VADD   V0.S4, V8.S4, V21.S4
+	VUMIN  V21.S4, V8.S4, V8.S4
+	WORD   $0x4eafb475                       // SQDMULH V21.4S, V3.4S, V15.4S - c = (2ab) >> 32
+	WORD   $0x4eb29c76                       // MUL V22.4S, V3.4S, V18.4S - m = ab·μ
+	WORD   $0x4ea0b6d6                       // SQDMULH V22.4S, V22.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4eb626b4                       // SHSUB V20.4S, V21.4S, V22.4S - d = (c − m) / 2
+	VADD   V0.S4, V20.S4, V21.S4
+	VUMIN  V21.S4, V20.S4, V20.S4
+	VADD   V3.S4, V2.S4, V21.S4
 	VSUB   V0.S4, V21.S4, V22.S4
 	VUMIN  V22.S4, V21.S4, V21.S4
-	VADD   V3.S4, V2.S4, V15.S4
-	VSUB   V0.S4, V15.S4, V22.S4
-	VUMIN  V22.S4, V15.S4, V15.S4
-	WORD   $0x4eafb6b6                       // SQDMULH V22.4S, V21.4S, V15.4S - c = (2ab) >> 32
-	WORD   $0x4eaf9eb7                       // MUL V23.4S, V21.4S, V15.4S - m = ab
-	WORD   $0x4ea19ef7                       // MUL V23.4S, V23.4S, V1.4S - m = ab·μ
+	WORD   $0x4eb0b6b6                       // SQDMULH V22.4S, V21.4S, V16.4S - c = (2ab) >> 32
+	WORD   $0x4eb39eb7                       // MUL V23.4S, V21.4S, V19.4S - m = ab·μ
 	WORD   $0x4ea0b6f7                       // SQDMULH V23.4S, V23.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4eb726cf                       // SHSUB V15.4S, V22.4S, V23.4S - d = (c − m) / 2
-	VADD   V0.S4, V15.S4, V22.S4
-	VUMIN  V22.S4, V15.S4, V15.S4
-	VSUB   V14.S4, V15.S4, V15.S4
-	VADD   V0.S4, V15.S4, V22.S4
-	VUMIN  V22.S4, V15.S4, V15.S4
-	VSUB   V20.S4, V15.S4, V15.S4
-	VADD   V0.S4, V15.S4, V22.S4
-	VUMIN  V22.S4, V15.S4, V15.S4
-	VADD   V20.S4, V20.S4, V21.S4
+	WORD   $0x4eb726c9                       // SHSUB V9.4S, V22.4S, V23.4S - d = (c − m) / 2
+	VADD   V0.S4, V9.S4, V22.S4
+	VUMIN  V22.S4, V9.S4, V9.S4
+	VSUB   V8.S4, V9.S4, V9.S4
+	VADD   V0.S4, V9.S4, V22.S4
+	VUMIN  V22.S4, V9.S4, V9.S4
+	VSUB   V20.S4, V9.S4, V9.S4
+	VADD   V0.S4, V9.S4, V22.S4
+	VUMIN  V22.S4, V9.S4, V9.S4
+	VADD   V20.S4, V8.S4, V8.S4
+	VSUB   V0.S4, V8.S4, V22.S4
+	VUMIN  V22.S4, V8.S4, V8.S4
+	VADD   V20.S4, V8.S4, V8.S4
+	VSUB   V0.S4, V8.S4, V22.S4
+	VUMIN  V22.S4, V8.S4, V8.S4
+	VADD   V20.S4, V8.S4, V8.S4
+	VSUB   V0.S4, V8.S4, V22.S4
+	VUMIN  V22.S4, V8.S4, V8.S4
+	VLD1.P 16(R13), [V14.S4]
+	VLD1.P 16(R13), [V15.S4]
+	VLD1.P 16(R13), [V16.S4]
+	VLD1.P 16(R13), [V17.S4]
+	VLD1.P 16(R13), [V18.S4]
+	VLD1.P 16(R13), [V19.S4]
+	WORD   $0x4eaeb495                       // SQDMULH V21.4S, V4.4S, V14.4S - c = (2ab) >> 32
+	WORD   $0x4eb19c96                       // MUL V22.4S, V4.4S, V17.4S - m = ab·μ
+	WORD   $0x4ea0b6d6                       // SQDMULH V22.4S, V22.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4eb626aa                       // SHSUB V10.4S, V21.4S, V22.4S - d = (c − m) / 2
+	VADD   V0.S4, V10.S4, V21.S4
+	VUMIN  V21.S4, V10.S4, V10.S4
+	WORD   $0x4eafb4b5                       // SQDMULH V21.4S, V5.4S, V15.4S - c = (2ab) >> 32
+	WORD   $0x4eb29cb6                       // MUL V22.4S, V5.4S, V18.4S - m = ab·μ
+	WORD   $0x4ea0b6d6                       // SQDMULH V22.4S, V22.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4eb626b4                       // SHSUB V20.4S, V21.4S, V22.4S - d = (c − m) / 2
+	VADD   V0.S4, V20.S4, V21.S4
+	VUMIN  V21.S4, V20.S4, V20.S4
+	VADD   V5.S4, V4.S4, V21.S4
 	VSUB   V0.S4, V21.S4, V22.S4
 	VUMIN  V22.S4, V21.S4, V21.S4
-	VADD   V20.S4, V21.S4, V21.S4
-	VSUB   V0.S4, V21.S4, V22.S4
-	VUMIN  V22.S4, V21.S4, V21.S4
-	VADD   V21.S4, V14.S4, V14.S4
-	VSUB   V0.S4, V14.S4, V22.S4
-	VUMIN  V22.S4, V14.S4, V14.S4
-	WORD   $0x4ea4b556                       // SQDMULH V22.4S, V10.4S, V4.4S - c = (2ab) >> 32
-	WORD   $0x4ea49d57                       // MUL V23.4S, V10.4S, V4.4S - m = ab
-	WORD   $0x4ea19ef7                       // MUL V23.4S, V23.4S, V1.4S - m = ab·μ
+	WORD   $0x4eb0b6b6                       // SQDMULH V22.4S, V21.4S, V16.4S - c = (2ab) >> 32
+	WORD   $0x4eb39eb7                       // MUL V23.4S, V21.4S, V19.4S - m = ab·μ
 	WORD   $0x4ea0b6f7                       // SQDMULH V23.4S, V23.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4eb726d0                       // SHSUB V16.4S, V22.4S, V23.4S - d = (c − m) / 2
-	VADD   V0.S4, V16.S4, V22.S4
-	VUMIN  V22.S4, V16.S4, V16.S4
-	WORD   $0x4ea5b576                       // SQDMULH V22.4S, V11.4S, V5.4S - c = (2ab) >> 32
-	WORD   $0x4ea59d77                       // MUL V23.4S, V11.4S, V5.4S - m = ab
-	WORD   $0x4ea19ef7                       // MUL V23.4S, V23.4S, V1.4S - m = ab·μ
+	WORD   $0x4eb726cb                       // SHSUB V11.4S, V22.4S, V23.4S - d = (c − m) / 2
+	VADD   V0.S4, V11.S4, V22.S4
+	VUMIN  V22.S4, V11.S4, V11.S4
+	VSUB   V10.S4, V11.S4, V11.S4
+	VADD   V0.S4, V11.S4, V22.S4
+	VUMIN  V22.S4, V11.S4, V11.S4
+	VSUB   V20.S4, V11.S4, V11.S4
+	VADD   V0.S4, V11.S4, V22.S4
+	VUMIN  V22.S4, V11.S4, V11.S4
+	VADD   V20.S4, V10.S4, V10.S4
+	VSUB   V0.S4, V10.S4, V22.S4
+	VUMIN  V22.S4, V10.S4, V10.S4
+	VADD   V20.S4, V10.S4, V10.S4
+	VSUB   V0.S4, V10.S4, V22.S4
+	VUMIN  V22.S4, V10.S4, V10.S4
+	VADD   V20.S4, V10.S4, V10.S4
+	VSUB   V0.S4, V10.S4, V22.S4
+	VUMIN  V22.S4, V10.S4, V10.S4
+	VLD1.P 16(R13), [V14.S4]
+	VLD1.P 16(R13), [V15.S4]
+	VLD1.P 16(R13), [V16.S4]
+	VLD1.P 16(R13), [V17.S4]
+	VLD1.P 16(R13), [V18.S4]
+	VLD1.P 16(R13), [V19.S4]
+	WORD   $0x4eaeb4d5                       // SQDMULH V21.4S, V6.4S, V14.4S - c = (2ab) >> 32
+	WORD   $0x4eb19cd6                       // MUL V22.4S, V6.4S, V17.4S - m = ab·μ
+	WORD   $0x4ea0b6d6                       // SQDMULH V22.4S, V22.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4eb626ac                       // SHSUB V12.4S, V21.4S, V22.4S - d = (c − m) / 2
+	VADD   V0.S4, V12.S4, V21.S4
+	VUMIN  V21.S4, V12.S4, V12.S4
+	WORD   $0x4eafb4f5                       // SQDMULH V21.4S, V7.4S, V15.4S - c = (2ab) >> 32
+	WORD   $0x4eb29cf6                       // MUL V22.4S, V7.4S, V18.4S - m = ab·μ
+	WORD   $0x4ea0b6d6                       // SQDMULH V22.4S, V22.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4eb626b4                       // SHSUB V20.4S, V21.4S, V22.4S - d = (c − m) / 2
+	VADD   V0.S4, V20.S4, V21.S4
+	VUMIN  V21.S4, V20.S4, V20.S4
+	VADD   V7.S4, V6.S4, V21.S4
+	VSUB   V0.S4, V21.S4, V22.S4
+	VUMIN  V22.S4, V21.S4, V21.S4
+	WORD   $0x4eb0b6b6                       // SQDMULH V22.4S, V21.4S, V16.4S - c = (2ab) >> 32
+	WORD   $0x4eb39eb7                       // MUL V23.4S, V21.4S, V19.4S - m = ab·μ
 	WORD   $0x4ea0b6f7                       // SQDMULH V23.4S, V23.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4eb726d4                       // SHSUB V20.4S, V22.4S, V23.4S - d = (c − m) / 2
-	VADD   V0.S4, V20.S4, V22.S4
-	VUMIN  V22.S4, V20.S4, V20.S4
-	VADD   V11.S4, V10.S4, V21.S4
-	VSUB   V0.S4, V21.S4, V22.S4
-	VUMIN  V22.S4, V21.S4, V21.S4
-	VADD   V5.S4, V4.S4, V17.S4
-	VSUB   V0.S4, V17.S4, V22.S4
-	VUMIN  V22.S4, V17.S4, V17.S4
-	WORD   $0x4eb1b6b6                       // SQDMULH V22.4S, V21.4S, V17.4S - c = (2ab) >> 32
-	WORD   $0x4eb19eb7                       // MUL V23.4S, V21.4S, V17.4S - m = ab
-	WORD   $0x4ea19ef7                       // MUL V23.4S, V23.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b6f7                       // SQDMULH V23.4S, V23.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4eb726d1                       // SHSUB V17.4S, V22.4S, V23.4S - d = (c − m) / 2
-	VADD   V0.S4, V17.S4, V22.S4
-	VUMIN  V22.S4, V17.S4, V17.S4
-	VSUB   V16.S4, V17.S4, V17.S4
-	VADD   V0.S4, V17.S4, V22.S4
-	VUMIN  V22.S4, V17.S4, V17.S4
-	VSUB   V20.S4, V17.S4, V17.S4
-	VADD   V0.S4, V17.S4, V22.S4
-	VUMIN  V22.S4, V17.S4, V17.S4
-	VADD   V20.S4, V20.S4, V21.S4
-	VSUB   V0.S4, V21.S4, V22.S4
-	VUMIN  V22.S4, V21.S4, V21.S4
-	VADD   V20.S4, V21.S4, V21.S4
-	VSUB   V0.S4, V21.S4, V22.S4
-	VUMIN  V22.S4, V21.S4, V21.S4
-	VADD   V21.S4, V16.S4, V16.S4
-	VSUB   V0.S4, V16.S4, V22.S4
-	VUMIN  V22.S4, V16.S4, V16.S4
-	WORD   $0x4ea6b596                       // SQDMULH V22.4S, V12.4S, V6.4S - c = (2ab) >> 32
-	WORD   $0x4ea69d97                       // MUL V23.4S, V12.4S, V6.4S - m = ab
-	WORD   $0x4ea19ef7                       // MUL V23.4S, V23.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b6f7                       // SQDMULH V23.4S, V23.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4eb726d2                       // SHSUB V18.4S, V22.4S, V23.4S - d = (c − m) / 2
-	VADD   V0.S4, V18.S4, V22.S4
-	VUMIN  V22.S4, V18.S4, V18.S4
-	WORD   $0x4ea7b5b6                       // SQDMULH V22.4S, V13.4S, V7.4S - c = (2ab) >> 32
-	WORD   $0x4ea79db7                       // MUL V23.4S, V13.4S, V7.4S - m = ab
-	WORD   $0x4ea19ef7                       // MUL V23.4S, V23.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b6f7                       // SQDMULH V23.4S, V23.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4eb726d4                       // SHSUB V20.4S, V22.4S, V23.4S - d = (c − m) / 2
-	VADD   V0.S4, V20.S4, V22.S4
-	VUMIN  V22.S4, V20.S4, V20.S4
-	VADD   V13.S4, V12.S4, V21.S4
-	VSUB   V0.S4, V21.S4, V22.S4
-	VUMIN  V22.S4, V21.S4, V21.S4
-	VADD   V7.S4, V6.S4, V19.S4
-	VSUB   V0.S4, V19.S4, V22.S4
-	VUMIN  V22.S4, V19.S4, V19.S4
-	WORD   $0x4eb3b6b6                       // SQDMULH V22.4S, V21.4S, V19.4S - c = (2ab) >> 32
-	WORD   $0x4eb39eb7                       // MUL V23.4S, V21.4S, V19.4S - m = ab
-	WORD   $0x4ea19ef7                       // MUL V23.4S, V23.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b6f7                       // SQDMULH V23.4S, V23.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4eb726d3                       // SHSUB V19.4S, V22.4S, V23.4S - d = (c − m) / 2
-	VADD   V0.S4, V19.S4, V22.S4
-	VUMIN  V22.S4, V19.S4, V19.S4
-	VSUB   V18.S4, V19.S4, V19.S4
-	VADD   V0.S4, V19.S4, V22.S4
-	VUMIN  V22.S4, V19.S4, V19.S4
-	VSUB   V20.S4, V19.S4, V19.S4
-	VADD   V0.S4, V19.S4, V22.S4
-	VUMIN  V22.S4, V19.S4, V19.S4
-	VADD   V20.S4, V20.S4, V21.S4
-	VSUB   V0.S4, V21.S4, V22.S4
-	VUMIN  V22.S4, V21.S4, V21.S4
-	VADD   V20.S4, V21.S4, V21.S4
-	VSUB   V0.S4, V21.S4, V22.S4
-	VUMIN  V22.S4, V21.S4, V21.S4
-	VADD   V21.S4, V18.S4, V18.S4
-	VSUB   V0.S4, V18.S4, V22.S4
-	VUMIN  V22.S4, V18.S4, V18.S4
-	VADD   V12.S4, V10.S4, V20.S4
-	VSUB   V0.S4, V20.S4, V24.S4
-	VUMIN  V24.S4, V20.S4, V20.S4
-	VADD   V13.S4, V11.S4, V21.S4
-	VSUB   V0.S4, V21.S4, V24.S4
-	VUMIN  V24.S4, V21.S4, V21.S4
-	VADD   V6.S4, V4.S4, V22.S4
-	VSUB   V0.S4, V22.S4, V24.S4
+	WORD   $0x4eb726cd                       // SHSUB V13.4S, V22.4S, V23.4S - d = (c − m) / 2
+	VADD   V0.S4, V13.S4, V22.S4
+	VUMIN  V22.S4, V13.S4, V13.S4
+	VSUB   V12.S4, V13.S4, V13.S4
+	VADD   V0.S4, V13.S4, V22.S4
+	VUMIN  V22.S4, V13.S4, V13.S4
+	VSUB   V20.S4, V13.S4, V13.S4
+	VADD   V0.S4, V13.S4, V22.S4
+	VUMIN  V22.S4, V13.S4, V13.S4
+	VADD   V20.S4, V12.S4, V12.S4
+	VSUB   V0.S4, V12.S4, V22.S4
+	VUMIN  V22.S4, V12.S4, V12.S4
+	VADD   V20.S4, V12.S4, V12.S4
+	VSUB   V0.S4, V12.S4, V22.S4
+	VUMIN  V22.S4, V12.S4, V12.S4
+	VADD   V20.S4, V12.S4, V12.S4
+	VSUB   V0.S4, V12.S4, V22.S4
+	VUMIN  V22.S4, V12.S4, V12.S4
+	VADD   V6.S4, V4.S4, V14.S4
+	VSUB   V0.S4, V14.S4, V16.S4
+	VUMIN  V16.S4, V14.S4, V14.S4
+	VADD   V7.S4, V5.S4, V15.S4
+	VSUB   V0.S4, V15.S4, V16.S4
+	VUMIN  V16.S4, V15.S4, V15.S4
+	VLD1.P 16(R13), [V16.S4]
+	VLD1.P 16(R13), [V17.S4]
+	VLD1.P 16(R13), [V18.S4]
+	VLD1.P 16(R13), [V19.S4]
+	VLD1.P 16(R13), [V20.S4]
+	VLD1.P 16(R13), [V21.S4]
+	WORD   $0x4eb0b5d8                       // SQDMULH V24.4S, V14.4S, V16.4S - c = (2ab) >> 32
+	WORD   $0x4eb39dd9                       // MUL V25.4S, V14.4S, V19.4S - m = ab·μ
+	WORD   $0x4ea0b739                       // SQDMULH V25.4S, V25.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4eb92716                       // SHSUB V22.4S, V24.4S, V25.4S - d = (c − m) / 2
+	VADD   V0.S4, V22.S4, V24.S4
 	VUMIN  V24.S4, V22.S4, V22.S4
-	VADD   V7.S4, V5.S4, V23.S4
-	VSUB   V0.S4, V23.S4, V24.S4
+	WORD   $0x4eb1b5f8                       // SQDMULH V24.4S, V15.4S, V17.4S - c = (2ab) >> 32
+	WORD   $0x4eb49df9                       // MUL V25.4S, V15.4S, V20.4S - m = ab·μ
+	WORD   $0x4ea0b739                       // SQDMULH V25.4S, V25.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4eb92717                       // SHSUB V23.4S, V24.4S, V25.4S - d = (c − m) / 2
+	VADD   V0.S4, V23.S4, V24.S4
 	VUMIN  V24.S4, V23.S4, V23.S4
-	WORD   $0x4eb6b69a                       // SQDMULH V26.4S, V20.4S, V22.4S - c = (2ab) >> 32
-	WORD   $0x4eb69e9b                       // MUL V27.4S, V20.4S, V22.4S - m = ab
-	WORD   $0x4ea19f7b                       // MUL V27.4S, V27.4S, V1.4S - m = ab·μ
+	VADD   V15.S4, V14.S4, V14.S4
+	VSUB   V0.S4, V14.S4, V24.S4
+	VUMIN  V24.S4, V14.S4, V14.S4
+	WORD   $0x4eb2b5d8                       // SQDMULH V24.4S, V14.4S, V18.4S - c = (2ab) >> 32
+	WORD   $0x4eb59dd9                       // MUL V25.4S, V14.4S, V21.4S - m = ab·μ
+	WORD   $0x4ea0b739                       // SQDMULH V25.4S, V25.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4eb9270f                       // SHSUB V15.4S, V24.4S, V25.4S - d = (c − m) / 2
+	VADD   V0.S4, V15.S4, V24.S4
+	VUMIN  V24.S4, V15.S4, V15.S4
+	VSUB   V22.S4, V15.S4, V15.S4
+	VADD   V0.S4, V15.S4, V24.S4
+	VUMIN  V24.S4, V15.S4, V15.S4
+	VSUB   V23.S4, V15.S4, V15.S4
+	VADD   V0.S4, V15.S4, V24.S4
+	VUMIN  V24.S4, V15.S4, V15.S4
+	VADD   V23.S4, V22.S4, V14.S4
+	VSUB   V0.S4, V14.S4, V24.S4
+	VUMIN  V24.S4, V14.S4, V14.S4
+	VADD   V23.S4, V14.S4, V14.S4
+	VSUB   V0.S4, V14.S4, V24.S4
+	VUMIN  V24.S4, V14.S4, V14.S4
+	VADD   V23.S4, V14.S4, V14.S4
+	VSUB   V0.S4, V14.S4, V24.S4
+	VUMIN  V24.S4, V14.S4, V14.S4
+	VSUB   V10.S4, V14.S4, V14.S4
+	VADD   V0.S4, V14.S4, V16.S4
+	VUMIN  V16.S4, V14.S4, V14.S4
+	VSUB   V12.S4, V14.S4, V14.S4
+	VADD   V0.S4, V14.S4, V16.S4
+	VUMIN  V16.S4, V14.S4, V14.S4
+	VSUB   V11.S4, V15.S4, V15.S4
+	VADD   V0.S4, V15.S4, V16.S4
+	VUMIN  V16.S4, V15.S4, V15.S4
+	VSUB   V13.S4, V15.S4, V15.S4
+	VADD   V0.S4, V15.S4, V16.S4
+	VUMIN  V16.S4, V15.S4, V15.S4
+	VADD   V15.S4, V15.S4, V16.S4
+	VSUB   V0.S4, V16.S4, V17.S4
+	VUMIN  V17.S4, V16.S4, V16.S4
+	VADD   V15.S4, V16.S4, V16.S4
+	VSUB   V0.S4, V16.S4, V17.S4
+	VUMIN  V17.S4, V16.S4, V16.S4
+	VADD   V15.S4, V14.S4, V15.S4
+	VSUB   V0.S4, V15.S4, V17.S4
+	VUMIN  V17.S4, V15.S4, V15.S4
+	VADD   V16.S4, V14.S4, V14.S4
+	VSUB   V0.S4, V14.S4, V17.S4
+	VUMIN  V17.S4, V14.S4, V14.S4
+	VADD   V8.S4, V14.S4, V14.S4
+	VSUB   V0.S4, V14.S4, V17.S4
+	VUMIN  V17.S4, V14.S4, V14.S4
+	VADD   V9.S4, V15.S4, V15.S4
+	VSUB   V0.S4, V15.S4, V17.S4
+	VUMIN  V17.S4, V15.S4, V15.S4
+	VADD   V4.S4, V2.S4, V16.S4
+	VSUB   V0.S4, V16.S4, V18.S4
+	VUMIN  V18.S4, V16.S4, V16.S4
+	VADD   V5.S4, V3.S4, V17.S4
+	VSUB   V0.S4, V17.S4, V18.S4
+	VUMIN  V18.S4, V17.S4, V17.S4
+	VLD1.P 16(R13), [V18.S4]
+	VLD1.P 16(R13), [V19.S4]
+	VLD1.P 16(R13), [V20.S4]
+	VLD1.P 16(R13), [V21.S4]
+	VLD1.P 16(R13), [V22.S4]
+	VLD1.P 16(R13), [V23.S4]
+	WORD   $0x4eb2b61a                       // SQDMULH V26.4S, V16.4S, V18.4S - c = (2ab) >> 32
+	WORD   $0x4eb59e1b                       // MUL V27.4S, V16.4S, V21.4S - m = ab·μ
 	WORD   $0x4ea0b77b                       // SQDMULH V27.4S, V27.4S, V0.4S - m = (2mq) >> 32
 	WORD   $0x4ebb2758                       // SHSUB V24.4S, V26.4S, V27.4S - d = (c − m) / 2
 	VADD   V0.S4, V24.S4, V26.S4
 	VUMIN  V26.S4, V24.S4, V24.S4
-	WORD   $0x4eb7b6ba                       // SQDMULH V26.4S, V21.4S, V23.4S - c = (2ab) >> 32
-	WORD   $0x4eb79ebb                       // MUL V27.4S, V21.4S, V23.4S - m = ab
-	WORD   $0x4ea19f7b                       // MUL V27.4S, V27.4S, V1.4S - m = ab·μ
+	WORD   $0x4eb3b63a                       // SQDMULH V26.4S, V17.4S, V19.4S - c = (2ab) >> 32
+	WORD   $0x4eb69e3b                       // MUL V27.4S, V17.4S, V22.4S - m = ab·μ
 	WORD   $0x4ea0b77b                       // SQDMULH V27.4S, V27.4S, V0.4S - m = (2mq) >> 32
 	WORD   $0x4ebb2759                       // SHSUB V25.4S, V26.4S, V27.4S - d = (c − m) / 2
 	VADD   V0.S4, V25.S4, V26.S4
 	VUMIN  V26.S4, V25.S4, V25.S4
-	VADD   V21.S4, V20.S4, V20.S4
-	VSUB   V0.S4, V20.S4, V26.S4
-	VUMIN  V26.S4, V20.S4, V20.S4
-	VADD   V23.S4, V22.S4, V22.S4
-	VSUB   V0.S4, V22.S4, V26.S4
-	VUMIN  V26.S4, V22.S4, V22.S4
-	WORD   $0x4eb6b69a                       // SQDMULH V26.4S, V20.4S, V22.4S - c = (2ab) >> 32
-	WORD   $0x4eb69e9b                       // MUL V27.4S, V20.4S, V22.4S - m = ab
-	WORD   $0x4ea19f7b                       // MUL V27.4S, V27.4S, V1.4S - m = ab·μ
+	VADD   V17.S4, V16.S4, V16.S4
+	VSUB   V0.S4, V16.S4, V26.S4
+	VUMIN  V26.S4, V16.S4, V16.S4
+	WORD   $0x4eb4b61a                       // SQDMULH V26.4S, V16.4S, V20.4S - c = (2ab) >> 32
+	WORD   $0x4eb79e1b                       // MUL V27.4S, V16.4S, V23.4S - m = ab·μ
 	WORD   $0x4ea0b77b                       // SQDMULH V27.4S, V27.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4ebb2755                       // SHSUB V21.4S, V26.4S, V27.4S - d = (c − m) / 2
-	VADD   V0.S4, V21.S4, V26.S4
-	VUMIN  V26.S4, V21.S4, V21.S4
-	VSUB   V24.S4, V21.S4, V21.S4
-	VADD   V0.S4, V21.S4, V26.S4
-	VUMIN  V26.S4, V21.S4, V21.S4
-	VSUB   V25.S4, V21.S4, V21.S4
-	VADD   V0.S4, V21.S4, V26.S4
-	VUMIN  V26.S4, V21.S4, V21.S4
-	VADD   V25.S4, V25.S4, V22.S4
-	VSUB   V0.S4, V22.S4, V26.S4
-	VUMIN  V26.S4, V22.S4, V22.S4
-	VADD   V25.S4, V22.S4, V22.S4
-	VSUB   V0.S4, V22.S4, V26.S4
-	VUMIN  V26.S4, V22.S4, V22.S4
-	VADD   V22.S4, V24.S4, V20.S4
-	VSUB   V0.S4, V20.S4, V26.S4
-	VUMIN  V26.S4, V20.S4, V20.S4
-	VSUB   V16.S4, V20.S4, V20.S4
-	VADD   V0.S4, V20.S4, V22.S4
-	VUMIN  V22.S4, V20.S4, V20.S4
-	VSUB   V18.S4, V20.S4, V20.S4
-	VADD   V0.S4, V20.S4, V22.S4
-	VUMIN  V22.S4, V20.S4, V20.S4
-	VSUB   V17.S4, V21.S4, V21.S4
-	VADD   V0.S4, V21.S4, V22.S4
-	VUMIN  V22.S4, V21.S4, V21.S4
-	VSUB   V19.S4, V21.S4, V21.S4
-	VADD   V0.S4, V21.S4, V22.S4
-	VUMIN  V22.S4, V21.S4, V21.S4
-	VADD   V21.S4, V21.S4, V22.S4
-	VSUB   V0.S4, V22.S4, V23.S4
-	VUMIN  V23.S4, V22.S4, V22.S4
-	VADD   V21.S4, V22.S4, V22.S4
-	VSUB   V0.S4, V22.S4, V23.S4
-	VUMIN  V23.S4, V22.S4, V22.S4
-	VADD   V21.S4, V20.S4, V21.S4
-	VSUB   V0.S4, V21.S4, V23.S4
-	VUMIN  V23.S4, V21.S4, V21.S4
-	VADD   V22.S4, V20.S4, V20.S4
-	VSUB   V0.S4, V20.S4, V23.S4
-	VUMIN  V23.S4, V20.S4, V20.S4
-	VADD   V14.S4, V20.S4, V20.S4
-	VSUB   V0.S4, V20.S4, V23.S4
-	VUMIN  V23.S4, V20.S4, V20.S4
-	VADD   V15.S4, V21.S4, V21.S4
-	VSUB   V0.S4, V21.S4, V23.S4
-	VUMIN  V23.S4, V21.S4, V21.S4
-	VADD   V10.S4, V8.S4, V22.S4
-	VSUB   V0.S4, V22.S4, V26.S4
-	VUMIN  V26.S4, V22.S4, V22.S4
-	VADD   V11.S4, V9.S4, V23.S4
-	VSUB   V0.S4, V23.S4, V26.S4
-	VUMIN  V26.S4, V23.S4, V23.S4
-	VADD   V4.S4, V2.S4, V24.S4
-	VSUB   V0.S4, V24.S4, V26.S4
+	WORD   $0x4ebb2751                       // SHSUB V17.4S, V26.4S, V27.4S - d = (c − m) / 2
+	VADD   V0.S4, V17.S4, V26.S4
+	VUMIN  V26.S4, V17.S4, V17.S4
+	VSUB   V24.S4, V17.S4, V17.S4
+	VADD   V0.S4, V17.S4, V26.S4
+	VUMIN  V26.S4, V17.S4, V17.S4
+	VSUB   V25.S4, V17.S4, V17.S4
+	VADD   V0.S4, V17.S4, V26.S4
+	VUMIN  V26.S4, V17.S4, V17.S4
+	VADD   V25.S4, V24.S4, V16.S4
+	VSUB   V0.S4, V16.S4, V26.S4
+	VUMIN  V26.S4, V16.S4, V16.S4
+	VADD   V25.S4, V16.S4, V16.S4
+	VSUB   V0.S4, V16.S4, V26.S4
+	VUMIN  V26.S4, V16.S4, V16.S4
+	VADD   V25.S4, V16.S4, V16.S4
+	VSUB   V0.S4, V16.S4, V26.S4
+	VUMIN  V26.S4, V16.S4, V16.S4
+	VSUB   V8.S4, V16.S4, V16.S4
+	VADD   V0.S4, V16.S4, V18.S4
+	VUMIN  V18.S4, V16.S4, V16.S4
+	VSUB   V10.S4, V16.S4, V16.S4
+	VADD   V0.S4, V16.S4, V18.S4
+	VUMIN  V18.S4, V16.S4, V16.S4
+	VSUB   V9.S4, V17.S4, V17.S4
+	VADD   V0.S4, V17.S4, V18.S4
+	VUMIN  V18.S4, V17.S4, V17.S4
+	VSUB   V11.S4, V17.S4, V17.S4
+	VADD   V0.S4, V17.S4, V18.S4
+	VUMIN  V18.S4, V17.S4, V17.S4
+	VMOV   V12.B16, V18.B16
+	VMOV   V13.B16, V19.B16
+	VADD   V19.S4, V19.S4, V20.S4
+	VSUB   V0.S4, V20.S4, V21.S4
+	VUMIN  V21.S4, V20.S4, V20.S4
+	VADD   V19.S4, V20.S4, V20.S4
+	VSUB   V0.S4, V20.S4, V21.S4
+	VUMIN  V21.S4, V20.S4, V20.S4
+	VADD   V19.S4, V18.S4, V19.S4
+	VSUB   V0.S4, V19.S4, V21.S4
+	VUMIN  V21.S4, V19.S4, V19.S4
+	VADD   V20.S4, V18.S4, V18.S4
+	VSUB   V0.S4, V18.S4, V21.S4
+	VUMIN  V21.S4, V18.S4, V18.S4
+	VADD   V16.S4, V18.S4, V18.S4
+	VSUB   V0.S4, V18.S4, V21.S4
+	VUMIN  V21.S4, V18.S4, V18.S4
+	VADD   V17.S4, V19.S4, V19.S4
+	VSUB   V0.S4, V19.S4, V21.S4
+	VUMIN  V21.S4, V19.S4, V19.S4
+	VADD   V6.S4, V2.S4, V4.S4
+	VSUB   V0.S4, V4.S4, V16.S4
+	VUMIN  V16.S4, V4.S4, V4.S4
+	VADD   V7.S4, V3.S4, V5.S4
+	VSUB   V0.S4, V5.S4, V16.S4
+	VUMIN  V16.S4, V5.S4, V5.S4
+	VLD1.P 16(R13), [V16.S4]
+	VLD1.P 16(R13), [V17.S4]
+	VLD1.P 16(R13), [V20.S4]
+	VLD1.P 16(R13), [V21.S4]
+	VLD1.P 16(R13), [V22.S4]
+	VLD1.P 16(R13), [V23.S4]
+	WORD   $0x4eb0b49a                       // SQDMULH V26.4S, V4.4S, V16.4S - c = (2ab) >> 32
+	WORD   $0x4eb59c9b                       // MUL V27.4S, V4.4S, V21.4S - m = ab·μ
+	WORD   $0x4ea0b77b                       // SQDMULH V27.4S, V27.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4ebb2758                       // SHSUB V24.4S, V26.4S, V27.4S - d = (c − m) / 2
+	VADD   V0.S4, V24.S4, V26.S4
 	VUMIN  V26.S4, V24.S4, V24.S4
-	VADD   V5.S4, V3.S4, V25.S4
-	VSUB   V0.S4, V25.S4, V26.S4
+	WORD   $0x4eb1b4ba                       // SQDMULH V26.4S, V5.4S, V17.4S - c = (2ab) >> 32
+	WORD   $0x4eb69cbb                       // MUL V27.4S, V5.4S, V22.4S - m = ab·μ
+	WORD   $0x4ea0b77b                       // SQDMULH V27.4S, V27.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4ebb2759                       // SHSUB V25.4S, V26.4S, V27.4S - d = (c − m) / 2
+	VADD   V0.S4, V25.S4, V26.S4
 	VUMIN  V26.S4, V25.S4, V25.S4
-	WORD   $0x4eb8b6dc                       // SQDMULH V28.4S, V22.4S, V24.4S - c = (2ab) >> 32
-	WORD   $0x4eb89edd                       // MUL V29.4S, V22.4S, V24.4S - m = ab
-	WORD   $0x4ea19fbd                       // MUL V29.4S, V29.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b7bd                       // SQDMULH V29.4S, V29.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4ebd279a                       // SHSUB V26.4S, V28.4S, V29.4S - d = (c − m) / 2
-	VADD   V0.S4, V26.S4, V28.S4
-	VUMIN  V28.S4, V26.S4, V26.S4
-	WORD   $0x4eb9b6fc                       // SQDMULH V28.4S, V23.4S, V25.4S - c = (2ab) >> 32
-	WORD   $0x4eb99efd                       // MUL V29.4S, V23.4S, V25.4S - m = ab
-	WORD   $0x4ea19fbd                       // MUL V29.4S, V29.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b7bd                       // SQDMULH V29.4S, V29.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4ebd279b                       // SHSUB V27.4S, V28.4S, V29.4S - d = (c − m) / 2
-	VADD   V0.S4, V27.S4, V28.S4
-	VUMIN  V28.S4, V27.S4, V27.S4
-	VADD   V23.S4, V22.S4, V22.S4
-	VSUB   V0.S4, V22.S4, V28.S4
-	VUMIN  V28.S4, V22.S4, V22.S4
-	VADD   V25.S4, V24.S4, V24.S4
-	VSUB   V0.S4, V24.S4, V28.S4
-	VUMIN  V28.S4, V24.S4, V24.S4
-	WORD   $0x4eb8b6dc                       // SQDMULH V28.4S, V22.4S, V24.4S - c = (2ab) >> 32
-	WORD   $0x4eb89edd                       // MUL V29.4S, V22.4S, V24.4S - m = ab
-	WORD   $0x4ea19fbd                       // MUL V29.4S, V29.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b7bd                       // SQDMULH V29.4S, V29.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4ebd2797                       // SHSUB V23.4S, V28.4S, V29.4S - d = (c − m) / 2
-	VADD   V0.S4, V23.S4, V28.S4
-	VUMIN  V28.S4, V23.S4, V23.S4
-	VSUB   V26.S4, V23.S4, V23.S4
-	VADD   V0.S4, V23.S4, V28.S4
-	VUMIN  V28.S4, V23.S4, V23.S4
-	VSUB   V27.S4, V23.S4, V23.S4
-	VADD   V0.S4, V23.S4, V28.S4
-	VUMIN  V28.S4, V23.S4, V23.S4
-	VADD   V27.S4, V27.S4, V24.S4
-	VSUB   V0.S4, V24.S4, V28.S4
-	VUMIN  V28.S4, V24.S4, V24.S4
-	VADD   V27.S4, V24.S4, V24.S4
-	VSUB   V0.S4, V24.S4, V28.S4
-	VUMIN  V28.S4, V24.S4, V24.S4
-	VADD   V24.S4, V26.S4, V22.S4
-	VSUB   V0.S4, V22.S4, V28.S4
-	VUMIN  V28.S4, V22.S4, V22.S4
-	VSUB   V14.S4, V22.S4, V22.S4
-	VADD   V0.S4, V22.S4, V24.S4
-	VUMIN  V24.S4, V22.S4, V22.S4
-	VSUB   V16.S4, V22.S4, V22.S4
-	VADD   V0.S4, V22.S4, V24.S4
-	VUMIN  V24.S4, V22.S4, V22.S4
-	VSUB   V15.S4, V23.S4, V23.S4
-	VADD   V0.S4, V23.S4, V24.S4
-	VUMIN  V24.S4, V23.S4, V23.S4
-	VSUB   V17.S4, V23.S4, V23.S4
-	VADD   V0.S4, V23.S4, V24.S4
-	VUMIN  V24.S4, V23.S4, V23.S4
-	VMOV   V18.B16, V24.B16
-	VMOV   V19.B16, V25.B16
-	VADD   V25.S4, V25.S4, V26.S4
-	VSUB   V0.S4, V26.S4, V27.S4
-	VUMIN  V27.S4, V26.S4, V26.S4
-	VADD   V25.S4, V26.S4, V26.S4
-	VSUB   V0.S4, V26.S4, V27.S4
-	VUMIN  V27.S4, V26.S4, V26.S4
-	VADD   V25.S4, V24.S4, V25.S4
-	VSUB   V0.S4, V25.S4, V27.S4
-	VUMIN  V27.S4, V25.S4, V25.S4
-	VADD   V26.S4, V24.S4, V24.S4
-	VSUB   V0.S4, V24.S4, V27.S4
-	VUMIN  V27.S4, V24.S4, V24.S4
-	VADD   V22.S4, V24.S4, V24.S4
-	VSUB   V0.S4, V24.S4, V27.S4
-	VUMIN  V27.S4, V24.S4, V24.S4
-	VADD   V23.S4, V25.S4, V25.S4
-	VSUB   V0.S4, V25.S4, V27.S4
-	VUMIN  V27.S4, V25.S4, V25.S4
-	VADD   V12.S4, V8.S4, V10.S4
-	VSUB   V0.S4, V10.S4, V26.S4
-	VUMIN  V26.S4, V10.S4, V10.S4
-	VADD   V13.S4, V9.S4, V11.S4
-	VSUB   V0.S4, V11.S4, V26.S4
-	VUMIN  V26.S4, V11.S4, V11.S4
-	VADD   V6.S4, V2.S4, V22.S4
-	VSUB   V0.S4, V22.S4, V26.S4
-	VUMIN  V26.S4, V22.S4, V22.S4
-	VADD   V7.S4, V3.S4, V23.S4
-	VSUB   V0.S4, V23.S4, V26.S4
-	VUMIN  V26.S4, V23.S4, V23.S4
-	WORD   $0x4eb6b55c                       // SQDMULH V28.4S, V10.4S, V22.4S - c = (2ab) >> 32
-	WORD   $0x4eb69d5d                       // MUL V29.4S, V10.4S, V22.4S - m = ab
-	WORD   $0x4ea19fbd                       // MUL V29.4S, V29.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b7bd                       // SQDMULH V29.4S, V29.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4ebd279a                       // SHSUB V26.4S, V28.4S, V29.4S - d = (c − m) / 2
-	VADD   V0.S4, V26.S4, V28.S4
-	VUMIN  V28.S4, V26.S4, V26.S4
-	WORD   $0x4eb7b57c                       // SQDMULH V28.4S, V11.4S, V23.4S - c = (2ab) >> 32
-	WORD   $0x4eb79d7d                       // MUL V29.4S, V11.4S, V23.4S - m = ab
-	WORD   $0x4ea19fbd                       // MUL V29.4S, V29.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b7bd                       // SQDMULH V29.4S, V29.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4ebd279b                       // SHSUB V27.4S, V28.4S, V29.4S - d = (c − m) / 2
-	VADD   V0.S4, V27.S4, V28.S4
-	VUMIN  V28.S4, V27.S4, V27.S4
-	VADD   V11.S4, V10.S4, V10.S4
-	VSUB   V0.S4, V10.S4, V28.S4
-	VUMIN  V28.S4, V10.S4, V10.S4
-	VADD   V23.S4, V22.S4, V22.S4
-	VSUB   V0.S4, V22.S4, V28.S4
-	VUMIN  V28.S4, V22.S4, V22.S4
-	WORD   $0x4eb6b55c                       // SQDMULH V28.4S, V10.4S, V22.4S - c = (2ab) >> 32
-	WORD   $0x4eb69d5d                       // MUL V29.4S, V10.4S, V22.4S - m = ab
-	WORD   $0x4ea19fbd                       // MUL V29.4S, V29.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b7bd                       // SQDMULH V29.4S, V29.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4ebd278b                       // SHSUB V11.4S, V28.4S, V29.4S - d = (c − m) / 2
-	VADD   V0.S4, V11.S4, V28.S4
-	VUMIN  V28.S4, V11.S4, V11.S4
-	VSUB   V26.S4, V11.S4, V11.S4
-	VADD   V0.S4, V11.S4, V28.S4
-	VUMIN  V28.S4, V11.S4, V11.S4
-	VSUB   V27.S4, V11.S4, V11.S4
-	VADD   V0.S4, V11.S4, V28.S4
-	VUMIN  V28.S4, V11.S4, V11.S4
-	VADD   V27.S4, V27.S4, V22.S4
-	VSUB   V0.S4, V22.S4, V28.S4
-	VUMIN  V28.S4, V22.S4, V22.S4
-	VADD   V27.S4, V22.S4, V22.S4
-	VSUB   V0.S4, V22.S4, V28.S4
-	VUMIN  V28.S4, V22.S4, V22.S4
-	VADD   V22.S4, V26.S4, V10.S4
-	VSUB   V0.S4, V10.S4, V28.S4
-	VUMIN  V28.S4, V10.S4, V10.S4
-	VSUB   V14.S4, V10.S4, V10.S4
-	VADD   V0.S4, V10.S4, V22.S4
-	VUMIN  V22.S4, V10.S4, V10.S4
-	VSUB   V18.S4, V10.S4, V10.S4
-	VADD   V0.S4, V10.S4, V22.S4
-	VUMIN  V22.S4, V10.S4, V10.S4
-	VSUB   V15.S4, V11.S4, V11.S4
-	VADD   V0.S4, V11.S4, V22.S4
-	VUMIN  V22.S4, V11.S4, V11.S4
-	VSUB   V19.S4, V11.S4, V11.S4
-	VADD   V0.S4, V11.S4, V22.S4
-	VUMIN  V22.S4, V11.S4, V11.S4
-	VADD   V16.S4, V10.S4, V10.S4
-	VSUB   V0.S4, V10.S4, V22.S4
-	VUMIN  V22.S4, V10.S4, V10.S4
-	VADD   V17.S4, V11.S4, V11.S4
-	VSUB   V0.S4, V11.S4, V22.S4
-	VUMIN  V22.S4, V11.S4, V11.S4
-	VZIP1  V21.S4, V20.S4, V12.S4
-	VZIP1  V25.S4, V24.S4, V13.S4
-	VZIP1  V11.S4, V10.S4, V14.S4
-	VLD3.P 48(R1), [V15.D2, V16.D2, V17.D2]
-	VADD   V15.S4, V12.S4, V12.S4
-	VSUB   V0.S4, V12.S4, V8.S4
-	VUMIN  V8.S4, V12.S4, V12.S4
-	VADD   V16.S4, V13.S4, V13.S4
-	VSUB   V0.S4, V13.S4, V8.S4
-	VUMIN  V8.S4, V13.S4, V13.S4
-	VADD   V17.S4, V14.S4, V14.S4
-	VSUB   V0.S4, V14.S4, V8.S4
-	VUMIN  V8.S4, V14.S4, V14.S4
-	VST3.P [V12.D2, V13.D2, V14.D2], 48(R0)
-	VZIP2  V21.S4, V20.S4, V12.S4
-	VZIP2  V25.S4, V24.S4, V13.S4
-	VZIP2  V11.S4, V10.S4, V14.S4
-	VLD3.P 48(R1), [V15.D2, V16.D2, V17.D2]
-	VADD   V15.S4, V12.S4, V12.S4
-	VSUB   V0.S4, V12.S4, V8.S4
-	VUMIN  V8.S4, V12.S4, V12.S4
-	VADD   V16.S4, V13.S4, V13.S4
-	VSUB   V0.S4, V13.S4, V8.S4
-	VUMIN  V8.S4, V13.S4, V13.S4
-	VADD   V17.S4, V14.S4, V14.S4
-	VSUB   V0.S4, V14.S4, V8.S4
-	VUMIN  V8.S4, V14.S4, V14.S4
-	VST3.P [V12.D2, V13.D2, V14.D2], 48(R0)
+	VADD   V5.S4, V4.S4, V4.S4
+	VSUB   V0.S4, V4.S4, V26.S4
+	VUMIN  V26.S4, V4.S4, V4.S4
+	WORD   $0x4eb4b49a                       // SQDMULH V26.4S, V4.4S, V20.4S - c = (2ab) >> 32
+	WORD   $0x4eb79c9b                       // MUL V27.4S, V4.4S, V23.4S - m = ab·μ
+	WORD   $0x4ea0b77b                       // SQDMULH V27.4S, V27.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4ebb2745                       // SHSUB V5.4S, V26.4S, V27.4S - d = (c − m) / 2
+	VADD   V0.S4, V5.S4, V26.S4
+	VUMIN  V26.S4, V5.S4, V5.S4
+	VSUB   V24.S4, V5.S4, V5.S4
+	VADD   V0.S4, V5.S4, V26.S4
+	VUMIN  V26.S4, V5.S4, V5.S4
+	VSUB   V25.S4, V5.S4, V5.S4
+	VADD   V0.S4, V5.S4, V26.S4
+	VUMIN  V26.S4, V5.S4, V5.S4
+	VADD   V25.S4, V24.S4, V4.S4
+	VSUB   V0.S4, V4.S4, V26.S4
+	VUMIN  V26.S4, V4.S4, V4.S4
+	VADD   V25.S4, V4.S4, V4.S4
+	VSUB   V0.S4, V4.S4, V26.S4
+	VUMIN  V26.S4, V4.S4, V4.S4
+	VADD   V25.S4, V4.S4, V4.S4
+	VSUB   V0.S4, V4.S4, V26.S4
+	VUMIN  V26.S4, V4.S4, V4.S4
+	VSUB   V8.S4, V4.S4, V4.S4
+	VADD   V0.S4, V4.S4, V16.S4
+	VUMIN  V16.S4, V4.S4, V4.S4
+	VSUB   V12.S4, V4.S4, V4.S4
+	VADD   V0.S4, V4.S4, V16.S4
+	VUMIN  V16.S4, V4.S4, V4.S4
+	VSUB   V9.S4, V5.S4, V5.S4
+	VADD   V0.S4, V5.S4, V16.S4
+	VUMIN  V16.S4, V5.S4, V5.S4
+	VSUB   V13.S4, V5.S4, V5.S4
+	VADD   V0.S4, V5.S4, V16.S4
+	VUMIN  V16.S4, V5.S4, V5.S4
+	VADD   V10.S4, V4.S4, V4.S4
+	VSUB   V0.S4, V4.S4, V16.S4
+	VUMIN  V16.S4, V4.S4, V4.S4
+	VADD   V11.S4, V5.S4, V5.S4
+	VSUB   V0.S4, V5.S4, V16.S4
+	VUMIN  V16.S4, V5.S4, V5.S4
+	VZIP1  V15.S4, V14.S4, V6.S4
+	VZIP1  V19.S4, V18.S4, V7.S4
+	VZIP1  V5.S4, V4.S4, V8.S4
+	VLD3.P 48(R1), [V9.D2, V10.D2, V11.D2]
+	VADD   V9.S4, V6.S4, V6.S4
+	VSUB   V0.S4, V6.S4, V2.S4
+	VUMIN  V2.S4, V6.S4, V6.S4
+	VADD   V10.S4, V7.S4, V7.S4
+	VSUB   V0.S4, V7.S4, V2.S4
+	VUMIN  V2.S4, V7.S4, V7.S4
+	VADD   V11.S4, V8.S4, V8.S4
+	VSUB   V0.S4, V8.S4, V2.S4
+	VUMIN  V2.S4, V8.S4, V8.S4
+	VST3.P [V6.D2, V7.D2, V8.D2], 48(R0)
+	VZIP2  V15.S4, V14.S4, V6.S4
+	VZIP2  V19.S4, V18.S4, V7.S4
+	VZIP2  V5.S4, V4.S4, V8.S4
+	VLD3.P 48(R1), [V9.D2, V10.D2, V11.D2]
+	VADD   V9.S4, V6.S4, V6.S4
+	VSUB   V0.S4, V6.S4, V2.S4
+	VUMIN  V2.S4, V6.S4, V6.S4
+	VADD   V10.S4, V7.S4, V7.S4
+	VSUB   V0.S4, V7.S4, V2.S4
+	VUMIN  V2.S4, V7.S4, V7.S4
+	VADD   V11.S4, V8.S4, V8.S4
+	VSUB   V0.S4, V8.S4, V2.S4
+	VUMIN  V2.S4, V8.S4, V8.S4
+	VST3.P [V6.D2, V7.D2, V8.D2], 48(R0)
 	JMP    loop11
 
 done12:
@@ -2560,420 +2473,391 @@ done12:
 // vectorScalarMulAddBase_E6_neon: see generateMulE6 in the generator
 
 TEXT ·vectorScalarMulAddBase_E6_neon(SB), NOFRAME|NOSPLIT, $0-32
-	MOVD  res+0(FP), R0
-	MOVD  b+8(FP), R1
-	MOVD  s+16(FP), R2
-	MOVD  N+24(FP), R3
-	LSR   $2, R3, R3
-	MOVD  $2130706433, R10
-	VDUP  R10, V0.S4
-	MOVD  $2164260865, R10
-	VDUP  R10, V1.S4
-	MOVD  R0, R11
-	MOVWU 0(R2), R10
-	VDUP  R10, V2.S4
-	MOVWU 4(R2), R10
-	VDUP  R10, V3.S4
-	MOVWU 8(R2), R10
-	VDUP  R10, V4.S4
-	MOVWU 12(R2), R10
-	VDUP  R10, V5.S4
-	MOVWU 16(R2), R10
-	VDUP  R10, V6.S4
-	MOVWU 20(R2), R10
-	VDUP  R10, V7.S4
+	MOVD res+0(FP), R0
+	MOVD b+8(FP), R1
+	MOVD s+16(FP), R2
+	MOVD N+24(FP), R3
+	LSR  $2, R3, R3
+	MOVD $2130706433, R10
+	VDUP R10, V0.S4
+	MOVD $2164260865, R10
+	VDUP R10, V1.S4
+	MOVD R0, R11
 
 loop13:
 	CBZ    R3, done14
 	SUB    $1, R3, R3
-	VLD3.P 48(R11), [V14.D2, V15.D2, V16.D2]
-	VLD3.P 48(R11), [V17.D2, V18.D2, V19.D2]
-	WORD   $0x4e9119c8                       // UZP1 V8.4S, V14.4S, V17.4S
-	WORD   $0x4e9159c9                       // UZP2 V9.4S, V14.4S, V17.4S
-	WORD   $0x4e9219ea                       // UZP1 V10.4S, V15.4S, V18.4S
-	WORD   $0x4e9259eb                       // UZP2 V11.4S, V15.4S, V18.4S
-	WORD   $0x4e931a0c                       // UZP1 V12.4S, V16.4S, V19.4S
-	WORD   $0x4e935a0d                       // UZP2 V13.4S, V16.4S, V19.4S
-	WORD   $0x4ea2b516                       // SQDMULH V22.4S, V8.4S, V2.4S - c = (2ab) >> 32
-	WORD   $0x4ea29d17                       // MUL V23.4S, V8.4S, V2.4S - m = ab
-	WORD   $0x4ea19ef7                       // MUL V23.4S, V23.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b6f7                       // SQDMULH V23.4S, V23.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4eb726ce                       // SHSUB V14.4S, V22.4S, V23.4S - d = (c − m) / 2
-	VADD   V0.S4, V14.S4, V22.S4
-	VUMIN  V22.S4, V14.S4, V14.S4
-	WORD   $0x4ea3b536                       // SQDMULH V22.4S, V9.4S, V3.4S - c = (2ab) >> 32
-	WORD   $0x4ea39d37                       // MUL V23.4S, V9.4S, V3.4S - m = ab
-	WORD   $0x4ea19ef7                       // MUL V23.4S, V23.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b6f7                       // SQDMULH V23.4S, V23.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4eb726d4                       // SHSUB V20.4S, V22.4S, V23.4S - d = (c − m) / 2
-	VADD   V0.S4, V20.S4, V22.S4
-	VUMIN  V22.S4, V20.S4, V20.S4
-	VADD   V9.S4, V8.S4, V21.S4
+	VLD3.P 48(R11), [V8.D2, V9.D2, V10.D2]
+	VLD3.P 48(R11), [V11.D2, V12.D2, V13.D2]
+	WORD   $0x4e8b1902                       // UZP1 V2.4S, V8.4S, V11.4S
+	WORD   $0x4e8b5903                       // UZP2 V3.4S, V8.4S, V11.4S
+	WORD   $0x4e8c1924                       // UZP1 V4.4S, V9.4S, V12.4S
+	WORD   $0x4e8c5925                       // UZP2 V5.4S, V9.4S, V12.4S
+	WORD   $0x4e8d1946                       // UZP1 V6.4S, V10.4S, V13.4S
+	WORD   $0x4e8d5947                       // UZP2 V7.4S, V10.4S, V13.4S
+	MOVD   R2, R13
+	VLD1.P 16(R13), [V14.S4]
+	VLD1.P 16(R13), [V15.S4]
+	VLD1.P 16(R13), [V16.S4]
+	VLD1.P 16(R13), [V17.S4]
+	VLD1.P 16(R13), [V18.S4]
+	VLD1.P 16(R13), [V19.S4]
+	WORD   $0x4eaeb455                       // SQDMULH V21.4S, V2.4S, V14.4S - c = (2ab) >> 32
+	WORD   $0x4eb19c56                       // MUL V22.4S, V2.4S, V17.4S - m = ab·μ
+	WORD   $0x4ea0b6d6                       // SQDMULH V22.4S, V22.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4eb626a8                       // SHSUB V8.4S, V21.4S, V22.4S - d = (c − m) / 2
+	VADD   V0.S4, V8.S4, V21.S4
+	VUMIN  V21.S4, V8.S4, V8.S4
+	WORD   $0x4eafb475                       // SQDMULH V21.4S, V3.4S, V15.4S - c = (2ab) >> 32
+	WORD   $0x4eb29c76                       // MUL V22.4S, V3.4S, V18.4S - m = ab·μ
+	WORD   $0x4ea0b6d6                       // SQDMULH V22.4S, V22.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4eb626b4                       // SHSUB V20.4S, V21.4S, V22.4S - d = (c − m) / 2
+	VADD   V0.S4, V20.S4, V21.S4
+	VUMIN  V21.S4, V20.S4, V20.S4
+	VADD   V3.S4, V2.S4, V21.S4
 	VSUB   V0.S4, V21.S4, V22.S4
 	VUMIN  V22.S4, V21.S4, V21.S4
-	VADD   V3.S4, V2.S4, V15.S4
-	VSUB   V0.S4, V15.S4, V22.S4
-	VUMIN  V22.S4, V15.S4, V15.S4
-	WORD   $0x4eafb6b6                       // SQDMULH V22.4S, V21.4S, V15.4S - c = (2ab) >> 32
-	WORD   $0x4eaf9eb7                       // MUL V23.4S, V21.4S, V15.4S - m = ab
-	WORD   $0x4ea19ef7                       // MUL V23.4S, V23.4S, V1.4S - m = ab·μ
+	WORD   $0x4eb0b6b6                       // SQDMULH V22.4S, V21.4S, V16.4S - c = (2ab) >> 32
+	WORD   $0x4eb39eb7                       // MUL V23.4S, V21.4S, V19.4S - m = ab·μ
 	WORD   $0x4ea0b6f7                       // SQDMULH V23.4S, V23.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4eb726cf                       // SHSUB V15.4S, V22.4S, V23.4S - d = (c − m) / 2
-	VADD   V0.S4, V15.S4, V22.S4
-	VUMIN  V22.S4, V15.S4, V15.S4
-	VSUB   V14.S4, V15.S4, V15.S4
-	VADD   V0.S4, V15.S4, V22.S4
-	VUMIN  V22.S4, V15.S4, V15.S4
-	VSUB   V20.S4, V15.S4, V15.S4
-	VADD   V0.S4, V15.S4, V22.S4
-	VUMIN  V22.S4, V15.S4, V15.S4
-	VADD   V20.S4, V20.S4, V21.S4
+	WORD   $0x4eb726c9                       // SHSUB V9.4S, V22.4S, V23.4S - d = (c − m) / 2
+	VADD   V0.S4, V9.S4, V22.S4
+	VUMIN  V22.S4, V9.S4, V9.S4
+	VSUB   V8.S4, V9.S4, V9.S4
+	VADD   V0.S4, V9.S4, V22.S4
+	VUMIN  V22.S4, V9.S4, V9.S4
+	VSUB   V20.S4, V9.S4, V9.S4
+	VADD   V0.S4, V9.S4, V22.S4
+	VUMIN  V22.S4, V9.S4, V9.S4
+	VADD   V20.S4, V8.S4, V8.S4
+	VSUB   V0.S4, V8.S4, V22.S4
+	VUMIN  V22.S4, V8.S4, V8.S4
+	VADD   V20.S4, V8.S4, V8.S4
+	VSUB   V0.S4, V8.S4, V22.S4
+	VUMIN  V22.S4, V8.S4, V8.S4
+	VADD   V20.S4, V8.S4, V8.S4
+	VSUB   V0.S4, V8.S4, V22.S4
+	VUMIN  V22.S4, V8.S4, V8.S4
+	VLD1.P 16(R13), [V14.S4]
+	VLD1.P 16(R13), [V15.S4]
+	VLD1.P 16(R13), [V16.S4]
+	VLD1.P 16(R13), [V17.S4]
+	VLD1.P 16(R13), [V18.S4]
+	VLD1.P 16(R13), [V19.S4]
+	WORD   $0x4eaeb495                       // SQDMULH V21.4S, V4.4S, V14.4S - c = (2ab) >> 32
+	WORD   $0x4eb19c96                       // MUL V22.4S, V4.4S, V17.4S - m = ab·μ
+	WORD   $0x4ea0b6d6                       // SQDMULH V22.4S, V22.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4eb626aa                       // SHSUB V10.4S, V21.4S, V22.4S - d = (c − m) / 2
+	VADD   V0.S4, V10.S4, V21.S4
+	VUMIN  V21.S4, V10.S4, V10.S4
+	WORD   $0x4eafb4b5                       // SQDMULH V21.4S, V5.4S, V15.4S - c = (2ab) >> 32
+	WORD   $0x4eb29cb6                       // MUL V22.4S, V5.4S, V18.4S - m = ab·μ
+	WORD   $0x4ea0b6d6                       // SQDMULH V22.4S, V22.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4eb626b4                       // SHSUB V20.4S, V21.4S, V22.4S - d = (c − m) / 2
+	VADD   V0.S4, V20.S4, V21.S4
+	VUMIN  V21.S4, V20.S4, V20.S4
+	VADD   V5.S4, V4.S4, V21.S4
 	VSUB   V0.S4, V21.S4, V22.S4
 	VUMIN  V22.S4, V21.S4, V21.S4
-	VADD   V20.S4, V21.S4, V21.S4
-	VSUB   V0.S4, V21.S4, V22.S4
-	VUMIN  V22.S4, V21.S4, V21.S4
-	VADD   V21.S4, V14.S4, V14.S4
-	VSUB   V0.S4, V14.S4, V22.S4
-	VUMIN  V22.S4, V14.S4, V14.S4
-	WORD   $0x4ea4b556                       // SQDMULH V22.4S, V10.4S, V4.4S - c = (2ab) >> 32
-	WORD   $0x4ea49d57                       // MUL V23.4S, V10.4S, V4.4S - m = ab
-	WORD   $0x4ea19ef7                       // MUL V23.4S, V23.4S, V1.4S - m = ab·μ
+	WORD   $0x4eb0b6b6                       // SQDMULH V22.4S, V21.4S, V16.4S - c = (2ab) >> 32
+	WORD   $0x4eb39eb7                       // MUL V23.4S, V21.4S, V19.4S - m = ab·μ
 	WORD   $0x4ea0b6f7                       // SQDMULH V23.4S, V23.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4eb726d0                       // SHSUB V16.4S, V22.4S, V23.4S - d = (c − m) / 2
-	VADD   V0.S4, V16.S4, V22.S4
-	VUMIN  V22.S4, V16.S4, V16.S4
-	WORD   $0x4ea5b576                       // SQDMULH V22.4S, V11.4S, V5.4S - c = (2ab) >> 32
-	WORD   $0x4ea59d77                       // MUL V23.4S, V11.4S, V5.4S - m = ab
-	WORD   $0x4ea19ef7                       // MUL V23.4S, V23.4S, V1.4S - m = ab·μ
+	WORD   $0x4eb726cb                       // SHSUB V11.4S, V22.4S, V23.4S - d = (c − m) / 2
+	VADD   V0.S4, V11.S4, V22.S4
+	VUMIN  V22.S4, V11.S4, V11.S4
+	VSUB   V10.S4, V11.S4, V11.S4
+	VADD   V0.S4, V11.S4, V22.S4
+	VUMIN  V22.S4, V11.S4, V11.S4
+	VSUB   V20.S4, V11.S4, V11.S4
+	VADD   V0.S4, V11.S4, V22.S4
+	VUMIN  V22.S4, V11.S4, V11.S4
+	VADD   V20.S4, V10.S4, V10.S4
+	VSUB   V0.S4, V10.S4, V22.S4
+	VUMIN  V22.S4, V10.S4, V10.S4
+	VADD   V20.S4, V10.S4, V10.S4
+	VSUB   V0.S4, V10.S4, V22.S4
+	VUMIN  V22.S4, V10.S4, V10.S4
+	VADD   V20.S4, V10.S4, V10.S4
+	VSUB   V0.S4, V10.S4, V22.S4
+	VUMIN  V22.S4, V10.S4, V10.S4
+	VLD1.P 16(R13), [V14.S4]
+	VLD1.P 16(R13), [V15.S4]
+	VLD1.P 16(R13), [V16.S4]
+	VLD1.P 16(R13), [V17.S4]
+	VLD1.P 16(R13), [V18.S4]
+	VLD1.P 16(R13), [V19.S4]
+	WORD   $0x4eaeb4d5                       // SQDMULH V21.4S, V6.4S, V14.4S - c = (2ab) >> 32
+	WORD   $0x4eb19cd6                       // MUL V22.4S, V6.4S, V17.4S - m = ab·μ
+	WORD   $0x4ea0b6d6                       // SQDMULH V22.4S, V22.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4eb626ac                       // SHSUB V12.4S, V21.4S, V22.4S - d = (c − m) / 2
+	VADD   V0.S4, V12.S4, V21.S4
+	VUMIN  V21.S4, V12.S4, V12.S4
+	WORD   $0x4eafb4f5                       // SQDMULH V21.4S, V7.4S, V15.4S - c = (2ab) >> 32
+	WORD   $0x4eb29cf6                       // MUL V22.4S, V7.4S, V18.4S - m = ab·μ
+	WORD   $0x4ea0b6d6                       // SQDMULH V22.4S, V22.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4eb626b4                       // SHSUB V20.4S, V21.4S, V22.4S - d = (c − m) / 2
+	VADD   V0.S4, V20.S4, V21.S4
+	VUMIN  V21.S4, V20.S4, V20.S4
+	VADD   V7.S4, V6.S4, V21.S4
+	VSUB   V0.S4, V21.S4, V22.S4
+	VUMIN  V22.S4, V21.S4, V21.S4
+	WORD   $0x4eb0b6b6                       // SQDMULH V22.4S, V21.4S, V16.4S - c = (2ab) >> 32
+	WORD   $0x4eb39eb7                       // MUL V23.4S, V21.4S, V19.4S - m = ab·μ
 	WORD   $0x4ea0b6f7                       // SQDMULH V23.4S, V23.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4eb726d4                       // SHSUB V20.4S, V22.4S, V23.4S - d = (c − m) / 2
-	VADD   V0.S4, V20.S4, V22.S4
-	VUMIN  V22.S4, V20.S4, V20.S4
-	VADD   V11.S4, V10.S4, V21.S4
-	VSUB   V0.S4, V21.S4, V22.S4
-	VUMIN  V22.S4, V21.S4, V21.S4
-	VADD   V5.S4, V4.S4, V17.S4
-	VSUB   V0.S4, V17.S4, V22.S4
-	VUMIN  V22.S4, V17.S4, V17.S4
-	WORD   $0x4eb1b6b6                       // SQDMULH V22.4S, V21.4S, V17.4S - c = (2ab) >> 32
-	WORD   $0x4eb19eb7                       // MUL V23.4S, V21.4S, V17.4S - m = ab
-	WORD   $0x4ea19ef7                       // MUL V23.4S, V23.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b6f7                       // SQDMULH V23.4S, V23.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4eb726d1                       // SHSUB V17.4S, V22.4S, V23.4S - d = (c − m) / 2
-	VADD   V0.S4, V17.S4, V22.S4
-	VUMIN  V22.S4, V17.S4, V17.S4
-	VSUB   V16.S4, V17.S4, V17.S4
-	VADD   V0.S4, V17.S4, V22.S4
-	VUMIN  V22.S4, V17.S4, V17.S4
-	VSUB   V20.S4, V17.S4, V17.S4
-	VADD   V0.S4, V17.S4, V22.S4
-	VUMIN  V22.S4, V17.S4, V17.S4
-	VADD   V20.S4, V20.S4, V21.S4
-	VSUB   V0.S4, V21.S4, V22.S4
-	VUMIN  V22.S4, V21.S4, V21.S4
-	VADD   V20.S4, V21.S4, V21.S4
-	VSUB   V0.S4, V21.S4, V22.S4
-	VUMIN  V22.S4, V21.S4, V21.S4
-	VADD   V21.S4, V16.S4, V16.S4
-	VSUB   V0.S4, V16.S4, V22.S4
-	VUMIN  V22.S4, V16.S4, V16.S4
-	WORD   $0x4ea6b596                       // SQDMULH V22.4S, V12.4S, V6.4S - c = (2ab) >> 32
-	WORD   $0x4ea69d97                       // MUL V23.4S, V12.4S, V6.4S - m = ab
-	WORD   $0x4ea19ef7                       // MUL V23.4S, V23.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b6f7                       // SQDMULH V23.4S, V23.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4eb726d2                       // SHSUB V18.4S, V22.4S, V23.4S - d = (c − m) / 2
-	VADD   V0.S4, V18.S4, V22.S4
-	VUMIN  V22.S4, V18.S4, V18.S4
-	WORD   $0x4ea7b5b6                       // SQDMULH V22.4S, V13.4S, V7.4S - c = (2ab) >> 32
-	WORD   $0x4ea79db7                       // MUL V23.4S, V13.4S, V7.4S - m = ab
-	WORD   $0x4ea19ef7                       // MUL V23.4S, V23.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b6f7                       // SQDMULH V23.4S, V23.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4eb726d4                       // SHSUB V20.4S, V22.4S, V23.4S - d = (c − m) / 2
-	VADD   V0.S4, V20.S4, V22.S4
-	VUMIN  V22.S4, V20.S4, V20.S4
-	VADD   V13.S4, V12.S4, V21.S4
-	VSUB   V0.S4, V21.S4, V22.S4
-	VUMIN  V22.S4, V21.S4, V21.S4
-	VADD   V7.S4, V6.S4, V19.S4
-	VSUB   V0.S4, V19.S4, V22.S4
-	VUMIN  V22.S4, V19.S4, V19.S4
-	WORD   $0x4eb3b6b6                       // SQDMULH V22.4S, V21.4S, V19.4S - c = (2ab) >> 32
-	WORD   $0x4eb39eb7                       // MUL V23.4S, V21.4S, V19.4S - m = ab
-	WORD   $0x4ea19ef7                       // MUL V23.4S, V23.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b6f7                       // SQDMULH V23.4S, V23.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4eb726d3                       // SHSUB V19.4S, V22.4S, V23.4S - d = (c − m) / 2
-	VADD   V0.S4, V19.S4, V22.S4
-	VUMIN  V22.S4, V19.S4, V19.S4
-	VSUB   V18.S4, V19.S4, V19.S4
-	VADD   V0.S4, V19.S4, V22.S4
-	VUMIN  V22.S4, V19.S4, V19.S4
-	VSUB   V20.S4, V19.S4, V19.S4
-	VADD   V0.S4, V19.S4, V22.S4
-	VUMIN  V22.S4, V19.S4, V19.S4
-	VADD   V20.S4, V20.S4, V21.S4
-	VSUB   V0.S4, V21.S4, V22.S4
-	VUMIN  V22.S4, V21.S4, V21.S4
-	VADD   V20.S4, V21.S4, V21.S4
-	VSUB   V0.S4, V21.S4, V22.S4
-	VUMIN  V22.S4, V21.S4, V21.S4
-	VADD   V21.S4, V18.S4, V18.S4
-	VSUB   V0.S4, V18.S4, V22.S4
-	VUMIN  V22.S4, V18.S4, V18.S4
-	VADD   V12.S4, V10.S4, V20.S4
-	VSUB   V0.S4, V20.S4, V24.S4
-	VUMIN  V24.S4, V20.S4, V20.S4
-	VADD   V13.S4, V11.S4, V21.S4
-	VSUB   V0.S4, V21.S4, V24.S4
-	VUMIN  V24.S4, V21.S4, V21.S4
-	VADD   V6.S4, V4.S4, V22.S4
-	VSUB   V0.S4, V22.S4, V24.S4
+	WORD   $0x4eb726cd                       // SHSUB V13.4S, V22.4S, V23.4S - d = (c − m) / 2
+	VADD   V0.S4, V13.S4, V22.S4
+	VUMIN  V22.S4, V13.S4, V13.S4
+	VSUB   V12.S4, V13.S4, V13.S4
+	VADD   V0.S4, V13.S4, V22.S4
+	VUMIN  V22.S4, V13.S4, V13.S4
+	VSUB   V20.S4, V13.S4, V13.S4
+	VADD   V0.S4, V13.S4, V22.S4
+	VUMIN  V22.S4, V13.S4, V13.S4
+	VADD   V20.S4, V12.S4, V12.S4
+	VSUB   V0.S4, V12.S4, V22.S4
+	VUMIN  V22.S4, V12.S4, V12.S4
+	VADD   V20.S4, V12.S4, V12.S4
+	VSUB   V0.S4, V12.S4, V22.S4
+	VUMIN  V22.S4, V12.S4, V12.S4
+	VADD   V20.S4, V12.S4, V12.S4
+	VSUB   V0.S4, V12.S4, V22.S4
+	VUMIN  V22.S4, V12.S4, V12.S4
+	VADD   V6.S4, V4.S4, V14.S4
+	VSUB   V0.S4, V14.S4, V16.S4
+	VUMIN  V16.S4, V14.S4, V14.S4
+	VADD   V7.S4, V5.S4, V15.S4
+	VSUB   V0.S4, V15.S4, V16.S4
+	VUMIN  V16.S4, V15.S4, V15.S4
+	VLD1.P 16(R13), [V16.S4]
+	VLD1.P 16(R13), [V17.S4]
+	VLD1.P 16(R13), [V18.S4]
+	VLD1.P 16(R13), [V19.S4]
+	VLD1.P 16(R13), [V20.S4]
+	VLD1.P 16(R13), [V21.S4]
+	WORD   $0x4eb0b5d8                       // SQDMULH V24.4S, V14.4S, V16.4S - c = (2ab) >> 32
+	WORD   $0x4eb39dd9                       // MUL V25.4S, V14.4S, V19.4S - m = ab·μ
+	WORD   $0x4ea0b739                       // SQDMULH V25.4S, V25.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4eb92716                       // SHSUB V22.4S, V24.4S, V25.4S - d = (c − m) / 2
+	VADD   V0.S4, V22.S4, V24.S4
 	VUMIN  V24.S4, V22.S4, V22.S4
-	VADD   V7.S4, V5.S4, V23.S4
-	VSUB   V0.S4, V23.S4, V24.S4
+	WORD   $0x4eb1b5f8                       // SQDMULH V24.4S, V15.4S, V17.4S - c = (2ab) >> 32
+	WORD   $0x4eb49df9                       // MUL V25.4S, V15.4S, V20.4S - m = ab·μ
+	WORD   $0x4ea0b739                       // SQDMULH V25.4S, V25.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4eb92717                       // SHSUB V23.4S, V24.4S, V25.4S - d = (c − m) / 2
+	VADD   V0.S4, V23.S4, V24.S4
 	VUMIN  V24.S4, V23.S4, V23.S4
-	WORD   $0x4eb6b69a                       // SQDMULH V26.4S, V20.4S, V22.4S - c = (2ab) >> 32
-	WORD   $0x4eb69e9b                       // MUL V27.4S, V20.4S, V22.4S - m = ab
-	WORD   $0x4ea19f7b                       // MUL V27.4S, V27.4S, V1.4S - m = ab·μ
+	VADD   V15.S4, V14.S4, V14.S4
+	VSUB   V0.S4, V14.S4, V24.S4
+	VUMIN  V24.S4, V14.S4, V14.S4
+	WORD   $0x4eb2b5d8                       // SQDMULH V24.4S, V14.4S, V18.4S - c = (2ab) >> 32
+	WORD   $0x4eb59dd9                       // MUL V25.4S, V14.4S, V21.4S - m = ab·μ
+	WORD   $0x4ea0b739                       // SQDMULH V25.4S, V25.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4eb9270f                       // SHSUB V15.4S, V24.4S, V25.4S - d = (c − m) / 2
+	VADD   V0.S4, V15.S4, V24.S4
+	VUMIN  V24.S4, V15.S4, V15.S4
+	VSUB   V22.S4, V15.S4, V15.S4
+	VADD   V0.S4, V15.S4, V24.S4
+	VUMIN  V24.S4, V15.S4, V15.S4
+	VSUB   V23.S4, V15.S4, V15.S4
+	VADD   V0.S4, V15.S4, V24.S4
+	VUMIN  V24.S4, V15.S4, V15.S4
+	VADD   V23.S4, V22.S4, V14.S4
+	VSUB   V0.S4, V14.S4, V24.S4
+	VUMIN  V24.S4, V14.S4, V14.S4
+	VADD   V23.S4, V14.S4, V14.S4
+	VSUB   V0.S4, V14.S4, V24.S4
+	VUMIN  V24.S4, V14.S4, V14.S4
+	VADD   V23.S4, V14.S4, V14.S4
+	VSUB   V0.S4, V14.S4, V24.S4
+	VUMIN  V24.S4, V14.S4, V14.S4
+	VSUB   V10.S4, V14.S4, V14.S4
+	VADD   V0.S4, V14.S4, V16.S4
+	VUMIN  V16.S4, V14.S4, V14.S4
+	VSUB   V12.S4, V14.S4, V14.S4
+	VADD   V0.S4, V14.S4, V16.S4
+	VUMIN  V16.S4, V14.S4, V14.S4
+	VSUB   V11.S4, V15.S4, V15.S4
+	VADD   V0.S4, V15.S4, V16.S4
+	VUMIN  V16.S4, V15.S4, V15.S4
+	VSUB   V13.S4, V15.S4, V15.S4
+	VADD   V0.S4, V15.S4, V16.S4
+	VUMIN  V16.S4, V15.S4, V15.S4
+	VADD   V15.S4, V15.S4, V16.S4
+	VSUB   V0.S4, V16.S4, V17.S4
+	VUMIN  V17.S4, V16.S4, V16.S4
+	VADD   V15.S4, V16.S4, V16.S4
+	VSUB   V0.S4, V16.S4, V17.S4
+	VUMIN  V17.S4, V16.S4, V16.S4
+	VADD   V15.S4, V14.S4, V15.S4
+	VSUB   V0.S4, V15.S4, V17.S4
+	VUMIN  V17.S4, V15.S4, V15.S4
+	VADD   V16.S4, V14.S4, V14.S4
+	VSUB   V0.S4, V14.S4, V17.S4
+	VUMIN  V17.S4, V14.S4, V14.S4
+	VADD   V8.S4, V14.S4, V14.S4
+	VSUB   V0.S4, V14.S4, V17.S4
+	VUMIN  V17.S4, V14.S4, V14.S4
+	VADD   V9.S4, V15.S4, V15.S4
+	VSUB   V0.S4, V15.S4, V17.S4
+	VUMIN  V17.S4, V15.S4, V15.S4
+	VADD   V4.S4, V2.S4, V16.S4
+	VSUB   V0.S4, V16.S4, V18.S4
+	VUMIN  V18.S4, V16.S4, V16.S4
+	VADD   V5.S4, V3.S4, V17.S4
+	VSUB   V0.S4, V17.S4, V18.S4
+	VUMIN  V18.S4, V17.S4, V17.S4
+	VLD1.P 16(R13), [V18.S4]
+	VLD1.P 16(R13), [V19.S4]
+	VLD1.P 16(R13), [V20.S4]
+	VLD1.P 16(R13), [V21.S4]
+	VLD1.P 16(R13), [V22.S4]
+	VLD1.P 16(R13), [V23.S4]
+	WORD   $0x4eb2b61a                       // SQDMULH V26.4S, V16.4S, V18.4S - c = (2ab) >> 32
+	WORD   $0x4eb59e1b                       // MUL V27.4S, V16.4S, V21.4S - m = ab·μ
 	WORD   $0x4ea0b77b                       // SQDMULH V27.4S, V27.4S, V0.4S - m = (2mq) >> 32
 	WORD   $0x4ebb2758                       // SHSUB V24.4S, V26.4S, V27.4S - d = (c − m) / 2
 	VADD   V0.S4, V24.S4, V26.S4
 	VUMIN  V26.S4, V24.S4, V24.S4
-	WORD   $0x4eb7b6ba                       // SQDMULH V26.4S, V21.4S, V23.4S - c = (2ab) >> 32
-	WORD   $0x4eb79ebb                       // MUL V27.4S, V21.4S, V23.4S - m = ab
-	WORD   $0x4ea19f7b                       // MUL V27.4S, V27.4S, V1.4S - m = ab·μ
+	WORD   $0x4eb3b63a                       // SQDMULH V26.4S, V17.4S, V19.4S - c = (2ab) >> 32
+	WORD   $0x4eb69e3b                       // MUL V27.4S, V17.4S, V22.4S - m = ab·μ
 	WORD   $0x4ea0b77b                       // SQDMULH V27.4S, V27.4S, V0.4S - m = (2mq) >> 32
 	WORD   $0x4ebb2759                       // SHSUB V25.4S, V26.4S, V27.4S - d = (c − m) / 2
 	VADD   V0.S4, V25.S4, V26.S4
 	VUMIN  V26.S4, V25.S4, V25.S4
-	VADD   V21.S4, V20.S4, V20.S4
-	VSUB   V0.S4, V20.S4, V26.S4
-	VUMIN  V26.S4, V20.S4, V20.S4
-	VADD   V23.S4, V22.S4, V22.S4
-	VSUB   V0.S4, V22.S4, V26.S4
-	VUMIN  V26.S4, V22.S4, V22.S4
-	WORD   $0x4eb6b69a                       // SQDMULH V26.4S, V20.4S, V22.4S - c = (2ab) >> 32
-	WORD   $0x4eb69e9b                       // MUL V27.4S, V20.4S, V22.4S - m = ab
-	WORD   $0x4ea19f7b                       // MUL V27.4S, V27.4S, V1.4S - m = ab·μ
+	VADD   V17.S4, V16.S4, V16.S4
+	VSUB   V0.S4, V16.S4, V26.S4
+	VUMIN  V26.S4, V16.S4, V16.S4
+	WORD   $0x4eb4b61a                       // SQDMULH V26.4S, V16.4S, V20.4S - c = (2ab) >> 32
+	WORD   $0x4eb79e1b                       // MUL V27.4S, V16.4S, V23.4S - m = ab·μ
 	WORD   $0x4ea0b77b                       // SQDMULH V27.4S, V27.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4ebb2755                       // SHSUB V21.4S, V26.4S, V27.4S - d = (c − m) / 2
-	VADD   V0.S4, V21.S4, V26.S4
-	VUMIN  V26.S4, V21.S4, V21.S4
-	VSUB   V24.S4, V21.S4, V21.S4
-	VADD   V0.S4, V21.S4, V26.S4
-	VUMIN  V26.S4, V21.S4, V21.S4
-	VSUB   V25.S4, V21.S4, V21.S4
-	VADD   V0.S4, V21.S4, V26.S4
-	VUMIN  V26.S4, V21.S4, V21.S4
-	VADD   V25.S4, V25.S4, V22.S4
-	VSUB   V0.S4, V22.S4, V26.S4
-	VUMIN  V26.S4, V22.S4, V22.S4
-	VADD   V25.S4, V22.S4, V22.S4
-	VSUB   V0.S4, V22.S4, V26.S4
-	VUMIN  V26.S4, V22.S4, V22.S4
-	VADD   V22.S4, V24.S4, V20.S4
-	VSUB   V0.S4, V20.S4, V26.S4
-	VUMIN  V26.S4, V20.S4, V20.S4
-	VSUB   V16.S4, V20.S4, V20.S4
-	VADD   V0.S4, V20.S4, V22.S4
-	VUMIN  V22.S4, V20.S4, V20.S4
-	VSUB   V18.S4, V20.S4, V20.S4
-	VADD   V0.S4, V20.S4, V22.S4
-	VUMIN  V22.S4, V20.S4, V20.S4
-	VSUB   V17.S4, V21.S4, V21.S4
-	VADD   V0.S4, V21.S4, V22.S4
-	VUMIN  V22.S4, V21.S4, V21.S4
-	VSUB   V19.S4, V21.S4, V21.S4
-	VADD   V0.S4, V21.S4, V22.S4
-	VUMIN  V22.S4, V21.S4, V21.S4
-	VADD   V21.S4, V21.S4, V22.S4
-	VSUB   V0.S4, V22.S4, V23.S4
-	VUMIN  V23.S4, V22.S4, V22.S4
-	VADD   V21.S4, V22.S4, V22.S4
-	VSUB   V0.S4, V22.S4, V23.S4
-	VUMIN  V23.S4, V22.S4, V22.S4
-	VADD   V21.S4, V20.S4, V21.S4
-	VSUB   V0.S4, V21.S4, V23.S4
-	VUMIN  V23.S4, V21.S4, V21.S4
-	VADD   V22.S4, V20.S4, V20.S4
-	VSUB   V0.S4, V20.S4, V23.S4
-	VUMIN  V23.S4, V20.S4, V20.S4
-	VADD   V14.S4, V20.S4, V20.S4
-	VSUB   V0.S4, V20.S4, V23.S4
-	VUMIN  V23.S4, V20.S4, V20.S4
-	VADD   V15.S4, V21.S4, V21.S4
-	VSUB   V0.S4, V21.S4, V23.S4
-	VUMIN  V23.S4, V21.S4, V21.S4
-	VADD   V10.S4, V8.S4, V22.S4
-	VSUB   V0.S4, V22.S4, V26.S4
-	VUMIN  V26.S4, V22.S4, V22.S4
-	VADD   V11.S4, V9.S4, V23.S4
-	VSUB   V0.S4, V23.S4, V26.S4
-	VUMIN  V26.S4, V23.S4, V23.S4
-	VADD   V4.S4, V2.S4, V24.S4
-	VSUB   V0.S4, V24.S4, V26.S4
+	WORD   $0x4ebb2751                       // SHSUB V17.4S, V26.4S, V27.4S - d = (c − m) / 2
+	VADD   V0.S4, V17.S4, V26.S4
+	VUMIN  V26.S4, V17.S4, V17.S4
+	VSUB   V24.S4, V17.S4, V17.S4
+	VADD   V0.S4, V17.S4, V26.S4
+	VUMIN  V26.S4, V17.S4, V17.S4
+	VSUB   V25.S4, V17.S4, V17.S4
+	VADD   V0.S4, V17.S4, V26.S4
+	VUMIN  V26.S4, V17.S4, V17.S4
+	VADD   V25.S4, V24.S4, V16.S4
+	VSUB   V0.S4, V16.S4, V26.S4
+	VUMIN  V26.S4, V16.S4, V16.S4
+	VADD   V25.S4, V16.S4, V16.S4
+	VSUB   V0.S4, V16.S4, V26.S4
+	VUMIN  V26.S4, V16.S4, V16.S4
+	VADD   V25.S4, V16.S4, V16.S4
+	VSUB   V0.S4, V16.S4, V26.S4
+	VUMIN  V26.S4, V16.S4, V16.S4
+	VSUB   V8.S4, V16.S4, V16.S4
+	VADD   V0.S4, V16.S4, V18.S4
+	VUMIN  V18.S4, V16.S4, V16.S4
+	VSUB   V10.S4, V16.S4, V16.S4
+	VADD   V0.S4, V16.S4, V18.S4
+	VUMIN  V18.S4, V16.S4, V16.S4
+	VSUB   V9.S4, V17.S4, V17.S4
+	VADD   V0.S4, V17.S4, V18.S4
+	VUMIN  V18.S4, V17.S4, V17.S4
+	VSUB   V11.S4, V17.S4, V17.S4
+	VADD   V0.S4, V17.S4, V18.S4
+	VUMIN  V18.S4, V17.S4, V17.S4
+	VMOV   V12.B16, V18.B16
+	VMOV   V13.B16, V19.B16
+	VADD   V19.S4, V19.S4, V20.S4
+	VSUB   V0.S4, V20.S4, V21.S4
+	VUMIN  V21.S4, V20.S4, V20.S4
+	VADD   V19.S4, V20.S4, V20.S4
+	VSUB   V0.S4, V20.S4, V21.S4
+	VUMIN  V21.S4, V20.S4, V20.S4
+	VADD   V19.S4, V18.S4, V19.S4
+	VSUB   V0.S4, V19.S4, V21.S4
+	VUMIN  V21.S4, V19.S4, V19.S4
+	VADD   V20.S4, V18.S4, V18.S4
+	VSUB   V0.S4, V18.S4, V21.S4
+	VUMIN  V21.S4, V18.S4, V18.S4
+	VADD   V16.S4, V18.S4, V18.S4
+	VSUB   V0.S4, V18.S4, V21.S4
+	VUMIN  V21.S4, V18.S4, V18.S4
+	VADD   V17.S4, V19.S4, V19.S4
+	VSUB   V0.S4, V19.S4, V21.S4
+	VUMIN  V21.S4, V19.S4, V19.S4
+	VADD   V6.S4, V2.S4, V4.S4
+	VSUB   V0.S4, V4.S4, V16.S4
+	VUMIN  V16.S4, V4.S4, V4.S4
+	VADD   V7.S4, V3.S4, V5.S4
+	VSUB   V0.S4, V5.S4, V16.S4
+	VUMIN  V16.S4, V5.S4, V5.S4
+	VLD1.P 16(R13), [V16.S4]
+	VLD1.P 16(R13), [V17.S4]
+	VLD1.P 16(R13), [V20.S4]
+	VLD1.P 16(R13), [V21.S4]
+	VLD1.P 16(R13), [V22.S4]
+	VLD1.P 16(R13), [V23.S4]
+	WORD   $0x4eb0b49a                       // SQDMULH V26.4S, V4.4S, V16.4S - c = (2ab) >> 32
+	WORD   $0x4eb59c9b                       // MUL V27.4S, V4.4S, V21.4S - m = ab·μ
+	WORD   $0x4ea0b77b                       // SQDMULH V27.4S, V27.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4ebb2758                       // SHSUB V24.4S, V26.4S, V27.4S - d = (c − m) / 2
+	VADD   V0.S4, V24.S4, V26.S4
 	VUMIN  V26.S4, V24.S4, V24.S4
-	VADD   V5.S4, V3.S4, V25.S4
-	VSUB   V0.S4, V25.S4, V26.S4
+	WORD   $0x4eb1b4ba                       // SQDMULH V26.4S, V5.4S, V17.4S - c = (2ab) >> 32
+	WORD   $0x4eb69cbb                       // MUL V27.4S, V5.4S, V22.4S - m = ab·μ
+	WORD   $0x4ea0b77b                       // SQDMULH V27.4S, V27.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4ebb2759                       // SHSUB V25.4S, V26.4S, V27.4S - d = (c − m) / 2
+	VADD   V0.S4, V25.S4, V26.S4
 	VUMIN  V26.S4, V25.S4, V25.S4
-	WORD   $0x4eb8b6dc                       // SQDMULH V28.4S, V22.4S, V24.4S - c = (2ab) >> 32
-	WORD   $0x4eb89edd                       // MUL V29.4S, V22.4S, V24.4S - m = ab
-	WORD   $0x4ea19fbd                       // MUL V29.4S, V29.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b7bd                       // SQDMULH V29.4S, V29.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4ebd279a                       // SHSUB V26.4S, V28.4S, V29.4S - d = (c − m) / 2
-	VADD   V0.S4, V26.S4, V28.S4
-	VUMIN  V28.S4, V26.S4, V26.S4
-	WORD   $0x4eb9b6fc                       // SQDMULH V28.4S, V23.4S, V25.4S - c = (2ab) >> 32
-	WORD   $0x4eb99efd                       // MUL V29.4S, V23.4S, V25.4S - m = ab
-	WORD   $0x4ea19fbd                       // MUL V29.4S, V29.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b7bd                       // SQDMULH V29.4S, V29.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4ebd279b                       // SHSUB V27.4S, V28.4S, V29.4S - d = (c − m) / 2
-	VADD   V0.S4, V27.S4, V28.S4
-	VUMIN  V28.S4, V27.S4, V27.S4
-	VADD   V23.S4, V22.S4, V22.S4
-	VSUB   V0.S4, V22.S4, V28.S4
-	VUMIN  V28.S4, V22.S4, V22.S4
-	VADD   V25.S4, V24.S4, V24.S4
-	VSUB   V0.S4, V24.S4, V28.S4
-	VUMIN  V28.S4, V24.S4, V24.S4
-	WORD   $0x4eb8b6dc                       // SQDMULH V28.4S, V22.4S, V24.4S - c = (2ab) >> 32
-	WORD   $0x4eb89edd                       // MUL V29.4S, V22.4S, V24.4S - m = ab
-	WORD   $0x4ea19fbd                       // MUL V29.4S, V29.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b7bd                       // SQDMULH V29.4S, V29.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4ebd2797                       // SHSUB V23.4S, V28.4S, V29.4S - d = (c − m) / 2
-	VADD   V0.S4, V23.S4, V28.S4
-	VUMIN  V28.S4, V23.S4, V23.S4
-	VSUB   V26.S4, V23.S4, V23.S4
-	VADD   V0.S4, V23.S4, V28.S4
-	VUMIN  V28.S4, V23.S4, V23.S4
-	VSUB   V27.S4, V23.S4, V23.S4
-	VADD   V0.S4, V23.S4, V28.S4
-	VUMIN  V28.S4, V23.S4, V23.S4
-	VADD   V27.S4, V27.S4, V24.S4
-	VSUB   V0.S4, V24.S4, V28.S4
-	VUMIN  V28.S4, V24.S4, V24.S4
-	VADD   V27.S4, V24.S4, V24.S4
-	VSUB   V0.S4, V24.S4, V28.S4
-	VUMIN  V28.S4, V24.S4, V24.S4
-	VADD   V24.S4, V26.S4, V22.S4
-	VSUB   V0.S4, V22.S4, V28.S4
-	VUMIN  V28.S4, V22.S4, V22.S4
-	VSUB   V14.S4, V22.S4, V22.S4
-	VADD   V0.S4, V22.S4, V24.S4
-	VUMIN  V24.S4, V22.S4, V22.S4
-	VSUB   V16.S4, V22.S4, V22.S4
-	VADD   V0.S4, V22.S4, V24.S4
-	VUMIN  V24.S4, V22.S4, V22.S4
-	VSUB   V15.S4, V23.S4, V23.S4
-	VADD   V0.S4, V23.S4, V24.S4
-	VUMIN  V24.S4, V23.S4, V23.S4
-	VSUB   V17.S4, V23.S4, V23.S4
-	VADD   V0.S4, V23.S4, V24.S4
-	VUMIN  V24.S4, V23.S4, V23.S4
-	VMOV   V18.B16, V24.B16
-	VMOV   V19.B16, V25.B16
-	VADD   V25.S4, V25.S4, V26.S4
-	VSUB   V0.S4, V26.S4, V27.S4
-	VUMIN  V27.S4, V26.S4, V26.S4
-	VADD   V25.S4, V26.S4, V26.S4
-	VSUB   V0.S4, V26.S4, V27.S4
-	VUMIN  V27.S4, V26.S4, V26.S4
-	VADD   V25.S4, V24.S4, V25.S4
-	VSUB   V0.S4, V25.S4, V27.S4
-	VUMIN  V27.S4, V25.S4, V25.S4
-	VADD   V26.S4, V24.S4, V24.S4
-	VSUB   V0.S4, V24.S4, V27.S4
-	VUMIN  V27.S4, V24.S4, V24.S4
-	VADD   V22.S4, V24.S4, V24.S4
-	VSUB   V0.S4, V24.S4, V27.S4
-	VUMIN  V27.S4, V24.S4, V24.S4
-	VADD   V23.S4, V25.S4, V25.S4
-	VSUB   V0.S4, V25.S4, V27.S4
-	VUMIN  V27.S4, V25.S4, V25.S4
-	VADD   V12.S4, V8.S4, V10.S4
-	VSUB   V0.S4, V10.S4, V26.S4
-	VUMIN  V26.S4, V10.S4, V10.S4
-	VADD   V13.S4, V9.S4, V11.S4
-	VSUB   V0.S4, V11.S4, V26.S4
-	VUMIN  V26.S4, V11.S4, V11.S4
-	VADD   V6.S4, V2.S4, V22.S4
-	VSUB   V0.S4, V22.S4, V26.S4
-	VUMIN  V26.S4, V22.S4, V22.S4
-	VADD   V7.S4, V3.S4, V23.S4
-	VSUB   V0.S4, V23.S4, V26.S4
-	VUMIN  V26.S4, V23.S4, V23.S4
-	WORD   $0x4eb6b55c                       // SQDMULH V28.4S, V10.4S, V22.4S - c = (2ab) >> 32
-	WORD   $0x4eb69d5d                       // MUL V29.4S, V10.4S, V22.4S - m = ab
-	WORD   $0x4ea19fbd                       // MUL V29.4S, V29.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b7bd                       // SQDMULH V29.4S, V29.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4ebd279a                       // SHSUB V26.4S, V28.4S, V29.4S - d = (c − m) / 2
-	VADD   V0.S4, V26.S4, V28.S4
-	VUMIN  V28.S4, V26.S4, V26.S4
-	WORD   $0x4eb7b57c                       // SQDMULH V28.4S, V11.4S, V23.4S - c = (2ab) >> 32
-	WORD   $0x4eb79d7d                       // MUL V29.4S, V11.4S, V23.4S - m = ab
-	WORD   $0x4ea19fbd                       // MUL V29.4S, V29.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b7bd                       // SQDMULH V29.4S, V29.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4ebd279b                       // SHSUB V27.4S, V28.4S, V29.4S - d = (c − m) / 2
-	VADD   V0.S4, V27.S4, V28.S4
-	VUMIN  V28.S4, V27.S4, V27.S4
-	VADD   V11.S4, V10.S4, V10.S4
-	VSUB   V0.S4, V10.S4, V28.S4
-	VUMIN  V28.S4, V10.S4, V10.S4
-	VADD   V23.S4, V22.S4, V22.S4
-	VSUB   V0.S4, V22.S4, V28.S4
-	VUMIN  V28.S4, V22.S4, V22.S4
-	WORD   $0x4eb6b55c                       // SQDMULH V28.4S, V10.4S, V22.4S - c = (2ab) >> 32
-	WORD   $0x4eb69d5d                       // MUL V29.4S, V10.4S, V22.4S - m = ab
-	WORD   $0x4ea19fbd                       // MUL V29.4S, V29.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b7bd                       // SQDMULH V29.4S, V29.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4ebd278b                       // SHSUB V11.4S, V28.4S, V29.4S - d = (c − m) / 2
-	VADD   V0.S4, V11.S4, V28.S4
-	VUMIN  V28.S4, V11.S4, V11.S4
-	VSUB   V26.S4, V11.S4, V11.S4
-	VADD   V0.S4, V11.S4, V28.S4
-	VUMIN  V28.S4, V11.S4, V11.S4
-	VSUB   V27.S4, V11.S4, V11.S4
-	VADD   V0.S4, V11.S4, V28.S4
-	VUMIN  V28.S4, V11.S4, V11.S4
-	VADD   V27.S4, V27.S4, V22.S4
-	VSUB   V0.S4, V22.S4, V28.S4
-	VUMIN  V28.S4, V22.S4, V22.S4
-	VADD   V27.S4, V22.S4, V22.S4
-	VSUB   V0.S4, V22.S4, V28.S4
-	VUMIN  V28.S4, V22.S4, V22.S4
-	VADD   V22.S4, V26.S4, V10.S4
-	VSUB   V0.S4, V10.S4, V28.S4
-	VUMIN  V28.S4, V10.S4, V10.S4
-	VSUB   V14.S4, V10.S4, V10.S4
-	VADD   V0.S4, V10.S4, V22.S4
-	VUMIN  V22.S4, V10.S4, V10.S4
-	VSUB   V18.S4, V10.S4, V10.S4
-	VADD   V0.S4, V10.S4, V22.S4
-	VUMIN  V22.S4, V10.S4, V10.S4
-	VSUB   V15.S4, V11.S4, V11.S4
-	VADD   V0.S4, V11.S4, V22.S4
-	VUMIN  V22.S4, V11.S4, V11.S4
-	VSUB   V19.S4, V11.S4, V11.S4
-	VADD   V0.S4, V11.S4, V22.S4
-	VUMIN  V22.S4, V11.S4, V11.S4
-	VADD   V16.S4, V10.S4, V10.S4
-	VSUB   V0.S4, V10.S4, V22.S4
-	VUMIN  V22.S4, V10.S4, V10.S4
-	VADD   V17.S4, V11.S4, V11.S4
-	VSUB   V0.S4, V11.S4, V22.S4
-	VUMIN  V22.S4, V11.S4, V11.S4
-	VLD1.P 16(R1), [V8.S4]
-	VADD   V8.S4, V20.S4, V20.S4
-	VSUB   V0.S4, V20.S4, V9.S4
-	VUMIN  V9.S4, V20.S4, V20.S4
-	VZIP1  V21.S4, V20.S4, V12.S4
-	VZIP1  V25.S4, V24.S4, V13.S4
-	VZIP1  V11.S4, V10.S4, V14.S4
-	VST3.P [V12.D2, V13.D2, V14.D2], 48(R0)
-	VZIP2  V21.S4, V20.S4, V12.S4
-	VZIP2  V25.S4, V24.S4, V13.S4
-	VZIP2  V11.S4, V10.S4, V14.S4
-	VST3.P [V12.D2, V13.D2, V14.D2], 48(R0)
+	VADD   V5.S4, V4.S4, V4.S4
+	VSUB   V0.S4, V4.S4, V26.S4
+	VUMIN  V26.S4, V4.S4, V4.S4
+	WORD   $0x4eb4b49a                       // SQDMULH V26.4S, V4.4S, V20.4S - c = (2ab) >> 32
+	WORD   $0x4eb79c9b                       // MUL V27.4S, V4.4S, V23.4S - m = ab·μ
+	WORD   $0x4ea0b77b                       // SQDMULH V27.4S, V27.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4ebb2745                       // SHSUB V5.4S, V26.4S, V27.4S - d = (c − m) / 2
+	VADD   V0.S4, V5.S4, V26.S4
+	VUMIN  V26.S4, V5.S4, V5.S4
+	VSUB   V24.S4, V5.S4, V5.S4
+	VADD   V0.S4, V5.S4, V26.S4
+	VUMIN  V26.S4, V5.S4, V5.S4
+	VSUB   V25.S4, V5.S4, V5.S4
+	VADD   V0.S4, V5.S4, V26.S4
+	VUMIN  V26.S4, V5.S4, V5.S4
+	VADD   V25.S4, V24.S4, V4.S4
+	VSUB   V0.S4, V4.S4, V26.S4
+	VUMIN  V26.S4, V4.S4, V4.S4
+	VADD   V25.S4, V4.S4, V4.S4
+	VSUB   V0.S4, V4.S4, V26.S4
+	VUMIN  V26.S4, V4.S4, V4.S4
+	VADD   V25.S4, V4.S4, V4.S4
+	VSUB   V0.S4, V4.S4, V26.S4
+	VUMIN  V26.S4, V4.S4, V4.S4
+	VSUB   V8.S4, V4.S4, V4.S4
+	VADD   V0.S4, V4.S4, V16.S4
+	VUMIN  V16.S4, V4.S4, V4.S4
+	VSUB   V12.S4, V4.S4, V4.S4
+	VADD   V0.S4, V4.S4, V16.S4
+	VUMIN  V16.S4, V4.S4, V4.S4
+	VSUB   V9.S4, V5.S4, V5.S4
+	VADD   V0.S4, V5.S4, V16.S4
+	VUMIN  V16.S4, V5.S4, V5.S4
+	VSUB   V13.S4, V5.S4, V5.S4
+	VADD   V0.S4, V5.S4, V16.S4
+	VUMIN  V16.S4, V5.S4, V5.S4
+	VADD   V10.S4, V4.S4, V4.S4
+	VSUB   V0.S4, V4.S4, V16.S4
+	VUMIN  V16.S4, V4.S4, V4.S4
+	VADD   V11.S4, V5.S4, V5.S4
+	VSUB   V0.S4, V5.S4, V16.S4
+	VUMIN  V16.S4, V5.S4, V5.S4
+	VLD1.P 16(R1), [V2.S4]
+	VADD   V2.S4, V14.S4, V14.S4
+	VSUB   V0.S4, V14.S4, V3.S4
+	VUMIN  V3.S4, V14.S4, V14.S4
+	VZIP1  V15.S4, V14.S4, V6.S4
+	VZIP1  V19.S4, V18.S4, V7.S4
+	VZIP1  V5.S4, V4.S4, V8.S4
+	VST3.P [V6.D2, V7.D2, V8.D2], 48(R0)
+	VZIP2  V15.S4, V14.S4, V6.S4
+	VZIP2  V19.S4, V18.S4, V7.S4
+	VZIP2  V5.S4, V4.S4, V8.S4
+	VST3.P [V6.D2, V7.D2, V8.D2], 48(R0)
 	JMP    loop13
 
 done14:
@@ -2982,567 +2866,538 @@ done14:
 // vectorFoldPairs_E6_neon: see generateFoldPairsE6 in the generator
 
 TEXT ·vectorFoldPairs_E6_neon(SB), NOFRAME|NOSPLIT, $0-40
-	MOVD  res+0(FP), R0
-	MOVD  layer+8(FP), R1
-	MOVD  twiddles+16(FP), R2
-	MOVD  alpha+24(FP), R3
-	MOVD  N+32(FP), R4
-	LSR   $2, R4, R4
-	MOVD  $2130706433, R10
-	VDUP  R10, V0.S4
-	MOVD  $2164260865, R10
-	VDUP  R10, V1.S4
-	MOVD  R0, R11
-	MOVWU 0(R3), R10
-	VDUP  R10, V2.S4
-	MOVWU 4(R3), R10
-	VDUP  R10, V3.S4
-	MOVWU 8(R3), R10
-	VDUP  R10, V4.S4
-	MOVWU 12(R3), R10
-	VDUP  R10, V5.S4
-	MOVWU 16(R3), R10
-	VDUP  R10, V6.S4
-	MOVWU 20(R3), R10
-	VDUP  R10, V7.S4
+	MOVD res+0(FP), R0
+	MOVD layer+8(FP), R1
+	MOVD twiddles+16(FP), R2
+	MOVD alpha+24(FP), R3
+	MOVD N+32(FP), R4
+	LSR  $2, R4, R4
+	MOVD $2130706433, R10
+	VDUP R10, V0.S4
+	MOVD $2164260865, R10
+	VDUP R10, V1.S4
+	MOVD R0, R11
 
 loop15:
 	CBZ    R4, done16
 	SUB    $1, R4, R4
-	VLD3.P 48(R1), [V8.D2, V9.D2, V10.D2]
-	VLD3.P 48(R1), [V11.D2, V12.D2, V13.D2]
-	WORD   $0x4e8b190e                      // UZP1 V14.4S, V8.4S, V11.4S
-	WORD   $0x4e8b590f                      // UZP2 V15.4S, V8.4S, V11.4S
-	WORD   $0x4e8c1930                      // UZP1 V16.4S, V9.4S, V12.4S
-	WORD   $0x4e8c5931                      // UZP2 V17.4S, V9.4S, V12.4S
-	WORD   $0x4e8d1952                      // UZP1 V18.4S, V10.4S, V13.4S
-	WORD   $0x4e8d5953                      // UZP2 V19.4S, V10.4S, V13.4S
-	VLD3.P 48(R1), [V8.D2, V9.D2, V10.D2]
-	VLD3.P 48(R1), [V11.D2, V12.D2, V13.D2]
-	WORD   $0x4e8b1914                      // UZP1 V20.4S, V8.4S, V11.4S
-	WORD   $0x4e8b5915                      // UZP2 V21.4S, V8.4S, V11.4S
-	WORD   $0x4e8c1936                      // UZP1 V22.4S, V9.4S, V12.4S
-	WORD   $0x4e8c5937                      // UZP2 V23.4S, V9.4S, V12.4S
-	WORD   $0x4e8d1958                      // UZP1 V24.4S, V10.4S, V13.4S
-	WORD   $0x4e8d5959                      // UZP2 V25.4S, V10.4S, V13.4S
-	WORD   $0x4e9419c8                      // UZP1 V8.4S, V14.4S, V20.4S
-	WORD   $0x4e9459c9                      // UZP2 V9.4S, V14.4S, V20.4S
-	WORD   $0x4e9519ea                      // UZP1 V10.4S, V15.4S, V21.4S
-	WORD   $0x4e9559eb                      // UZP2 V11.4S, V15.4S, V21.4S
-	WORD   $0x4e961a0c                      // UZP1 V12.4S, V16.4S, V22.4S
-	WORD   $0x4e965a0d                      // UZP2 V13.4S, V16.4S, V22.4S
-	WORD   $0x4e971a2e                      // UZP1 V14.4S, V17.4S, V23.4S
-	WORD   $0x4e975a2f                      // UZP2 V15.4S, V17.4S, V23.4S
-	WORD   $0x4e981a50                      // UZP1 V16.4S, V18.4S, V24.4S
-	WORD   $0x4e985a51                      // UZP2 V17.4S, V18.4S, V24.4S
-	WORD   $0x4e991a72                      // UZP1 V18.4S, V19.4S, V25.4S
-	WORD   $0x4e995a74                      // UZP2 V20.4S, V19.4S, V25.4S
-	VLD1.P 16(R2), [V19.S4]
-	WORD   $0x4ea19e75                      // MUL V21.4S, V19.4S, V1.4S - tw·μ
+	VLD3.P 48(R1), [V2.D2, V3.D2, V4.D2]
+	VLD3.P 48(R1), [V5.D2, V6.D2, V7.D2]
+	WORD   $0x4e851848                      // UZP1 V8.4S, V2.4S, V5.4S
+	WORD   $0x4e855849                      // UZP2 V9.4S, V2.4S, V5.4S
+	WORD   $0x4e86186a                      // UZP1 V10.4S, V3.4S, V6.4S
+	WORD   $0x4e86586b                      // UZP2 V11.4S, V3.4S, V6.4S
+	WORD   $0x4e87188c                      // UZP1 V12.4S, V4.4S, V7.4S
+	WORD   $0x4e87588d                      // UZP2 V13.4S, V4.4S, V7.4S
+	VLD3.P 48(R1), [V2.D2, V3.D2, V4.D2]
+	VLD3.P 48(R1), [V5.D2, V6.D2, V7.D2]
+	WORD   $0x4e85184e                      // UZP1 V14.4S, V2.4S, V5.4S
+	WORD   $0x4e85584f                      // UZP2 V15.4S, V2.4S, V5.4S
+	WORD   $0x4e861870                      // UZP1 V16.4S, V3.4S, V6.4S
+	WORD   $0x4e865871                      // UZP2 V17.4S, V3.4S, V6.4S
+	WORD   $0x4e871892                      // UZP1 V18.4S, V4.4S, V7.4S
+	WORD   $0x4e875893                      // UZP2 V19.4S, V4.4S, V7.4S
+	WORD   $0x4e8e1902                      // UZP1 V2.4S, V8.4S, V14.4S
+	WORD   $0x4e8e5903                      // UZP2 V3.4S, V8.4S, V14.4S
+	WORD   $0x4e8f1924                      // UZP1 V4.4S, V9.4S, V15.4S
+	WORD   $0x4e8f5925                      // UZP2 V5.4S, V9.4S, V15.4S
+	WORD   $0x4e901946                      // UZP1 V6.4S, V10.4S, V16.4S
+	WORD   $0x4e905947                      // UZP2 V7.4S, V10.4S, V16.4S
+	WORD   $0x4e911968                      // UZP1 V8.4S, V11.4S, V17.4S
+	WORD   $0x4e915969                      // UZP2 V9.4S, V11.4S, V17.4S
+	WORD   $0x4e92198a                      // UZP1 V10.4S, V12.4S, V18.4S
+	WORD   $0x4e92598b                      // UZP2 V11.4S, V12.4S, V18.4S
+	WORD   $0x4e9319ac                      // UZP1 V12.4S, V13.4S, V19.4S
+	WORD   $0x4e9359ae                      // UZP2 V14.4S, V13.4S, V19.4S
+	VLD1.P 16(R2), [V13.S4]
+	WORD   $0x4ea19daf                      // MUL V15.4S, V13.4S, V1.4S - tw·μ
 	MOVD   $1, R10
-	VDUP   R10, V22.S4
+	VDUP   R10, V16.S4
 	MOVD   $1065353217, R10
-	VDUP   R10, V23.S4
-	VSUB   V9.S4, V8.S4, V24.S4
-	VADD   V0.S4, V24.S4, V25.S4
-	VUMIN  V25.S4, V24.S4, V24.S4
+	VDUP   R10, V17.S4
+	VSUB   V3.S4, V2.S4, V18.S4
+	VADD   V0.S4, V18.S4, V19.S4
+	VUMIN  V19.S4, V18.S4, V18.S4
+	VADD   V3.S4, V2.S4, V2.S4
+	VSUB   V0.S4, V2.S4, V19.S4
+	VUMIN  V19.S4, V2.S4, V2.S4
+	VUSHR  $1, V2.S4, V3.S4
+	VAND   V16.B16, V2.B16, V2.B16
+	WORD   $0x4eb19c42                      // MUL V2.4S, V2.4S, V17.4S - (x & 1)·(q+1)/2
+	VADD   V3.S4, V2.S4, V2.S4
+	WORD   $0x4eadb643                      // SQDMULH V3.4S, V18.4S, V13.4S - c = (2ab) >> 32
+	WORD   $0x4eaf9e53                      // MUL V19.4S, V18.4S, V15.4S - m = ab·μ
+	WORD   $0x4ea0b673                      // SQDMULH V19.4S, V19.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4eb32472                      // SHSUB V18.4S, V3.4S, V19.4S - d = (c − m) / 2
+	VADD   V0.S4, V18.S4, V3.S4
+	VUMIN  V3.S4, V18.S4, V18.S4
+	VSUB   V5.S4, V4.S4, V3.S4
+	VADD   V0.S4, V3.S4, V19.S4
+	VUMIN  V19.S4, V3.S4, V3.S4
+	VADD   V5.S4, V4.S4, V4.S4
+	VSUB   V0.S4, V4.S4, V19.S4
+	VUMIN  V19.S4, V4.S4, V4.S4
+	VUSHR  $1, V4.S4, V5.S4
+	VAND   V16.B16, V4.B16, V4.B16
+	WORD   $0x4eb19c84                      // MUL V4.4S, V4.4S, V17.4S - (x & 1)·(q+1)/2
+	VADD   V5.S4, V4.S4, V4.S4
+	WORD   $0x4eadb465                      // SQDMULH V5.4S, V3.4S, V13.4S - c = (2ab) >> 32
+	WORD   $0x4eaf9c73                      // MUL V19.4S, V3.4S, V15.4S - m = ab·μ
+	WORD   $0x4ea0b673                      // SQDMULH V19.4S, V19.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4eb324a3                      // SHSUB V3.4S, V5.4S, V19.4S - d = (c − m) / 2
+	VADD   V0.S4, V3.S4, V5.S4
+	VUMIN  V5.S4, V3.S4, V3.S4
+	VSUB   V7.S4, V6.S4, V5.S4
+	VADD   V0.S4, V5.S4, V19.S4
+	VUMIN  V19.S4, V5.S4, V5.S4
+	VADD   V7.S4, V6.S4, V6.S4
+	VSUB   V0.S4, V6.S4, V19.S4
+	VUMIN  V19.S4, V6.S4, V6.S4
+	VUSHR  $1, V6.S4, V7.S4
+	VAND   V16.B16, V6.B16, V6.B16
+	WORD   $0x4eb19cc6                      // MUL V6.4S, V6.4S, V17.4S - (x & 1)·(q+1)/2
+	VADD   V7.S4, V6.S4, V6.S4
+	WORD   $0x4eadb4a7                      // SQDMULH V7.4S, V5.4S, V13.4S - c = (2ab) >> 32
+	WORD   $0x4eaf9cb3                      // MUL V19.4S, V5.4S, V15.4S - m = ab·μ
+	WORD   $0x4ea0b673                      // SQDMULH V19.4S, V19.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4eb324e5                      // SHSUB V5.4S, V7.4S, V19.4S - d = (c − m) / 2
+	VADD   V0.S4, V5.S4, V7.S4
+	VUMIN  V7.S4, V5.S4, V5.S4
+	VSUB   V9.S4, V8.S4, V7.S4
+	VADD   V0.S4, V7.S4, V19.S4
+	VUMIN  V19.S4, V7.S4, V7.S4
 	VADD   V9.S4, V8.S4, V8.S4
-	VSUB   V0.S4, V8.S4, V25.S4
-	VUMIN  V25.S4, V8.S4, V8.S4
+	VSUB   V0.S4, V8.S4, V19.S4
+	VUMIN  V19.S4, V8.S4, V8.S4
 	VUSHR  $1, V8.S4, V9.S4
-	VAND   V22.B16, V8.B16, V8.B16
-	WORD   $0x4eb79d08                      // MUL V8.4S, V8.4S, V23.4S - (x & 1)·(q+1)/2
+	VAND   V16.B16, V8.B16, V8.B16
+	WORD   $0x4eb19d08                      // MUL V8.4S, V8.4S, V17.4S - (x & 1)·(q+1)/2
 	VADD   V9.S4, V8.S4, V8.S4
-	WORD   $0x4eb3b709                      // SQDMULH V9.4S, V24.4S, V19.4S - c = (2ab) >> 32
-	WORD   $0x4eb59f19                      // MUL V25.4S, V24.4S, V21.4S - m = ab·μ
-	WORD   $0x4ea0b739                      // SQDMULH V25.4S, V25.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4eb92538                      // SHSUB V24.4S, V9.4S, V25.4S - d = (c − m) / 2
-	VADD   V0.S4, V24.S4, V9.S4
-	VUMIN  V9.S4, V24.S4, V24.S4
+	WORD   $0x4eadb4e9                      // SQDMULH V9.4S, V7.4S, V13.4S - c = (2ab) >> 32
+	WORD   $0x4eaf9cf3                      // MUL V19.4S, V7.4S, V15.4S - m = ab·μ
+	WORD   $0x4ea0b673                      // SQDMULH V19.4S, V19.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4eb32527                      // SHSUB V7.4S, V9.4S, V19.4S - d = (c − m) / 2
+	VADD   V0.S4, V7.S4, V9.S4
+	VUMIN  V9.S4, V7.S4, V7.S4
 	VSUB   V11.S4, V10.S4, V9.S4
-	VADD   V0.S4, V9.S4, V25.S4
-	VUMIN  V25.S4, V9.S4, V9.S4
+	VADD   V0.S4, V9.S4, V19.S4
+	VUMIN  V19.S4, V9.S4, V9.S4
 	VADD   V11.S4, V10.S4, V10.S4
-	VSUB   V0.S4, V10.S4, V25.S4
-	VUMIN  V25.S4, V10.S4, V10.S4
+	VSUB   V0.S4, V10.S4, V19.S4
+	VUMIN  V19.S4, V10.S4, V10.S4
 	VUSHR  $1, V10.S4, V11.S4
-	VAND   V22.B16, V10.B16, V10.B16
-	WORD   $0x4eb79d4a                      // MUL V10.4S, V10.4S, V23.4S - (x & 1)·(q+1)/2
+	VAND   V16.B16, V10.B16, V10.B16
+	WORD   $0x4eb19d4a                      // MUL V10.4S, V10.4S, V17.4S - (x & 1)·(q+1)/2
 	VADD   V11.S4, V10.S4, V10.S4
-	WORD   $0x4eb3b52b                      // SQDMULH V11.4S, V9.4S, V19.4S - c = (2ab) >> 32
-	WORD   $0x4eb59d39                      // MUL V25.4S, V9.4S, V21.4S - m = ab·μ
-	WORD   $0x4ea0b739                      // SQDMULH V25.4S, V25.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4eb92569                      // SHSUB V9.4S, V11.4S, V25.4S - d = (c − m) / 2
+	WORD   $0x4eadb52b                      // SQDMULH V11.4S, V9.4S, V13.4S - c = (2ab) >> 32
+	WORD   $0x4eaf9d33                      // MUL V19.4S, V9.4S, V15.4S - m = ab·μ
+	WORD   $0x4ea0b673                      // SQDMULH V19.4S, V19.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4eb32569                      // SHSUB V9.4S, V11.4S, V19.4S - d = (c − m) / 2
 	VADD   V0.S4, V9.S4, V11.S4
 	VUMIN  V11.S4, V9.S4, V9.S4
-	VSUB   V13.S4, V12.S4, V11.S4
-	VADD   V0.S4, V11.S4, V25.S4
-	VUMIN  V25.S4, V11.S4, V11.S4
-	VADD   V13.S4, V12.S4, V12.S4
-	VSUB   V0.S4, V12.S4, V25.S4
-	VUMIN  V25.S4, V12.S4, V12.S4
-	VUSHR  $1, V12.S4, V13.S4
-	VAND   V22.B16, V12.B16, V12.B16
-	WORD   $0x4eb79d8c                      // MUL V12.4S, V12.4S, V23.4S - (x & 1)·(q+1)/2
-	VADD   V13.S4, V12.S4, V12.S4
-	WORD   $0x4eb3b56d                      // SQDMULH V13.4S, V11.4S, V19.4S - c = (2ab) >> 32
-	WORD   $0x4eb59d79                      // MUL V25.4S, V11.4S, V21.4S - m = ab·μ
-	WORD   $0x4ea0b739                      // SQDMULH V25.4S, V25.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4eb925ab                      // SHSUB V11.4S, V13.4S, V25.4S - d = (c − m) / 2
-	VADD   V0.S4, V11.S4, V13.S4
-	VUMIN  V13.S4, V11.S4, V11.S4
-	VSUB   V15.S4, V14.S4, V13.S4
-	VADD   V0.S4, V13.S4, V25.S4
-	VUMIN  V25.S4, V13.S4, V13.S4
-	VADD   V15.S4, V14.S4, V14.S4
-	VSUB   V0.S4, V14.S4, V25.S4
-	VUMIN  V25.S4, V14.S4, V14.S4
-	VUSHR  $1, V14.S4, V15.S4
-	VAND   V22.B16, V14.B16, V14.B16
-	WORD   $0x4eb79dce                      // MUL V14.4S, V14.4S, V23.4S - (x & 1)·(q+1)/2
-	VADD   V15.S4, V14.S4, V14.S4
-	WORD   $0x4eb3b5af                      // SQDMULH V15.4S, V13.4S, V19.4S - c = (2ab) >> 32
-	WORD   $0x4eb59db9                      // MUL V25.4S, V13.4S, V21.4S - m = ab·μ
-	WORD   $0x4ea0b739                      // SQDMULH V25.4S, V25.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4eb925ed                      // SHSUB V13.4S, V15.4S, V25.4S - d = (c − m) / 2
-	VADD   V0.S4, V13.S4, V15.S4
-	VUMIN  V15.S4, V13.S4, V13.S4
-	VSUB   V17.S4, V16.S4, V15.S4
-	VADD   V0.S4, V15.S4, V25.S4
-	VUMIN  V25.S4, V15.S4, V15.S4
-	VADD   V17.S4, V16.S4, V16.S4
-	VSUB   V0.S4, V16.S4, V25.S4
-	VUMIN  V25.S4, V16.S4, V16.S4
-	VUSHR  $1, V16.S4, V17.S4
-	VAND   V22.B16, V16.B16, V16.B16
-	WORD   $0x4eb79e10                      // MUL V16.4S, V16.4S, V23.4S - (x & 1)·(q+1)/2
-	VADD   V17.S4, V16.S4, V16.S4
-	WORD   $0x4eb3b5f1                      // SQDMULH V17.4S, V15.4S, V19.4S - c = (2ab) >> 32
-	WORD   $0x4eb59df9                      // MUL V25.4S, V15.4S, V21.4S - m = ab·μ
-	WORD   $0x4ea0b739                      // SQDMULH V25.4S, V25.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4eb9262f                      // SHSUB V15.4S, V17.4S, V25.4S - d = (c − m) / 2
-	VADD   V0.S4, V15.S4, V17.S4
-	VUMIN  V17.S4, V15.S4, V15.S4
-	VSUB   V20.S4, V18.S4, V17.S4
-	VADD   V0.S4, V17.S4, V25.S4
-	VUMIN  V25.S4, V17.S4, V17.S4
-	VADD   V20.S4, V18.S4, V18.S4
-	VSUB   V0.S4, V18.S4, V25.S4
-	VUMIN  V25.S4, V18.S4, V18.S4
-	VUSHR  $1, V18.S4, V20.S4
-	VAND   V22.B16, V18.B16, V18.B16
-	WORD   $0x4eb79e52                      // MUL V18.4S, V18.4S, V23.4S - (x & 1)·(q+1)/2
-	VADD   V20.S4, V18.S4, V18.S4
-	WORD   $0x4eb3b634                      // SQDMULH V20.4S, V17.4S, V19.4S - c = (2ab) >> 32
-	WORD   $0x4eb59e39                      // MUL V25.4S, V17.4S, V21.4S - m = ab·μ
-	WORD   $0x4ea0b739                      // SQDMULH V25.4S, V25.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4eb92691                      // SHSUB V17.4S, V20.4S, V25.4S - d = (c − m) / 2
-	VADD   V0.S4, V17.S4, V20.S4
-	VUMIN  V20.S4, V17.S4, V17.S4
-	VZIP1  V10.S4, V8.S4, V19.S4
-	VZIP1  V14.S4, V12.S4, V20.S4
-	VZIP1  V18.S4, V16.S4, V21.S4
-	VST3.P [V19.D2, V20.D2, V21.D2], 48(R0)
-	VZIP2  V10.S4, V8.S4, V19.S4
-	VZIP2  V14.S4, V12.S4, V20.S4
-	VZIP2  V18.S4, V16.S4, V21.S4
-	VST3.P [V19.D2, V20.D2, V21.D2], 48(R0)
-	WORD   $0x4ea2b715                      // SQDMULH V21.4S, V24.4S, V2.4S - c = (2ab) >> 32
-	WORD   $0x4ea29f16                      // MUL V22.4S, V24.4S, V2.4S - m = ab
-	WORD   $0x4ea19ed6                      // MUL V22.4S, V22.4S, V1.4S - m = ab·μ
+	VSUB   V14.S4, V12.S4, V11.S4
+	VADD   V0.S4, V11.S4, V19.S4
+	VUMIN  V19.S4, V11.S4, V11.S4
+	VADD   V14.S4, V12.S4, V12.S4
+	VSUB   V0.S4, V12.S4, V19.S4
+	VUMIN  V19.S4, V12.S4, V12.S4
+	VUSHR  $1, V12.S4, V14.S4
+	VAND   V16.B16, V12.B16, V12.B16
+	WORD   $0x4eb19d8c                      // MUL V12.4S, V12.4S, V17.4S - (x & 1)·(q+1)/2
+	VADD   V14.S4, V12.S4, V12.S4
+	WORD   $0x4eadb56e                      // SQDMULH V14.4S, V11.4S, V13.4S - c = (2ab) >> 32
+	WORD   $0x4eaf9d73                      // MUL V19.4S, V11.4S, V15.4S - m = ab·μ
+	WORD   $0x4ea0b673                      // SQDMULH V19.4S, V19.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4eb325cb                      // SHSUB V11.4S, V14.4S, V19.4S - d = (c − m) / 2
+	VADD   V0.S4, V11.S4, V14.S4
+	VUMIN  V14.S4, V11.S4, V11.S4
+	VZIP1  V4.S4, V2.S4, V13.S4
+	VZIP1  V8.S4, V6.S4, V14.S4
+	VZIP1  V12.S4, V10.S4, V15.S4
+	VST3.P [V13.D2, V14.D2, V15.D2], 48(R0)
+	VZIP2  V4.S4, V2.S4, V13.S4
+	VZIP2  V8.S4, V6.S4, V14.S4
+	VZIP2  V12.S4, V10.S4, V15.S4
+	VST3.P [V13.D2, V14.D2, V15.D2], 48(R0)
+	MOVD   R3, R13
+	VLD1.P 16(R13), [V13.S4]
+	VLD1.P 16(R13), [V14.S4]
+	VLD1.P 16(R13), [V15.S4]
+	VLD1.P 16(R13), [V16.S4]
+	VLD1.P 16(R13), [V17.S4]
+	VLD1.P 16(R13), [V19.S4]
+	WORD   $0x4eadb655                      // SQDMULH V21.4S, V18.4S, V13.4S - c = (2ab) >> 32
+	WORD   $0x4eb09e56                      // MUL V22.4S, V18.4S, V16.4S - m = ab·μ
 	WORD   $0x4ea0b6d6                      // SQDMULH V22.4S, V22.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4eb626a8                      // SHSUB V8.4S, V21.4S, V22.4S - d = (c − m) / 2
-	VADD   V0.S4, V8.S4, V21.S4
-	VUMIN  V21.S4, V8.S4, V8.S4
-	WORD   $0x4ea3b535                      // SQDMULH V21.4S, V9.4S, V3.4S - c = (2ab) >> 32
-	WORD   $0x4ea39d36                      // MUL V22.4S, V9.4S, V3.4S - m = ab
-	WORD   $0x4ea19ed6                      // MUL V22.4S, V22.4S, V1.4S - m = ab·μ
+	WORD   $0x4eb626a2                      // SHSUB V2.4S, V21.4S, V22.4S - d = (c − m) / 2
+	VADD   V0.S4, V2.S4, V21.S4
+	VUMIN  V21.S4, V2.S4, V2.S4
+	WORD   $0x4eaeb475                      // SQDMULH V21.4S, V3.4S, V14.4S - c = (2ab) >> 32
+	WORD   $0x4eb19c76                      // MUL V22.4S, V3.4S, V17.4S - m = ab·μ
 	WORD   $0x4ea0b6d6                      // SQDMULH V22.4S, V22.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4eb626b3                      // SHSUB V19.4S, V21.4S, V22.4S - d = (c − m) / 2
-	VADD   V0.S4, V19.S4, V21.S4
-	VUMIN  V21.S4, V19.S4, V19.S4
-	VADD   V9.S4, V24.S4, V20.S4
-	VSUB   V0.S4, V20.S4, V21.S4
+	WORD   $0x4eb626b4                      // SHSUB V20.4S, V21.4S, V22.4S - d = (c − m) / 2
+	VADD   V0.S4, V20.S4, V21.S4
 	VUMIN  V21.S4, V20.S4, V20.S4
-	VADD   V3.S4, V2.S4, V10.S4
-	VSUB   V0.S4, V10.S4, V21.S4
-	VUMIN  V21.S4, V10.S4, V10.S4
-	WORD   $0x4eaab695                      // SQDMULH V21.4S, V20.4S, V10.4S - c = (2ab) >> 32
-	WORD   $0x4eaa9e96                      // MUL V22.4S, V20.4S, V10.4S - m = ab
-	WORD   $0x4ea19ed6                      // MUL V22.4S, V22.4S, V1.4S - m = ab·μ
+	VADD   V3.S4, V18.S4, V21.S4
+	VSUB   V0.S4, V21.S4, V22.S4
+	VUMIN  V22.S4, V21.S4, V21.S4
+	WORD   $0x4eafb6b6                      // SQDMULH V22.4S, V21.4S, V15.4S - c = (2ab) >> 32
+	WORD   $0x4eb39eb7                      // MUL V23.4S, V21.4S, V19.4S - m = ab·μ
+	WORD   $0x4ea0b6f7                      // SQDMULH V23.4S, V23.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4eb726c4                      // SHSUB V4.4S, V22.4S, V23.4S - d = (c − m) / 2
+	VADD   V0.S4, V4.S4, V22.S4
+	VUMIN  V22.S4, V4.S4, V4.S4
+	VSUB   V2.S4, V4.S4, V4.S4
+	VADD   V0.S4, V4.S4, V22.S4
+	VUMIN  V22.S4, V4.S4, V4.S4
+	VSUB   V20.S4, V4.S4, V4.S4
+	VADD   V0.S4, V4.S4, V22.S4
+	VUMIN  V22.S4, V4.S4, V4.S4
+	VADD   V20.S4, V2.S4, V2.S4
+	VSUB   V0.S4, V2.S4, V22.S4
+	VUMIN  V22.S4, V2.S4, V2.S4
+	VADD   V20.S4, V2.S4, V2.S4
+	VSUB   V0.S4, V2.S4, V22.S4
+	VUMIN  V22.S4, V2.S4, V2.S4
+	VADD   V20.S4, V2.S4, V2.S4
+	VSUB   V0.S4, V2.S4, V22.S4
+	VUMIN  V22.S4, V2.S4, V2.S4
+	VLD1.P 16(R13), [V13.S4]
+	VLD1.P 16(R13), [V14.S4]
+	VLD1.P 16(R13), [V15.S4]
+	VLD1.P 16(R13), [V16.S4]
+	VLD1.P 16(R13), [V17.S4]
+	VLD1.P 16(R13), [V19.S4]
+	WORD   $0x4eadb4b5                      // SQDMULH V21.4S, V5.4S, V13.4S - c = (2ab) >> 32
+	WORD   $0x4eb09cb6                      // MUL V22.4S, V5.4S, V16.4S - m = ab·μ
+	WORD   $0x4ea0b6d6                      // SQDMULH V22.4S, V22.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4eb626a6                      // SHSUB V6.4S, V21.4S, V22.4S - d = (c − m) / 2
+	VADD   V0.S4, V6.S4, V21.S4
+	VUMIN  V21.S4, V6.S4, V6.S4
+	WORD   $0x4eaeb4f5                      // SQDMULH V21.4S, V7.4S, V14.4S - c = (2ab) >> 32
+	WORD   $0x4eb19cf6                      // MUL V22.4S, V7.4S, V17.4S - m = ab·μ
+	WORD   $0x4ea0b6d6                      // SQDMULH V22.4S, V22.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4eb626b4                      // SHSUB V20.4S, V21.4S, V22.4S - d = (c − m) / 2
+	VADD   V0.S4, V20.S4, V21.S4
+	VUMIN  V21.S4, V20.S4, V20.S4
+	VADD   V7.S4, V5.S4, V21.S4
+	VSUB   V0.S4, V21.S4, V22.S4
+	VUMIN  V22.S4, V21.S4, V21.S4
+	WORD   $0x4eafb6b6                      // SQDMULH V22.4S, V21.4S, V15.4S - c = (2ab) >> 32
+	WORD   $0x4eb39eb7                      // MUL V23.4S, V21.4S, V19.4S - m = ab·μ
+	WORD   $0x4ea0b6f7                      // SQDMULH V23.4S, V23.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4eb726c8                      // SHSUB V8.4S, V22.4S, V23.4S - d = (c − m) / 2
+	VADD   V0.S4, V8.S4, V22.S4
+	VUMIN  V22.S4, V8.S4, V8.S4
+	VSUB   V6.S4, V8.S4, V8.S4
+	VADD   V0.S4, V8.S4, V22.S4
+	VUMIN  V22.S4, V8.S4, V8.S4
+	VSUB   V20.S4, V8.S4, V8.S4
+	VADD   V0.S4, V8.S4, V22.S4
+	VUMIN  V22.S4, V8.S4, V8.S4
+	VADD   V20.S4, V6.S4, V6.S4
+	VSUB   V0.S4, V6.S4, V22.S4
+	VUMIN  V22.S4, V6.S4, V6.S4
+	VADD   V20.S4, V6.S4, V6.S4
+	VSUB   V0.S4, V6.S4, V22.S4
+	VUMIN  V22.S4, V6.S4, V6.S4
+	VADD   V20.S4, V6.S4, V6.S4
+	VSUB   V0.S4, V6.S4, V22.S4
+	VUMIN  V22.S4, V6.S4, V6.S4
+	VLD1.P 16(R13), [V13.S4]
+	VLD1.P 16(R13), [V14.S4]
+	VLD1.P 16(R13), [V15.S4]
+	VLD1.P 16(R13), [V16.S4]
+	VLD1.P 16(R13), [V17.S4]
+	VLD1.P 16(R13), [V19.S4]
+	WORD   $0x4eadb535                      // SQDMULH V21.4S, V9.4S, V13.4S - c = (2ab) >> 32
+	WORD   $0x4eb09d36                      // MUL V22.4S, V9.4S, V16.4S - m = ab·μ
 	WORD   $0x4ea0b6d6                      // SQDMULH V22.4S, V22.4S, V0.4S - m = (2mq) >> 32
 	WORD   $0x4eb626aa                      // SHSUB V10.4S, V21.4S, V22.4S - d = (c − m) / 2
 	VADD   V0.S4, V10.S4, V21.S4
 	VUMIN  V21.S4, V10.S4, V10.S4
-	VSUB   V8.S4, V10.S4, V10.S4
-	VADD   V0.S4, V10.S4, V21.S4
-	VUMIN  V21.S4, V10.S4, V10.S4
-	VSUB   V19.S4, V10.S4, V10.S4
-	VADD   V0.S4, V10.S4, V21.S4
-	VUMIN  V21.S4, V10.S4, V10.S4
-	VADD   V19.S4, V19.S4, V20.S4
-	VSUB   V0.S4, V20.S4, V21.S4
-	VUMIN  V21.S4, V20.S4, V20.S4
-	VADD   V19.S4, V20.S4, V20.S4
-	VSUB   V0.S4, V20.S4, V21.S4
-	VUMIN  V21.S4, V20.S4, V20.S4
-	VADD   V20.S4, V8.S4, V8.S4
-	VSUB   V0.S4, V8.S4, V21.S4
-	VUMIN  V21.S4, V8.S4, V8.S4
-	WORD   $0x4ea4b575                      // SQDMULH V21.4S, V11.4S, V4.4S - c = (2ab) >> 32
-	WORD   $0x4ea49d76                      // MUL V22.4S, V11.4S, V4.4S - m = ab
-	WORD   $0x4ea19ed6                      // MUL V22.4S, V22.4S, V1.4S - m = ab·μ
+	WORD   $0x4eaeb575                      // SQDMULH V21.4S, V11.4S, V14.4S - c = (2ab) >> 32
+	WORD   $0x4eb19d76                      // MUL V22.4S, V11.4S, V17.4S - m = ab·μ
 	WORD   $0x4ea0b6d6                      // SQDMULH V22.4S, V22.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4eb626ac                      // SHSUB V12.4S, V21.4S, V22.4S - d = (c − m) / 2
-	VADD   V0.S4, V12.S4, V21.S4
-	VUMIN  V21.S4, V12.S4, V12.S4
-	WORD   $0x4ea5b5b5                      // SQDMULH V21.4S, V13.4S, V5.4S - c = (2ab) >> 32
-	WORD   $0x4ea59db6                      // MUL V22.4S, V13.4S, V5.4S - m = ab
-	WORD   $0x4ea19ed6                      // MUL V22.4S, V22.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b6d6                      // SQDMULH V22.4S, V22.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4eb626b3                      // SHSUB V19.4S, V21.4S, V22.4S - d = (c − m) / 2
-	VADD   V0.S4, V19.S4, V21.S4
-	VUMIN  V21.S4, V19.S4, V19.S4
-	VADD   V13.S4, V11.S4, V20.S4
-	VSUB   V0.S4, V20.S4, V21.S4
+	WORD   $0x4eb626b4                      // SHSUB V20.4S, V21.4S, V22.4S - d = (c − m) / 2
+	VADD   V0.S4, V20.S4, V21.S4
 	VUMIN  V21.S4, V20.S4, V20.S4
-	VADD   V5.S4, V4.S4, V14.S4
-	VSUB   V0.S4, V14.S4, V21.S4
-	VUMIN  V21.S4, V14.S4, V14.S4
-	WORD   $0x4eaeb695                      // SQDMULH V21.4S, V20.4S, V14.4S - c = (2ab) >> 32
-	WORD   $0x4eae9e96                      // MUL V22.4S, V20.4S, V14.4S - m = ab
-	WORD   $0x4ea19ed6                      // MUL V22.4S, V22.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b6d6                      // SQDMULH V22.4S, V22.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4eb626ae                      // SHSUB V14.4S, V21.4S, V22.4S - d = (c − m) / 2
-	VADD   V0.S4, V14.S4, V21.S4
-	VUMIN  V21.S4, V14.S4, V14.S4
+	VADD   V11.S4, V9.S4, V21.S4
+	VSUB   V0.S4, V21.S4, V22.S4
+	VUMIN  V22.S4, V21.S4, V21.S4
+	WORD   $0x4eafb6b6                      // SQDMULH V22.4S, V21.4S, V15.4S - c = (2ab) >> 32
+	WORD   $0x4eb39eb7                      // MUL V23.4S, V21.4S, V19.4S - m = ab·μ
+	WORD   $0x4ea0b6f7                      // SQDMULH V23.4S, V23.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4eb726cc                      // SHSUB V12.4S, V22.4S, V23.4S - d = (c − m) / 2
+	VADD   V0.S4, V12.S4, V22.S4
+	VUMIN  V22.S4, V12.S4, V12.S4
+	VSUB   V10.S4, V12.S4, V12.S4
+	VADD   V0.S4, V12.S4, V22.S4
+	VUMIN  V22.S4, V12.S4, V12.S4
+	VSUB   V20.S4, V12.S4, V12.S4
+	VADD   V0.S4, V12.S4, V22.S4
+	VUMIN  V22.S4, V12.S4, V12.S4
+	VADD   V20.S4, V10.S4, V10.S4
+	VSUB   V0.S4, V10.S4, V22.S4
+	VUMIN  V22.S4, V10.S4, V10.S4
+	VADD   V20.S4, V10.S4, V10.S4
+	VSUB   V0.S4, V10.S4, V22.S4
+	VUMIN  V22.S4, V10.S4, V10.S4
+	VADD   V20.S4, V10.S4, V10.S4
+	VSUB   V0.S4, V10.S4, V22.S4
+	VUMIN  V22.S4, V10.S4, V10.S4
+	VADD   V9.S4, V5.S4, V13.S4
+	VSUB   V0.S4, V13.S4, V15.S4
+	VUMIN  V15.S4, V13.S4, V13.S4
+	VADD   V11.S4, V7.S4, V14.S4
+	VSUB   V0.S4, V14.S4, V15.S4
+	VUMIN  V15.S4, V14.S4, V14.S4
+	VLD1.P 16(R13), [V15.S4]
+	VLD1.P 16(R13), [V16.S4]
+	VLD1.P 16(R13), [V17.S4]
+	VLD1.P 16(R13), [V19.S4]
+	VLD1.P 16(R13), [V20.S4]
+	VLD1.P 16(R13), [V21.S4]
+	WORD   $0x4eafb5b8                      // SQDMULH V24.4S, V13.4S, V15.4S - c = (2ab) >> 32
+	WORD   $0x4eb39db9                      // MUL V25.4S, V13.4S, V19.4S - m = ab·μ
+	WORD   $0x4ea0b739                      // SQDMULH V25.4S, V25.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4eb92716                      // SHSUB V22.4S, V24.4S, V25.4S - d = (c − m) / 2
+	VADD   V0.S4, V22.S4, V24.S4
+	VUMIN  V24.S4, V22.S4, V22.S4
+	WORD   $0x4eb0b5d8                      // SQDMULH V24.4S, V14.4S, V16.4S - c = (2ab) >> 32
+	WORD   $0x4eb49dd9                      // MUL V25.4S, V14.4S, V20.4S - m = ab·μ
+	WORD   $0x4ea0b739                      // SQDMULH V25.4S, V25.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4eb92717                      // SHSUB V23.4S, V24.4S, V25.4S - d = (c − m) / 2
+	VADD   V0.S4, V23.S4, V24.S4
+	VUMIN  V24.S4, V23.S4, V23.S4
+	VADD   V14.S4, V13.S4, V13.S4
+	VSUB   V0.S4, V13.S4, V24.S4
+	VUMIN  V24.S4, V13.S4, V13.S4
+	WORD   $0x4eb1b5b8                      // SQDMULH V24.4S, V13.4S, V17.4S - c = (2ab) >> 32
+	WORD   $0x4eb59db9                      // MUL V25.4S, V13.4S, V21.4S - m = ab·μ
+	WORD   $0x4ea0b739                      // SQDMULH V25.4S, V25.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4eb9270e                      // SHSUB V14.4S, V24.4S, V25.4S - d = (c − m) / 2
+	VADD   V0.S4, V14.S4, V24.S4
+	VUMIN  V24.S4, V14.S4, V14.S4
+	VSUB   V22.S4, V14.S4, V14.S4
+	VADD   V0.S4, V14.S4, V24.S4
+	VUMIN  V24.S4, V14.S4, V14.S4
+	VSUB   V23.S4, V14.S4, V14.S4
+	VADD   V0.S4, V14.S4, V24.S4
+	VUMIN  V24.S4, V14.S4, V14.S4
+	VADD   V23.S4, V22.S4, V13.S4
+	VSUB   V0.S4, V13.S4, V24.S4
+	VUMIN  V24.S4, V13.S4, V13.S4
+	VADD   V23.S4, V13.S4, V13.S4
+	VSUB   V0.S4, V13.S4, V24.S4
+	VUMIN  V24.S4, V13.S4, V13.S4
+	VADD   V23.S4, V13.S4, V13.S4
+	VSUB   V0.S4, V13.S4, V24.S4
+	VUMIN  V24.S4, V13.S4, V13.S4
+	VSUB   V6.S4, V13.S4, V13.S4
+	VADD   V0.S4, V13.S4, V15.S4
+	VUMIN  V15.S4, V13.S4, V13.S4
+	VSUB   V10.S4, V13.S4, V13.S4
+	VADD   V0.S4, V13.S4, V15.S4
+	VUMIN  V15.S4, V13.S4, V13.S4
+	VSUB   V8.S4, V14.S4, V14.S4
+	VADD   V0.S4, V14.S4, V15.S4
+	VUMIN  V15.S4, V14.S4, V14.S4
 	VSUB   V12.S4, V14.S4, V14.S4
-	VADD   V0.S4, V14.S4, V21.S4
-	VUMIN  V21.S4, V14.S4, V14.S4
-	VSUB   V19.S4, V14.S4, V14.S4
-	VADD   V0.S4, V14.S4, V21.S4
-	VUMIN  V21.S4, V14.S4, V14.S4
-	VADD   V19.S4, V19.S4, V20.S4
-	VSUB   V0.S4, V20.S4, V21.S4
-	VUMIN  V21.S4, V20.S4, V20.S4
-	VADD   V19.S4, V20.S4, V20.S4
-	VSUB   V0.S4, V20.S4, V21.S4
-	VUMIN  V21.S4, V20.S4, V20.S4
-	VADD   V20.S4, V12.S4, V12.S4
-	VSUB   V0.S4, V12.S4, V21.S4
-	VUMIN  V21.S4, V12.S4, V12.S4
-	WORD   $0x4ea6b5f5                      // SQDMULH V21.4S, V15.4S, V6.4S - c = (2ab) >> 32
-	WORD   $0x4ea69df6                      // MUL V22.4S, V15.4S, V6.4S - m = ab
-	WORD   $0x4ea19ed6                      // MUL V22.4S, V22.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b6d6                      // SQDMULH V22.4S, V22.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4eb626b0                      // SHSUB V16.4S, V21.4S, V22.4S - d = (c − m) / 2
-	VADD   V0.S4, V16.S4, V21.S4
-	VUMIN  V21.S4, V16.S4, V16.S4
-	WORD   $0x4ea7b635                      // SQDMULH V21.4S, V17.4S, V7.4S - c = (2ab) >> 32
-	WORD   $0x4ea79e36                      // MUL V22.4S, V17.4S, V7.4S - m = ab
-	WORD   $0x4ea19ed6                      // MUL V22.4S, V22.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b6d6                      // SQDMULH V22.4S, V22.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4eb626b3                      // SHSUB V19.4S, V21.4S, V22.4S - d = (c − m) / 2
-	VADD   V0.S4, V19.S4, V21.S4
-	VUMIN  V21.S4, V19.S4, V19.S4
-	VADD   V17.S4, V15.S4, V20.S4
-	VSUB   V0.S4, V20.S4, V21.S4
-	VUMIN  V21.S4, V20.S4, V20.S4
-	VADD   V7.S4, V6.S4, V18.S4
-	VSUB   V0.S4, V18.S4, V21.S4
-	VUMIN  V21.S4, V18.S4, V18.S4
-	WORD   $0x4eb2b695                      // SQDMULH V21.4S, V20.4S, V18.4S - c = (2ab) >> 32
-	WORD   $0x4eb29e96                      // MUL V22.4S, V20.4S, V18.4S - m = ab
-	WORD   $0x4ea19ed6                      // MUL V22.4S, V22.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b6d6                      // SQDMULH V22.4S, V22.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4eb626b2                      // SHSUB V18.4S, V21.4S, V22.4S - d = (c − m) / 2
-	VADD   V0.S4, V18.S4, V21.S4
-	VUMIN  V21.S4, V18.S4, V18.S4
-	VSUB   V16.S4, V18.S4, V18.S4
-	VADD   V0.S4, V18.S4, V21.S4
-	VUMIN  V21.S4, V18.S4, V18.S4
-	VSUB   V19.S4, V18.S4, V18.S4
-	VADD   V0.S4, V18.S4, V21.S4
-	VUMIN  V21.S4, V18.S4, V18.S4
-	VADD   V19.S4, V19.S4, V20.S4
-	VSUB   V0.S4, V20.S4, V21.S4
-	VUMIN  V21.S4, V20.S4, V20.S4
-	VADD   V19.S4, V20.S4, V20.S4
-	VSUB   V0.S4, V20.S4, V21.S4
-	VUMIN  V21.S4, V20.S4, V20.S4
-	VADD   V20.S4, V16.S4, V16.S4
-	VSUB   V0.S4, V16.S4, V21.S4
-	VUMIN  V21.S4, V16.S4, V16.S4
-	VADD   V15.S4, V11.S4, V19.S4
-	VSUB   V0.S4, V19.S4, V23.S4
-	VUMIN  V23.S4, V19.S4, V19.S4
-	VADD   V17.S4, V13.S4, V20.S4
-	VSUB   V0.S4, V20.S4, V23.S4
-	VUMIN  V23.S4, V20.S4, V20.S4
-	VADD   V6.S4, V4.S4, V21.S4
-	VSUB   V0.S4, V21.S4, V23.S4
-	VUMIN  V23.S4, V21.S4, V21.S4
-	VADD   V7.S4, V5.S4, V22.S4
-	VSUB   V0.S4, V22.S4, V23.S4
-	VUMIN  V23.S4, V22.S4, V22.S4
-	WORD   $0x4eb5b67a                      // SQDMULH V26.4S, V19.4S, V21.4S - c = (2ab) >> 32
-	WORD   $0x4eb59e7b                      // MUL V27.4S, V19.4S, V21.4S - m = ab
-	WORD   $0x4ea19f7b                      // MUL V27.4S, V27.4S, V1.4S - m = ab·μ
+	VADD   V0.S4, V14.S4, V15.S4
+	VUMIN  V15.S4, V14.S4, V14.S4
+	VADD   V14.S4, V14.S4, V15.S4
+	VSUB   V0.S4, V15.S4, V16.S4
+	VUMIN  V16.S4, V15.S4, V15.S4
+	VADD   V14.S4, V15.S4, V15.S4
+	VSUB   V0.S4, V15.S4, V16.S4
+	VUMIN  V16.S4, V15.S4, V15.S4
+	VADD   V14.S4, V13.S4, V14.S4
+	VSUB   V0.S4, V14.S4, V16.S4
+	VUMIN  V16.S4, V14.S4, V14.S4
+	VADD   V15.S4, V13.S4, V13.S4
+	VSUB   V0.S4, V13.S4, V16.S4
+	VUMIN  V16.S4, V13.S4, V13.S4
+	VADD   V2.S4, V13.S4, V13.S4
+	VSUB   V0.S4, V13.S4, V16.S4
+	VUMIN  V16.S4, V13.S4, V13.S4
+	VADD   V4.S4, V14.S4, V14.S4
+	VSUB   V0.S4, V14.S4, V16.S4
+	VUMIN  V16.S4, V14.S4, V14.S4
+	VADD   V5.S4, V18.S4, V15.S4
+	VSUB   V0.S4, V15.S4, V17.S4
+	VUMIN  V17.S4, V15.S4, V15.S4
+	VADD   V7.S4, V3.S4, V16.S4
+	VSUB   V0.S4, V16.S4, V17.S4
+	VUMIN  V17.S4, V16.S4, V16.S4
+	VLD1.P 16(R13), [V17.S4]
+	VLD1.P 16(R13), [V19.S4]
+	VLD1.P 16(R13), [V20.S4]
+	VLD1.P 16(R13), [V21.S4]
+	VLD1.P 16(R13), [V22.S4]
+	VLD1.P 16(R13), [V23.S4]
+	WORD   $0x4eb1b5fa                      // SQDMULH V26.4S, V15.4S, V17.4S - c = (2ab) >> 32
+	WORD   $0x4eb59dfb                      // MUL V27.4S, V15.4S, V21.4S - m = ab·μ
 	WORD   $0x4ea0b77b                      // SQDMULH V27.4S, V27.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4ebb2757                      // SHSUB V23.4S, V26.4S, V27.4S - d = (c − m) / 2
-	VADD   V0.S4, V23.S4, V26.S4
-	VUMIN  V26.S4, V23.S4, V23.S4
-	WORD   $0x4eb6b69a                      // SQDMULH V26.4S, V20.4S, V22.4S - c = (2ab) >> 32
-	WORD   $0x4eb69e9b                      // MUL V27.4S, V20.4S, V22.4S - m = ab
-	WORD   $0x4ea19f7b                      // MUL V27.4S, V27.4S, V1.4S - m = ab·μ
+	WORD   $0x4ebb2758                      // SHSUB V24.4S, V26.4S, V27.4S - d = (c − m) / 2
+	VADD   V0.S4, V24.S4, V26.S4
+	VUMIN  V26.S4, V24.S4, V24.S4
+	WORD   $0x4eb3b61a                      // SQDMULH V26.4S, V16.4S, V19.4S - c = (2ab) >> 32
+	WORD   $0x4eb69e1b                      // MUL V27.4S, V16.4S, V22.4S - m = ab·μ
 	WORD   $0x4ea0b77b                      // SQDMULH V27.4S, V27.4S, V0.4S - m = (2mq) >> 32
 	WORD   $0x4ebb2759                      // SHSUB V25.4S, V26.4S, V27.4S - d = (c − m) / 2
 	VADD   V0.S4, V25.S4, V26.S4
 	VUMIN  V26.S4, V25.S4, V25.S4
-	VADD   V20.S4, V19.S4, V19.S4
-	VSUB   V0.S4, V19.S4, V26.S4
-	VUMIN  V26.S4, V19.S4, V19.S4
-	VADD   V22.S4, V21.S4, V21.S4
-	VSUB   V0.S4, V21.S4, V26.S4
-	VUMIN  V26.S4, V21.S4, V21.S4
-	WORD   $0x4eb5b67a                      // SQDMULH V26.4S, V19.4S, V21.4S - c = (2ab) >> 32
-	WORD   $0x4eb59e7b                      // MUL V27.4S, V19.4S, V21.4S - m = ab
-	WORD   $0x4ea19f7b                      // MUL V27.4S, V27.4S, V1.4S - m = ab·μ
+	VADD   V16.S4, V15.S4, V15.S4
+	VSUB   V0.S4, V15.S4, V26.S4
+	VUMIN  V26.S4, V15.S4, V15.S4
+	WORD   $0x4eb4b5fa                      // SQDMULH V26.4S, V15.4S, V20.4S - c = (2ab) >> 32
+	WORD   $0x4eb79dfb                      // MUL V27.4S, V15.4S, V23.4S - m = ab·μ
 	WORD   $0x4ea0b77b                      // SQDMULH V27.4S, V27.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4ebb2754                      // SHSUB V20.4S, V26.4S, V27.4S - d = (c − m) / 2
-	VADD   V0.S4, V20.S4, V26.S4
-	VUMIN  V26.S4, V20.S4, V20.S4
-	VSUB   V23.S4, V20.S4, V20.S4
-	VADD   V0.S4, V20.S4, V26.S4
-	VUMIN  V26.S4, V20.S4, V20.S4
-	VSUB   V25.S4, V20.S4, V20.S4
-	VADD   V0.S4, V20.S4, V26.S4
-	VUMIN  V26.S4, V20.S4, V20.S4
-	VADD   V25.S4, V25.S4, V21.S4
-	VSUB   V0.S4, V21.S4, V26.S4
-	VUMIN  V26.S4, V21.S4, V21.S4
-	VADD   V25.S4, V21.S4, V21.S4
-	VSUB   V0.S4, V21.S4, V26.S4
-	VUMIN  V26.S4, V21.S4, V21.S4
-	VADD   V21.S4, V23.S4, V19.S4
-	VSUB   V0.S4, V19.S4, V26.S4
-	VUMIN  V26.S4, V19.S4, V19.S4
-	VSUB   V12.S4, V19.S4, V19.S4
-	VADD   V0.S4, V19.S4, V21.S4
-	VUMIN  V21.S4, V19.S4, V19.S4
-	VSUB   V16.S4, V19.S4, V19.S4
-	VADD   V0.S4, V19.S4, V21.S4
-	VUMIN  V21.S4, V19.S4, V19.S4
-	VSUB   V14.S4, V20.S4, V20.S4
-	VADD   V0.S4, V20.S4, V21.S4
+	WORD   $0x4ebb2750                      // SHSUB V16.4S, V26.4S, V27.4S - d = (c − m) / 2
+	VADD   V0.S4, V16.S4, V26.S4
+	VUMIN  V26.S4, V16.S4, V16.S4
+	VSUB   V24.S4, V16.S4, V16.S4
+	VADD   V0.S4, V16.S4, V26.S4
+	VUMIN  V26.S4, V16.S4, V16.S4
+	VSUB   V25.S4, V16.S4, V16.S4
+	VADD   V0.S4, V16.S4, V26.S4
+	VUMIN  V26.S4, V16.S4, V16.S4
+	VADD   V25.S4, V24.S4, V15.S4
+	VSUB   V0.S4, V15.S4, V26.S4
+	VUMIN  V26.S4, V15.S4, V15.S4
+	VADD   V25.S4, V15.S4, V15.S4
+	VSUB   V0.S4, V15.S4, V26.S4
+	VUMIN  V26.S4, V15.S4, V15.S4
+	VADD   V25.S4, V15.S4, V15.S4
+	VSUB   V0.S4, V15.S4, V26.S4
+	VUMIN  V26.S4, V15.S4, V15.S4
+	VSUB   V2.S4, V15.S4, V15.S4
+	VADD   V0.S4, V15.S4, V17.S4
+	VUMIN  V17.S4, V15.S4, V15.S4
+	VSUB   V6.S4, V15.S4, V15.S4
+	VADD   V0.S4, V15.S4, V17.S4
+	VUMIN  V17.S4, V15.S4, V15.S4
+	VSUB   V4.S4, V16.S4, V16.S4
+	VADD   V0.S4, V16.S4, V17.S4
+	VUMIN  V17.S4, V16.S4, V16.S4
+	VSUB   V8.S4, V16.S4, V16.S4
+	VADD   V0.S4, V16.S4, V17.S4
+	VUMIN  V17.S4, V16.S4, V16.S4
+	VMOV   V10.B16, V17.B16
+	VMOV   V12.B16, V19.B16
+	VADD   V19.S4, V19.S4, V20.S4
+	VSUB   V0.S4, V20.S4, V21.S4
 	VUMIN  V21.S4, V20.S4, V20.S4
-	VSUB   V18.S4, V20.S4, V20.S4
-	VADD   V0.S4, V20.S4, V21.S4
+	VADD   V19.S4, V20.S4, V20.S4
+	VSUB   V0.S4, V20.S4, V21.S4
 	VUMIN  V21.S4, V20.S4, V20.S4
-	VADD   V20.S4, V20.S4, V21.S4
-	VSUB   V0.S4, V21.S4, V22.S4
-	VUMIN  V22.S4, V21.S4, V21.S4
-	VADD   V20.S4, V21.S4, V21.S4
-	VSUB   V0.S4, V21.S4, V22.S4
-	VUMIN  V22.S4, V21.S4, V21.S4
-	VADD   V20.S4, V19.S4, V20.S4
-	VSUB   V0.S4, V20.S4, V22.S4
-	VUMIN  V22.S4, V20.S4, V20.S4
-	VADD   V21.S4, V19.S4, V19.S4
-	VSUB   V0.S4, V19.S4, V22.S4
-	VUMIN  V22.S4, V19.S4, V19.S4
-	VADD   V8.S4, V19.S4, V19.S4
-	VSUB   V0.S4, V19.S4, V22.S4
-	VUMIN  V22.S4, V19.S4, V19.S4
-	VADD   V10.S4, V20.S4, V20.S4
-	VSUB   V0.S4, V20.S4, V22.S4
-	VUMIN  V22.S4, V20.S4, V20.S4
-	VADD   V11.S4, V24.S4, V21.S4
-	VSUB   V0.S4, V21.S4, V26.S4
-	VUMIN  V26.S4, V21.S4, V21.S4
-	VADD   V13.S4, V9.S4, V22.S4
-	VSUB   V0.S4, V22.S4, V26.S4
-	VUMIN  V26.S4, V22.S4, V22.S4
-	VADD   V4.S4, V2.S4, V23.S4
-	VSUB   V0.S4, V23.S4, V26.S4
-	VUMIN  V26.S4, V23.S4, V23.S4
-	VADD   V5.S4, V3.S4, V25.S4
-	VSUB   V0.S4, V25.S4, V26.S4
+	VADD   V19.S4, V17.S4, V19.S4
+	VSUB   V0.S4, V19.S4, V21.S4
+	VUMIN  V21.S4, V19.S4, V19.S4
+	VADD   V20.S4, V17.S4, V17.S4
+	VSUB   V0.S4, V17.S4, V21.S4
+	VUMIN  V21.S4, V17.S4, V17.S4
+	VADD   V15.S4, V17.S4, V17.S4
+	VSUB   V0.S4, V17.S4, V21.S4
+	VUMIN  V21.S4, V17.S4, V17.S4
+	VADD   V16.S4, V19.S4, V19.S4
+	VSUB   V0.S4, V19.S4, V21.S4
+	VUMIN  V21.S4, V19.S4, V19.S4
+	VADD   V9.S4, V18.S4, V5.S4
+	VSUB   V0.S4, V5.S4, V15.S4
+	VUMIN  V15.S4, V5.S4, V5.S4
+	VADD   V11.S4, V3.S4, V7.S4
+	VSUB   V0.S4, V7.S4, V15.S4
+	VUMIN  V15.S4, V7.S4, V7.S4
+	VLD1.P 16(R13), [V15.S4]
+	VLD1.P 16(R13), [V16.S4]
+	VLD1.P 16(R13), [V20.S4]
+	VLD1.P 16(R13), [V21.S4]
+	VLD1.P 16(R13), [V22.S4]
+	VLD1.P 16(R13), [V23.S4]
+	WORD   $0x4eafb4ba                      // SQDMULH V26.4S, V5.4S, V15.4S - c = (2ab) >> 32
+	WORD   $0x4eb59cbb                      // MUL V27.4S, V5.4S, V21.4S - m = ab·μ
+	WORD   $0x4ea0b77b                      // SQDMULH V27.4S, V27.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4ebb2758                      // SHSUB V24.4S, V26.4S, V27.4S - d = (c − m) / 2
+	VADD   V0.S4, V24.S4, V26.S4
+	VUMIN  V26.S4, V24.S4, V24.S4
+	WORD   $0x4eb0b4fa                      // SQDMULH V26.4S, V7.4S, V16.4S - c = (2ab) >> 32
+	WORD   $0x4eb69cfb                      // MUL V27.4S, V7.4S, V22.4S - m = ab·μ
+	WORD   $0x4ea0b77b                      // SQDMULH V27.4S, V27.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4ebb2759                      // SHSUB V25.4S, V26.4S, V27.4S - d = (c − m) / 2
+	VADD   V0.S4, V25.S4, V26.S4
 	VUMIN  V26.S4, V25.S4, V25.S4
-	WORD   $0x4eb7b6bc                      // SQDMULH V28.4S, V21.4S, V23.4S - c = (2ab) >> 32
-	WORD   $0x4eb79ebd                      // MUL V29.4S, V21.4S, V23.4S - m = ab
-	WORD   $0x4ea19fbd                      // MUL V29.4S, V29.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b7bd                      // SQDMULH V29.4S, V29.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4ebd279a                      // SHSUB V26.4S, V28.4S, V29.4S - d = (c − m) / 2
-	VADD   V0.S4, V26.S4, V28.S4
-	VUMIN  V28.S4, V26.S4, V26.S4
-	WORD   $0x4eb9b6dc                      // SQDMULH V28.4S, V22.4S, V25.4S - c = (2ab) >> 32
-	WORD   $0x4eb99edd                      // MUL V29.4S, V22.4S, V25.4S - m = ab
-	WORD   $0x4ea19fbd                      // MUL V29.4S, V29.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b7bd                      // SQDMULH V29.4S, V29.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4ebd279b                      // SHSUB V27.4S, V28.4S, V29.4S - d = (c − m) / 2
-	VADD   V0.S4, V27.S4, V28.S4
-	VUMIN  V28.S4, V27.S4, V27.S4
-	VADD   V22.S4, V21.S4, V21.S4
-	VSUB   V0.S4, V21.S4, V28.S4
-	VUMIN  V28.S4, V21.S4, V21.S4
-	VADD   V25.S4, V23.S4, V23.S4
-	VSUB   V0.S4, V23.S4, V28.S4
-	VUMIN  V28.S4, V23.S4, V23.S4
-	WORD   $0x4eb7b6bc                      // SQDMULH V28.4S, V21.4S, V23.4S - c = (2ab) >> 32
-	WORD   $0x4eb79ebd                      // MUL V29.4S, V21.4S, V23.4S - m = ab
-	WORD   $0x4ea19fbd                      // MUL V29.4S, V29.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b7bd                      // SQDMULH V29.4S, V29.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4ebd2796                      // SHSUB V22.4S, V28.4S, V29.4S - d = (c − m) / 2
-	VADD   V0.S4, V22.S4, V28.S4
-	VUMIN  V28.S4, V22.S4, V22.S4
-	VSUB   V26.S4, V22.S4, V22.S4
-	VADD   V0.S4, V22.S4, V28.S4
-	VUMIN  V28.S4, V22.S4, V22.S4
-	VSUB   V27.S4, V22.S4, V22.S4
-	VADD   V0.S4, V22.S4, V28.S4
-	VUMIN  V28.S4, V22.S4, V22.S4
-	VADD   V27.S4, V27.S4, V23.S4
-	VSUB   V0.S4, V23.S4, V28.S4
-	VUMIN  V28.S4, V23.S4, V23.S4
-	VADD   V27.S4, V23.S4, V23.S4
-	VSUB   V0.S4, V23.S4, V28.S4
-	VUMIN  V28.S4, V23.S4, V23.S4
-	VADD   V23.S4, V26.S4, V21.S4
-	VSUB   V0.S4, V21.S4, V28.S4
-	VUMIN  V28.S4, V21.S4, V21.S4
-	VSUB   V8.S4, V21.S4, V21.S4
-	VADD   V0.S4, V21.S4, V23.S4
-	VUMIN  V23.S4, V21.S4, V21.S4
-	VSUB   V12.S4, V21.S4, V21.S4
-	VADD   V0.S4, V21.S4, V23.S4
-	VUMIN  V23.S4, V21.S4, V21.S4
-	VSUB   V10.S4, V22.S4, V22.S4
-	VADD   V0.S4, V22.S4, V23.S4
-	VUMIN  V23.S4, V22.S4, V22.S4
-	VSUB   V14.S4, V22.S4, V22.S4
-	VADD   V0.S4, V22.S4, V23.S4
-	VUMIN  V23.S4, V22.S4, V22.S4
-	VMOV   V16.B16, V23.B16
-	VMOV   V18.B16, V25.B16
-	VADD   V25.S4, V25.S4, V26.S4
-	VSUB   V0.S4, V26.S4, V27.S4
-	VUMIN  V27.S4, V26.S4, V26.S4
-	VADD   V25.S4, V26.S4, V26.S4
-	VSUB   V0.S4, V26.S4, V27.S4
-	VUMIN  V27.S4, V26.S4, V26.S4
-	VADD   V25.S4, V23.S4, V25.S4
-	VSUB   V0.S4, V25.S4, V27.S4
-	VUMIN  V27.S4, V25.S4, V25.S4
-	VADD   V26.S4, V23.S4, V23.S4
-	VSUB   V0.S4, V23.S4, V27.S4
-	VUMIN  V27.S4, V23.S4, V23.S4
-	VADD   V21.S4, V23.S4, V23.S4
-	VSUB   V0.S4, V23.S4, V27.S4
-	VUMIN  V27.S4, V23.S4, V23.S4
-	VADD   V22.S4, V25.S4, V25.S4
-	VSUB   V0.S4, V25.S4, V27.S4
-	VUMIN  V27.S4, V25.S4, V25.S4
-	VADD   V15.S4, V24.S4, V11.S4
-	VSUB   V0.S4, V11.S4, V26.S4
-	VUMIN  V26.S4, V11.S4, V11.S4
-	VADD   V17.S4, V9.S4, V13.S4
-	VSUB   V0.S4, V13.S4, V26.S4
-	VUMIN  V26.S4, V13.S4, V13.S4
-	VADD   V6.S4, V2.S4, V21.S4
-	VSUB   V0.S4, V21.S4, V26.S4
-	VUMIN  V26.S4, V21.S4, V21.S4
-	VADD   V7.S4, V3.S4, V22.S4
-	VSUB   V0.S4, V22.S4, V26.S4
-	VUMIN  V26.S4, V22.S4, V22.S4
-	WORD   $0x4eb5b57c                      // SQDMULH V28.4S, V11.4S, V21.4S - c = (2ab) >> 32
-	WORD   $0x4eb59d7d                      // MUL V29.4S, V11.4S, V21.4S - m = ab
-	WORD   $0x4ea19fbd                      // MUL V29.4S, V29.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b7bd                      // SQDMULH V29.4S, V29.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4ebd279a                      // SHSUB V26.4S, V28.4S, V29.4S - d = (c − m) / 2
-	VADD   V0.S4, V26.S4, V28.S4
-	VUMIN  V28.S4, V26.S4, V26.S4
-	WORD   $0x4eb6b5bc                      // SQDMULH V28.4S, V13.4S, V22.4S - c = (2ab) >> 32
-	WORD   $0x4eb69dbd                      // MUL V29.4S, V13.4S, V22.4S - m = ab
-	WORD   $0x4ea19fbd                      // MUL V29.4S, V29.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b7bd                      // SQDMULH V29.4S, V29.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4ebd279b                      // SHSUB V27.4S, V28.4S, V29.4S - d = (c − m) / 2
-	VADD   V0.S4, V27.S4, V28.S4
-	VUMIN  V28.S4, V27.S4, V27.S4
-	VADD   V13.S4, V11.S4, V11.S4
-	VSUB   V0.S4, V11.S4, V28.S4
-	VUMIN  V28.S4, V11.S4, V11.S4
-	VADD   V22.S4, V21.S4, V21.S4
-	VSUB   V0.S4, V21.S4, V28.S4
-	VUMIN  V28.S4, V21.S4, V21.S4
-	WORD   $0x4eb5b57c                      // SQDMULH V28.4S, V11.4S, V21.4S - c = (2ab) >> 32
-	WORD   $0x4eb59d7d                      // MUL V29.4S, V11.4S, V21.4S - m = ab
-	WORD   $0x4ea19fbd                      // MUL V29.4S, V29.4S, V1.4S - m = ab·μ
-	WORD   $0x4ea0b7bd                      // SQDMULH V29.4S, V29.4S, V0.4S - m = (2mq) >> 32
-	WORD   $0x4ebd278d                      // SHSUB V13.4S, V28.4S, V29.4S - d = (c − m) / 2
-	VADD   V0.S4, V13.S4, V28.S4
-	VUMIN  V28.S4, V13.S4, V13.S4
-	VSUB   V26.S4, V13.S4, V13.S4
-	VADD   V0.S4, V13.S4, V28.S4
-	VUMIN  V28.S4, V13.S4, V13.S4
-	VSUB   V27.S4, V13.S4, V13.S4
-	VADD   V0.S4, V13.S4, V28.S4
-	VUMIN  V28.S4, V13.S4, V13.S4
-	VADD   V27.S4, V27.S4, V21.S4
-	VSUB   V0.S4, V21.S4, V28.S4
-	VUMIN  V28.S4, V21.S4, V21.S4
-	VADD   V27.S4, V21.S4, V21.S4
-	VSUB   V0.S4, V21.S4, V28.S4
-	VUMIN  V28.S4, V21.S4, V21.S4
-	VADD   V21.S4, V26.S4, V11.S4
-	VSUB   V0.S4, V11.S4, V28.S4
-	VUMIN  V28.S4, V11.S4, V11.S4
-	VSUB   V8.S4, V11.S4, V11.S4
-	VADD   V0.S4, V11.S4, V21.S4
-	VUMIN  V21.S4, V11.S4, V11.S4
-	VSUB   V16.S4, V11.S4, V11.S4
-	VADD   V0.S4, V11.S4, V21.S4
-	VUMIN  V21.S4, V11.S4, V11.S4
-	VSUB   V10.S4, V13.S4, V13.S4
-	VADD   V0.S4, V13.S4, V21.S4
-	VUMIN  V21.S4, V13.S4, V13.S4
-	VSUB   V18.S4, V13.S4, V13.S4
-	VADD   V0.S4, V13.S4, V21.S4
-	VUMIN  V21.S4, V13.S4, V13.S4
-	VADD   V12.S4, V11.S4, V11.S4
-	VSUB   V0.S4, V11.S4, V21.S4
-	VUMIN  V21.S4, V11.S4, V11.S4
-	VADD   V14.S4, V13.S4, V13.S4
-	VSUB   V0.S4, V13.S4, V21.S4
-	VUMIN  V21.S4, V13.S4, V13.S4
-	VZIP1  V20.S4, V19.S4, V8.S4
-	VZIP1  V25.S4, V23.S4, V9.S4
-	VZIP1  V13.S4, V11.S4, V10.S4
-	VLD3   (R11), [V14.D2, V15.D2, V16.D2]
-	VADD   V14.S4, V8.S4, V8.S4
-	VSUB   V0.S4, V8.S4, V12.S4
-	VUMIN  V12.S4, V8.S4, V8.S4
-	VADD   V15.S4, V9.S4, V9.S4
-	VSUB   V0.S4, V9.S4, V12.S4
-	VUMIN  V12.S4, V9.S4, V9.S4
-	VADD   V16.S4, V10.S4, V10.S4
-	VSUB   V0.S4, V10.S4, V12.S4
-	VUMIN  V12.S4, V10.S4, V10.S4
-	VST3.P [V8.D2, V9.D2, V10.D2], 48(R11)
-	VZIP2  V20.S4, V19.S4, V8.S4
-	VZIP2  V25.S4, V23.S4, V9.S4
-	VZIP2  V13.S4, V11.S4, V10.S4
-	VLD3   (R11), [V14.D2, V15.D2, V16.D2]
-	VADD   V14.S4, V8.S4, V8.S4
-	VSUB   V0.S4, V8.S4, V12.S4
-	VUMIN  V12.S4, V8.S4, V8.S4
-	VADD   V15.S4, V9.S4, V9.S4
-	VSUB   V0.S4, V9.S4, V12.S4
-	VUMIN  V12.S4, V9.S4, V9.S4
-	VADD   V16.S4, V10.S4, V10.S4
-	VSUB   V0.S4, V10.S4, V12.S4
-	VUMIN  V12.S4, V10.S4, V10.S4
-	VST3.P [V8.D2, V9.D2, V10.D2], 48(R11)
+	VADD   V7.S4, V5.S4, V5.S4
+	VSUB   V0.S4, V5.S4, V26.S4
+	VUMIN  V26.S4, V5.S4, V5.S4
+	WORD   $0x4eb4b4ba                      // SQDMULH V26.4S, V5.4S, V20.4S - c = (2ab) >> 32
+	WORD   $0x4eb79cbb                      // MUL V27.4S, V5.4S, V23.4S - m = ab·μ
+	WORD   $0x4ea0b77b                      // SQDMULH V27.4S, V27.4S, V0.4S - m = (2mq) >> 32
+	WORD   $0x4ebb2747                      // SHSUB V7.4S, V26.4S, V27.4S - d = (c − m) / 2
+	VADD   V0.S4, V7.S4, V26.S4
+	VUMIN  V26.S4, V7.S4, V7.S4
+	VSUB   V24.S4, V7.S4, V7.S4
+	VADD   V0.S4, V7.S4, V26.S4
+	VUMIN  V26.S4, V7.S4, V7.S4
+	VSUB   V25.S4, V7.S4, V7.S4
+	VADD   V0.S4, V7.S4, V26.S4
+	VUMIN  V26.S4, V7.S4, V7.S4
+	VADD   V25.S4, V24.S4, V5.S4
+	VSUB   V0.S4, V5.S4, V26.S4
+	VUMIN  V26.S4, V5.S4, V5.S4
+	VADD   V25.S4, V5.S4, V5.S4
+	VSUB   V0.S4, V5.S4, V26.S4
+	VUMIN  V26.S4, V5.S4, V5.S4
+	VADD   V25.S4, V5.S4, V5.S4
+	VSUB   V0.S4, V5.S4, V26.S4
+	VUMIN  V26.S4, V5.S4, V5.S4
+	VSUB   V2.S4, V5.S4, V5.S4
+	VADD   V0.S4, V5.S4, V15.S4
+	VUMIN  V15.S4, V5.S4, V5.S4
+	VSUB   V10.S4, V5.S4, V5.S4
+	VADD   V0.S4, V5.S4, V15.S4
+	VUMIN  V15.S4, V5.S4, V5.S4
+	VSUB   V4.S4, V7.S4, V7.S4
+	VADD   V0.S4, V7.S4, V15.S4
+	VUMIN  V15.S4, V7.S4, V7.S4
+	VSUB   V12.S4, V7.S4, V7.S4
+	VADD   V0.S4, V7.S4, V15.S4
+	VUMIN  V15.S4, V7.S4, V7.S4
+	VADD   V6.S4, V5.S4, V5.S4
+	VSUB   V0.S4, V5.S4, V15.S4
+	VUMIN  V15.S4, V5.S4, V5.S4
+	VADD   V8.S4, V7.S4, V7.S4
+	VSUB   V0.S4, V7.S4, V15.S4
+	VUMIN  V15.S4, V7.S4, V7.S4
+	VZIP1  V14.S4, V13.S4, V2.S4
+	VZIP1  V19.S4, V17.S4, V3.S4
+	VZIP1  V7.S4, V5.S4, V4.S4
+	VLD3   (R11), [V8.D2, V9.D2, V10.D2]
+	VADD   V8.S4, V2.S4, V2.S4
+	VSUB   V0.S4, V2.S4, V6.S4
+	VUMIN  V6.S4, V2.S4, V2.S4
+	VADD   V9.S4, V3.S4, V3.S4
+	VSUB   V0.S4, V3.S4, V6.S4
+	VUMIN  V6.S4, V3.S4, V3.S4
+	VADD   V10.S4, V4.S4, V4.S4
+	VSUB   V0.S4, V4.S4, V6.S4
+	VUMIN  V6.S4, V4.S4, V4.S4
+	VST3.P [V2.D2, V3.D2, V4.D2], 48(R11)
+	VZIP2  V14.S4, V13.S4, V2.S4
+	VZIP2  V19.S4, V17.S4, V3.S4
+	VZIP2  V7.S4, V5.S4, V4.S4
+	VLD3   (R11), [V8.D2, V9.D2, V10.D2]
+	VADD   V8.S4, V2.S4, V2.S4
+	VSUB   V0.S4, V2.S4, V6.S4
+	VUMIN  V6.S4, V2.S4, V2.S4
+	VADD   V9.S4, V3.S4, V3.S4
+	VSUB   V0.S4, V3.S4, V6.S4
+	VUMIN  V6.S4, V3.S4, V3.S4
+	VADD   V10.S4, V4.S4, V4.S4
+	VSUB   V0.S4, V4.S4, V6.S4
+	VUMIN  V6.S4, V4.S4, V4.S4
+	VST3.P [V2.D2, V3.D2, V4.D2], 48(R11)
 	JMP    loop15
 
 done16:
