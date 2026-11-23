@@ -563,46 +563,103 @@ func (z *E4) Sqrt(x *E4) *E4 {
 // It uses Montgomery batch inversion trick.
 //
 // if a[i] == 0, returns result[i] = a[i]
+//
+// Deprecated: use [VectorE4.BatchInvert].
+//
+//go:fix inline
 func BatchInvertE4(a []E4) []E4 {
-	res := make([]E4, len(a))
-	BatchInvertE4Into(res, a)
+	return VectorE4(a).BatchInvert()
+}
+
+// BatchInvertE4Into sets res[i] to the inverse of a[i].
+//
+// Deprecated: use [VectorE4.BatchInvertInto], with the destination as receiver:
+// VectorE4(res).BatchInvertInto(a).
+//
+//go:fix inline
+func BatchInvertE4Into(res, a []E4) {
+	VectorE4(res).BatchInvertInto(a)
+}
+
+// BatchInvertE4IntoScratch is BatchInvertE4Into with caller-provided
+// scratch space.
+//
+// Deprecated: use [VectorE4.BatchInvertIntoScratch], with the destination as
+// receiver: VectorE4(res).BatchInvertIntoScratch(a, scratch).
+//
+//go:fix inline
+func BatchInvertE4IntoScratch(res, a, scratch []E4) {
+	VectorE4(res).BatchInvertIntoScratch(a, scratch)
+}
+
+// BatchInvert returns a new vector with every element of vector inverted,
+// using Montgomery batch inversion trick; zero elements stay zero.
+func (vector VectorE4) BatchInvert() VectorE4 {
+	res := make(VectorE4, len(vector))
+	res.BatchInvertInto(vector)
 	return res
 }
 
-// BatchInvertE4Into sets res[i] to the inverse of a[i], using Montgomery batch
-// inversion trick; if a[i] == 0, res[i] = 0. res and a must have the same
+// BatchInvertInto sets vector[i] to the inverse of a[i], using Montgomery batch
+// inversion trick; if a[i] == 0, vector[i] = 0. vector and a must have the same
 // length.
 //
-// res may be the very same slice as a (in place), but must not otherwise
-// overlap it. When res and a are distinct, BatchInvertE4Into does not
-// allocate: res holds the running products. In place, it needs len(a) elements
-// of scratch space, which it takes from an internal pool (allocating only when
-// the pool has none large enough); use BatchInvertE4IntoScratch to provide
-// them.
-func BatchInvertE4Into(res, a []E4) {
-	if len(res) != len(a) {
-		panic("BatchInvertE4Into: vectors don't have the same length")
+// vector may be the very same slice as a (in place), but must not otherwise
+// overlap it. When vector and a are distinct, BatchInvertInto does not
+// allocate: vector holds the running products. In place, it needs len(a)
+// elements of scratch space, which it takes from an internal pool (allocating
+// only when the pool has none large enough); use BatchInvertIntoScratch to
+// provide them.
+func (vector VectorE4) BatchInvertInto(a VectorE4) {
+	if len(vector) != len(a) {
+		panic("VectorE4.BatchInvertInto: vectors don't have the same length")
 	}
 	if len(a) == 0 {
 		return
 	}
-	if &res[0] != &a[0] {
-		if batchInvertE4Overlap(res, a) {
-			panic("BatchInvertE4Into: res and a overlap without being the same slice")
+	if &vector[0] != &a[0] {
+		if batchInvertE4Overlap(vector, a) {
+			panic("VectorE4.BatchInvertInto: vector and a overlap without being the same slice")
 		}
-		batchInvertE4(res, a, nil, batchInvertE4Lanes(len(a)))
+		batchInvertE4(vector, a, nil, batchInvertE4Lanes(len(a)))
 		return
 	}
 	if uintptr(len(a))*unsafe.Sizeof(E4{}) > batchInvertE4PoolMaxBytes {
-		batchInvertE4(res, a, make([]E4, len(a)), batchInvertE4Lanes(len(a)))
+		batchInvertE4(vector, a, make([]E4, len(a)), batchInvertE4Lanes(len(a)))
 		return
 	}
 	scratch := batchInvertE4ScratchPool.Get().(*[]E4)
 	if cap(*scratch) < len(a) {
 		*scratch = make([]E4, len(a))
 	}
-	batchInvertE4(res, a, (*scratch)[:len(a)], batchInvertE4Lanes(len(a)))
+	batchInvertE4(vector, a, (*scratch)[:len(a)], batchInvertE4Lanes(len(a)))
 	batchInvertE4ScratchPool.Put(scratch)
+}
+
+// BatchInvertIntoScratch is BatchInvertInto with caller-provided scratch
+// space, so that it never allocates, including in place (vector may be the
+// very same slice as a, but must not otherwise overlap it).
+//
+// scratch must have at least len(a) elements and must not overlap vector or
+// a; its content on return is unspecified.
+func (vector VectorE4) BatchInvertIntoScratch(a, scratch VectorE4) {
+	if len(vector) != len(a) {
+		panic("VectorE4.BatchInvertIntoScratch: vectors don't have the same length")
+	}
+	if len(scratch) < len(a) {
+		panic("VectorE4.BatchInvertIntoScratch: scratch is shorter than the input")
+	}
+	if len(a) == 0 {
+		return
+	}
+	scratch = scratch[:len(a)]
+	if batchInvertE4Overlap(scratch, vector) || batchInvertE4Overlap(scratch, a) {
+		panic("VectorE4.BatchInvertIntoScratch: scratch overlaps vector or a")
+	}
+	if &vector[0] != &a[0] && batchInvertE4Overlap(vector, a) {
+		panic("VectorE4.BatchInvertIntoScratch: vector and a overlap without being the same slice")
+	}
+	batchInvertE4(vector, a, scratch, batchInvertE4Lanes(len(a)))
 }
 
 // batchInvertE4PoolMaxBytes is the size of the largest scratch buffer kept in
@@ -618,35 +675,9 @@ func batchInvertE4Overlap(x, y []E4) bool {
 }
 
 // batchInvertE4ScratchPool holds the scratch space of in-place
-// BatchInvertE4Into calls.
+// VectorE4.BatchInvertInto calls.
 var batchInvertE4ScratchPool = sync.Pool{
 	New: func() any { return new([]E4) },
-}
-
-// BatchInvertE4IntoScratch is BatchInvertE4Into with caller-provided scratch
-// space, so that it never allocates, including in place (res may be the very
-// same slice as a, but must not otherwise overlap it).
-//
-// scratch must have at least len(a) elements and must not overlap res or a;
-// its content on return is unspecified.
-func BatchInvertE4IntoScratch(res, a, scratch []E4) {
-	if len(res) != len(a) {
-		panic("BatchInvertE4IntoScratch: vectors don't have the same length")
-	}
-	if len(scratch) < len(a) {
-		panic("BatchInvertE4IntoScratch: scratch is shorter than the input")
-	}
-	if len(a) == 0 {
-		return
-	}
-	scratch = scratch[:len(a)]
-	if batchInvertE4Overlap(scratch, res) || batchInvertE4Overlap(scratch, a) {
-		panic("BatchInvertE4IntoScratch: scratch overlaps res or a")
-	}
-	if &res[0] != &a[0] && batchInvertE4Overlap(res, a) {
-		panic("BatchInvertE4IntoScratch: res and a overlap without being the same slice")
-	}
-	batchInvertE4(res, a, scratch, batchInvertE4Lanes(len(a)))
 }
 
 // batchInvertE4Lanes returns 0: VectorE4.Mul has no vectorised kernel for this
@@ -656,7 +687,7 @@ func batchInvertE4Lanes(int) int {
 	return 0
 }
 
-// batchInvertE4 is the implementation of BatchInvertE4Into: the scalar
+// batchInvertE4 is the implementation of VectorE4.BatchInvertInto: the scalar
 // path (batchInvertE4Scalar) if lanes is 0. len(a) must be > 0. scratch is
 // either nil, and then res and a are distinct, or len(a) elements disjoint
 // from res and a, and then res may be the very same slice as a.

@@ -29,6 +29,8 @@ type VectorE4 []E4
 // Vector is a slice of E4 elements.
 //
 // Deprecated: use VectorE4.
+//
+//go:fix inline
 type Vector = VectorE4
 
 // Add sets vector[i] = a[i] + b[i]. vector may be identical to a and/or b;
@@ -86,10 +88,18 @@ func (vector VectorE4) Neg(a VectorE4) {
 	v.Neg(asBaseVector(a))
 }
 
-// ScalarAddElement sets vector[i] = a[i] + c, where c is an element of the base field. vector may be identical to a, and c may point into vector; partially overlapping slices are not supported.
+// ScalarAddElement sets vector[i] = a[i] + c for all i, where c is an element
+// of the base field embedded in E4.
+//
+// vector may be identical to a, and c may point into vector; partially
+// overlapping slices are not supported.
 func (vector VectorE4) ScalarAddElement(a VectorE4, c *fr.Element) {
-	if len(a) != len(vector) {
+	N := len(vector)
+	if len(a) != N {
 		panic("vector.ScalarAddElement: vectors don't have the same length")
+	}
+	if N == 0 {
+		return
 	}
 	cc := *c
 	for i := range vector {
@@ -97,17 +107,29 @@ func (vector VectorE4) ScalarAddElement(a VectorE4, c *fr.Element) {
 	}
 }
 
-// ScalarSubElement sets vector[i] = a[i] - c, where c is an element of the base field. vector may be identical to a, and c may point into vector; partially overlapping slices are not supported.
+// ScalarSubElement sets vector[i] = a[i] - c for all i, where c is an element
+// of the base field embedded in E4.
+//
+// vector may be identical to a, and c may point into vector; partially
+// overlapping slices are not supported.
 func (vector VectorE4) ScalarSubElement(a VectorE4, c *fr.Element) {
 	var negC fr.Element
 	negC.Neg(c)
 	vector.ScalarAddElement(a, &negC)
 }
 
-// ScalarSubFromElement sets vector[i] = c - a[i], where c is an element of the base field. vector may be identical to a, and c may point into vector; partially overlapping slices are not supported.
+// ScalarSubFromElement sets vector[i] = c - a[i] for all i, where c is an
+// element of the base field embedded in E4.
+//
+// vector may be identical to a, and c may point into vector; partially
+// overlapping slices are not supported.
 func (vector VectorE4) ScalarSubFromElement(c *fr.Element, a VectorE4) {
-	if len(a) != len(vector) {
+	N := len(vector)
+	if len(a) != N {
 		panic("vector.ScalarSubFromElement: vectors don't have the same length")
+	}
+	if N == 0 {
+		return
 	}
 	cc := *c
 	for i := range vector {
@@ -234,6 +256,113 @@ func (vector VectorE4) ScalarSubFrom(c *E4, a VectorE4) {
 	}
 }
 
+// AddElement sets vector[i] = a[i] + b[i] for all i, where b[i] is an element
+// of the base field embedded in E4.
+//
+// vector may be identical to a; partially overlapping slices are not supported.
+func (vector VectorE4) AddElement(a VectorE4, b fr.Vector) {
+	N := len(vector)
+	if len(a) != N || len(b) != N {
+		panic("vector.AddElement: vectors don't have the same length")
+	}
+	if N == 0 {
+		return
+	}
+	for i := range vector {
+		vector[i].AddElement(&a[i], &b[i])
+	}
+}
+
+// SubElement sets vector[i] = a[i] - b[i] for all i, where b[i] is an element
+// of the base field embedded in E4.
+//
+// vector may be identical to a; partially overlapping slices are not supported.
+func (vector VectorE4) SubElement(a VectorE4, b fr.Vector) {
+	N := len(vector)
+	if len(a) != N || len(b) != N {
+		panic("vector.SubElement: vectors don't have the same length")
+	}
+	if N == 0 {
+		return
+	}
+	for i := range vector {
+		vector[i].SubElement(&a[i], &b[i])
+	}
+}
+
+// SubFromElement sets vector[i] = a[i] - b[i] for all i, where a[i] is an
+// element of the base field embedded in E4.
+//
+// vector may be identical to b; partially overlapping slices are not supported.
+func (vector VectorE4) SubFromElement(a fr.Vector, b VectorE4) {
+	N := len(vector)
+	if len(a) != N || len(b) != N {
+		panic("vector.SubFromElement: vectors don't have the same length")
+	}
+	if N == 0 {
+		return
+	}
+	for i := range vector {
+		vector[i].SubFromElement(&a[i], &b[i])
+	}
+}
+
+// ScalarAddBase sets vector[i] = a[i] + c for all i, where a[i] is an element
+// of the base field embedded in E4.
+//
+// c may point into vector; partially overlapping slices are not supported.
+func (vector VectorE4) ScalarAddBase(a fr.Vector, c *E4) {
+	if len(vector) != len(a) {
+		panic("vector.ScalarAddBase: vectors don't have the same length")
+	}
+	if len(vector) == 0 {
+		return
+	}
+	// embedding a[i] only touches the first coordinate: the others are copies
+	// of c.
+	cc := *c
+	for i := range vector {
+		r := cc
+		r.B0.A0.Add(&cc.B0.A0, &a[i])
+		vector[i] = r
+	}
+}
+
+// ScalarSubBase sets vector[i] = a[i] - c for all i, where a[i] is an element
+// of the base field embedded in E4.
+//
+// c may point into vector; partially overlapping slices are not supported.
+func (vector VectorE4) ScalarSubBase(a fr.Vector, c *E4) {
+	if len(vector) != len(a) {
+		panic("vector.ScalarSubBase: vectors don't have the same length")
+	}
+	if len(vector) == 0 {
+		return
+	}
+	var negC E4
+	negC.Neg(c)
+	vector.ScalarAddBase(a, &negC)
+}
+
+// ScalarSubFromBase sets vector[i] = c - a[i] for all i, where a[i] is an
+// element of the base field embedded in E4.
+//
+// c may point into vector; partially overlapping slices are not supported.
+func (vector VectorE4) ScalarSubFromBase(c *E4, a fr.Vector) {
+	if len(vector) != len(a) {
+		panic("vector.ScalarSubFromBase: vectors don't have the same length")
+	}
+	if len(vector) == 0 {
+		return
+	}
+	cc := *c
+	for i := range vector {
+		r := cc
+		r.B0.A0.Sub(&cc.B0.A0, &a[i])
+		vector[i] = r
+	}
+}
+
 // FoldPairs folds layer in pairs, as in one FRI folding round:
 //
 //	vector[j] = (layer[2j] + layer[2j+1]) / 2 + alpha · halfInvTwiddles[j] · (layer[2j] − layer[2j+1])
@@ -288,7 +417,7 @@ func (vector VectorE4) Exp(a VectorE4, k int64) {
 	exp := k
 	if k < 0 {
 		// call batch inverse
-		base = BatchInvertE4(a)
+		base = a.BatchInvert()
 		exp = -k // if k == math.MinInt64, -k overflows, but uint64(-k) is correct
 	} else if N > 0 {
 		// ensure that vector and a are not the same slice; else we need to copy a into base
@@ -311,11 +440,24 @@ func (vector VectorE4) Exp(a VectorE4, k int64) {
 	}
 }
 
-// MulAccByElement sets vector[i] += scale[i] * alpha for all i.
+// MulAccByElement sets vector[i] += a[i] * b[i] for all i, where b is a
+// base-field vector.
 //
-// It is equivalent to vector.ScalarMulAccBase(scale, alpha).
-func (vector VectorE4) MulAccByElement(scale []fr.Element, alpha *E4) {
-	vector.ScalarMulAccBase(scale, alpha)
+// vector may be identical to a; partially overlapping slices are not
+// supported.
+//
+// In v0.22.0 and earlier, this method had the signature
+// (scale []fr.Element, alpha *E4) and computed vector[i] += scale[i] * alpha;
+// that operation is now [VectorE4.ScalarMulAccBase].
+func (vector VectorE4) MulAccByElement(a VectorE4, b fr.Vector) {
+	if len(a) != len(vector) || len(b) != len(vector) {
+		panic("vector.MulAccByElement: length mismatch")
+	}
+	var t E4
+	for i := range vector {
+		t.MulByElement(&a[i], &b[i])
+		vector[i].Add(&vector[i], &t)
+	}
 }
 
 // ScalarMulAccBase sets vector[i] += a[i] * c for all i, where a is a
@@ -662,75 +804,61 @@ func (vector *VectorE4) ReadFrom(r io.Reader) (int64, error) {
 	return n, <-chErr
 }
 
-// PrefixProduct computes the prefix product of the vector in place.
-// i.e. vector[i] = vector[0] * vector[1] * ... * vector[i]
-// If nbTasks > 1, it uses nbTasks goroutines to compute the prefix product in parallel.
-// If nbTasks is not provided, it uses the number of CPU cores.
+// PrefixProduct computes the prefix product of the vector in place, i.e.
+// vector[i] = vector[0] * vector[1] * ... * vector[i].
+//
+// Long vectors are split in chunks processed in parallel, by at most nbTasks
+// goroutines if nbTasks is given and positive, and at most GOMAXPROCS
+// goroutines in any case.
 func (vector VectorE4) PrefixProduct(nbTasks ...int) {
-	N := len(vector)
-	if N < 2 {
-		return
+	n := len(vector)
+	nbWorkers := runtime.GOMAXPROCS(0)
+	if len(nbTasks) == 1 && nbTasks[0] > 0 {
+		nbWorkers = min(nbWorkers, nbTasks[0])
 	}
-
-	if N < 512 {
+	// the second pass (a ScalarMul per chunk) and the goroutines only pay off
+	// on long vectors and chunks; the thresholds are measured
+	// (BenchmarkVectorE4PrefixProduct, 64 cores).
+	nbWorkers = min(nbWorkers, n/2048)
+	if n < 1<<14 || nbWorkers < 2 {
 		vector.prefixProductGeneric()
 		return
 	}
 
-	// Use one worker per available CPU core.
-	numWorkers := runtime.GOMAXPROCS(0)
-	if len(nbTasks) == 1 && nbTasks[0] > 0 && nbTasks[0] < numWorkers {
-		numWorkers = nbTasks[0]
-	}
-
-	for N/numWorkers < 64 && numWorkers > 1 {
-		numWorkers >>= 1
-	}
-	numWorkers = max(1, numWorkers)
-
-	// --- PASS 1: Calculate prefix product for each chunk independently ---
-	parallel.Execute(N, func(start, stop int) {
-		// This is the original sequential algorithm applied to the smaller chunk.
-		for j := start + 1; j < stop; j++ {
-			vector[j].Mul(&vector[j], &vector[j-1])
-		}
-	}, numWorkers)
-
-	// get the chunk indices
-	chunks := parallel.Chunks(N, numWorkers)
-
-	// Compute multipliers for each chunk (product of all previous chunks)
-	multipliers := make([]E4, len(chunks))
-	multipliers[0].SetOne()
-	for i := 1; i < len(chunks); i++ {
-		multipliers[i].SetOne()
-		for j := range i {
-			prevChunkEnd := chunks[j][1] - 1
-			multipliers[i].Mul(&multipliers[i], &vector[prevChunkEnd])
-		}
-	}
-
-	// propagate the multipliers to each chunk in parallel
-	// note: the first chunk is not modified (multiplier is 1)
+	// first pass: the prefix product of every chunk, independently.
+	chunks := parallel.Chunks(n, nbWorkers)
 	var wg sync.WaitGroup
-	wg.Add(len(chunks) - 1)
-	for i := 1; i < len(chunks); i++ {
-		go func(i int) {
-			defer wg.Done()
-			start, stop := chunks[i][0], chunks[i][1]
-			subVector := vector[start:stop]
-			subVector.ScalarMul(subVector, &multipliers[i])
-		}(i)
+	for _, c := range chunks {
+		wg.Go(func() {
+			vector[c[0]:c[1]].prefixProductGeneric()
+		})
 	}
 	wg.Wait()
 
+	// carry[i] is the product of the chunks before chunk i.
+	carry := make([]E4, len(chunks))
+	carry[1] = vector[chunks[0][1]-1]
+	for i := 2; i < len(chunks); i++ {
+		carry[i].Mul(&carry[i-1], &vector[chunks[i-1][1]-1])
+	}
+
+	// second pass: every chunk but the first is multiplied by its carry.
+	for i := 1; i < len(chunks); i++ {
+		wg.Go(func() {
+			chunk := vector[chunks[i][0]:chunks[i][1]]
+			chunk.ScalarMul(chunk, &carry[i])
+		})
+	}
+	wg.Wait()
 }
 
+// prefixProductGeneric is the sequential PrefixProduct.
 func (vector VectorE4) prefixProductGeneric() {
 	for i := 1; i < len(vector); i++ {
 		vector[i].Mul(&vector[i], &vector[i-1])
 	}
 }
+
 func vectorMulGeneric(res, a, b VectorE4) {
 	for i := range len(res) {
 		res[i].Mul(&a[i], &b[i])

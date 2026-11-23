@@ -416,8 +416,6 @@ func GenerateF31Ext(w io.Writer) error {
 	f.WriteLn("")
 
 	f.generateMulAccByElement(true)
-	f.generateAddVecE4()
-	f.generateSubVecE4()
 	f.generateMulVecE4(e4VecMul)
 	f.generateMulVecE4(e4VecScalarMul)
 	f.generateMulVecE4(e4VecInnerProd)
@@ -453,6 +451,16 @@ func GenerateF31Ext(w io.Writer) error {
 	f.generateMulVecE4(e4VecScalarMulAddBase)
 	f.generateMulAccByElement(false)
 	f.generateInnerProdByElementE6()
+	f.generateMixedAddVecExt("vectorAddElement_avx512", 4, 2, extMixedAdd, false)
+	f.generateMixedAddVecExt("vectorSubElement_avx512", 4, 2, extMixedSub, false)
+	f.generateMixedAddVecExt("vectorSubFromElement_avx512", 4, 2, extMixedSubFrom, false)
+	f.generateMixedAddVecExt("vectorAddElement_E6_avx512", 6, 3, extMixedAdd, false)
+	f.generateMixedAddVecExt("vectorSubElement_E6_avx512", 6, 3, extMixedSub, false)
+	f.generateMixedAddVecExt("vectorSubFromElement_E6_avx512", 6, 3, extMixedSubFrom, false)
+	f.generateMixedAddVecExt("vectorScalarAddBase_avx512", 4, 1, extMixedAdd, true)
+	f.generateMixedAddVecExt("vectorScalarSubFromBase_avx512", 4, 1, extMixedSub, true)
+	f.generateMixedAddVecExt("vectorScalarAddBase_E6_avx512", 6, 3, extMixedAdd, true)
+	f.generateMixedAddVecExt("vectorScalarSubFromBase_E6_avx512", 6, 3, extMixedSub, true)
 
 	return nil
 

@@ -32,32 +32,39 @@ func TestBatchInvert{{.E}}Into(t *testing.T) {
 					return v
 				}
 
-				require.Equal(t, expected, {{.V}}(BatchInvert{{.E}}(a)))
+				require.Equal(t, expected, a.BatchInvert())
 
 				res := fresh(size)
-				BatchInvert{{.E}}Into(res, a)
+				res.BatchInvertInto(a)
 				require.Equal(t, expected, res)
 
 				res = fresh(size)
-				BatchInvert{{.E}}IntoScratch(res, a, fresh(size))
+				res.BatchInvertIntoScratch(a, fresh(size))
 				require.Equal(t, expected, res)
 
 				// scratch may be longer than needed
 				res = fresh(size)
-				BatchInvert{{.E}}IntoScratch(res, a, fresh(size+5))
+				res.BatchInvertIntoScratch(a, fresh(size+5))
 				require.Equal(t, expected, res)
 
 				// a is left untouched unless it is the destination
 				require.Equal(t, orig, a)
 
-				// res may be the very same slice as a
+				// the destination may be the very same slice as a
 				res = slices.Clone(a)
-				BatchInvert{{.E}}Into(res, res)
+				res.BatchInvertInto(res)
 				require.Equal(t, expected, res)
 
 				res = slices.Clone(a)
-				BatchInvert{{.E}}IntoScratch(res, res, fresh(size))
+				res.BatchInvertIntoScratch(res, fresh(size))
 				require.Equal(t, expected, res)
+
+				// sub-slices are valid receivers
+				if size > 2 {
+					res = fresh(size)
+					res[1:].BatchInvertInto(a[1:])
+					require.Equal(t, expected[1:], res[1:])
+				}
 			})
 		}
 	}
@@ -65,22 +72,25 @@ func TestBatchInvert{{.E}}Into(t *testing.T) {
 
 func TestBatchInvert{{.E}}IntoPanics(t *testing.T) {
 	a := make({{.V}}, 4)
-	require.Panics(t, func() { BatchInvert{{.E}}Into(make({{.V}}, 3), a) })
-	require.Panics(t, func() { BatchInvert{{.E}}IntoScratch(make({{.V}}, 3), a, make({{.V}}, 4)) })
-	require.Panics(t, func() { BatchInvert{{.E}}IntoScratch(make({{.V}}, 4), a, make({{.V}}, 3)) })
+	require.Panics(t, func() { make({{.V}}, 3).BatchInvertInto(a) })
+	require.Panics(t, func() { make({{.V}}, 3).BatchInvertIntoScratch(a, make({{.V}}, 4)) })
+	require.Panics(t, func() { make({{.V}}, 4).BatchInvertIntoScratch(a, make({{.V}}, 3)) })
 
 	// partial overlaps are rejected; the very same slice is allowed (in place).
 	buf := make({{.V}}, 9)
 	for i := range buf {
 		buf[i].SetOne()
 	}
-	require.Panics(t, func() { BatchInvert{{.E}}Into(buf[1:5], buf[:4]) })
-	require.Panics(t, func() { BatchInvert{{.E}}IntoScratch(buf[1:5], buf[:4], make({{.V}}, 4)) })
-	require.Panics(t, func() { BatchInvert{{.E}}IntoScratch(buf[:4], buf[:4], buf[2:6]) })
-	require.Panics(t, func() { BatchInvert{{.E}}IntoScratch(make({{.V}}, 4), buf[:4], buf[3:7]) })
-	require.NotPanics(t, func() { BatchInvert{{.E}}Into(buf[:4], buf[4:8]) })
-	require.NotPanics(t, func() { BatchInvert{{.E}}Into(buf[:4], buf[:4]) })
-	require.NotPanics(t, func() { BatchInvert{{.E}}IntoScratch(buf[:4], buf[:4], buf[4:9]) })
+	require.Panics(t, func() { buf[1:5].BatchInvertInto(buf[:4]) })
+	require.Panics(t, func() { buf[1:5].BatchInvertIntoScratch(buf[:4], make({{.V}}, 4)) })
+	require.Panics(t, func() { buf[:4].BatchInvertIntoScratch(buf[:4], buf[2:6]) })
+	require.Panics(t, func() { make({{.V}}, 4).BatchInvertIntoScratch(buf[:4], buf[3:7]) })
+	require.NotPanics(t, func() { buf[:4].BatchInvertInto(buf[4:8]) })
+	require.NotPanics(t, func() { buf[:4].BatchInvertInto(buf[:4]) })
+	require.NotPanics(t, func() { buf[:4].BatchInvertIntoScratch(buf[:4], buf[4:9]) })
+	// empty inputs return early, even with a nil scratch
+	require.NotPanics(t, func() { {{.V}}(nil).BatchInvertInto(nil) })
+	require.NotPanics(t, func() { {{.V}}(nil).BatchInvertIntoScratch(nil, nil) })
 }
 
 func TestBatchInvert{{.E}}IntoAllocs(t *testing.T) {
@@ -90,12 +100,32 @@ func TestBatchInvert{{.E}}IntoAllocs(t *testing.T) {
 	res := make({{.V}}, n)
 	scratch := make({{.V}}, n)
 
-	require.Zero(t, testing.AllocsPerRun(10, func() { BatchInvert{{.E}}Into(res, a) }), "BatchInvert{{.E}}Into")
-	require.Zero(t, testing.AllocsPerRun(10, func() { BatchInvert{{.E}}IntoScratch(res, a, scratch) }), "BatchInvert{{.E}}IntoScratch")
-	require.Zero(t, testing.AllocsPerRun(10, func() { BatchInvert{{.E}}IntoScratch(res, res, scratch) }), "BatchInvert{{.E}}IntoScratch in place")
-	// in place, BatchInvert{{.E}}Into takes its scratch from a pool, which only
+	require.Zero(t, testing.AllocsPerRun(10, func() { res.BatchInvertInto(a) }), "{{.V}}.BatchInvertInto")
+	require.Zero(t, testing.AllocsPerRun(10, func() { res.BatchInvertIntoScratch(a, scratch) }), "{{.V}}.BatchInvertIntoScratch")
+	require.Zero(t, testing.AllocsPerRun(10, func() { res.BatchInvertIntoScratch(res, scratch) }), "{{.V}}.BatchInvertIntoScratch in place")
+	// in place, BatchInvertInto takes its scratch from a pool, which only
 	// allocates on a miss (e.g. after a GC, or randomly under -race).
-	require.LessOrEqual(t, testing.AllocsPerRun(100, func() { BatchInvert{{.E}}Into(res, res) }), 1.0, "BatchInvert{{.E}}Into in place")
+	require.LessOrEqual(t, testing.AllocsPerRun(100, func() { res.BatchInvertInto(res) }), 1.0, "{{.V}}.BatchInvertInto in place")
+}
+
+// TestBatchInvert{{.E}}Deprecated checks that the deprecated package-level
+// functions still match the {{.V}} methods they forward to.
+func TestBatchInvert{{.E}}Deprecated(t *testing.T) {
+	a := randomBatchInv{{.E}}(100)
+	a[7].SetZero()
+	expected := a.BatchInvert()
+
+	require.Equal(t, expected, {{.V}}(BatchInvert{{.E}}(a))) //nolint:govet // exercises the deprecated wrapper
+	res := make({{.V}}, len(a))
+	BatchInvert{{.E}}Into(res, a) //nolint:govet // exercises the deprecated wrapper
+	require.Equal(t, expected, res)
+	res = make({{.V}}, len(a))
+	BatchInvert{{.E}}IntoScratch(res, a, make({{.V}}, len(a))) //nolint:govet // exercises the deprecated wrapper
+	require.Equal(t, expected, res)
+	res = slices.Clone(a)
+	BatchInvert{{.E}}Into(res, res) //nolint:govet // exercises the deprecated wrapper
+	require.Equal(t, expected, res)
+	require.Panics(t, func() { BatchInvert{{.E}}Into(make({{.V}}, 3), a) }) //nolint:govet // exercises the deprecated wrapper
 }
 
 // TestBatchInvert{{.E}}Lanes checks batchInvert{{.E}} at every row width, whatever the
@@ -143,19 +173,19 @@ func BenchmarkBatchInvert{{.E}}(b *testing.B) {
 		b.Run("alloc/n="+strconv.Itoa(size), func(b *testing.B) {
 			b.ReportAllocs()
 			for b.Loop() {
-				_ = BatchInvert{{.E}}(x)
+				_ = x.BatchInvert()
 			}
 		})
 		b.Run("into/n="+strconv.Itoa(size), func(b *testing.B) {
 			b.ReportAllocs()
 			for b.Loop() {
-				BatchInvert{{.E}}Into(res, x)
+				res.BatchInvertInto(x)
 			}
 		})
 		b.Run("into-scratch/n="+strconv.Itoa(size), func(b *testing.B) {
 			b.ReportAllocs()
 			for b.Loop() {
-				BatchInvert{{.E}}IntoScratch(res, x, scratch)
+				res.BatchInvertIntoScratch(x, scratch)
 			}
 		})
 		b.Run("in-place-scratch/n="+strconv.Itoa(size), func(b *testing.B) {
@@ -163,7 +193,7 @@ func BenchmarkBatchInvert{{.E}}(b *testing.B) {
 			copy(res, x)
 			for b.Loop() {
 				// the content is meaningless after the first call, but the cost is the same
-				BatchInvert{{.E}}IntoScratch(res, res, scratch)
+				res.BatchInvertIntoScratch(res, scratch)
 			}
 		})
 	}

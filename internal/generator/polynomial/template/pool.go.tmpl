@@ -6,7 +6,7 @@ import (
 // Pool{{.ExtensionName}} is a pool of slices of {{.ElementType}}
 type Pool{{.ExtensionName}} = utils.Pool[{{.ElementType}}]
 
-// NewPool{{.ExtensionName}} returns a Pool{{.ExtensionName}} whose sub-pools hold slices of capacity up to each of maxN
+// NewPool{{.ExtensionName}} returns a Pool{{.ExtensionName}}. maxN is ignored; it is kept for compatibility.
 func NewPool{{.ExtensionName}}(maxN ...int) Pool{{.ExtensionName}} {
 	return utils.NewPool[{{.ElementType}}](maxN...)
 }
