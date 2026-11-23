@@ -1689,7 +1689,9 @@ func TestVectorE6LanewiseOpsAgainstElement(t *testing.T) {
 		}
 	}
 
-	sizes := []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 12, 15, 16, 17, 31, 32, 33, 64, 100}
+	// 1024: some lane-wise reductions are only exercised by rare inputs (e.g.
+	// FoldPairs' halving of an odd p+q ≥ q matters for ~4% of the outputs).
+	sizes := []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 12, 15, 16, 17, 31, 32, 33, 64, 100, 1024}
 	for _, seed := range []int{0, 1, 2} {
 		for _, size := range sizes {
 			t.Run(fmt.Sprintf("seed=%d/N=%d", seed, size), func(t *testing.T) {
@@ -1778,13 +1780,17 @@ func TestVectorE6LanewiseOpsAgainstElement(t *testing.T) {
 					}
 				}
 
-				// FoldPairs: size/2 outputs from size inputs, and in place
-				if size%2 == 0 {
+				// FoldPairs: size/2 outputs from size inputs, and in place; on the
+				// edge-value layer r0 and on a (random for seed 0)
+				for _, src := range []VectorE6{r0, a} {
+					if size%2 != 0 {
+						break
+					}
 					m := size / 2
 					want := make(VectorE6, m)
 					var sum, d E6
 					for j := range m {
-						p, q := &r0[2*j], &r0[2*j+1]
+						p, q := &src[2*j], &src[2*j+1]
 						sum.Add(p, q)
 						sum.Halve()
 						d.Sub(p, q)
@@ -1793,11 +1799,11 @@ func TestVectorE6LanewiseOpsAgainstElement(t *testing.T) {
 						want[j].Add(&sum, &d)
 					}
 					got := make(VectorE6, m)
-					got.FoldPairs(r0, base[:m], &s)
+					got.FoldPairs(src, base[:m], &s)
 					for j := range m {
 						require.True(t, want[j].Equal(&got[j]), "FoldPairs: element %d", j)
 					}
-					layer := slices.Clone(r0)
+					layer := slices.Clone(src)
 					VectorE6(layer[:m]).FoldPairs(layer, base[:m], &s)
 					for j := range m {
 						require.True(t, want[j].Equal(&layer[j]), "FoldPairs/in-place: element %d", j)
