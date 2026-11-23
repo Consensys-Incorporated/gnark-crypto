@@ -55,6 +55,18 @@ type FFAmd64 struct {
 
 type defineFn func(args ...any)
 
+// RETAVX returns from a kernel that uses YMM / ZMM registers. VZEROUPPER
+// marks the upper halves of the vector registers clean before returning to Go
+// code: otherwise the legacy SSE instructions that follow (in the Go runtime,
+// copy, memclr, ...) pay a transition penalty, measured at ~125 ns per call
+// on Sapphire Rapids, more than a whole kernel call on short vectors. It must
+// only be used in kernels that already require AVX, as VZEROUPPER is an AVX
+// instruction.
+func (f *FFAmd64) RETAVX() {
+	f.WriteLn("\tVZEROUPPER")
+	f.RET()
+}
+
 func (f *FFAmd64) SetQStack(qStack []amd64.Register) {
 	f.qStack = qStack
 }
@@ -533,6 +545,9 @@ func GenerateF31ASM(f *FFAmd64, hasVector bool) error {
 	f.generateMulAccVecF31(mulAccVecOp)
 	f.generateMulAccVecF31(scalarMulAccVecOp)
 	f.generateMulAccVecF31(scalarMulAddVecOp)
+	f.generateScalarVecF31(negVecOp)
+	f.generateScalarVecF31(scalarAddVecOp)
+	f.generateScalarVecF31(scalarSubFromVecOp)
 	f.generateBatchInvertVecF31(true)
 	f.generateBatchInvertVecF31(false)
 

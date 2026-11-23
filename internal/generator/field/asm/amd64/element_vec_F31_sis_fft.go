@@ -266,7 +266,7 @@ func (_f *FFAmd64) generateFFTInnerDITF31() {
 		f.ADDQ("$64", addrTwiddles)
 	})
 
-	f.RET()
+	f.RETAVX()
 }
 
 func (_f *FFAmd64) generateFFTInnerDIFF31() {
@@ -342,7 +342,7 @@ func (_f *FFAmd64) generateFFTInnerDIFF31() {
 		f.ADDQ("$64", addrTwiddles)
 	})
 
-	f.RET()
+	f.RETAVX()
 }
 
 func (_f *FFAmd64) generateFFTKernelF31(klog2 int, dif bool) {
@@ -421,7 +421,7 @@ func (_f *FFAmd64) generateFFTKernelF31(klog2 int, dif bool) {
 		}
 	}
 
-	f.RET()
+	f.RETAVX()
 
 	f.Push(&registers, addrA, addrTwiddles, addrAPlusM, innerLen)
 
@@ -714,7 +714,7 @@ func (_f *FFAmd64) generateSISShuffleF31() {
 
 		f.ADDQ("$128", addrA)
 	})
-	f.RET()
+	f.RETAVX()
 }
 
 func (_f *FFAmd64) generateSISUnhuffleF31() {
@@ -771,7 +771,7 @@ func (_f *FFAmd64) generateSISUnhuffleF31() {
 		f.ADDQ("$128", addrA)
 	})
 
-	f.RET()
+	f.RETAVX()
 
 }
 func (_f *FFAmd64) generateSIS512_16F31() {
@@ -1041,7 +1041,7 @@ func (_f *FFAmd64) generateSIS512_16F31() {
 
 	f.LABEL(lblDone)
 
-	f.RET()
+	f.RETAVX()
 }
 
 type fftHelper struct {

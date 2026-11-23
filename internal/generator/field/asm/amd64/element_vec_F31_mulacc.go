@@ -109,7 +109,7 @@ func (_f *FFAmd64) generateMulAccVecF31(op mulAccOp) {
 		f.ADDQ("$64", addrRes)
 	})
 
-	f.RET()
+	f.RETAVX()
 }
 
 // generateInnerProdByElementE6 emits
@@ -198,5 +198,5 @@ func (_f *FFAmd64) generateInnerProdByElementE6() {
 		f.VMOVDQU64(accOdd[g], addrRes.At(16*g+8))
 	}
 
-	f.RET()
+	f.RETAVX()
 }

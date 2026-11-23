@@ -108,7 +108,7 @@ func (_f *FFAmd64) generateScalarAddTiledVec(name string, degree, nbZmm int, op 
 		f.ADDQ(step, addrRes)
 	})
 
-	f.RET()
+	f.RETAVX()
 }
 
 // generateSumVecE6 emits
@@ -156,5 +156,5 @@ func (_f *FFAmd64) generateSumVecE6() {
 		_f.VMOVDQU64(acc[k], addrRes.At(k*8))
 	}
 
-	_f.RET()
+	_f.RETAVX()
 }

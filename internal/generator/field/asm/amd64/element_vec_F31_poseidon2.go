@@ -591,7 +591,7 @@ func (f *FFAmd64) generatePoseidon2_F31(params Poseidon2Parameters) {
 		f.VMOVDQU32(b1.Y(), addrInput.AtD(16))
 	}
 
-	f.RET()
+	f.RETAVX()
 }
 
 // generatePoseidon2_F31_16x16xN generates the generalized version of
@@ -948,7 +948,7 @@ func (_f *FFAmd64) generatePoseidon2_F31_16x16xN(params Poseidon2Parameters, gat
 		f.VPSCATTERDD(i*4, addrResult, vIndexScatter, 4, amd64.K1, v[i])
 	}
 
-	f.RET()
+	f.RETAVX()
 }
 
 func (_f *FFAmd64) generatePoseidon2_F31_16x24(params Poseidon2Parameters) {
@@ -1165,7 +1165,7 @@ func (_f *FFAmd64) generatePoseidon2_F31_16x24(params Poseidon2Parameters) {
 		f.VMOVDQU32(v[i], addrInput.AtD(i*16))
 	}
 
-	f.RET()
+	f.RETAVX()
 }
 
 type fieldHelper struct {

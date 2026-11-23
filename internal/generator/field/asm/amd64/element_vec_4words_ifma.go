@@ -171,7 +171,7 @@ func (h *ifmaHelper) generateMulVecIFMABody(funcName string, scalarMul bool) {
 		h.ADDQ("$256", addrRes)
 	})
 
-	h.RET()
+	h.RETAVX()
 
 	h.Push(&registers, addrRes, addrA, addrB, n)
 }
@@ -631,7 +631,7 @@ func (f *FFAmd64) generateInnerProdVecIFMA() {
 		f.ADDQ("$256", addrB)
 	})
 
-	f.RET()
+	f.RETAVX()
 
 	f.Push(&registers, addrT, addrA, addrB, n)
 }

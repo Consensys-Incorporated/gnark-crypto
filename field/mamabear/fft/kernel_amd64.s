@@ -88,6 +88,7 @@ loop_dif:
 	JMP       loop_dif
 
 done_dif:
+	VZEROUPPER
 	RET
 
 // innerDITWithTwiddles_avx512(a, twiddles *Element, start, end, m int)
@@ -126,4 +127,5 @@ loop_dit:
 	JMP       loop_dit
 
 done_dit:
+	VZEROUPPER
 	RET

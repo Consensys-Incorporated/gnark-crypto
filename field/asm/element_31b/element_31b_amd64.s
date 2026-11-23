@@ -31,6 +31,7 @@ loop_1:
 	JMP  loop_1
 
 done_2:
+	VZEROUPPER
 	RET
 
 // subVec(res, a, b *Element, n uint64) res[0...n] = a[0...n] - b[0...n]
@@ -61,6 +62,7 @@ loop_3:
 	JMP  loop_3
 
 done_4:
+	VZEROUPPER
 	RET
 
 // sumVec(res *uint64, a *[]uint32, n uint64) res = sum(a[0...n])
@@ -94,6 +96,7 @@ loop_5:
 done_6:
 	VPADDQ    Z2, Z3, Z2 // acc1 += acc2
 	VMOVDQU64 Z2, 0(R14) // res = acc1
+	VZEROUPPER
 	RET
 
 TEXT ·sumVec16_AVX512(SB), NOSPLIT, $0-16
@@ -110,6 +113,7 @@ TEXT ·sumVec16_AVX512(SB), NOSPLIT, $0-16
 	PEXTRQ        $1, X0, DX
 	ADDQ          DX, AX
 	MOVQ          AX, 0(R14)
+	VZEROUPPER
 	RET
 
 TEXT ·sumVec24_AVX512(SB), NOSPLIT, $0-16
@@ -128,6 +132,7 @@ TEXT ·sumVec24_AVX512(SB), NOSPLIT, $0-16
 	PEXTRQ        $1, X0, DX
 	ADDQ          DX, AX
 	MOVQ          AX, 0(R14)
+	VZEROUPPER
 	RET
 
 // mulVec(res, a, b *Element, n uint64) res[0...n] = a[0...n] * b[0...n]
@@ -173,6 +178,7 @@ loop_7:
 	JMP  loop_7
 
 done_8:
+	VZEROUPPER
 	RET
 
 // scalarMulVec(res, a, b *Element, n uint64) res[0...n] = a[0...n] * b
@@ -215,6 +221,7 @@ loop_9:
 	JMP  loop_9
 
 done_10:
+	VZEROUPPER
 	RET
 
 // innerProdVec(t *uint64, a,b *[]uint32, n uint64) res = sum(a[0...n] * b[0...n])
@@ -267,6 +274,7 @@ loop_11:
 done_12:
 	VPADDQ    Z11, Z10, Z11 // acc1 += acc0
 	VMOVDQU64 Z11, 0(CX)    // res = acc1
+	VZEROUPPER
 	RET
 
 // foldPairsVec(res, layer, twiddles, alpha *Element, n uint64)
@@ -355,6 +363,7 @@ loop_13:
 	JMP       loop_13
 
 done_14:
+	VZEROUPPER
 	RET
 
 // mulAccVec(res, a, b *Element, n uint64) res[0...n] += a[0...n] * b[0...n]
@@ -388,6 +397,7 @@ loop_15:
 	JMP       loop_15
 
 done_16:
+	VZEROUPPER
 	RET
 
 // scalarMulAccVec(res, a, c *Element, n uint64) res[0...n] += a[0...n] * c
@@ -420,6 +430,7 @@ loop_17:
 	JMP       loop_17
 
 done_18:
+	VZEROUPPER
 	RET
 
 // scalarMulAddVec(res, b, c *Element, n uint64) res[0...n] = res[0...n] * c + b[0...n]
@@ -452,6 +463,84 @@ loop_19:
 	JMP       loop_19
 
 done_20:
+	VZEROUPPER
+	RET
+
+// negVec(res, a *Element, n uint64) res[0...n] = -a[0...n]
+// n is the number of blocks of 16 elements to process
+TEXT ·negVec(SB), NOSPLIT, $0-24
+	MOVD         $const_q, AX
+	VPBROADCASTD AX, Z0
+	MOVQ         res+0(FP), R14
+	MOVQ         a+8(FP), DX
+	MOVQ         n+16(FP), CX
+	VPXORQ       Z1, Z1, Z1     // c = 0
+
+loop_21:
+	TESTQ     CX, CX
+	JEQ       done_22
+	DECQ      CX
+	VMOVDQU32 0(DX), Z2
+	SUB(Z1, Z2, Z0, Z3, Z2)
+	VMOVDQU32 Z2, 0(R14)
+	ADDQ      $64, DX
+	ADDQ      $64, R14
+	JMP       loop_21
+
+done_22:
+	VZEROUPPER
+	RET
+
+// scalarAddVec(res, a, c *Element, n uint64) res[0...n] = a[0...n] + c
+// n is the number of blocks of 16 elements to process
+TEXT ·scalarAddVec(SB), NOSPLIT, $0-32
+	MOVD         $const_q, AX
+	VPBROADCASTD AX, Z0
+	MOVQ         res+0(FP), R14
+	MOVQ         a+8(FP), DX
+	MOVQ         c+16(FP), BX
+	MOVQ         n+24(FP), CX
+	VPBROADCASTD 0(BX), Z1      // broadcast c
+
+loop_23:
+	TESTQ     CX, CX
+	JEQ       done_24
+	DECQ      CX
+	VMOVDQU32 0(DX), Z2
+	ADD(Z2, Z1, Z0, Z3, Z2)
+	VMOVDQU32 Z2, 0(R14)
+	ADDQ      $64, DX
+	ADDQ      $64, R14
+	JMP       loop_23
+
+done_24:
+	VZEROUPPER
+	RET
+
+// scalarSubFromVec(res, a, c *Element, n uint64) res[0...n] = c - a[0...n]
+// n is the number of blocks of 16 elements to process
+TEXT ·scalarSubFromVec(SB), NOSPLIT, $0-32
+	MOVD         $const_q, AX
+	VPBROADCASTD AX, Z0
+	MOVQ         res+0(FP), R14
+	MOVQ         a+8(FP), DX
+	MOVQ         c+16(FP), BX
+	MOVQ         n+24(FP), CX
+	VPBROADCASTD 0(BX), Z1      // broadcast c
+
+loop_25:
+	TESTQ     CX, CX
+	JEQ       done_26
+	DECQ      CX
+	VMOVDQU32 0(DX), Z2
+	SUB(Z1, Z2, Z0, Z3, Z2)
+	VMOVDQU32 Z2, 0(R14)
+	ADDQ      $64, DX
+	ADDQ      $64, R14
+	JMP       loop_25
+
+done_26:
+	VZEROUPPER
 	RET
 
 // batchInvFwdVec(acc, prefix, row, a, one *Element, n uint64)
@@ -473,9 +562,9 @@ TEXT ·batchInvFwdVec(SB), NOSPLIT, $0-48
 	MOVQ         $0x0000000000005555, AX
 	KMOVD        AX, K3
 
-loop_21:
+loop_27:
 	TESTQ       SI, SI
-	JEQ         done_22
+	JEQ         done_28
 	DECQ        SI
 	VMOVDQU32   0(BX), Z3
 	VMOVDQU32   0(R14), Z4
@@ -502,9 +591,10 @@ loop_21:
 	ADDQ        $64, DX
 	ADDQ        $64, CX
 	ADDQ        $64, BX
-	JMP         loop_21
+	JMP         loop_27
 
-done_22:
+done_28:
+	VZEROUPPER
 	RET
 
 // batchInvBwdVec(acc, res, prefix, row, one *Element, n uint64)
@@ -526,9 +616,9 @@ TEXT ·batchInvBwdVec(SB), NOSPLIT, $0-48
 	MOVQ         $0x0000000000005555, AX
 	KMOVD        AX, K3
 
-loop_23:
+loop_29:
 	TESTQ     SI, SI
-	JEQ       done_24
+	JEQ       done_30
 	DECQ      SI
 	VMOVDQU32 0(BX), Z3
 	VMOVDQU32 0(R14), Z4
@@ -567,7 +657,8 @@ loop_23:
 	ADDQ      $64, DX
 	ADDQ      $64, CX
 	ADDQ      $64, BX
-	JMP       loop_23
+	JMP       loop_29
 
-done_24:
+done_30:
+	VZEROUPPER
 	RET
