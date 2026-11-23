@@ -598,8 +598,12 @@ func scalarMulVecGeneric(res, a Vector, b *Element) {
 	if len(a) != len(res) {
 		panic("vector.ScalarMul: vectors don't have the same length")
 	}
+	if len(a) == 0 {
+		return
+	}
+	bb := *b // b may point into res
 	for i := range len(a) {
-		res[i].Mul(&a[i], b)
+		res[i].Mul(&a[i], &bb)
 	}
 }
 

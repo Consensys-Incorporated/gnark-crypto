@@ -62,7 +62,7 @@ func (vector Vector) Add(a, b Vector) {
 	if n == 0 {
 		return
 	}
-	if !cpu.SupportAVX512IFMA {
+	if !cpu.SupportAVX512IFMA || n < blockSize {
 		addVecGeneric(vector, a, b)
 		return
 	}
@@ -83,7 +83,7 @@ func (vector Vector) Sub(a, b Vector) {
 	if n == 0 {
 		return
 	}
-	if !cpu.SupportAVX512IFMA {
+	if !cpu.SupportAVX512IFMA || n < blockSize {
 		subVecGeneric(vector, a, b)
 		return
 	}
@@ -104,14 +104,15 @@ func (vector Vector) ScalarMul(a Vector, b *Element) {
 	if n == 0 {
 		return
 	}
-	if !cpu.SupportAVX512IFMA {
-		scalarMulVecGeneric(vector, a, b)
+	bb := *b // b may point into vector
+	if !cpu.SupportAVX512IFMA || n < blockSize {
+		scalarMulVecGeneric(vector, a, &bb)
 		return
 	}
-	scalarMulVec(&vector[0], &a[0], b, n/blockSize)
+	scalarMulVec(&vector[0], &a[0], &bb, n/blockSize)
 	if n%blockSize != 0 {
 		start := n - n%blockSize
-		scalarMulVecGeneric(vector[start:], a[start:], b)
+		scalarMulVecGeneric(vector[start:], a[start:], &bb)
 	}
 }
 
@@ -195,7 +196,7 @@ func (vector Vector) Mul(a, b Vector) {
 	if n == 0 {
 		return
 	}
-	if !cpu.SupportAVX512IFMA {
+	if !cpu.SupportAVX512IFMA || n < blockSize {
 		mulVecGeneric(vector, a, b)
 		return
 	}

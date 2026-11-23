@@ -72,19 +72,20 @@ func (vector Vector) ScalarMul(a Vector, b *Element) {
 	if n == 0 {
 		return
 	}
+	bb := *b // b may point into vector
 	const maxN = (1 << 32) - 1
 	// IFMA path (available on Ice Lake+, Zen4+)
 	// Uses AVX-512 IFMA instructions for fast vectorized multiplication
 	const blockSize = 8
 	if cpu.SupportAVX512IFMA && n >= blockSize && n < maxN {
-		scalarMulVec(&vector[0], &a[0], b, n/blockSize)
+		scalarMulVec(&vector[0], &a[0], &bb, n/blockSize)
 		if n%blockSize != 0 {
 			start := n - n%blockSize
-			scalarMulVecGeneric(vector[start:], a[start:], b)
+			scalarMulVecGeneric(vector[start:], a[start:], &bb)
 		}
 		return
 	}
-	scalarMulVecGeneric(vector, a, b)
+	scalarMulVecGeneric(vector, a, &bb)
 }
 
 //go:noescape

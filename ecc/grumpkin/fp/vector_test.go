@@ -628,7 +628,7 @@ func FuzzVectorOps(f *testing.F) {
 
 func TestVectorAliasing(t *testing.T) {
 	assert := require.New(t)
-	sizes := []int{1, 8, 9, 64, 65}
+	sizes := []int{1, 2, 3, 4, 5, 7, 8, 9, 15, 16, 17, 64, 65}
 
 	for _, size := range sizes {
 		t.Run(fmt.Sprintf("size-%d", size), func(t *testing.T) {
@@ -662,6 +662,15 @@ func TestVectorAliasing(t *testing.T) {
 			copy(got, a)
 			got.ScalarMul(got, &scalar)
 			assert.True(got.Equal(want), "ScalarMul should support res == a")
+
+			// the scalar may point into the vector being written
+			for _, idx := range []int{0, size - 1} {
+				s := a[idx]
+				want.ScalarMul(a, &s)
+				copy(got, a)
+				got.ScalarMul(got, &got[idx])
+				assert.True(got.Equal(want), "ScalarMul should support b == &res[%d]", idx)
+			}
 
 			want.Mul(a, b)
 			copy(got, a)

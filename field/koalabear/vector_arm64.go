@@ -112,15 +112,16 @@ func (vector Vector) ScalarMul(a Vector, b *Element) {
 	if n == 0 {
 		return
 	}
+	bb := *b // b may point into vector
 	const blockSize = 4
 	if !cpu.SupportNEON || n < blockSize {
-		scalarMulVecGeneric(vector, a, b)
+		scalarMulVecGeneric(vector, a, &bb)
 		return
 	}
-	scalarMulVec(&vector[0], &a[0], b, n/blockSize)
+	scalarMulVec(&vector[0], &a[0], &bb, n/blockSize)
 	if n%blockSize != 0 {
 		start := n - n%blockSize
-		scalarMulVecGeneric(vector[start:], a[start:], b)
+		scalarMulVecGeneric(vector[start:], a[start:], &bb)
 	}
 }
 
