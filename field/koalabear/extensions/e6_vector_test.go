@@ -1662,3 +1662,185 @@ func BenchmarkVectorE6MulByElement(b *testing.B) {
 		res.MulByElement(a, scale)
 	}
 }
+
+// TestVectorE6LanewiseOpsAgainstElement checks the remaining vectorized ops
+// (additive, butterflies, folds, Horner steps, reductions) against the
+// per-element E6 ops, like TestVectorE6MulOpsAgainstElement.
+func TestVectorE6LanewiseOpsAgainstElement(t *testing.T) {
+	var zero, one, minusOne fr.Element
+	one.SetOne()
+	minusOne.SetInt64(-1)
+	edges := []fr.Element{zero, one, minusOne}
+
+	fill := func(seed int, v VectorE6, base fr.Vector) {
+		if seed == 0 {
+			v.MustSetRandom()
+			base.MustSetRandom()
+			return
+		}
+		for i := range v {
+			c := []*fr.Element{&v[i].B0.A0, &v[i].B0.A1, &v[i].B1.A0, &v[i].B1.A1, &v[i].B2.A0, &v[i].B2.A1}
+			for k, z := range c {
+				*z = edges[(i*7+k*seed)%len(edges)]
+			}
+		}
+		for i := range base {
+			base[i] = edges[(i*5+seed)%len(edges)]
+		}
+	}
+
+	sizes := []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 12, 15, 16, 17, 31, 32, 33, 64, 100}
+	for _, seed := range []int{0, 1, 2} {
+		for _, size := range sizes {
+			t.Run(fmt.Sprintf("seed=%d/N=%d", seed, size), func(t *testing.T) {
+				a, b, r0 := make(VectorE6, size), make(VectorE6, size), make(VectorE6, size)
+				base, base2 := make(fr.Vector, size), make(fr.Vector, size)
+				fill(seed, a, base)
+				fill(seed+1, b, base2)
+				fill(seed+2, r0, make(fr.Vector, size))
+				var s E6
+				var e fr.Element
+				if size > 0 {
+					s, e = b[size/2], base2[size/2]
+				} else {
+					s.MustSetRandom()
+					e.MustSetRandom()
+				}
+
+				check := func(name string, want func(i int, z *E6), got func(res VectorE6)) {
+					t.Helper()
+					res := slices.Clone(r0)
+					got(res)
+					for i := range res {
+						expected := r0[i]
+						want(i, &expected)
+						require.True(t, expected.Equal(&res[i]), "%s: element %d", name, i)
+					}
+				}
+				embed := func(x *fr.Element) *E6 {
+					var z E6
+					z.B0.A0 = *x
+					return &z
+				}
+				var tmp E6
+
+				check("ScalarAdd", func(i int, z *E6) { z.Add(&a[i], &s) },
+					func(res VectorE6) { res.ScalarAdd(a, &s) })
+				check("ScalarSubFrom", func(i int, z *E6) { z.Sub(&s, &a[i]) },
+					func(res VectorE6) { res.ScalarSubFrom(&s, a) })
+				check("ScalarAddElement", func(i int, z *E6) { z.Add(&a[i], embed(&e)) },
+					func(res VectorE6) { res.ScalarAddElement(a, &e) })
+				check("ScalarSubFromElement", func(i int, z *E6) { z.Sub(embed(&e), &a[i]) },
+					func(res VectorE6) { res.ScalarSubFromElement(&e, a) })
+				check("AddElement", func(i int, z *E6) { z.Add(&a[i], embed(&base[i])) },
+					func(res VectorE6) { res.AddElement(a, base) })
+				check("SubElement", func(i int, z *E6) { z.Sub(&a[i], embed(&base[i])) },
+					func(res VectorE6) { res.SubElement(a, base) })
+				check("SubFromElement", func(i int, z *E6) { z.Sub(embed(&base[i]), &a[i]) },
+					func(res VectorE6) { res.SubFromElement(base, a) })
+				check("ScalarAddBase", func(i int, z *E6) { z.Add(&s, embed(&base[i])) },
+					func(res VectorE6) { res.ScalarAddBase(base, &s) })
+				check("ScalarSubFromBase", func(i int, z *E6) { z.Sub(&s, embed(&base[i])) },
+					func(res VectorE6) { res.ScalarSubFromBase(&s, base) })
+				check("ScalarMulAdd", func(i int, z *E6) { z.Add(tmp.Mul(z, &s), &b[i]) },
+					func(res VectorE6) { res.ScalarMulAdd(b, &s) })
+				check("ScalarMulAdd/alias", func(i int, z *E6) { z.Add(tmp.Mul(z, &s), z) },
+					func(res VectorE6) { res.ScalarMulAdd(res, &s) })
+				check("ScalarMulAddBase", func(i int, z *E6) { z.Add(tmp.Mul(z, &s), embed(&base[i])) },
+					func(res VectorE6) { res.ScalarMulAddBase(base, &s) })
+				check("AddElement/alias", func(i int, z *E6) { z.Add(z, embed(&base[i])) },
+					func(res VectorE6) { res.AddElement(res, base) })
+
+				// butterflies: res is the first operand, b the second
+				butterfly := func(name string, want func(i int, x, y *E6), got func(x, y VectorE6)) {
+					t.Helper()
+					x, y := slices.Clone(r0), slices.Clone(b)
+					got(x, y)
+					for i := range x {
+						ex, ey := r0[i], b[i]
+						want(i, &ex, &ey)
+						require.True(t, ex.Equal(&x[i]) && ey.Equal(&y[i]), "%s: element %d", name, i)
+					}
+				}
+				butterfly("Butterfly", func(_ int, x, y *E6) { ButterflyE6(x, y) },
+					func(x, y VectorE6) { x.Butterfly(y) })
+				butterfly("MulByElementThenButterfly", func(i int, x, y *E6) { y.MulByElement(y, &base[i]); ButterflyE6(x, y) },
+					func(x, y VectorE6) { x.MulByElementThenButterfly(y, base) })
+				butterfly("ButterflyThenMulByElement", func(i int, x, y *E6) { ButterflyE6(x, y); y.MulByElement(y, &base[i]) },
+					func(x, y VectorE6) { x.ButterflyThenMulByElement(y, base) })
+				if size%2 == 0 {
+					res := slices.Clone(r0)
+					res.ButterflyPair()
+					for i := 0; i < size; i += 2 {
+						x, y := r0[i], r0[i+1]
+						ButterflyE6(&x, &y)
+						require.True(t, x.Equal(&res[i]) && y.Equal(&res[i+1]), "ButterflyPair: element %d", i)
+					}
+				}
+
+				// FoldPairs: size/2 outputs from size inputs, and in place
+				if size%2 == 0 {
+					m := size / 2
+					want := make(VectorE6, m)
+					var sum, d E6
+					for j := range m {
+						p, q := &r0[2*j], &r0[2*j+1]
+						sum.Add(p, q)
+						sum.Halve()
+						d.Sub(p, q)
+						d.MulByElement(&d, &base[j])
+						d.Mul(&d, &s)
+						want[j].Add(&sum, &d)
+					}
+					got := make(VectorE6, m)
+					got.FoldPairs(r0, base[:m], &s)
+					for j := range m {
+						require.True(t, want[j].Equal(&got[j]), "FoldPairs: element %d", j)
+					}
+					layer := slices.Clone(r0)
+					VectorE6(layer[:m]).FoldPairs(layer, base[:m], &s)
+					for j := range m {
+						require.True(t, want[j].Equal(&layer[j]), "FoldPairs/in-place: element %d", j)
+					}
+				}
+
+				var sumA, ip E6
+				for i := range a {
+					sumA.Add(&sumA, &a[i])
+					ip.Add(&ip, tmp.MulByElement(&a[i], &base[i]))
+				}
+				got := a.Sum()
+				require.True(t, sumA.Equal(&got), "Sum")
+				got = a.InnerProductByElement(base)
+				require.True(t, ip.Equal(&got), "InnerProductByElement")
+			})
+		}
+	}
+}
+
+func BenchmarkVectorE6Butterflies(b *testing.B) {
+	const size = 1 << 12
+	x, y := randVectorE6(size), randVectorE6(size)
+	tw := make(fr.Vector, size)
+	tw.MustSetRandom()
+	b.Run("Butterfly", func(b *testing.B) {
+		for b.Loop() {
+			x.Butterfly(y)
+		}
+	})
+	b.Run("ButterflyPair", func(b *testing.B) {
+		for b.Loop() {
+			x.ButterflyPair()
+		}
+	})
+	b.Run("MulByElementThenButterfly", func(b *testing.B) {
+		for b.Loop() {
+			x.MulByElementThenButterfly(y, tw)
+		}
+	})
+	b.Run("ButterflyThenMulByElement", func(b *testing.B) {
+		for b.Loop() {
+			x.ButterflyThenMulByElement(y, tw)
+		}
+	})
+}
