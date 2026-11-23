@@ -612,17 +612,18 @@ const (
 // It must stay at most n/2, so that the chain products are fewer than n.
 func batchInvertLanes(n int) int {
 	if cpu.SupportNEON {
-		// measured on Apple M4: without the fused AVX-512 kernels, narrower
-		// rows pay off from shorter inputs.
+		// measured on Apple M4 Max, with the fused NEON row kernels: the
+		// chains pay off from the shortest input they apply to, and rows
+		// wider than 256 lanes no longer help.
 		switch {
-		case n >= 8192:
-			return 1024
-		case n >= 2048:
+		case n >= 4096:
 			return 256
-		case n >= 768:
-			return 128
-		case n >= 256:
+		case n >= 2048:
 			return 64
+		case n >= 384:
+			return 32
+		case n >= 2*batchInvertMinLanes:
+			return batchInvertMinLanes
 		default:
 			return 0
 		}

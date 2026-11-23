@@ -178,3 +178,624 @@ done12:
 	VADD   V9.D2, V10.D2, V9.D2 // acc0 += acc1
 	VST1.P [V9.D2], 16(R0)      // store accumulator
 	RET
+
+// mulAccVec(res, a, b *Element, n uint64) res[i] += a[i] * b[i]
+// n is the number of blocks of 4 uint32 to process
+TEXT ·mulAccVec(SB), NOFRAME|NOSPLIT, $0-32
+	LDP   res+0(FP), (R0, R1)
+	LDP   b+16(FP), (R2, R3)
+	MOVD  R0, R4
+	VMOVS $const_q, V30
+	VDUP  V30.S[0], V30.S4    // broadcast P
+	MOVD  $const_mu, R5
+	VDUP  R5, V31.S4          // broadcast MU
+
+loop4x13:
+	CMP    $4, R3
+	BLT    loop1x14
+	SUB    $0x4, R3, R3
+	VLD1.P 64(R1), [V4.S4, V5.S4, V6.S4, V7.S4]
+	VLD1.P 64(R2), [V8.S4, V9.S4, V10.S4, V11.S4]
+	VLD1.P 64(R0), [V0.S4, V1.S4, V2.S4, V3.S4]
+	WORD   $0x4ea8b48c                              // SQDMULH V12.4S, V4.4S, V8.4S - c_hi = (2*a*b) >> 32
+	WORD   $0x4ea9b4ad                              // SQDMULH V13.4S, V5.4S, V9.4S - c_hi = (2*a*b) >> 32
+	WORD   $0x4eaab4ce                              // SQDMULH V14.4S, V6.4S, V10.4S - c_hi = (2*a*b) >> 32
+	WORD   $0x4eabb4ef                              // SQDMULH V15.4S, V7.4S, V11.4S - c_hi = (2*a*b) >> 32
+	WORD   $0x4ea89c90                              // MUL V16.4S, V4.4S, V8.4S - m = a * b (low 32 bits)
+	WORD   $0x4ea99cb1                              // MUL V17.4S, V5.4S, V9.4S - m = a * b (low 32 bits)
+	WORD   $0x4eaa9cd2                              // MUL V18.4S, V6.4S, V10.4S - m = a * b (low 32 bits)
+	WORD   $0x4eab9cf3                              // MUL V19.4S, V7.4S, V11.4S - m = a * b (low 32 bits)
+	WORD   $0x4ebf9e10                              // MUL V16.4S, V16.4S, V31.4S - m = m * mu (low 32 bits)
+	WORD   $0x4ebf9e31                              // MUL V17.4S, V17.4S, V31.4S - m = m * mu (low 32 bits)
+	WORD   $0x4ebf9e52                              // MUL V18.4S, V18.4S, V31.4S - m = m * mu (low 32 bits)
+	WORD   $0x4ebf9e73                              // MUL V19.4S, V19.4S, V31.4S - m = m * mu (low 32 bits)
+	WORD   $0x4ebeb610                              // SQDMULH V16.4S, V16.4S, V30.4S - qp_hi = (2*m*P) >> 32
+	WORD   $0x4ebeb631                              // SQDMULH V17.4S, V17.4S, V30.4S - qp_hi = (2*m*P) >> 32
+	WORD   $0x4ebeb652                              // SQDMULH V18.4S, V18.4S, V30.4S - qp_hi = (2*m*P) >> 32
+	WORD   $0x4ebeb673                              // SQDMULH V19.4S, V19.4S, V30.4S - qp_hi = (2*m*P) >> 32
+	WORD   $0x4eb02584                              // SHSUB V4.4S, V12.4S, V16.4S - d = (c_hi - qp_hi) / 2
+	WORD   $0x4eb125a5                              // SHSUB V5.4S, V13.4S, V17.4S - d = (c_hi - qp_hi) / 2
+	WORD   $0x4eb225c6                              // SHSUB V6.4S, V14.4S, V18.4S - d = (c_hi - qp_hi) / 2
+	WORD   $0x4eb325e7                              // SHSUB V7.4S, V15.4S, V19.4S - d = (c_hi - qp_hi) / 2
+	WORD   $0x4eac360c                              // CMGT V12.4S, V16.4S, V12.4S - underflow = c_hi < qp_hi
+	WORD   $0x4ead362d                              // CMGT V13.4S, V17.4S, V13.4S - underflow = c_hi < qp_hi
+	WORD   $0x4eae364e                              // CMGT V14.4S, V18.4S, V14.4S - underflow = c_hi < qp_hi
+	WORD   $0x4eaf366f                              // CMGT V15.4S, V19.4S, V15.4S - underflow = c_hi < qp_hi
+	WORD   $0x6ebe9584                              // MLS V4.4S, V12.4S, V30.4S - d += P if underflow
+	WORD   $0x6ebe95a5                              // MLS V5.4S, V13.4S, V30.4S - d += P if underflow
+	WORD   $0x6ebe95c6                              // MLS V6.4S, V14.4S, V30.4S - d += P if underflow
+	WORD   $0x6ebe95e7                              // MLS V7.4S, V15.4S, V30.4S - d += P if underflow
+	VADD   V0.S4, V4.S4, V16.S4                     // s = a + b
+	VADD   V1.S4, V5.S4, V17.S4                     // s = a + b
+	VADD   V2.S4, V6.S4, V18.S4                     // s = a + b
+	VADD   V3.S4, V7.S4, V19.S4                     // s = a + b
+	VSUB   V30.S4, V16.S4, V12.S4                   // d = s - P
+	VSUB   V30.S4, V17.S4, V13.S4                   // d = s - P
+	VSUB   V30.S4, V18.S4, V14.S4                   // d = s - P
+	VSUB   V30.S4, V19.S4, V15.S4                   // d = s - P
+	VUMIN  V16.S4, V12.S4, V12.S4                   // d = min(s, s - P)
+	VUMIN  V17.S4, V13.S4, V13.S4                   // d = min(s, s - P)
+	VUMIN  V18.S4, V14.S4, V14.S4                   // d = min(s, s - P)
+	VUMIN  V19.S4, V15.S4, V15.S4                   // d = min(s, s - P)
+	VST1.P [V12.S4, V13.S4, V14.S4, V15.S4], 64(R4)
+	JMP    loop4x13
+
+loop1x14:
+	CBZ    R3, done15
+	SUB    $1, R3, R3
+	VLD1.P 16(R1), [V4.S4]
+	VLD1.P 16(R2), [V8.S4]
+	VLD1.P 16(R0), [V0.S4]
+	WORD   $0x4ea8b48c            // SQDMULH V12.4S, V4.4S, V8.4S - c_hi = (2*a*b) >> 32
+	WORD   $0x4ea89c90            // MUL V16.4S, V4.4S, V8.4S - m = a * b (low 32 bits)
+	WORD   $0x4ebf9e10            // MUL V16.4S, V16.4S, V31.4S - m = m * mu (low 32 bits)
+	WORD   $0x4ebeb610            // SQDMULH V16.4S, V16.4S, V30.4S - qp_hi = (2*m*P) >> 32
+	WORD   $0x4eb02584            // SHSUB V4.4S, V12.4S, V16.4S - d = (c_hi - qp_hi) / 2
+	WORD   $0x4eac360c            // CMGT V12.4S, V16.4S, V12.4S - underflow = c_hi < qp_hi
+	WORD   $0x6ebe9584            // MLS V4.4S, V12.4S, V30.4S - d += P if underflow
+	VADD   V0.S4, V4.S4, V16.S4   // s = a + b
+	VSUB   V30.S4, V16.S4, V12.S4 // d = s - P
+	VUMIN  V16.S4, V12.S4, V12.S4 // d = min(s, s - P)
+	VST1.P [V12.S4], 16(R4)
+	JMP    loop1x14
+
+done15:
+	RET
+
+// scalarMulAccVec(res, a, c *Element, n uint64) res[i] += a[i] * c
+// n is the number of blocks of 4 uint32 to process
+TEXT ·scalarMulAccVec(SB), NOFRAME|NOSPLIT, $0-32
+	LDP   res+0(FP), (R0, R1)
+	LDP   c+16(FP), (R2, R3)
+	MOVD  R0, R4
+	VMOVS $const_q, V30
+	VDUP  V30.S[0], V30.S4    // broadcast P
+	MOVD  $const_mu, R5
+	VDUP  R5, V31.S4          // broadcast MU
+	MOVWU 0(R2), R5
+	VDUP  R5, V28.S4          // broadcast c
+	WORD  $0x4ebc9ffd         // MUL V29.4S, V31.4S, V28.4S - muC = mu * c
+
+loop4x16:
+	CMP    $4, R3
+	BLT    loop1x17
+	SUB    $0x4, R3, R3
+	VLD1.P 64(R1), [V4.S4, V5.S4, V6.S4, V7.S4]
+	VLD1.P 64(R0), [V0.S4, V1.S4, V2.S4, V3.S4]
+	WORD   $0x4ebcb48c                              // SQDMULH V12.4S, V4.4S, V28.4S - c_hi = (2*a*b) >> 32
+	WORD   $0x4ebcb4ad                              // SQDMULH V13.4S, V5.4S, V28.4S - c_hi = (2*a*b) >> 32
+	WORD   $0x4ebcb4ce                              // SQDMULH V14.4S, V6.4S, V28.4S - c_hi = (2*a*b) >> 32
+	WORD   $0x4ebcb4ef                              // SQDMULH V15.4S, V7.4S, V28.4S - c_hi = (2*a*b) >> 32
+	WORD   $0x4ebd9c90                              // MUL V16.4S, V4.4S, V29.4S - m = a * (mu*b) (low 32 bits)
+	WORD   $0x4ebd9cb1                              // MUL V17.4S, V5.4S, V29.4S - m = a * (mu*b) (low 32 bits)
+	WORD   $0x4ebd9cd2                              // MUL V18.4S, V6.4S, V29.4S - m = a * (mu*b) (low 32 bits)
+	WORD   $0x4ebd9cf3                              // MUL V19.4S, V7.4S, V29.4S - m = a * (mu*b) (low 32 bits)
+	WORD   $0x4ebeb610                              // SQDMULH V16.4S, V16.4S, V30.4S - qp_hi = (2*m*P) >> 32
+	WORD   $0x4ebeb631                              // SQDMULH V17.4S, V17.4S, V30.4S - qp_hi = (2*m*P) >> 32
+	WORD   $0x4ebeb652                              // SQDMULH V18.4S, V18.4S, V30.4S - qp_hi = (2*m*P) >> 32
+	WORD   $0x4ebeb673                              // SQDMULH V19.4S, V19.4S, V30.4S - qp_hi = (2*m*P) >> 32
+	WORD   $0x4eb02584                              // SHSUB V4.4S, V12.4S, V16.4S - d = (c_hi - qp_hi) / 2
+	WORD   $0x4eb125a5                              // SHSUB V5.4S, V13.4S, V17.4S - d = (c_hi - qp_hi) / 2
+	WORD   $0x4eb225c6                              // SHSUB V6.4S, V14.4S, V18.4S - d = (c_hi - qp_hi) / 2
+	WORD   $0x4eb325e7                              // SHSUB V7.4S, V15.4S, V19.4S - d = (c_hi - qp_hi) / 2
+	WORD   $0x4eac360c                              // CMGT V12.4S, V16.4S, V12.4S - underflow = c_hi < qp_hi
+	WORD   $0x4ead362d                              // CMGT V13.4S, V17.4S, V13.4S - underflow = c_hi < qp_hi
+	WORD   $0x4eae364e                              // CMGT V14.4S, V18.4S, V14.4S - underflow = c_hi < qp_hi
+	WORD   $0x4eaf366f                              // CMGT V15.4S, V19.4S, V15.4S - underflow = c_hi < qp_hi
+	WORD   $0x6ebe9584                              // MLS V4.4S, V12.4S, V30.4S - d += P if underflow
+	WORD   $0x6ebe95a5                              // MLS V5.4S, V13.4S, V30.4S - d += P if underflow
+	WORD   $0x6ebe95c6                              // MLS V6.4S, V14.4S, V30.4S - d += P if underflow
+	WORD   $0x6ebe95e7                              // MLS V7.4S, V15.4S, V30.4S - d += P if underflow
+	VADD   V0.S4, V4.S4, V16.S4                     // s = a + b
+	VADD   V1.S4, V5.S4, V17.S4                     // s = a + b
+	VADD   V2.S4, V6.S4, V18.S4                     // s = a + b
+	VADD   V3.S4, V7.S4, V19.S4                     // s = a + b
+	VSUB   V30.S4, V16.S4, V12.S4                   // d = s - P
+	VSUB   V30.S4, V17.S4, V13.S4                   // d = s - P
+	VSUB   V30.S4, V18.S4, V14.S4                   // d = s - P
+	VSUB   V30.S4, V19.S4, V15.S4                   // d = s - P
+	VUMIN  V16.S4, V12.S4, V12.S4                   // d = min(s, s - P)
+	VUMIN  V17.S4, V13.S4, V13.S4                   // d = min(s, s - P)
+	VUMIN  V18.S4, V14.S4, V14.S4                   // d = min(s, s - P)
+	VUMIN  V19.S4, V15.S4, V15.S4                   // d = min(s, s - P)
+	VST1.P [V12.S4, V13.S4, V14.S4, V15.S4], 64(R4)
+	JMP    loop4x16
+
+loop1x17:
+	CBZ    R3, done18
+	SUB    $1, R3, R3
+	VLD1.P 16(R1), [V4.S4]
+	VLD1.P 16(R0), [V0.S4]
+	WORD   $0x4ebcb48c            // SQDMULH V12.4S, V4.4S, V28.4S - c_hi = (2*a*b) >> 32
+	WORD   $0x4ebd9c90            // MUL V16.4S, V4.4S, V29.4S - m = a * (mu*b) (low 32 bits)
+	WORD   $0x4ebeb610            // SQDMULH V16.4S, V16.4S, V30.4S - qp_hi = (2*m*P) >> 32
+	WORD   $0x4eb02584            // SHSUB V4.4S, V12.4S, V16.4S - d = (c_hi - qp_hi) / 2
+	WORD   $0x4eac360c            // CMGT V12.4S, V16.4S, V12.4S - underflow = c_hi < qp_hi
+	WORD   $0x6ebe9584            // MLS V4.4S, V12.4S, V30.4S - d += P if underflow
+	VADD   V0.S4, V4.S4, V16.S4   // s = a + b
+	VSUB   V30.S4, V16.S4, V12.S4 // d = s - P
+	VUMIN  V16.S4, V12.S4, V12.S4 // d = min(s, s - P)
+	VST1.P [V12.S4], 16(R4)
+	JMP    loop1x17
+
+done18:
+	RET
+
+// scalarMulAddVec(res, b, c *Element, n uint64) res[i] = res[i] * c + b[i]
+// n is the number of blocks of 4 uint32 to process
+TEXT ·scalarMulAddVec(SB), NOFRAME|NOSPLIT, $0-32
+	LDP   res+0(FP), (R0, R1)
+	LDP   c+16(FP), (R2, R3)
+	MOVD  R0, R4
+	VMOVS $const_q, V30
+	VDUP  V30.S[0], V30.S4    // broadcast P
+	MOVD  $const_mu, R5
+	VDUP  R5, V31.S4          // broadcast MU
+	MOVWU 0(R2), R5
+	VDUP  R5, V28.S4          // broadcast c
+	WORD  $0x4ebc9ffd         // MUL V29.4S, V31.4S, V28.4S - muC = mu * c
+
+loop4x19:
+	CMP    $4, R3
+	BLT    loop1x20
+	SUB    $0x4, R3, R3
+	VLD1.P 64(R0), [V0.S4, V1.S4, V2.S4, V3.S4]
+	VLD1.P 64(R1), [V4.S4, V5.S4, V6.S4, V7.S4]
+	WORD   $0x4ebcb40c                              // SQDMULH V12.4S, V0.4S, V28.4S - c_hi = (2*a*b) >> 32
+	WORD   $0x4ebcb42d                              // SQDMULH V13.4S, V1.4S, V28.4S - c_hi = (2*a*b) >> 32
+	WORD   $0x4ebcb44e                              // SQDMULH V14.4S, V2.4S, V28.4S - c_hi = (2*a*b) >> 32
+	WORD   $0x4ebcb46f                              // SQDMULH V15.4S, V3.4S, V28.4S - c_hi = (2*a*b) >> 32
+	WORD   $0x4ebd9c10                              // MUL V16.4S, V0.4S, V29.4S - m = a * (mu*b) (low 32 bits)
+	WORD   $0x4ebd9c31                              // MUL V17.4S, V1.4S, V29.4S - m = a * (mu*b) (low 32 bits)
+	WORD   $0x4ebd9c52                              // MUL V18.4S, V2.4S, V29.4S - m = a * (mu*b) (low 32 bits)
+	WORD   $0x4ebd9c73                              // MUL V19.4S, V3.4S, V29.4S - m = a * (mu*b) (low 32 bits)
+	WORD   $0x4ebeb610                              // SQDMULH V16.4S, V16.4S, V30.4S - qp_hi = (2*m*P) >> 32
+	WORD   $0x4ebeb631                              // SQDMULH V17.4S, V17.4S, V30.4S - qp_hi = (2*m*P) >> 32
+	WORD   $0x4ebeb652                              // SQDMULH V18.4S, V18.4S, V30.4S - qp_hi = (2*m*P) >> 32
+	WORD   $0x4ebeb673                              // SQDMULH V19.4S, V19.4S, V30.4S - qp_hi = (2*m*P) >> 32
+	WORD   $0x4eb02580                              // SHSUB V0.4S, V12.4S, V16.4S - d = (c_hi - qp_hi) / 2
+	WORD   $0x4eb125a1                              // SHSUB V1.4S, V13.4S, V17.4S - d = (c_hi - qp_hi) / 2
+	WORD   $0x4eb225c2                              // SHSUB V2.4S, V14.4S, V18.4S - d = (c_hi - qp_hi) / 2
+	WORD   $0x4eb325e3                              // SHSUB V3.4S, V15.4S, V19.4S - d = (c_hi - qp_hi) / 2
+	WORD   $0x4eac360c                              // CMGT V12.4S, V16.4S, V12.4S - underflow = c_hi < qp_hi
+	WORD   $0x4ead362d                              // CMGT V13.4S, V17.4S, V13.4S - underflow = c_hi < qp_hi
+	WORD   $0x4eae364e                              // CMGT V14.4S, V18.4S, V14.4S - underflow = c_hi < qp_hi
+	WORD   $0x4eaf366f                              // CMGT V15.4S, V19.4S, V15.4S - underflow = c_hi < qp_hi
+	WORD   $0x6ebe9580                              // MLS V0.4S, V12.4S, V30.4S - d += P if underflow
+	WORD   $0x6ebe95a1                              // MLS V1.4S, V13.4S, V30.4S - d += P if underflow
+	WORD   $0x6ebe95c2                              // MLS V2.4S, V14.4S, V30.4S - d += P if underflow
+	WORD   $0x6ebe95e3                              // MLS V3.4S, V15.4S, V30.4S - d += P if underflow
+	VADD   V0.S4, V4.S4, V16.S4                     // s = a + b
+	VADD   V1.S4, V5.S4, V17.S4                     // s = a + b
+	VADD   V2.S4, V6.S4, V18.S4                     // s = a + b
+	VADD   V3.S4, V7.S4, V19.S4                     // s = a + b
+	VSUB   V30.S4, V16.S4, V12.S4                   // d = s - P
+	VSUB   V30.S4, V17.S4, V13.S4                   // d = s - P
+	VSUB   V30.S4, V18.S4, V14.S4                   // d = s - P
+	VSUB   V30.S4, V19.S4, V15.S4                   // d = s - P
+	VUMIN  V16.S4, V12.S4, V12.S4                   // d = min(s, s - P)
+	VUMIN  V17.S4, V13.S4, V13.S4                   // d = min(s, s - P)
+	VUMIN  V18.S4, V14.S4, V14.S4                   // d = min(s, s - P)
+	VUMIN  V19.S4, V15.S4, V15.S4                   // d = min(s, s - P)
+	VST1.P [V12.S4, V13.S4, V14.S4, V15.S4], 64(R4)
+	JMP    loop4x19
+
+loop1x20:
+	CBZ    R3, done21
+	SUB    $1, R3, R3
+	VLD1.P 16(R0), [V0.S4]
+	VLD1.P 16(R1), [V4.S4]
+	WORD   $0x4ebcb40c            // SQDMULH V12.4S, V0.4S, V28.4S - c_hi = (2*a*b) >> 32
+	WORD   $0x4ebd9c10            // MUL V16.4S, V0.4S, V29.4S - m = a * (mu*b) (low 32 bits)
+	WORD   $0x4ebeb610            // SQDMULH V16.4S, V16.4S, V30.4S - qp_hi = (2*m*P) >> 32
+	WORD   $0x4eb02580            // SHSUB V0.4S, V12.4S, V16.4S - d = (c_hi - qp_hi) / 2
+	WORD   $0x4eac360c            // CMGT V12.4S, V16.4S, V12.4S - underflow = c_hi < qp_hi
+	WORD   $0x6ebe9580            // MLS V0.4S, V12.4S, V30.4S - d += P if underflow
+	VADD   V0.S4, V4.S4, V16.S4   // s = a + b
+	VSUB   V30.S4, V16.S4, V12.S4 // d = s - P
+	VUMIN  V16.S4, V12.S4, V12.S4 // d = min(s, s - P)
+	VST1.P [V12.S4], 16(R4)
+	JMP    loop1x20
+
+done21:
+	RET
+
+// foldPairsVec(res, layer, twiddles, alpha *Element, n uint64)
+// res[j] = (layer[2j] + layer[2j+1]) / 2 + alpha * twiddles[j] * (layer[2j] - layer[2j+1])
+// n is the number of blocks of 4 res elements to process
+TEXT ·foldPairsVec(SB), NOFRAME|NOSPLIT, $0-40
+	LDP   res+0(FP), (R0, R1)
+	LDP   twiddles+16(FP), (R2, R3)
+	MOVD  n+32(FP), R4
+	VMOVS $const_q, V30
+	VDUP  V30.S[0], V30.S4          // broadcast P
+	MOVD  $const_mu, R5
+	VDUP  R5, V31.S4                // broadcast MU
+	MOVWU 0(R3), R5
+	VDUP  R5, V28.S4                // broadcast alpha
+	WORD  $0x4ebc9ffd               // MUL V29.4S, V31.4S, V28.4S - muAlpha = mu * alpha
+	MOVD  $1, R5
+	VDUP  R5, V26.S4                // broadcast 1
+	VUSHR $1, V30.S4, V27.S4        // halfP1 = P >> 1
+	VADD  V27.S4, V26.S4, V27.S4    // halfP1 = (P + 1) / 2
+
+loop4x22:
+	CMP    $4, R4
+	BLT    loop1x23
+	SUB    $0x4, R4, R4
+	VLD2.P 32(R1), [V0.S4, V1.S4]
+	VLD2.P 32(R1), [V2.S4, V3.S4]
+	VLD2.P 32(R1), [V4.S4, V5.S4]
+	VLD2.P 32(R1), [V6.S4, V7.S4]
+	VLD1.P 64(R2), [V8.S4, V9.S4, V10.S4, V11.S4]
+	VADD   V0.S4, V1.S4, V16.S4                     // s = a + b
+	VADD   V2.S4, V3.S4, V17.S4                     // s = a + b
+	VADD   V4.S4, V5.S4, V18.S4                     // s = a + b
+	VADD   V6.S4, V7.S4, V19.S4                     // s = a + b
+	VSUB   V30.S4, V16.S4, V12.S4                   // d = s - P
+	VSUB   V30.S4, V17.S4, V13.S4                   // d = s - P
+	VSUB   V30.S4, V18.S4, V14.S4                   // d = s - P
+	VSUB   V30.S4, V19.S4, V15.S4                   // d = s - P
+	VUMIN  V16.S4, V12.S4, V12.S4                   // d = min(s, s - P)
+	VUMIN  V17.S4, V13.S4, V13.S4                   // d = min(s, s - P)
+	VUMIN  V18.S4, V14.S4, V14.S4                   // d = min(s, s - P)
+	VUMIN  V19.S4, V15.S4, V15.S4                   // d = min(s, s - P)
+	VSUB   V1.S4, V0.S4, V16.S4                     // s = a - b
+	VSUB   V3.S4, V2.S4, V17.S4                     // s = a - b
+	VSUB   V5.S4, V4.S4, V18.S4                     // s = a - b
+	VSUB   V7.S4, V6.S4, V19.S4                     // s = a - b
+	VADD   V16.S4, V30.S4, V0.S4                    // d = s + P
+	VADD   V17.S4, V30.S4, V2.S4                    // d = s + P
+	VADD   V18.S4, V30.S4, V4.S4                    // d = s + P
+	VADD   V19.S4, V30.S4, V6.S4                    // d = s + P
+	VUMIN  V16.S4, V0.S4, V0.S4                     // d = min(s, s + P)
+	VUMIN  V17.S4, V2.S4, V2.S4                     // d = min(s, s + P)
+	VUMIN  V18.S4, V4.S4, V4.S4                     // d = min(s, s + P)
+	VUMIN  V19.S4, V6.S4, V6.S4                     // d = min(s, s + P)
+	VAND   V12.B16, V26.B16, V1.B16                 // o = s & 1
+	VAND   V13.B16, V26.B16, V3.B16                 // o = s & 1
+	VAND   V14.B16, V26.B16, V5.B16                 // o = s & 1
+	VAND   V15.B16, V26.B16, V7.B16                 // o = s & 1
+	WORD   $0x4ebb9c21                              // MUL V1.4S, V1.4S, V27.4S - o = o * (P + 1) / 2
+	WORD   $0x4ebb9c63                              // MUL V3.4S, V3.4S, V27.4S - o = o * (P + 1) / 2
+	WORD   $0x4ebb9ca5                              // MUL V5.4S, V5.4S, V27.4S - o = o * (P + 1) / 2
+	WORD   $0x4ebb9ce7                              // MUL V7.4S, V7.4S, V27.4S - o = o * (P + 1) / 2
+	VUSRA  $1, V12.S4, V1.S4                        // o += s >> 1
+	VUSRA  $1, V13.S4, V3.S4                        // o += s >> 1
+	VUSRA  $1, V14.S4, V5.S4                        // o += s >> 1
+	VUSRA  $1, V15.S4, V7.S4                        // o += s >> 1
+	WORD   $0x4ea8b410                              // SQDMULH V16.4S, V0.4S, V8.4S - c_hi = (2*a*b) >> 32
+	WORD   $0x4ea9b451                              // SQDMULH V17.4S, V2.4S, V9.4S - c_hi = (2*a*b) >> 32
+	WORD   $0x4eaab492                              // SQDMULH V18.4S, V4.4S, V10.4S - c_hi = (2*a*b) >> 32
+	WORD   $0x4eabb4d3                              // SQDMULH V19.4S, V6.4S, V11.4S - c_hi = (2*a*b) >> 32
+	WORD   $0x4ea89c0c                              // MUL V12.4S, V0.4S, V8.4S - m = a * b (low 32 bits)
+	WORD   $0x4ea99c4d                              // MUL V13.4S, V2.4S, V9.4S - m = a * b (low 32 bits)
+	WORD   $0x4eaa9c8e                              // MUL V14.4S, V4.4S, V10.4S - m = a * b (low 32 bits)
+	WORD   $0x4eab9ccf                              // MUL V15.4S, V6.4S, V11.4S - m = a * b (low 32 bits)
+	WORD   $0x4ebf9d8c                              // MUL V12.4S, V12.4S, V31.4S - m = m * mu (low 32 bits)
+	WORD   $0x4ebf9dad                              // MUL V13.4S, V13.4S, V31.4S - m = m * mu (low 32 bits)
+	WORD   $0x4ebf9dce                              // MUL V14.4S, V14.4S, V31.4S - m = m * mu (low 32 bits)
+	WORD   $0x4ebf9def                              // MUL V15.4S, V15.4S, V31.4S - m = m * mu (low 32 bits)
+	WORD   $0x4ebeb58c                              // SQDMULH V12.4S, V12.4S, V30.4S - qp_hi = (2*m*P) >> 32
+	WORD   $0x4ebeb5ad                              // SQDMULH V13.4S, V13.4S, V30.4S - qp_hi = (2*m*P) >> 32
+	WORD   $0x4ebeb5ce                              // SQDMULH V14.4S, V14.4S, V30.4S - qp_hi = (2*m*P) >> 32
+	WORD   $0x4ebeb5ef                              // SQDMULH V15.4S, V15.4S, V30.4S - qp_hi = (2*m*P) >> 32
+	WORD   $0x4eac2600                              // SHSUB V0.4S, V16.4S, V12.4S - d = (c_hi - qp_hi) / 2
+	WORD   $0x4ead2622                              // SHSUB V2.4S, V17.4S, V13.4S - d = (c_hi - qp_hi) / 2
+	WORD   $0x4eae2644                              // SHSUB V4.4S, V18.4S, V14.4S - d = (c_hi - qp_hi) / 2
+	WORD   $0x4eaf2666                              // SHSUB V6.4S, V19.4S, V15.4S - d = (c_hi - qp_hi) / 2
+	WORD   $0x4eb03590                              // CMGT V16.4S, V12.4S, V16.4S - underflow = c_hi < qp_hi
+	WORD   $0x4eb135b1                              // CMGT V17.4S, V13.4S, V17.4S - underflow = c_hi < qp_hi
+	WORD   $0x4eb235d2                              // CMGT V18.4S, V14.4S, V18.4S - underflow = c_hi < qp_hi
+	WORD   $0x4eb335f3                              // CMGT V19.4S, V15.4S, V19.4S - underflow = c_hi < qp_hi
+	WORD   $0x6ebe9600                              // MLS V0.4S, V16.4S, V30.4S - d += P if underflow
+	WORD   $0x6ebe9622                              // MLS V2.4S, V17.4S, V30.4S - d += P if underflow
+	WORD   $0x6ebe9644                              // MLS V4.4S, V18.4S, V30.4S - d += P if underflow
+	WORD   $0x6ebe9666                              // MLS V6.4S, V19.4S, V30.4S - d += P if underflow
+	WORD   $0x4ebcb410                              // SQDMULH V16.4S, V0.4S, V28.4S - c_hi = (2*a*b) >> 32
+	WORD   $0x4ebcb451                              // SQDMULH V17.4S, V2.4S, V28.4S - c_hi = (2*a*b) >> 32
+	WORD   $0x4ebcb492                              // SQDMULH V18.4S, V4.4S, V28.4S - c_hi = (2*a*b) >> 32
+	WORD   $0x4ebcb4d3                              // SQDMULH V19.4S, V6.4S, V28.4S - c_hi = (2*a*b) >> 32
+	WORD   $0x4ebd9c0c                              // MUL V12.4S, V0.4S, V29.4S - m = a * (mu*b) (low 32 bits)
+	WORD   $0x4ebd9c4d                              // MUL V13.4S, V2.4S, V29.4S - m = a * (mu*b) (low 32 bits)
+	WORD   $0x4ebd9c8e                              // MUL V14.4S, V4.4S, V29.4S - m = a * (mu*b) (low 32 bits)
+	WORD   $0x4ebd9ccf                              // MUL V15.4S, V6.4S, V29.4S - m = a * (mu*b) (low 32 bits)
+	WORD   $0x4ebeb58c                              // SQDMULH V12.4S, V12.4S, V30.4S - qp_hi = (2*m*P) >> 32
+	WORD   $0x4ebeb5ad                              // SQDMULH V13.4S, V13.4S, V30.4S - qp_hi = (2*m*P) >> 32
+	WORD   $0x4ebeb5ce                              // SQDMULH V14.4S, V14.4S, V30.4S - qp_hi = (2*m*P) >> 32
+	WORD   $0x4ebeb5ef                              // SQDMULH V15.4S, V15.4S, V30.4S - qp_hi = (2*m*P) >> 32
+	WORD   $0x4eac2600                              // SHSUB V0.4S, V16.4S, V12.4S - d = (c_hi - qp_hi) / 2
+	WORD   $0x4ead2622                              // SHSUB V2.4S, V17.4S, V13.4S - d = (c_hi - qp_hi) / 2
+	WORD   $0x4eae2644                              // SHSUB V4.4S, V18.4S, V14.4S - d = (c_hi - qp_hi) / 2
+	WORD   $0x4eaf2666                              // SHSUB V6.4S, V19.4S, V15.4S - d = (c_hi - qp_hi) / 2
+	WORD   $0x4eb03590                              // CMGT V16.4S, V12.4S, V16.4S - underflow = c_hi < qp_hi
+	WORD   $0x4eb135b1                              // CMGT V17.4S, V13.4S, V17.4S - underflow = c_hi < qp_hi
+	WORD   $0x4eb235d2                              // CMGT V18.4S, V14.4S, V18.4S - underflow = c_hi < qp_hi
+	WORD   $0x4eb335f3                              // CMGT V19.4S, V15.4S, V19.4S - underflow = c_hi < qp_hi
+	WORD   $0x6ebe9600                              // MLS V0.4S, V16.4S, V30.4S - d += P if underflow
+	WORD   $0x6ebe9622                              // MLS V2.4S, V17.4S, V30.4S - d += P if underflow
+	WORD   $0x6ebe9644                              // MLS V4.4S, V18.4S, V30.4S - d += P if underflow
+	WORD   $0x6ebe9666                              // MLS V6.4S, V19.4S, V30.4S - d += P if underflow
+	VADD   V1.S4, V0.S4, V12.S4                     // s = a + b
+	VADD   V3.S4, V2.S4, V13.S4                     // s = a + b
+	VADD   V5.S4, V4.S4, V14.S4                     // s = a + b
+	VADD   V7.S4, V6.S4, V15.S4                     // s = a + b
+	VSUB   V30.S4, V12.S4, V16.S4                   // d = s - P
+	VSUB   V30.S4, V13.S4, V17.S4                   // d = s - P
+	VSUB   V30.S4, V14.S4, V18.S4                   // d = s - P
+	VSUB   V30.S4, V15.S4, V19.S4                   // d = s - P
+	VUMIN  V12.S4, V16.S4, V16.S4                   // d = min(s, s - P)
+	VUMIN  V13.S4, V17.S4, V17.S4                   // d = min(s, s - P)
+	VUMIN  V14.S4, V18.S4, V18.S4                   // d = min(s, s - P)
+	VUMIN  V15.S4, V19.S4, V19.S4                   // d = min(s, s - P)
+	VST1.P [V16.S4, V17.S4, V18.S4, V19.S4], 64(R0)
+	JMP    loop4x22
+
+loop1x23:
+	CBZ    R4, done24
+	SUB    $1, R4, R4
+	VLD2.P 32(R1), [V0.S4, V1.S4]
+	VLD1.P 16(R2), [V8.S4]
+	VADD   V0.S4, V1.S4, V16.S4     // s = a + b
+	VSUB   V30.S4, V16.S4, V12.S4   // d = s - P
+	VUMIN  V16.S4, V12.S4, V12.S4   // d = min(s, s - P)
+	VSUB   V1.S4, V0.S4, V16.S4     // s = a - b
+	VADD   V16.S4, V30.S4, V0.S4    // d = s + P
+	VUMIN  V16.S4, V0.S4, V0.S4     // d = min(s, s + P)
+	VAND   V12.B16, V26.B16, V1.B16 // o = s & 1
+	WORD   $0x4ebb9c21              // MUL V1.4S, V1.4S, V27.4S - o = o * (P + 1) / 2
+	VUSRA  $1, V12.S4, V1.S4        // o += s >> 1
+	WORD   $0x4ea8b410              // SQDMULH V16.4S, V0.4S, V8.4S - c_hi = (2*a*b) >> 32
+	WORD   $0x4ea89c0c              // MUL V12.4S, V0.4S, V8.4S - m = a * b (low 32 bits)
+	WORD   $0x4ebf9d8c              // MUL V12.4S, V12.4S, V31.4S - m = m * mu (low 32 bits)
+	WORD   $0x4ebeb58c              // SQDMULH V12.4S, V12.4S, V30.4S - qp_hi = (2*m*P) >> 32
+	WORD   $0x4eac2600              // SHSUB V0.4S, V16.4S, V12.4S - d = (c_hi - qp_hi) / 2
+	WORD   $0x4eb03590              // CMGT V16.4S, V12.4S, V16.4S - underflow = c_hi < qp_hi
+	WORD   $0x6ebe9600              // MLS V0.4S, V16.4S, V30.4S - d += P if underflow
+	WORD   $0x4ebcb410              // SQDMULH V16.4S, V0.4S, V28.4S - c_hi = (2*a*b) >> 32
+	WORD   $0x4ebd9c0c              // MUL V12.4S, V0.4S, V29.4S - m = a * (mu*b) (low 32 bits)
+	WORD   $0x4ebeb58c              // SQDMULH V12.4S, V12.4S, V30.4S - qp_hi = (2*m*P) >> 32
+	WORD   $0x4eac2600              // SHSUB V0.4S, V16.4S, V12.4S - d = (c_hi - qp_hi) / 2
+	WORD   $0x4eb03590              // CMGT V16.4S, V12.4S, V16.4S - underflow = c_hi < qp_hi
+	WORD   $0x6ebe9600              // MLS V0.4S, V16.4S, V30.4S - d += P if underflow
+	VADD   V1.S4, V0.S4, V12.S4     // s = a + b
+	VSUB   V30.S4, V12.S4, V16.S4   // d = s - P
+	VUMIN  V12.S4, V16.S4, V16.S4   // d = min(s, s - P)
+	VST1.P [V16.S4], 16(R0)
+	JMP    loop1x23
+
+done24:
+	RET
+
+// batchInvFwdVec(acc, prefix, row, a, one *Element, n uint64)
+// for every lane k:
+//   prefix[k] = a[k] != 0 ? acc[k] : 0
+//   row[k]    = a[k] != 0 ? a[k] : one
+//   acc[k]    = acc[k] * row[k]
+// n is the number of blocks of 4 uint32 to process
+TEXT ·batchInvFwdVec(SB), NOFRAME|NOSPLIT, $0-48
+	LDP   acc+0(FP), (R0, R1)
+	LDP   row+16(FP), (R2, R3)
+	LDP   one+32(FP), (R4, R5)
+	MOVD  R0, R6
+	VMOVS $const_q, V30
+	VDUP  V30.S[0], V30.S4     // broadcast P
+	MOVD  $const_mu, R7
+	VDUP  R7, V31.S4           // broadcast MU
+	MOVWU 0(R4), R7
+	VDUP  R7, V29.S4           // broadcast one
+
+loop4x25:
+	CMP    $4, R5
+	BLT    loop1x26
+	SUB    $0x4, R5, R5
+	VLD1.P 64(R3), [V4.S4, V5.S4, V6.S4, V7.S4]
+	VLD1.P 64(R0), [V0.S4, V1.S4, V2.S4, V3.S4]
+	VCMTST V4.S4, V4.S4, V8.S4                      // nz = a != 0
+	VCMTST V5.S4, V5.S4, V9.S4                      // nz = a != 0
+	VCMTST V6.S4, V6.S4, V10.S4                     // nz = a != 0
+	VCMTST V7.S4, V7.S4, V11.S4                     // nz = a != 0
+	VAND   V0.B16, V8.B16, V12.B16                  // prefix = nz ? acc : 0
+	VAND   V1.B16, V9.B16, V13.B16                  // prefix = nz ? acc : 0
+	VAND   V2.B16, V10.B16, V14.B16                 // prefix = nz ? acc : 0
+	VAND   V3.B16, V11.B16, V15.B16                 // prefix = nz ? acc : 0
+	VST1.P [V12.S4, V13.S4, V14.S4, V15.S4], 64(R1)
+	VBIF   V8.B16, V29.B16, V4.B16                  // row = nz ? a : one
+	VBIF   V9.B16, V29.B16, V5.B16                  // row = nz ? a : one
+	VBIF   V10.B16, V29.B16, V6.B16                 // row = nz ? a : one
+	VBIF   V11.B16, V29.B16, V7.B16                 // row = nz ? a : one
+	VST1.P [V4.S4, V5.S4, V6.S4, V7.S4], 64(R2)
+	WORD   $0x4ea4b40c                              // SQDMULH V12.4S, V0.4S, V4.4S - c_hi = (2*a*b) >> 32
+	WORD   $0x4ea5b42d                              // SQDMULH V13.4S, V1.4S, V5.4S - c_hi = (2*a*b) >> 32
+	WORD   $0x4ea6b44e                              // SQDMULH V14.4S, V2.4S, V6.4S - c_hi = (2*a*b) >> 32
+	WORD   $0x4ea7b46f                              // SQDMULH V15.4S, V3.4S, V7.4S - c_hi = (2*a*b) >> 32
+	WORD   $0x4ea49c10                              // MUL V16.4S, V0.4S, V4.4S - m = a * b (low 32 bits)
+	WORD   $0x4ea59c31                              // MUL V17.4S, V1.4S, V5.4S - m = a * b (low 32 bits)
+	WORD   $0x4ea69c52                              // MUL V18.4S, V2.4S, V6.4S - m = a * b (low 32 bits)
+	WORD   $0x4ea79c73                              // MUL V19.4S, V3.4S, V7.4S - m = a * b (low 32 bits)
+	WORD   $0x4ebf9e10                              // MUL V16.4S, V16.4S, V31.4S - m = m * mu (low 32 bits)
+	WORD   $0x4ebf9e31                              // MUL V17.4S, V17.4S, V31.4S - m = m * mu (low 32 bits)
+	WORD   $0x4ebf9e52                              // MUL V18.4S, V18.4S, V31.4S - m = m * mu (low 32 bits)
+	WORD   $0x4ebf9e73                              // MUL V19.4S, V19.4S, V31.4S - m = m * mu (low 32 bits)
+	WORD   $0x4ebeb610                              // SQDMULH V16.4S, V16.4S, V30.4S - qp_hi = (2*m*P) >> 32
+	WORD   $0x4ebeb631                              // SQDMULH V17.4S, V17.4S, V30.4S - qp_hi = (2*m*P) >> 32
+	WORD   $0x4ebeb652                              // SQDMULH V18.4S, V18.4S, V30.4S - qp_hi = (2*m*P) >> 32
+	WORD   $0x4ebeb673                              // SQDMULH V19.4S, V19.4S, V30.4S - qp_hi = (2*m*P) >> 32
+	WORD   $0x4eb02580                              // SHSUB V0.4S, V12.4S, V16.4S - d = (c_hi - qp_hi) / 2
+	WORD   $0x4eb125a1                              // SHSUB V1.4S, V13.4S, V17.4S - d = (c_hi - qp_hi) / 2
+	WORD   $0x4eb225c2                              // SHSUB V2.4S, V14.4S, V18.4S - d = (c_hi - qp_hi) / 2
+	WORD   $0x4eb325e3                              // SHSUB V3.4S, V15.4S, V19.4S - d = (c_hi - qp_hi) / 2
+	WORD   $0x4eac360c                              // CMGT V12.4S, V16.4S, V12.4S - underflow = c_hi < qp_hi
+	WORD   $0x4ead362d                              // CMGT V13.4S, V17.4S, V13.4S - underflow = c_hi < qp_hi
+	WORD   $0x4eae364e                              // CMGT V14.4S, V18.4S, V14.4S - underflow = c_hi < qp_hi
+	WORD   $0x4eaf366f                              // CMGT V15.4S, V19.4S, V15.4S - underflow = c_hi < qp_hi
+	WORD   $0x6ebe9580                              // MLS V0.4S, V12.4S, V30.4S - d += P if underflow
+	WORD   $0x6ebe95a1                              // MLS V1.4S, V13.4S, V30.4S - d += P if underflow
+	WORD   $0x6ebe95c2                              // MLS V2.4S, V14.4S, V30.4S - d += P if underflow
+	WORD   $0x6ebe95e3                              // MLS V3.4S, V15.4S, V30.4S - d += P if underflow
+	VST1.P [V0.S4, V1.S4, V2.S4, V3.S4], 64(R6)
+	JMP    loop4x25
+
+loop1x26:
+	CBZ    R5, done27
+	SUB    $1, R5, R5
+	VLD1.P 16(R3), [V4.S4]
+	VLD1.P 16(R0), [V0.S4]
+	VCMTST V4.S4, V4.S4, V8.S4     // nz = a != 0
+	VAND   V0.B16, V8.B16, V12.B16 // prefix = nz ? acc : 0
+	VST1.P [V12.S4], 16(R1)
+	VBIF   V8.B16, V29.B16, V4.B16 // row = nz ? a : one
+	VST1.P [V4.S4], 16(R2)
+	WORD   $0x4ea4b40c             // SQDMULH V12.4S, V0.4S, V4.4S - c_hi = (2*a*b) >> 32
+	WORD   $0x4ea49c10             // MUL V16.4S, V0.4S, V4.4S - m = a * b (low 32 bits)
+	WORD   $0x4ebf9e10             // MUL V16.4S, V16.4S, V31.4S - m = m * mu (low 32 bits)
+	WORD   $0x4ebeb610             // SQDMULH V16.4S, V16.4S, V30.4S - qp_hi = (2*m*P) >> 32
+	WORD   $0x4eb02580             // SHSUB V0.4S, V12.4S, V16.4S - d = (c_hi - qp_hi) / 2
+	WORD   $0x4eac360c             // CMGT V12.4S, V16.4S, V12.4S - underflow = c_hi < qp_hi
+	WORD   $0x6ebe9580             // MLS V0.4S, V12.4S, V30.4S - d += P if underflow
+	VST1.P [V0.S4], 16(R6)
+	JMP    loop1x26
+
+done27:
+	RET
+
+// batchInvBwdVec(acc, res, prefix, row, one *Element, n uint64)
+// for every lane k:
+//   res[k] = acc[k] * prefix[k]
+//   acc[k] = acc[k] * (row[k] != 0 ? row[k] : one)
+// n is the number of blocks of 4 uint32 to process
+TEXT ·batchInvBwdVec(SB), NOFRAME|NOSPLIT, $0-48
+	LDP   acc+0(FP), (R0, R1)
+	LDP   prefix+16(FP), (R2, R3)
+	LDP   one+32(FP), (R4, R5)
+	MOVD  R0, R6
+	VMOVS $const_q, V30
+	VDUP  V30.S[0], V30.S4        // broadcast P
+	MOVD  $const_mu, R7
+	VDUP  R7, V31.S4              // broadcast MU
+	MOVWU 0(R4), R7
+	VDUP  R7, V29.S4              // broadcast one
+
+loop4x28:
+	CMP    $4, R5
+	BLT    loop1x29
+	SUB    $0x4, R5, R5
+	VLD1.P 64(R3), [V8.S4, V9.S4, V10.S4, V11.S4]
+	VLD1.P 64(R2), [V4.S4, V5.S4, V6.S4, V7.S4]
+	VLD1.P 64(R0), [V0.S4, V1.S4, V2.S4, V3.S4]
+	VCMTST V8.S4, V8.S4, V12.S4                   // nz = row != 0
+	VCMTST V9.S4, V9.S4, V13.S4                   // nz = row != 0
+	VCMTST V10.S4, V10.S4, V14.S4                 // nz = row != 0
+	VCMTST V11.S4, V11.S4, V15.S4                 // nz = row != 0
+	VBIF   V12.B16, V29.B16, V8.B16               // row = nz ? row : one
+	VBIF   V13.B16, V29.B16, V9.B16               // row = nz ? row : one
+	VBIF   V14.B16, V29.B16, V10.B16              // row = nz ? row : one
+	VBIF   V15.B16, V29.B16, V11.B16              // row = nz ? row : one
+	WORD   $0x4ea4b40c                            // SQDMULH V12.4S, V0.4S, V4.4S - c_hi = (2*a*b) >> 32
+	WORD   $0x4ea5b42d                            // SQDMULH V13.4S, V1.4S, V5.4S - c_hi = (2*a*b) >> 32
+	WORD   $0x4ea6b44e                            // SQDMULH V14.4S, V2.4S, V6.4S - c_hi = (2*a*b) >> 32
+	WORD   $0x4ea7b46f                            // SQDMULH V15.4S, V3.4S, V7.4S - c_hi = (2*a*b) >> 32
+	WORD   $0x4ea49c10                            // MUL V16.4S, V0.4S, V4.4S - m = a * b (low 32 bits)
+	WORD   $0x4ea59c31                            // MUL V17.4S, V1.4S, V5.4S - m = a * b (low 32 bits)
+	WORD   $0x4ea69c52                            // MUL V18.4S, V2.4S, V6.4S - m = a * b (low 32 bits)
+	WORD   $0x4ea79c73                            // MUL V19.4S, V3.4S, V7.4S - m = a * b (low 32 bits)
+	WORD   $0x4ebf9e10                            // MUL V16.4S, V16.4S, V31.4S - m = m * mu (low 32 bits)
+	WORD   $0x4ebf9e31                            // MUL V17.4S, V17.4S, V31.4S - m = m * mu (low 32 bits)
+	WORD   $0x4ebf9e52                            // MUL V18.4S, V18.4S, V31.4S - m = m * mu (low 32 bits)
+	WORD   $0x4ebf9e73                            // MUL V19.4S, V19.4S, V31.4S - m = m * mu (low 32 bits)
+	WORD   $0x4ebeb610                            // SQDMULH V16.4S, V16.4S, V30.4S - qp_hi = (2*m*P) >> 32
+	WORD   $0x4ebeb631                            // SQDMULH V17.4S, V17.4S, V30.4S - qp_hi = (2*m*P) >> 32
+	WORD   $0x4ebeb652                            // SQDMULH V18.4S, V18.4S, V30.4S - qp_hi = (2*m*P) >> 32
+	WORD   $0x4ebeb673                            // SQDMULH V19.4S, V19.4S, V30.4S - qp_hi = (2*m*P) >> 32
+	WORD   $0x4eb02584                            // SHSUB V4.4S, V12.4S, V16.4S - d = (c_hi - qp_hi) / 2
+	WORD   $0x4eb125a5                            // SHSUB V5.4S, V13.4S, V17.4S - d = (c_hi - qp_hi) / 2
+	WORD   $0x4eb225c6                            // SHSUB V6.4S, V14.4S, V18.4S - d = (c_hi - qp_hi) / 2
+	WORD   $0x4eb325e7                            // SHSUB V7.4S, V15.4S, V19.4S - d = (c_hi - qp_hi) / 2
+	WORD   $0x4eac360c                            // CMGT V12.4S, V16.4S, V12.4S - underflow = c_hi < qp_hi
+	WORD   $0x4ead362d                            // CMGT V13.4S, V17.4S, V13.4S - underflow = c_hi < qp_hi
+	WORD   $0x4eae364e                            // CMGT V14.4S, V18.4S, V14.4S - underflow = c_hi < qp_hi
+	WORD   $0x4eaf366f                            // CMGT V15.4S, V19.4S, V15.4S - underflow = c_hi < qp_hi
+	WORD   $0x6ebe9584                            // MLS V4.4S, V12.4S, V30.4S - d += P if underflow
+	WORD   $0x6ebe95a5                            // MLS V5.4S, V13.4S, V30.4S - d += P if underflow
+	WORD   $0x6ebe95c6                            // MLS V6.4S, V14.4S, V30.4S - d += P if underflow
+	WORD   $0x6ebe95e7                            // MLS V7.4S, V15.4S, V30.4S - d += P if underflow
+	VST1.P [V4.S4, V5.S4, V6.S4, V7.S4], 64(R1)
+	WORD   $0x4ea8b40c                            // SQDMULH V12.4S, V0.4S, V8.4S - c_hi = (2*a*b) >> 32
+	WORD   $0x4ea9b42d                            // SQDMULH V13.4S, V1.4S, V9.4S - c_hi = (2*a*b) >> 32
+	WORD   $0x4eaab44e                            // SQDMULH V14.4S, V2.4S, V10.4S - c_hi = (2*a*b) >> 32
+	WORD   $0x4eabb46f                            // SQDMULH V15.4S, V3.4S, V11.4S - c_hi = (2*a*b) >> 32
+	WORD   $0x4ea89c10                            // MUL V16.4S, V0.4S, V8.4S - m = a * b (low 32 bits)
+	WORD   $0x4ea99c31                            // MUL V17.4S, V1.4S, V9.4S - m = a * b (low 32 bits)
+	WORD   $0x4eaa9c52                            // MUL V18.4S, V2.4S, V10.4S - m = a * b (low 32 bits)
+	WORD   $0x4eab9c73                            // MUL V19.4S, V3.4S, V11.4S - m = a * b (low 32 bits)
+	WORD   $0x4ebf9e10                            // MUL V16.4S, V16.4S, V31.4S - m = m * mu (low 32 bits)
+	WORD   $0x4ebf9e31                            // MUL V17.4S, V17.4S, V31.4S - m = m * mu (low 32 bits)
+	WORD   $0x4ebf9e52                            // MUL V18.4S, V18.4S, V31.4S - m = m * mu (low 32 bits)
+	WORD   $0x4ebf9e73                            // MUL V19.4S, V19.4S, V31.4S - m = m * mu (low 32 bits)
+	WORD   $0x4ebeb610                            // SQDMULH V16.4S, V16.4S, V30.4S - qp_hi = (2*m*P) >> 32
+	WORD   $0x4ebeb631                            // SQDMULH V17.4S, V17.4S, V30.4S - qp_hi = (2*m*P) >> 32
+	WORD   $0x4ebeb652                            // SQDMULH V18.4S, V18.4S, V30.4S - qp_hi = (2*m*P) >> 32
+	WORD   $0x4ebeb673                            // SQDMULH V19.4S, V19.4S, V30.4S - qp_hi = (2*m*P) >> 32
+	WORD   $0x4eb02580                            // SHSUB V0.4S, V12.4S, V16.4S - d = (c_hi - qp_hi) / 2
+	WORD   $0x4eb125a1                            // SHSUB V1.4S, V13.4S, V17.4S - d = (c_hi - qp_hi) / 2
+	WORD   $0x4eb225c2                            // SHSUB V2.4S, V14.4S, V18.4S - d = (c_hi - qp_hi) / 2
+	WORD   $0x4eb325e3                            // SHSUB V3.4S, V15.4S, V19.4S - d = (c_hi - qp_hi) / 2
+	WORD   $0x4eac360c                            // CMGT V12.4S, V16.4S, V12.4S - underflow = c_hi < qp_hi
+	WORD   $0x4ead362d                            // CMGT V13.4S, V17.4S, V13.4S - underflow = c_hi < qp_hi
+	WORD   $0x4eae364e                            // CMGT V14.4S, V18.4S, V14.4S - underflow = c_hi < qp_hi
+	WORD   $0x4eaf366f                            // CMGT V15.4S, V19.4S, V15.4S - underflow = c_hi < qp_hi
+	WORD   $0x6ebe9580                            // MLS V0.4S, V12.4S, V30.4S - d += P if underflow
+	WORD   $0x6ebe95a1                            // MLS V1.4S, V13.4S, V30.4S - d += P if underflow
+	WORD   $0x6ebe95c2                            // MLS V2.4S, V14.4S, V30.4S - d += P if underflow
+	WORD   $0x6ebe95e3                            // MLS V3.4S, V15.4S, V30.4S - d += P if underflow
+	VST1.P [V0.S4, V1.S4, V2.S4, V3.S4], 64(R6)
+	JMP    loop4x28
+
+loop1x29:
+	CBZ    R5, done30
+	SUB    $1, R5, R5
+	VLD1.P 16(R3), [V8.S4]
+	VLD1.P 16(R2), [V4.S4]
+	VLD1.P 16(R0), [V0.S4]
+	VCMTST V8.S4, V8.S4, V12.S4     // nz = row != 0
+	VBIF   V12.B16, V29.B16, V8.B16 // row = nz ? row : one
+	WORD   $0x4ea4b40c              // SQDMULH V12.4S, V0.4S, V4.4S - c_hi = (2*a*b) >> 32
+	WORD   $0x4ea49c10              // MUL V16.4S, V0.4S, V4.4S - m = a * b (low 32 bits)
+	WORD   $0x4ebf9e10              // MUL V16.4S, V16.4S, V31.4S - m = m * mu (low 32 bits)
+	WORD   $0x4ebeb610              // SQDMULH V16.4S, V16.4S, V30.4S - qp_hi = (2*m*P) >> 32
+	WORD   $0x4eb02584              // SHSUB V4.4S, V12.4S, V16.4S - d = (c_hi - qp_hi) / 2
+	WORD   $0x4eac360c              // CMGT V12.4S, V16.4S, V12.4S - underflow = c_hi < qp_hi
+	WORD   $0x6ebe9584              // MLS V4.4S, V12.4S, V30.4S - d += P if underflow
+	VST1.P [V4.S4], 16(R1)
+	WORD   $0x4ea8b40c              // SQDMULH V12.4S, V0.4S, V8.4S - c_hi = (2*a*b) >> 32
+	WORD   $0x4ea89c10              // MUL V16.4S, V0.4S, V8.4S - m = a * b (low 32 bits)
+	WORD   $0x4ebf9e10              // MUL V16.4S, V16.4S, V31.4S - m = m * mu (low 32 bits)
+	WORD   $0x4ebeb610              // SQDMULH V16.4S, V16.4S, V30.4S - qp_hi = (2*m*P) >> 32
+	WORD   $0x4eb02580              // SHSUB V0.4S, V12.4S, V16.4S - d = (c_hi - qp_hi) / 2
+	WORD   $0x4eac360c              // CMGT V12.4S, V16.4S, V12.4S - underflow = c_hi < qp_hi
+	WORD   $0x6ebe9580              // MLS V0.4S, V12.4S, V30.4S - d += P if underflow
+	VST1.P [V0.S4], 16(R6)
+	JMP    loop1x29
+
+done30:
+	RET
