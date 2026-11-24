@@ -45,6 +45,15 @@ var maskPermE6Pair1A = []uint32{22, 23, 12, 13, 14, 15, 16, 17, 30, 31, 0, 1, 2,
 var maskPermE6Pair1B = []uint32{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 16, 17, 18, 19, 0, 0}
 var maskPermE6Pair2 = []uint32{10, 11, 12, 13, 26, 27, 28, 29, 30, 31, 20, 21, 22, 23, 24, 25}
 
+// E6 distance-2 butterfly index tables for vectorRadix8{DIT,DIF}_E6_avx512.
+//
+// Same idea as maskPermE6Pair*, for pairs (E6[k], E6[k^2]) within a block of 8:
+// table i builds the partner of zmm i, with VPERMI2D sources (v0,v1), (v0,v2)
+// and (v1,v2) respectively.
+var maskPermE6Stride2_0 = []uint32{12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 0, 1, 2, 3}
+var maskPermE6Stride2_1 = []uint32{4, 5, 6, 7, 8, 9, 10, 11, 20, 21, 22, 23, 24, 25, 26, 27}
+var maskPermE6Stride2_2 = []uint32{28, 29, 30, 31, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19}
+
 // VPERMI2D index tables for the gather-free E6 scalar-mul kernels
 // (vectorScalarMul_E6_avx512 / vectorScalarMulAcc_E6_avx512).
 //
@@ -163,6 +172,12 @@ func vectorDITWithTwiddles_E6_avx512(a0, a1 *E6, twiddles *fr.Element, N uint64)
 
 //go:noescape
 func vectorDIFWithTwiddles_E6_avx512(a0, a1 *E6, twiddles *fr.Element, N uint64)
+
+//go:noescape
+func vectorRadix8DIT_E6_avx512(a *E6, twiddles *fr.Element, N uint64)
+
+//go:noescape
+func vectorRadix8DIF_E6_avx512(a *E6, twiddles *fr.Element, N uint64)
 
 //go:noescape
 func vectorScalarAdd_avx512(res, a *E4, cTiled *fr.Element, N uint64)

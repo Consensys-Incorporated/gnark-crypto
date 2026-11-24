@@ -1218,6 +1218,139 @@ func (vector VectorE6) ButterflyThenMulByElement(other VectorE6, twiddles fr.Vec
 	}
 }
 
+// Radix8DIT runs the last three stages of a decimation-in-time FFT (half-size
+// m=1, m=2 then m=4) on every block of 8 consecutive elements of vector:
+//
+//	m=1: Butterfly(b[i], b[i+1])                              for i = 0, 2, 4, 6
+//	m=2: b[i+2] *= twiddles2[i%2]; Butterfly(b[i], b[i+2])    for i = 0, 1, 4, 5
+//	m=4: b[i+4] *= twiddles4[i];   Butterfly(b[i], b[i+4])    for i = 0..3
+//
+// twiddles4[0] and twiddles2[0] are assumed to be one and are not read.
+// len(vector) must be a multiple of 8.
+func (vector VectorE6) Radix8DIT(twiddles4, twiddles2 fr.Vector) {
+	N := len(vector)
+	if N%8 != 0 {
+		panic("vectorE6.Radix8DIT: vector length must be a multiple of 8")
+	}
+	if N == 0 {
+		return
+	}
+	t4, t2 := (*[4]fr.Element)(twiddles4), (*[2]fr.Element)(twiddles2)
+{{- if .IsKoalaBear }}
+	if cpu.SupportAVX512 {
+		var tw [64]fr.Element
+		radix8TwiddlesE6(&tw, t4, t2)
+		vectorRadix8DIT_E6_avx512(&vector[0], &tw[0], uint64(N))
+		return
+	}
+{{- end }}
+	for i := 0; i < N; i += 8 {
+		radix8DITE6Generic((*[8]E6)(vector[i:i+8]), t4, t2)
+	}
+}
+
+// Radix8DIF runs the first three stages of a decimation-in-frequency FFT
+// (half-size m=4, m=2 then m=1) on every block of 8 consecutive elements of
+// vector; it is the transpose of [VectorE6.Radix8DIT]:
+//
+//	m=4: Butterfly(b[i], b[i+4]); b[i+4] *= twiddles4[i]   for i = 0..3
+//	m=2: Butterfly(b[i], b[i+2]); b[i+2] *= twiddles2[i%2] for i = 0, 1, 4, 5
+//	m=1: Butterfly(b[i], b[i+1])                           for i = 0, 2, 4, 6
+//
+// twiddles4[0] and twiddles2[0] are assumed to be one and are not read.
+// len(vector) must be a multiple of 8.
+func (vector VectorE6) Radix8DIF(twiddles4, twiddles2 fr.Vector) {
+	N := len(vector)
+	if N%8 != 0 {
+		panic("vectorE6.Radix8DIF: vector length must be a multiple of 8")
+	}
+	if N == 0 {
+		return
+	}
+	t4, t2 := (*[4]fr.Element)(twiddles4), (*[2]fr.Element)(twiddles2)
+{{- if .IsKoalaBear }}
+	if cpu.SupportAVX512 {
+		var tw [64]fr.Element
+		radix8TwiddlesE6(&tw, t4, t2)
+		vectorRadix8DIF_E6_avx512(&vector[0], &tw[0], uint64(N))
+		return
+	}
+{{- end }}
+	for i := 0; i < N; i += 8 {
+		radix8DIFE6Generic((*[8]E6)(vector[i:i+8]), t4, t2)
+	}
+}
+
+{{- if .IsKoalaBear }}
+
+// radix8TwiddlesE6 lays out the twiddles of [VectorE6.Radix8DIT] /
+// [VectorE6.Radix8DIF] as the 4 zmm multipliers the AVX-512 kernels apply to
+// the second and third zmm of each 8-element block (48 fr lanes; E6 k covers
+// lanes 6k..6k+5): m=4 for zmm 1 and 2, then m=2 for zmm 1 and 2. Lanes that
+// are not multiplied hold one.
+func radix8TwiddlesE6(tw *[64]fr.Element, t4 *[4]fr.Element, t2 *[2]fr.Element) {
+	one := fr.One()
+	for i := range tw {
+		tw[i] = one
+	}
+	// m=4, zmm 1 (lanes 16..31): E6 5 starts at lane 30.
+	tw[14], tw[15] = t4[1], t4[1]
+	// m=4, zmm 2 (lanes 32..47): rest of E6 5, then E6 6 and E6 7.
+	for i := 0; i < 16; i++ {
+		tw[16+i] = t4[1+(i+2)/6]
+	}
+	// m=2, zmm 1: E6 3 (lanes 18..23); zmm 2: E6 7 (lanes 42..47).
+	for i := 0; i < 6; i++ {
+		tw[32+2+i] = t2[1]
+		tw[48+10+i] = t2[1]
+	}
+}
+{{- end }}
+
+func radix8DITE6Generic(b *[8]E6, t4 *[4]fr.Element, t2 *[2]fr.Element) {
+	for i := 0; i < 8; i += 2 {
+		x, y := &b[i], &b[i+1]
+		{{butterflyE6Coords "fr" "x" "y"}}
+	}
+	for i := 0; i < 8; i += 4 {
+		x, y := &b[i], &b[i+2]
+		{{butterflyE6Coords "fr" "x" "y"}}
+		x, y = &b[i+1], &b[i+3]
+		{{mulE6Coords "y" "&t2[1]"}}
+		{{butterflyE6Coords "fr" "x" "y"}}
+	}
+	for i := 1; i < 4; i++ {
+		y := &b[i+4]
+		{{mulE6Coords "y" "&t4[i]"}}
+	}
+	for i := 0; i < 4; i++ {
+		x, y := &b[i], &b[i+4]
+		{{butterflyE6Coords "fr" "x" "y"}}
+	}
+}
+
+func radix8DIFE6Generic(b *[8]E6, t4 *[4]fr.Element, t2 *[2]fr.Element) {
+	for i := 0; i < 4; i++ {
+		x, y := &b[i], &b[i+4]
+		{{butterflyE6Coords "fr" "x" "y"}}
+	}
+	for i := 1; i < 4; i++ {
+		y := &b[i+4]
+		{{mulE6Coords "y" "&t4[i]"}}
+	}
+	for i := 0; i < 8; i += 4 {
+		x, y := &b[i], &b[i+2]
+		{{butterflyE6Coords "fr" "x" "y"}}
+		x, y = &b[i+1], &b[i+3]
+		{{butterflyE6Coords "fr" "x" "y"}}
+		{{mulE6Coords "y" "&t2[1]"}}
+	}
+	for i := 0; i < 8; i += 2 {
+		x, y := &b[i], &b[i+1]
+		{{butterflyE6Coords "fr" "x" "y"}}
+	}
+}
+
 // MulByElement multiplies each element of a by the corresponding scalar in b and
 // stores the result in vector.
 func (vector VectorE6) MulByElement(a VectorE6, b fr.Vector) {
@@ -1595,4 +1728,13 @@ func e6ScalarMulKcol(s *E6) [6 * 48]fr.Element {
 	{{.FF}}.Butterfly(&{{.X}}.B1.A1, &{{.Y}}.B1.A1)
 	{{.FF}}.Butterfly(&{{.X}}.B2.A0, &{{.Y}}.B2.A0)
 	{{.FF}}.Butterfly(&{{.X}}.B2.A1, &{{.Y}}.B2.A1)
+{{end}}
+
+{{define "mulE6Coords Y T"}}
+	{{.Y}}.B0.A0.Mul(&{{.Y}}.B0.A0, {{.T}})
+	{{.Y}}.B0.A1.Mul(&{{.Y}}.B0.A1, {{.T}})
+	{{.Y}}.B1.A0.Mul(&{{.Y}}.B1.A0, {{.T}})
+	{{.Y}}.B1.A1.Mul(&{{.Y}}.B1.A1, {{.T}})
+	{{.Y}}.B2.A0.Mul(&{{.Y}}.B2.A0, {{.T}})
+	{{.Y}}.B2.A1.Mul(&{{.Y}}.B2.A1, {{.T}})
 {{end}}

@@ -1578,6 +1578,202 @@ done_38:
 	VZEROUPPER
 	RET
 
+TEXT ·vectorRadix8DIT_E6_avx512(SB), NOSPLIT, $0-24
+	MOVD         $const_q, AX
+	VPBROADCASTD AX, Z0
+	MOVD         $const_qInvNeg, AX
+	VPBROADCASTD AX, Z1
+	MOVQ         $0x0000000000005555, AX
+	KMOVD        AX, K3
+	MOVQ         $0x000000000000f03f, AX
+	KMOVD        AX, K1
+	MOVQ         $0x0000000000003f03, AX
+	KMOVD        AX, K2
+	MOVQ         $0x00000000000003f0, AX
+	KMOVD        AX, K4
+	MOVQ         $0x000000000000f000, AX
+	KMOVD        AX, K5
+	MOVQ         $0x00000000000000ff, AX
+	KMOVD        AX, K6
+	MOVQ         $0x000000000000fff0, AX
+	KMOVD        AX, K7
+	MOVQ         ·maskPermE6Pair0+0(SB), BX
+	MOVQ         ·maskPermE6Pair1A+0(SB), SI
+	MOVQ         ·maskPermE6Pair2+0(SB), DI
+	MOVQ         ·maskPermE6Stride2_0+0(SB), R8
+	MOVQ         ·maskPermE6Stride2_1+0(SB), R9
+	MOVQ         ·maskPermE6Stride2_2+0(SB), R10
+	MOVQ         a+0(FP), R13
+	MOVQ         twiddles+8(FP), R14
+	MOVQ         N+16(FP), CX
+	SHRQ         $3, CX
+	VMOVDQU32    0(R14), Z2
+	VMOVDQU32    64(R14), Z3
+	VMOVDQU32    128(R14), Z4
+	VMOVDQU32    192(R14), Z5
+
+loop_39:
+	TESTQ      CX, CX
+	JEQ        done_40
+	DECQ       CX
+	VMOVDQU32  0(R13), Z6
+	VMOVDQU32  64(R13), Z7
+	VMOVDQU32  128(R13), Z8
+	VPBLENDMD  Z6, Z8, K7, Z13
+	VMOVDQU32  0(BX), Z9
+	VPERMI2D   Z7, Z6, Z9
+	VMOVDQU32  0(SI), Z10
+	VPERMI2D   Z7, Z13, Z10
+	VMOVDQU32  0(DI), Z11
+	VPERMI2D   Z8, Z7, Z11
+	ADD(Z6, Z9, Z0, Z14, Z12)
+	SUB(Z9, Z6, Z0, Z15, Z13)
+	VPBLENDMD  Z12, Z13, K1, Z9
+	ADD(Z7, Z10, Z0, Z16, Z12)
+	SUB(Z10, Z7, Z0, Z17, Z13)
+	VPBLENDMD  Z12, Z13, K2, Z10
+	ADD(Z8, Z11, Z0, Z18, Z12)
+	SUB(Z11, Z8, Z0, Z19, Z13)
+	VPBLENDMD  Z12, Z13, K4, Z11
+	MUL_5W(Z10, Z4, Z20, Z21, Z22, Z23, Z24, Z7, Z0, Z1)
+	REDUCE1Q(Z0, Z7, Z25)
+	MUL_5W(Z11, Z5, Z26, Z27, Z28, Z29, Z30, Z8, Z0, Z1)
+	REDUCE1Q(Z0, Z8, Z31)
+	VMOVDQU32  0(R8), Z6
+	VPERMI2D   Z7, Z9, Z6
+	VMOVDQU32  0(R9), Z10
+	VPERMI2D   Z8, Z9, Z10
+	VMOVDQU32  0(R10), Z11
+	VPERMI2D   Z8, Z7, Z11
+	ADD(Z9, Z6, Z0, Z14, Z12)
+	SUB(Z6, Z9, Z0, Z15, Z13)
+	VPBLENDMD  Z13, Z12, K5, Z6
+	ADD(Z7, Z10, Z0, Z16, Z12)
+	SUB(Z10, Z7, Z0, Z17, Z13)
+	VPBLENDMD  Z13, Z12, K6, Z10
+	ADD(Z8, Z11, Z0, Z18, Z12)
+	SUB(Z11, Z8, Z0, Z19, Z13)
+	VPBLENDMD  Z13, Z12, K7, Z11
+	MUL_5W(Z10, Z2, Z20, Z21, Z22, Z23, Z24, Z7, Z0, Z1)
+	REDUCE1Q(Z0, Z7, Z25)
+	MUL_5W(Z11, Z3, Z26, Z27, Z28, Z29, Z30, Z8, Z0, Z1)
+	REDUCE1Q(Z0, Z8, Z31)
+	VSHUFI64X2 $0x4e, Z8, Z7, Z9
+	VSHUFI64X2 $0x4e, Z6, Z8, Z10
+	VSHUFI64X2 $0x4e, Z7, Z6, Z11
+	ADD(Z6, Z9, Z0, Z14, Z9)
+	ADD(Z7, Z10, Z0, Z15, Z12)
+	SUB(Z10, Z7, Z0, Z16, Z13)
+	VPBLENDMD  Z12, Z13, K6, Z10
+	SUB(Z11, Z8, Z0, Z17, Z11)
+	VMOVDQU32  Z9, 0(R13)
+	VMOVDQU32  Z10, 64(R13)
+	VMOVDQU32  Z11, 128(R13)
+	ADDQ       $192, R13
+	JMP        loop_39
+
+done_40:
+	VZEROUPPER
+	RET
+
+TEXT ·vectorRadix8DIF_E6_avx512(SB), NOSPLIT, $0-24
+	MOVD         $const_q, AX
+	VPBROADCASTD AX, Z0
+	MOVD         $const_qInvNeg, AX
+	VPBROADCASTD AX, Z1
+	MOVQ         $0x0000000000005555, AX
+	KMOVD        AX, K3
+	MOVQ         $0x000000000000f03f, AX
+	KMOVD        AX, K1
+	MOVQ         $0x0000000000003f03, AX
+	KMOVD        AX, K2
+	MOVQ         $0x00000000000003f0, AX
+	KMOVD        AX, K4
+	MOVQ         $0x000000000000f000, AX
+	KMOVD        AX, K5
+	MOVQ         $0x00000000000000ff, AX
+	KMOVD        AX, K6
+	MOVQ         $0x000000000000fff0, AX
+	KMOVD        AX, K7
+	MOVQ         ·maskPermE6Pair0+0(SB), BX
+	MOVQ         ·maskPermE6Pair1A+0(SB), SI
+	MOVQ         ·maskPermE6Pair2+0(SB), DI
+	MOVQ         ·maskPermE6Stride2_0+0(SB), R8
+	MOVQ         ·maskPermE6Stride2_1+0(SB), R9
+	MOVQ         ·maskPermE6Stride2_2+0(SB), R10
+	MOVQ         a+0(FP), R13
+	MOVQ         twiddles+8(FP), R14
+	MOVQ         N+16(FP), CX
+	SHRQ         $3, CX
+	VMOVDQU32    0(R14), Z2
+	VMOVDQU32    64(R14), Z3
+	VMOVDQU32    128(R14), Z4
+	VMOVDQU32    192(R14), Z5
+
+loop_41:
+	TESTQ      CX, CX
+	JEQ        done_42
+	DECQ       CX
+	VMOVDQU32  0(R13), Z6
+	VMOVDQU32  64(R13), Z7
+	VMOVDQU32  128(R13), Z8
+	VSHUFI64X2 $0x4e, Z8, Z7, Z9
+	VSHUFI64X2 $0x4e, Z6, Z8, Z10
+	VSHUFI64X2 $0x4e, Z7, Z6, Z11
+	ADD(Z6, Z9, Z0, Z14, Z9)
+	ADD(Z7, Z10, Z0, Z15, Z12)
+	SUB(Z10, Z7, Z0, Z16, Z13)
+	VPBLENDMD  Z12, Z13, K6, Z10
+	SUB(Z11, Z8, Z0, Z17, Z11)
+	MUL_5W(Z10, Z2, Z18, Z19, Z20, Z21, Z22, Z7, Z0, Z1)
+	REDUCE1Q(Z0, Z7, Z23)
+	MUL_5W(Z11, Z3, Z24, Z25, Z26, Z27, Z28, Z8, Z0, Z1)
+	REDUCE1Q(Z0, Z8, Z29)
+	VMOVDQU32  0(R8), Z6
+	VPERMI2D   Z7, Z9, Z6
+	VMOVDQU32  0(R9), Z10
+	VPERMI2D   Z8, Z9, Z10
+	VMOVDQU32  0(R10), Z11
+	VPERMI2D   Z8, Z7, Z11
+	ADD(Z9, Z6, Z0, Z30, Z12)
+	SUB(Z6, Z9, Z0, Z31, Z13)
+	VPBLENDMD  Z13, Z12, K5, Z6
+	ADD(Z7, Z10, Z0, Z14, Z12)
+	SUB(Z10, Z7, Z0, Z15, Z13)
+	VPBLENDMD  Z13, Z12, K6, Z10
+	ADD(Z8, Z11, Z0, Z16, Z12)
+	SUB(Z11, Z8, Z0, Z17, Z13)
+	VPBLENDMD  Z13, Z12, K7, Z11
+	MUL_5W(Z10, Z4, Z18, Z19, Z20, Z21, Z22, Z7, Z0, Z1)
+	REDUCE1Q(Z0, Z7, Z23)
+	MUL_5W(Z11, Z5, Z24, Z25, Z26, Z27, Z28, Z8, Z0, Z1)
+	REDUCE1Q(Z0, Z8, Z29)
+	VPBLENDMD  Z6, Z8, K7, Z13
+	VMOVDQU32  0(BX), Z9
+	VPERMI2D   Z7, Z6, Z9
+	VMOVDQU32  0(SI), Z10
+	VPERMI2D   Z7, Z13, Z10
+	VMOVDQU32  0(DI), Z11
+	VPERMI2D   Z8, Z7, Z11
+	ADD(Z6, Z9, Z0, Z30, Z12)
+	SUB(Z9, Z6, Z0, Z31, Z13)
+	VPBLENDMD  Z12, Z13, K1, Z9
+	ADD(Z7, Z10, Z0, Z14, Z12)
+	SUB(Z10, Z7, Z0, Z15, Z13)
+	VPBLENDMD  Z12, Z13, K2, Z10
+	ADD(Z8, Z11, Z0, Z16, Z12)
+	SUB(Z11, Z8, Z0, Z17, Z13)
+	VPBLENDMD  Z12, Z13, K4, Z11
+	VMOVDQU32  Z9, 0(R13)
+	VMOVDQU32  Z10, 64(R13)
+	VMOVDQU32  Z11, 128(R13)
+	ADDQ       $192, R13
+	JMP        loop_41
+
+done_42:
+	VZEROUPPER
+	RET
+
 TEXT ·vectorScalarAdd_avx512(SB), NOSPLIT, $0-32
 	// res[i] = a[i] + c, 4 elements of degree 4 per iteration
 	MOVD         $const_q, AX
@@ -1589,18 +1785,18 @@ TEXT ·vectorScalarAdd_avx512(SB), NOSPLIT, $0-32
 	SHRQ         $2, BX
 	VMOVDQU32    0(CX), Z1
 
-loop_39:
+loop_43:
 	TESTQ     BX, BX
-	JEQ       done_40
+	JEQ       done_44
 	DECQ      BX
 	VMOVDQU32 0(R14), Z2
 	ADD(Z2, Z1, Z0, Z4, Z3)
 	VMOVDQU32 Z3, 0(R13)
 	ADDQ      $64, R14
 	ADDQ      $64, R13
-	JMP       loop_39
+	JMP       loop_43
 
-done_40:
+done_44:
 	VZEROUPPER
 	RET
 
@@ -1615,18 +1811,18 @@ TEXT ·vectorScalarSubFrom_avx512(SB), NOSPLIT, $0-32
 	SHRQ         $2, BX
 	VMOVDQU32    0(CX), Z1
 
-loop_41:
+loop_45:
 	TESTQ     BX, BX
-	JEQ       done_42
+	JEQ       done_46
 	DECQ      BX
 	VMOVDQU32 0(R14), Z2
 	SUB(Z1, Z2, Z0, Z4, Z3)
 	VMOVDQU32 Z3, 0(R13)
 	ADDQ      $64, R14
 	ADDQ      $64, R13
-	JMP       loop_41
+	JMP       loop_45
 
-done_42:
+done_46:
 	VZEROUPPER
 	RET
 
@@ -1643,9 +1839,9 @@ TEXT ·vectorScalarAdd_E6_avx512(SB), NOSPLIT, $0-32
 	VMOVDQU32    64(CX), Z2
 	VMOVDQU32    128(CX), Z3
 
-loop_43:
+loop_47:
 	TESTQ     BX, BX
-	JEQ       done_44
+	JEQ       done_48
 	DECQ      BX
 	VMOVDQU32 0(R14), Z4
 	ADD(Z4, Z1, Z0, Z6, Z5)
@@ -1658,9 +1854,9 @@ loop_43:
 	VMOVDQU32 Z5, 128(R13)
 	ADDQ      $192, R14
 	ADDQ      $192, R13
-	JMP       loop_43
+	JMP       loop_47
 
-done_44:
+done_48:
 	VZEROUPPER
 	RET
 
@@ -1677,9 +1873,9 @@ TEXT ·vectorScalarSubFrom_E6_avx512(SB), NOSPLIT, $0-32
 	VMOVDQU32    64(CX), Z2
 	VMOVDQU32    128(CX), Z3
 
-loop_45:
+loop_49:
 	TESTQ     BX, BX
-	JEQ       done_46
+	JEQ       done_50
 	DECQ      BX
 	VMOVDQU32 0(R14), Z4
 	SUB(Z1, Z4, Z0, Z6, Z5)
@@ -1692,9 +1888,9 @@ loop_45:
 	VMOVDQU32 Z5, 128(R13)
 	ADDQ      $192, R14
 	ADDQ      $192, R13
-	JMP       loop_45
+	JMP       loop_49
 
-done_46:
+done_50:
 	VZEROUPPER
 	RET
 
@@ -1707,9 +1903,9 @@ TEXT ·vectorSum_E6_avx512(SB), NOSPLIT, $0-24
 	VPXORQ Z1, Z1, Z1
 	VPXORQ Z2, Z2, Z2
 
-loop_47:
+loop_51:
 	TESTQ     CX, CX
-	JEQ       done_48
+	JEQ       done_52
 	DECQ      CX
 	VPMOVZXDQ 0(R14), Z3
 	VPADDQ    Z3, Z0, Z0
@@ -1724,9 +1920,9 @@ loop_47:
 	VPMOVZXDQ 160(R14), Z3
 	VPADDQ    Z3, Z2, Z2
 	ADDQ      $192, R14
-	JMP       loop_47
+	JMP       loop_51
 
-done_48:
+done_52:
 	VMOVDQU64 Z0, 0(R13)
 	VMOVDQU64 Z1, 64(R13)
 	VMOVDQU64 Z2, 128(R13)
@@ -1753,9 +1949,9 @@ TEXT ·vectorFoldPairs_avx512(SB), NOSPLIT, $0-40
 	VMOVDQU32    0(R8), Z3
 	SHRQ         $4, SI
 
-loop_49:
+loop_53:
 	TESTQ      SI, SI
-	JEQ        done_50
+	JEQ        done_54
 	DECQ       SI
 	KMOVD      DI, K1
 	KMOVD      DI, K2
@@ -1877,9 +2073,9 @@ loop_49:
 	ADDQ         $512, R14
 	ADDQ         $64, CX
 	ADDQ         $256, R13
-	JMP          loop_49
+	JMP          loop_53
 
-done_50:
+done_54:
 	VZEROUPPER
 	RET
 
@@ -1903,9 +2099,9 @@ TEXT ·vectorFoldPairs_E6_avx512(SB), NOSPLIT, $0-40
 	VMOVDQU32    0(R8), Z3
 	SHRQ         $4, SI
 
-loop_51:
+loop_55:
 	TESTQ        SI, SI
-	JEQ          done_52
+	JEQ          done_56
 	DECQ         SI
 	KMOVD        DI, K1
 	KMOVD        DI, K2
@@ -2121,9 +2317,9 @@ loop_51:
 	ADDQ         $768, R14
 	ADDQ         $64, CX
 	ADDQ         $384, R13
-	JMP          loop_51
+	JMP          loop_55
 
-done_52:
+done_56:
 	VZEROUPPER
 	RET
 
@@ -2149,9 +2345,9 @@ TEXT ·vectorScalarMulBase_E6_avx512(SB), NOSPLIT, $0-32
 	VMOVDQU32    64(CX), Z6
 	VMOVDQU32    128(CX), Z7
 
-loop_53:
+loop_57:
 	TESTQ     BX, BX
-	JEQ       done_54
+	JEQ       done_58
 	DECQ      BX
 	VMOVDQU32 0(R14), Y8
 	VPERMD    Z8, Z2, Z9
@@ -2168,9 +2364,9 @@ loop_53:
 	VMOVDQU32 Z10, 128(R13)
 	ADDQ      $192, R13
 	ADDQ      $32, R14
-	JMP       loop_53
+	JMP       loop_57
 
-done_54:
+done_58:
 	VZEROUPPER
 	RET
 
@@ -2189,9 +2385,9 @@ TEXT ·vectorScalarMulAdd_E6_avx512(SB), NOSPLIT, $0-32
 	MOVQ         ·e6replB+0(SB), DI
 	SHRQ         $3, BX
 
-loop_55:
+loop_59:
 	TESTQ     BX, BX
-	JEQ       done_56
+	JEQ       done_60
 	DECQ      BX
 	VMOVDQU32 0(R13), Z2
 	VMOVDQU32 64(R13), Z3
@@ -2302,9 +2498,9 @@ loop_55:
 	VMOVDQU32 Z7, 128(R13)
 	ADDQ      $192, R14
 	ADDQ      $192, R13
-	JMP       loop_55
+	JMP       loop_59
 
-done_56:
+done_60:
 	VZEROUPPER
 	RET
 
@@ -2329,9 +2525,9 @@ TEXT ·vectorScalarMulAddBase_E6_avx512(SB), NOSPLIT, $0-32
 	MOVQ         ·e6replB+0(SB), DI
 	SHRQ         $3, BX
 
-loop_57:
+loop_61:
 	TESTQ       BX, BX
-	JEQ         done_58
+	JEQ         done_62
 	DECQ        BX
 	VMOVDQU32   0(R13), Z2
 	VMOVDQU32   64(R13), Z3
@@ -2442,9 +2638,9 @@ loop_57:
 	VMOVDQU32   Z7, 128(R13)
 	ADDQ        $32, R14
 	ADDQ        $192, R13
-	JMP         loop_57
+	JMP         loop_61
 
-done_58:
+done_62:
 	VZEROUPPER
 	RET
 
@@ -2464,9 +2660,9 @@ TEXT ·vectorMulAcc_E6_avx512(SB), NOSPLIT, $0-32
 	VMOVDQU32    0(DI), Z2
 	SHRQ         $4, BX
 
-loop_59:
+loop_63:
 	TESTQ       BX, BX
-	JEQ         done_60
+	JEQ         done_64
 	DECQ        BX
 	KMOVD       SI, K1
 	KMOVD       SI, K2
@@ -2641,9 +2837,9 @@ loop_59:
 	ADDQ        $384, R13
 	ADDQ        $384, R14
 	ADDQ        $384, CX
-	JMP         loop_59
+	JMP         loop_63
 
-done_60:
+done_64:
 	VZEROUPPER
 	RET
 
@@ -2663,9 +2859,9 @@ TEXT ·vectorMulAcc_avx512(SB), NOSPLIT, $0-32
 	VMOVDQU32    0(DI), Z2
 	SHRQ         $4, BX
 
-loop_61:
+loop_65:
 	TESTQ       BX, BX
-	JEQ         done_62
+	JEQ         done_66
 	DECQ        BX
 	KMOVD       SI, K1
 	KMOVD       SI, K2
@@ -2756,9 +2952,9 @@ loop_61:
 	ADDQ        $256, R13
 	ADDQ        $256, R14
 	ADDQ        $256, CX
-	JMP         loop_61
+	JMP         loop_65
 
-done_62:
+done_66:
 	VZEROUPPER
 	RET
 
@@ -2786,9 +2982,9 @@ TEXT ·vectorScalarMulAcc_avx512(SB), NOSPLIT, $0-32
 	VPBROADCASTD AX, Z10
 	SHRQ         $4, BX
 
-loop_63:
+loop_67:
 	TESTQ       BX, BX
-	JEQ         done_64
+	JEQ         done_68
 	DECQ        BX
 	KMOVD       SI, K1
 	VPGATHERDD  0(R14)(Z2*4), K1, Z3
@@ -2870,9 +3066,9 @@ loop_63:
 	VPSCATTERDD Z6, K1, 12(R13)(Z2*4)
 	ADDQ        $256, R13
 	ADDQ        $256, R14
-	JMP         loop_63
+	JMP         loop_67
 
-done_64:
+done_68:
 	VZEROUPPER
 	RET
 
@@ -2900,9 +3096,9 @@ TEXT ·vectorScalarMulAdd_avx512(SB), NOSPLIT, $0-32
 	VPBROADCASTD AX, Z10
 	SHRQ         $4, BX
 
-loop_65:
+loop_69:
 	TESTQ       BX, BX
-	JEQ         done_66
+	JEQ         done_70
 	DECQ        BX
 	KMOVD       SI, K1
 	VPGATHERDD  0(R13)(Z2*4), K1, Z3
@@ -2984,9 +3180,9 @@ loop_65:
 	VPSCATTERDD Z6, K1, 12(R13)(Z2*4)
 	ADDQ        $256, R13
 	ADDQ        $256, R14
-	JMP         loop_65
+	JMP         loop_69
 
-done_66:
+done_70:
 	VZEROUPPER
 	RET
 
@@ -3014,9 +3210,9 @@ TEXT ·vectorScalarMulAddBase_avx512(SB), NOSPLIT, $0-32
 	VPBROADCASTD AX, Z10
 	SHRQ         $4, BX
 
-loop_67:
+loop_71:
 	TESTQ       BX, BX
-	JEQ         done_68
+	JEQ         done_72
 	DECQ        BX
 	KMOVD       SI, K1
 	VPGATHERDD  0(R13)(Z2*4), K1, Z3
@@ -3088,9 +3284,9 @@ loop_67:
 	VPSCATTERDD Z6, K1, 12(R13)(Z2*4)
 	ADDQ        $256, R13
 	ADDQ        $64, R14
-	JMP         loop_67
+	JMP         loop_71
 
-done_68:
+done_72:
 	VZEROUPPER
 	RET
 
@@ -3111,9 +3307,9 @@ TEXT ·mulByElement_avx512(SB), NOSPLIT, $0-32
 	VPSRLQ       $32, Z2, Z3
 	SHRQ         $2, BX
 
-loop_69:
+loop_73:
 	TESTQ        BX, BX
-	JEQ          done_70
+	JEQ          done_74
 	DECQ         BX
 	VPBROADCASTD 0(R14), X5
 	VPBROADCASTD 4(R14), X6
@@ -3127,9 +3323,9 @@ loop_69:
 	VMOVDQU32    Z4, 0(CX)
 	ADDQ         $64, CX
 	ADDQ         $16, R14
-	JMP          loop_69
+	JMP          loop_73
 
-done_70:
+done_74:
 	VZEROUPPER
 	RET
 
@@ -3158,9 +3354,9 @@ TEXT ·vectorInnerProductByElement_E6_avx512(SB), NOSPLIT, $0-32
 	VPXORQ       Z9, Z9, Z9
 	VPXORQ       Z10, Z10, Z10
 
-loop_71:
+loop_75:
 	TESTQ     BX, BX
-	JEQ       done_72
+	JEQ       done_76
 	DECQ      BX
 	VMOVDQU32 0(CX), Y11
 	VPERMD    Z11, Z2, Z13
@@ -3213,9 +3409,9 @@ loop_71:
 	VPADDQ    Z17, Z10, Z10
 	ADDQ      $192, R14
 	ADDQ      $32, CX
-	JMP       loop_71
+	JMP       loop_75
 
-done_72:
+done_76:
 	VMOVDQU64 Z5, 0(R13)
 	VMOVDQU64 Z6, 64(R13)
 	VMOVDQU64 Z7, 128(R13)
@@ -3237,9 +3433,9 @@ TEXT ·vectorAddElement_avx512(SB), NOSPLIT, $0-32
 	MOVQ         $0x1111, AX
 	KMOVW        AX, K1
 
-loop_73:
+loop_77:
 	TESTQ       BX, BX
-	JEQ         done_74
+	JEQ         done_78
 	DECQ        BX
 	VMOVDQU32   0(R14), Z1
 	VPEXPANDD.Z 0(CX), K1, Z2
@@ -3252,9 +3448,9 @@ loop_73:
 	ADDQ        $128, R14
 	ADDQ        $128, R13
 	ADDQ        $32, CX
-	JMP         loop_73
+	JMP         loop_77
 
-done_74:
+done_78:
 	VZEROUPPER
 	RET
 
@@ -3270,9 +3466,9 @@ TEXT ·vectorSubElement_avx512(SB), NOSPLIT, $0-32
 	MOVQ         $0x1111, AX
 	KMOVW        AX, K1
 
-loop_75:
+loop_79:
 	TESTQ       BX, BX
-	JEQ         done_76
+	JEQ         done_80
 	DECQ        BX
 	VMOVDQU32   0(R14), Z1
 	VPEXPANDD.Z 0(CX), K1, Z2
@@ -3285,9 +3481,9 @@ loop_75:
 	ADDQ        $128, R14
 	ADDQ        $128, R13
 	ADDQ        $32, CX
-	JMP         loop_75
+	JMP         loop_79
 
-done_76:
+done_80:
 	VZEROUPPER
 	RET
 
@@ -3303,9 +3499,9 @@ TEXT ·vectorSubFromElement_avx512(SB), NOSPLIT, $0-32
 	MOVQ         $0x1111, AX
 	KMOVW        AX, K1
 
-loop_77:
+loop_81:
 	TESTQ       BX, BX
-	JEQ         done_78
+	JEQ         done_82
 	DECQ        BX
 	VMOVDQU32   0(R14), Z1
 	VPEXPANDD.Z 0(CX), K1, Z2
@@ -3318,96 +3514,14 @@ loop_77:
 	ADDQ        $128, R14
 	ADDQ        $128, R13
 	ADDQ        $32, CX
-	JMP         loop_77
-
-done_78:
-	VZEROUPPER
-	RET
-
-TEXT ·vectorAddElement_E6_avx512(SB), NOSPLIT, $0-32
-	// res[i] = a[i] + b[i], b[i] in the base field, 8 elements of degree 6 per iteration
-	MOVD         $const_q, AX
-	VPBROADCASTD AX, Z0
-	MOVQ         res+0(FP), R13
-	MOVQ         a+8(FP), R14
-	MOVQ         b+16(FP), CX
-	MOVQ         N+24(FP), BX
-	SHRQ         $3, BX
-	MOVQ         $0x1041, AX
-	KMOVW        AX, K1
-	MOVQ         $0x4104, AX
-	KMOVW        AX, K2
-	MOVQ         $0x0410, AX
-	KMOVW        AX, K3
-
-loop_79:
-	TESTQ       BX, BX
-	JEQ         done_80
-	DECQ        BX
-	VMOVDQU32   0(R14), Z1
-	VPEXPANDD.Z 0(CX), K1, Z2
-	ADD(Z1, Z2, Z0, Z4, Z3)
-	VMOVDQU32   Z3, 0(R13)
-	VMOVDQU32   64(R14), Z1
-	VPEXPANDD.Z 12(CX), K2, Z2
-	ADD(Z1, Z2, Z0, Z5, Z3)
-	VMOVDQU32   Z3, 64(R13)
-	VMOVDQU32   128(R14), Z1
-	VPEXPANDD.Z 24(CX), K3, Z2
-	ADD(Z1, Z2, Z0, Z6, Z3)
-	VMOVDQU32   Z3, 128(R13)
-	ADDQ        $192, R14
-	ADDQ        $192, R13
-	ADDQ        $32, CX
-	JMP         loop_79
-
-done_80:
-	VZEROUPPER
-	RET
-
-TEXT ·vectorSubElement_E6_avx512(SB), NOSPLIT, $0-32
-	// res[i] = a[i] - b[i], b[i] in the base field, 8 elements of degree 6 per iteration
-	MOVD         $const_q, AX
-	VPBROADCASTD AX, Z0
-	MOVQ         res+0(FP), R13
-	MOVQ         a+8(FP), R14
-	MOVQ         b+16(FP), CX
-	MOVQ         N+24(FP), BX
-	SHRQ         $3, BX
-	MOVQ         $0x1041, AX
-	KMOVW        AX, K1
-	MOVQ         $0x4104, AX
-	KMOVW        AX, K2
-	MOVQ         $0x0410, AX
-	KMOVW        AX, K3
-
-loop_81:
-	TESTQ       BX, BX
-	JEQ         done_82
-	DECQ        BX
-	VMOVDQU32   0(R14), Z1
-	VPEXPANDD.Z 0(CX), K1, Z2
-	SUB(Z1, Z2, Z0, Z4, Z3)
-	VMOVDQU32   Z3, 0(R13)
-	VMOVDQU32   64(R14), Z1
-	VPEXPANDD.Z 12(CX), K2, Z2
-	SUB(Z1, Z2, Z0, Z5, Z3)
-	VMOVDQU32   Z3, 64(R13)
-	VMOVDQU32   128(R14), Z1
-	VPEXPANDD.Z 24(CX), K3, Z2
-	SUB(Z1, Z2, Z0, Z6, Z3)
-	VMOVDQU32   Z3, 128(R13)
-	ADDQ        $192, R14
-	ADDQ        $192, R13
-	ADDQ        $32, CX
 	JMP         loop_81
 
 done_82:
 	VZEROUPPER
 	RET
 
-TEXT ·vectorSubFromElement_E6_avx512(SB), NOSPLIT, $0-32
-	// res[i] = b[i] - a[i], b[i] in the base field, 8 elements of degree 6 per iteration
+TEXT ·vectorAddElement_E6_avx512(SB), NOSPLIT, $0-32
+	// res[i] = a[i] + b[i], b[i] in the base field, 8 elements of degree 6 per iteration
 	MOVD         $const_q, AX
 	VPBROADCASTD AX, Z0
 	MOVQ         res+0(FP), R13
@@ -3428,6 +3542,88 @@ loop_83:
 	DECQ        BX
 	VMOVDQU32   0(R14), Z1
 	VPEXPANDD.Z 0(CX), K1, Z2
+	ADD(Z1, Z2, Z0, Z4, Z3)
+	VMOVDQU32   Z3, 0(R13)
+	VMOVDQU32   64(R14), Z1
+	VPEXPANDD.Z 12(CX), K2, Z2
+	ADD(Z1, Z2, Z0, Z5, Z3)
+	VMOVDQU32   Z3, 64(R13)
+	VMOVDQU32   128(R14), Z1
+	VPEXPANDD.Z 24(CX), K3, Z2
+	ADD(Z1, Z2, Z0, Z6, Z3)
+	VMOVDQU32   Z3, 128(R13)
+	ADDQ        $192, R14
+	ADDQ        $192, R13
+	ADDQ        $32, CX
+	JMP         loop_83
+
+done_84:
+	VZEROUPPER
+	RET
+
+TEXT ·vectorSubElement_E6_avx512(SB), NOSPLIT, $0-32
+	// res[i] = a[i] - b[i], b[i] in the base field, 8 elements of degree 6 per iteration
+	MOVD         $const_q, AX
+	VPBROADCASTD AX, Z0
+	MOVQ         res+0(FP), R13
+	MOVQ         a+8(FP), R14
+	MOVQ         b+16(FP), CX
+	MOVQ         N+24(FP), BX
+	SHRQ         $3, BX
+	MOVQ         $0x1041, AX
+	KMOVW        AX, K1
+	MOVQ         $0x4104, AX
+	KMOVW        AX, K2
+	MOVQ         $0x0410, AX
+	KMOVW        AX, K3
+
+loop_85:
+	TESTQ       BX, BX
+	JEQ         done_86
+	DECQ        BX
+	VMOVDQU32   0(R14), Z1
+	VPEXPANDD.Z 0(CX), K1, Z2
+	SUB(Z1, Z2, Z0, Z4, Z3)
+	VMOVDQU32   Z3, 0(R13)
+	VMOVDQU32   64(R14), Z1
+	VPEXPANDD.Z 12(CX), K2, Z2
+	SUB(Z1, Z2, Z0, Z5, Z3)
+	VMOVDQU32   Z3, 64(R13)
+	VMOVDQU32   128(R14), Z1
+	VPEXPANDD.Z 24(CX), K3, Z2
+	SUB(Z1, Z2, Z0, Z6, Z3)
+	VMOVDQU32   Z3, 128(R13)
+	ADDQ        $192, R14
+	ADDQ        $192, R13
+	ADDQ        $32, CX
+	JMP         loop_85
+
+done_86:
+	VZEROUPPER
+	RET
+
+TEXT ·vectorSubFromElement_E6_avx512(SB), NOSPLIT, $0-32
+	// res[i] = b[i] - a[i], b[i] in the base field, 8 elements of degree 6 per iteration
+	MOVD         $const_q, AX
+	VPBROADCASTD AX, Z0
+	MOVQ         res+0(FP), R13
+	MOVQ         a+8(FP), R14
+	MOVQ         b+16(FP), CX
+	MOVQ         N+24(FP), BX
+	SHRQ         $3, BX
+	MOVQ         $0x1041, AX
+	KMOVW        AX, K1
+	MOVQ         $0x4104, AX
+	KMOVW        AX, K2
+	MOVQ         $0x0410, AX
+	KMOVW        AX, K3
+
+loop_87:
+	TESTQ       BX, BX
+	JEQ         done_88
+	DECQ        BX
+	VMOVDQU32   0(R14), Z1
+	VPEXPANDD.Z 0(CX), K1, Z2
 	SUB(Z2, Z1, Z0, Z4, Z3)
 	VMOVDQU32   Z3, 0(R13)
 	VMOVDQU32   64(R14), Z1
@@ -3441,9 +3637,9 @@ loop_83:
 	ADDQ        $192, R14
 	ADDQ        $192, R13
 	ADDQ        $32, CX
-	JMP         loop_83
+	JMP         loop_87
 
-done_84:
+done_88:
 	VZEROUPPER
 	RET
 
@@ -3460,18 +3656,18 @@ TEXT ·vectorScalarAddBase_avx512(SB), NOSPLIT, $0-32
 	KMOVW        AX, K1
 	VMOVDQU32    0(R14), Z1
 
-loop_85:
+loop_89:
 	TESTQ       BX, BX
-	JEQ         done_86
+	JEQ         done_90
 	DECQ        BX
 	VPEXPANDD.Z 0(CX), K1, Z2
 	ADD(Z1, Z2, Z0, Z4, Z3)
 	VMOVDQU32   Z3, 0(R13)
 	ADDQ        $64, R13
 	ADDQ        $16, CX
-	JMP         loop_85
+	JMP         loop_89
 
-done_86:
+done_90:
 	VZEROUPPER
 	RET
 
@@ -3488,18 +3684,18 @@ TEXT ·vectorScalarSubFromBase_avx512(SB), NOSPLIT, $0-32
 	KMOVW        AX, K1
 	VMOVDQU32    0(R14), Z1
 
-loop_87:
+loop_91:
 	TESTQ       BX, BX
-	JEQ         done_88
+	JEQ         done_92
 	DECQ        BX
 	VPEXPANDD.Z 0(CX), K1, Z2
 	SUB(Z1, Z2, Z0, Z4, Z3)
 	VMOVDQU32   Z3, 0(R13)
 	ADDQ        $64, R13
 	ADDQ        $16, CX
-	JMP         loop_87
+	JMP         loop_91
 
-done_88:
+done_92:
 	VZEROUPPER
 	RET
 
@@ -3522,9 +3718,9 @@ TEXT ·vectorScalarAddBase_E6_avx512(SB), NOSPLIT, $0-32
 	VMOVDQU32    64(R14), Z2
 	VMOVDQU32    128(R14), Z3
 
-loop_89:
+loop_93:
 	TESTQ       BX, BX
-	JEQ         done_90
+	JEQ         done_94
 	DECQ        BX
 	VPEXPANDD.Z 0(CX), K1, Z4
 	ADD(Z1, Z4, Z0, Z6, Z5)
@@ -3537,9 +3733,9 @@ loop_89:
 	VMOVDQU32   Z5, 128(R13)
 	ADDQ        $192, R13
 	ADDQ        $32, CX
-	JMP         loop_89
+	JMP         loop_93
 
-done_90:
+done_94:
 	VZEROUPPER
 	RET
 
@@ -3562,9 +3758,9 @@ TEXT ·vectorScalarSubFromBase_E6_avx512(SB), NOSPLIT, $0-32
 	VMOVDQU32    64(R14), Z2
 	VMOVDQU32    128(R14), Z3
 
-loop_91:
+loop_95:
 	TESTQ       BX, BX
-	JEQ         done_92
+	JEQ         done_96
 	DECQ        BX
 	VPEXPANDD.Z 0(CX), K1, Z4
 	SUB(Z1, Z4, Z0, Z6, Z5)
@@ -3577,8 +3773,8 @@ loop_91:
 	VMOVDQU32   Z5, 128(R13)
 	ADDQ        $192, R13
 	ADDQ        $32, CX
-	JMP         loop_91
+	JMP         loop_95
 
-done_92:
+done_96:
 	VZEROUPPER
 	RET
