@@ -214,17 +214,23 @@ var digestSize = []uint8{
 // New initializes the hash function. This is a convenience function which does
 // not allow setting hash-specific options.
 func (m Hash) New() hash.Hash {
-	if m < maxHash {
-		f := hashes[m]
-		if f != nil {
-			return f()
-		}
+	if m >= maxHash {
+		panic(fmt.Sprintf("unknown hash function #%d", m))
 	}
-	pkgname, _ := strings.CutPrefix(m.String(), "MIMC_")
-	pkgname = strings.ToLower(pkgname)
-	pkgname = strings.ReplaceAll(pkgname, "_", "-")
+	if f := hashes[m]; f != nil {
+		return f()
+	}
+	algorithm, field, _ := strings.Cut(strings.ToLower(m.String()), "_")
+	field = strings.ReplaceAll(field, "_", "-")
+	var pkg string
+	switch m {
+	case POSEIDON2_KOALABEAR, POSEIDON2_BABYBEAR, POSEIDON2_GOLDILOCKS, POSEIDON2_MAMABEAR:
+		pkg = "field/" + field
+	default:
+		pkg = "ecc/" + field + "/fr"
+	}
 	msg := fmt.Sprintf(`requested hash function #%s not registered. Import the corresponding package to register it:
-	import _ "github.com/consensys/gnark-crypto/ecc/%s/fr/mimc"`, m.String(), pkgname)
+	import _ "github.com/consensys/gnark-crypto/%s/%s"`, m, pkg, algorithm)
 	panic(msg)
 }
 
