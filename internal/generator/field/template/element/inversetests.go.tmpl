@@ -40,6 +40,27 @@ func Test{{toTitle .ElementName}}InversionCorrectionFactorFormula(t *testing.T) 
 	}
 }
 
+func Test{{toTitle .ElementName}}InversionCorrectionFactorsTable(t *testing.T) {
+	// the last entry is the factor for a full run
+	last := {{.ElementName}}{
+		{{- range $i := .NbWordsIndexesFull }}
+		inversionCorrectionFactorWord{{$i}},
+		{{- end}}
+	}
+	if inversionCorrectionFactors[invIterationsN/2] != last {
+		t.Fatal("last correction factor mismatch")
+	}
+	// each missed pair of iterations costs a Montgomery multiplication by 2²⁽ᵏ⁻¹⁾
+	pSq := {{.ElementName}}{1 << (2 * (k - 1))}
+	for j := invIterationsN/2 - 1; j >= 0; j-- {
+		var f {{.ElementName}}
+		f.Mul(&inversionCorrectionFactors[j+1], &pSq)
+		if f != inversionCorrectionFactors[j] {
+			t.Fatalf("correction factor %d mismatch", j)
+		}
+	}
+}
+
 func Test{{toTitle .ElementName}}LinearComb(t *testing.T) {
 	var x {{.ElementName}}
 	var y {{.ElementName}}

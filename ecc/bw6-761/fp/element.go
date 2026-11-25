@@ -2259,7 +2259,8 @@ func (z *Element) Legendre() int {
 
 	var s Element
 
-	l := 1 // loop invariant: (x|q) = (a|b) . l
+	// l holds the symbol as a parity bit, (-1)^(l&1); only bit 0 is meaningful
+	var l uint64 // loop invariant: (x|q) = (a|b) . (-1)^l
 	// This means that every time a and b are updated into a' and b',
 	// l is updated into l' = (x|q)(a'|b')=(x|q)(a|b)(a|b)(a'|b') = l (a|b)(a'|b')
 	// During the algorithm's run, there is no guarantee that b remains prime, or even positive.
@@ -2274,56 +2275,46 @@ func (z *Element) Legendre() int {
 
 		const nbIterations = k - 2
 		// running fewer iterations because we need access to 3 low bits from b, rather than 1 in the inversion algorithm
+		// Branchless inner loop: the parity of a, the sign of a-b and the low bits of b
+		// are close to random, so branching on them mispredicts on most iterations.
 		for range nbIterations {
+			odd := -(aApprox & 1) // all ones iff a is odd
+			_, borrow := bits.Sub64(aApprox, bApprox, 0)
+			swap := odd & -borrow // all ones iff a is odd and a < b
 
-			if aApprox&1 == 0 {
-				aApprox /= 2
+			// On a swap we compute (b-a|a) instead of (a-b|b).
+			// (x-y|z) = (x|z) unless z < 0 and sign(x-y) ≠ sign(x)
+			// Pornin20 asserts that at least one of a and b is non-negative.
+			// If a is non-negative, we immediately get (b-a|a) = (b|a)
+			// If a is negative, b-a > b. But b is already non-negative, so the b-a and b have the same sign.
+			// Thus in that case also (b-a|a) = (b|a)
+			// Since not both a and b are negative, we get a quadratic reciprocity law
+			// like that of the Legendre symbol: (b|a) = (a|b), unless a, b ≡ 3 (mod 4), in which case (b|a) = -(a|b)
+			// a and b are odd here, so a, b ≡ 3 (mod 4) iff bit 1 of a&b is set.
+			l ^= swap & ((aApprox & bApprox) >> 1)
 
-				// update the Kronecker symbol
-				//
-				// (a/2 | b) (2|b) = (a|b)
-				//
-				// b is either odd or zero, the latter case implying a non-trivial GCD and an ultimate result of 0,
-				// regardless of what value l holds.
-				// So in updating l, we may assume that b is odd.
-				// Since a is even, we only need to correctly compute l if b is odd.
-				// if b is also even, the non-trivial GCD will result in the function returning 0 anyway.
-				// so we may here assume b is odd.
-				// (2|b) = 1 if b ≡ 1 or 7 (mod 8), and -1 if b ≡ 3 or 5 (mod 8)
-				if bMod8 := bApprox & 7; bMod8 == 3 || bMod8 == 5 {
-					l = -l
-				}
+			t := (aApprox ^ bApprox) & swap
+			aApprox ^= t
+			bApprox ^= t
+			tc := (c0 ^ c1) & int64(swap)
+			c0 ^= tc
+			c1 ^= tc
 
-			} else {
-				s, borrow := bits.Sub64(aApprox, bApprox, 0)
-				if borrow == 1 {
-					// Compute (b-a|a)
-					// (x-y|z) = (x|z) unless z < 0 and sign(x-y) ≠ sign(x)
-					// Pornin20 asserts that at least one of a and b is non-negative.
-					// If a is non-negative, we immediately get (b-a|a) = (b|a)
-					// If a is negative, b-a > b. But b is already non-negative, so the b-a and b have the same sign.
-					// Thus in that case also (b-a|a) = (b|a)
-					// Since not both a and b are negative, we get a quadratic reciprocity law
-					// like that of the Legendre symbol: (b|a) = (a|b), unless a, b ≡ 3 (mod 4), in which case (b|a) = -(a|b)
-					if bApprox&3 == 3 && aApprox&3 == 3 {
-						l = -l
-					}
+			aApprox -= bApprox & odd
+			c0 -= c1 & int64(odd)
 
-					s = bApprox - aApprox
-					bApprox = aApprox
-					c0, c1 = c1, c0
-				}
+			aApprox >>= 1
+			c1 <<= 1
 
-				aApprox = s / 2
-				c0 = c0 - c1
-
-				// update l to reflect halving a, just like in the case where a is even
-				if bMod8 := bApprox & 7; bMod8 == 3 || bMod8 == 5 {
-					l = -l
-				}
-			}
-
-			c1 *= 2
+			// update the Kronecker symbol for the halving of a
+			//
+			// (a/2 | b) (2|b) = (a|b)
+			//
+			// b is either odd or zero, the latter case implying a non-trivial GCD and an ultimate result of 0,
+			// regardless of what value l holds. So in updating l, we may assume that b is odd.
+			// (2|b) = 1 if b ≡ 1 or 7 (mod 8), and -1 if b ≡ 3 or 5 (mod 8),
+			// i.e. (2|b) = -1 iff bits 1 and 2 of b differ.
+			l ^= (bApprox >> 1) ^ (bApprox >> 2)
 		}
 
 		s = a
@@ -2338,9 +2329,8 @@ func (z *Element) Legendre() int {
 			// Since a is negative, b is not and hence b ≠ -1
 			// So we get (-a|b)=(-1|b)(a|b)
 			// b is odd so we get (-1|b) = 1 if b ≡ 1 (mod 4) and -1 otherwise.
-			if bApprox&3 == 3 { // we still have two valid lower bits for b
-				l = -l
-			}
+			// we still have two valid lower bits for b, and b is odd
+			l ^= bApprox >> 1
 		}
 		// right-shift a by k-2 bits
 		a[0] = (a[0] >> nbIterations) | ((a[1]) << (2*k - nbIterations))
@@ -2382,7 +2372,7 @@ func (z *Element) Legendre() int {
 	}
 
 	if b[0] == 1 && (b[1]|b[2]|b[3]|b[4]|b[5]|b[6]|b[7]|b[8]|b[9]|b[10]|b[11]) == 0 {
-		return l // (0|1) = 1
+		return 1 - 2*int(l&1) // (0|1) = 1
 	} else {
 		return 0 // if b ≠ 1, then (z,q) ≠ 0 ⇒ (z|q) = 0
 	}
@@ -2484,6 +2474,37 @@ const (
 	invIterationsN                  = 50
 )
 
+// inversionCorrectionFactors[j] is the correction factor applied when [Inverse]
+// stops after 2j outer iterations; the last entry equals inversionCorrectionFactorWord*.
+var inversionCorrectionFactors = [invIterationsN/2 + 1]Element{
+	{9335516930613820908, 17064035837361188365, 1306538787845152184, 5177528637091362611, 18264545924965276725, 10603713468085668099, 8043665450870497921, 772196354546091057, 18318468331581670695, 9364884802565711189, 18195601381697867073, 3533838290952839},
+	{3733445902419665197, 10443100007252813609, 8713452959054739167, 10815829810398529938, 2259464736385386136, 11938035177481954450, 3569289807601542463, 639118406367753844, 1702382177861639415, 8211591145899202606, 13987729204725293098, 61961195805157169},
+	{13762902923236226850, 13095630956994548204, 14983594894891130129, 12863340478169267402, 15658892823921931129, 2292162945628335106, 16169886939626622955, 8989463408476090859, 15645514244102468113, 7175074814160155084, 13389033779458051914, 18435052935974855},
+	{15634024333047447949, 732544261831005588, 11426650569315726605, 4446493036460857948, 11208276118592689662, 15424319849989667084, 9574745770956346765, 15566940302412174934, 3780668078482538773, 16333342552357151971, 11412071615549234616, 64918759698334154},
+	{15351559307732148398, 14181430574594767546, 2117061983840518510, 5471194426072667461, 17025881322561630527, 8830198789994466756, 12346981934303750031, 6064228860118632559, 10029826933931570958, 1940602535693818314, 14603418453419203908, 40777953837078935},
+	{8470253875594057102, 3832461430703253501, 13724822133252025167, 5680498355520585296, 1079741445013987389, 1017602026262524706, 14312612453107867544, 17107457085259991245, 7364333376512936560, 5105096100011425796, 4888819491782735989, 59690194018101072},
+	{14476878458735546680, 2074476039944166023, 2129728937272270267, 12885352709552470372, 16504301848670675950, 12424151143822321988, 3551410943839379168, 3502311519582756298, 12808459296095667462, 16379141024788049449, 5760289040218949045, 63537730868554448},
+	{1794119907475039141, 17882946256691508377, 12853346342887725679, 15621213005188175994, 9317694425608785379, 14702688012809271439, 5461169941533367007, 15606572375424976766, 5476730511940114352, 8944845328269866580, 6929401705251258268, 72789045209551067},
+	{105650290670745894, 16963142115137338110, 3315847085466583358, 6722661143995598437, 17591492767520510765, 9485334342480613424, 14090274733632568590, 3181093675837005616, 12666416408850328628, 16562259537311977432, 10472672784355401649, 63520078384830384},
+	{6100953478410856946, 7415220667106049926, 16345257647279346100, 13734184697886294609, 6216063431932019900, 8176374501452560218, 9683853576424574528, 803426560186246392, 3263524870216750592, 5447131783853112768, 3200440826929559202, 1623634396777760},
+	{53241362623541378, 16904861575906087009, 2592679344217770840, 7872728985298772662, 1945803349155051953, 16749384136661707872, 10718807075076189578, 14955111396843942420, 11231134593590902879, 3203861509208257082, 5782433119569888782, 2909730676039002},
+	{7815758909419513312, 5386535527342844355, 11633341942870957235, 9285010044590474705, 3375271763008979083, 10286712157191758944, 16027891403731270102, 3870280562459852029, 10026690553923126031, 13041867878589343948, 14842552471305434814, 28272777812923162},
+	{4520237608622742758, 10765608243101889624, 12018952498799085241, 4261101544747434775, 10919805335897088235, 9212645873129511338, 3092147982352545203, 11450961129367429345, 11267101827918169973, 10588674349576698207, 12041158750004618565, 1951191964135969},
+	{9280650607810083259, 18302574167403491920, 10448647098206283282, 11937472583842387148, 14363939031958037760, 15323855349940067757, 3606736805220265190, 8909051939171482737, 14403104028454050058, 12071718101555247896, 7131002459860014268, 61182043695204597},
+	{12904446100985526436, 3544442993760350092, 3844258494907679999, 16523522214266761157, 6621046328432019520, 9077799694878676346, 16899749840577018771, 10260089627784883650, 9691418320310836692, 17479748682841376144, 1623059822784295265, 29931403342856746},
+	{2833600668191826811, 7958883593592901781, 18005040207363441824, 13310415852360438521, 7991423065983000165, 18245430915380282297, 3226747655713828303, 4402151297096340375, 5966729332295530372, 10304543141272169078, 15349835548374233156, 67921783097015986},
+	{7288402007997791478, 1954748573647845360, 165879486659679465, 12774519800601619263, 1564097389043631247, 17674979647639582832, 2642063528783097496, 6244264833143232739, 10687370702310834309, 1472786304324638191, 9112625142346043985, 61833364325485621},
+	{4097683944914350387, 12090510995498943858, 1562458769130373419, 6031805959933842694, 12307368478205065979, 5059698331929518464, 6655743772162300184, 13873935886265242716, 3535611531434390480, 15742186947790213963, 10902195379920084617, 12876658764878720},
+	{10423478208274580503, 4594209399087039034, 1022569490101456297, 16215002752752637404, 13716865982354333059, 476013491196623805, 6791930578839013204, 2728210632098222698, 10548394339956904504, 3693995014899334925, 2677389504728112680, 71110060361404325},
+	{16956980615657851905, 10705205340407821194, 8176302594718500424, 3963737631989774249, 15163790521948359101, 10242229109393725560, 13597327103916062729, 14628534963984052483, 17321940653201391604, 5025576293036717172, 14656696272654076475, 4701329287660298},
+	{6026481186365538385, 3125671238612482495, 12508408880369930000, 14028269386127549181, 1811245892857731759, 2050740101284546063, 8722746073171296090, 496514524656175023, 3704085661008240052, 12677822965013682606, 17845704802091530543, 71555695732912275},
+	{4666204899706027948, 18602235457213303, 10759261845891840483, 14479379710765961143, 15653608228818389093, 6635825234326771036, 10809321945106881737, 17687359604369535385, 5583210886325944712, 1542718632321600268, 14150644602444190942, 50665070546645751},
+	{2318432938443064064, 13787805940283239503, 179198630927625218, 15013086783952861793, 5198223210002121226, 10749136372452587291, 4451559058607181300, 12410837766598477680, 4154237539331690175, 13456424049910108959, 11997788408479543071, 26812275672393116},
+	{17716747932152469700, 1236346264783796470, 5371264299954430635, 9782832792864930443, 8845722810111317761, 4141348167317548904, 17256141763222097483, 18181347475907649227, 14032473618417200170, 13956263425198583667, 10761416623779175711, 26385111504633920},
+	{8329369880413866922, 5689990748445241496, 12911173905461645201, 16691082730444176174, 13258505392984786964, 13721792536188194023, 16425036380718842381, 5286151333675459328, 2816147015963847070, 3184704876604311852, 1883372123435314742, 24130280433850443},
+	{10031381836020524396, 13512348327667036555, 4712458382768910368, 10608536430169864474, 6011516409926961524, 453532925360796333, 12814326068023107562, 4764844688547002673, 297975318568649638, 3076225984588847531, 327844855039329024, 65221078716978344},
+}
+
 // Inverse z = x⁻¹ (mod q)
 //
 // if x == 0, sets and returns z = x
@@ -2530,31 +2551,37 @@ func (z *Element) Inverse(x *Element) *Element {
 		// f₀, g₀, f₁, g₁ = 1, 0, 0, 1
 		c0, c1 = updateFactorIdentityMatrixRow0, updateFactorIdentityMatrixRow1
 
+		// Branchless inner loop: the parity of a and the sign of a-b are close to
+		// random, so a branchy version mispredicts on most iterations.
+		// Each iteration computes
+		//   if a is odd:  if a < b: (a, b), (f₀, f₁) ← (b, a), (f₁, f₀)
+		//                 a, f₀ ← a - b, f₀ - f₁
+		//   a, f₁ ← a/2, 2f₁
 		for range approxLowBitsN {
 
 			// -2ʲ < f₀, f₁ ≤ 2ʲ
 			// |f₀| + |f₁| < 2ʲ⁺¹
 
-			if aApprox&1 == 0 {
-				aApprox /= 2
-			} else {
-				s, borrow := bits.Sub64(aApprox, bApprox, 0)
-				if borrow == 1 {
-					s = bApprox - aApprox
-					bApprox = aApprox
-					c0, c1 = c1, c0
-					// invariants unchanged
-				}
+			odd := -(aApprox & 1) // all ones iff a is odd
+			_, borrow := bits.Sub64(aApprox, bApprox, 0)
+			swap := odd & -borrow // all ones iff a is odd and a < b
 
-				aApprox = s / 2
-				c0 = c0 - c1
+			t := (aApprox ^ bApprox) & swap
+			aApprox ^= t
+			bApprox ^= t
+			tc := (c0 ^ c1) & int64(swap)
+			c0 ^= tc
+			c1 ^= tc
+			// invariants unchanged by the swap
 
-				// Now |f₀| < 2ʲ⁺¹ ≤ 2ʲ⁺¹ (only the weaker inequality is needed, strictly speaking)
-				// Started with f₀ > -2ʲ and f₁ ≤ 2ʲ, so f₀ - f₁ > -2ʲ⁺¹
-				// Invariants unchanged for f₁
-			}
+			aApprox -= bApprox & odd
+			c0 -= c1 & int64(odd)
+			// Now |f₀| < 2ʲ⁺¹ ≤ 2ʲ⁺¹ (only the weaker inequality is needed, strictly speaking)
+			// Started with f₀ > -2ʲ and f₁ ≤ 2ʲ, so f₀ - f₁ > -2ʲ⁺¹
+			// Invariants unchanged for f₁
 
-			c1 *= 2
+			aApprox >>= 1
+			c1 <<= 1
 			// -2ʲ⁺¹ < f₁ ≤ 2ʲ⁺¹
 			// So now |f₀| + |f₁| < 2ʲ⁺²
 		}
@@ -2634,34 +2661,18 @@ func (z *Element) Inverse(x *Element) *Element {
 		}
 	}
 
-	// For every iteration that we miss, v is not being multiplied by 2ᵏ⁻²
-	const pSq uint64 = 1 << (2 * (k - 1))
-	a = Element{pSq}
-	// If the function is constant-time ish, this loop will not run (no need to take it out explicitly)
-	for ; i < invIterationsN; i += 2 {
-		// could optimize further with mul by word routine or by pre-computing a table since with k=26,
-		// we would multiply by pSq up to 13times;
-		// on x86, the assembly routine outperforms generic code for mul by word
-		// on arm64, we may loose up to ~5% for 6 limbs
-		v.Mul(&v, &a)
-	}
-
 	u.Set(x) // for correctness check
 
-	z.Mul(&v, &Element{
-		inversionCorrectionFactorWord0,
-		inversionCorrectionFactorWord1,
-		inversionCorrectionFactorWord2,
-		inversionCorrectionFactorWord3,
-		inversionCorrectionFactorWord4,
-		inversionCorrectionFactorWord5,
-		inversionCorrectionFactorWord6,
-		inversionCorrectionFactorWord7,
-		inversionCorrectionFactorWord8,
-		inversionCorrectionFactorWord9,
-		inversionCorrectionFactorWord10,
-		inversionCorrectionFactorWord11,
-	})
+	// For every pair of iterations that we miss, v is not being multiplied by 2²⁽ᵏ⁻¹⁾.
+	// Typical inputs stop well before invIterationsN, so instead of padding with one
+	// field multiplication per missed pair, the correction factor for each possible
+	// stopping point is precomputed: inversionCorrectionFactors[i/2] = c · (2²⁽ᵏ⁻¹⁾ / R)ⁿ
+	// with n = (invIterationsN - i)/2, where c is the factor used when i = invIterationsN.
+	if i > invIterationsN {
+		// cannot happen (invIterationsN is an upper bound); the correctness check below would catch it
+		i = invIterationsN
+	}
+	z.Mul(&v, &inversionCorrectionFactors[i/2])
 
 	// correctness check
 	v.Mul(&u, z)

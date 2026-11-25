@@ -219,6 +219,32 @@ func Benchmark{{toTitle .ElementName}}Square(b *testing.B) {
 	}
 }
 
+// BenchmarkElementInverseRandom cycles through many inputs: with a single fixed input
+// the branch predictor learns the whole run, which is not representative.
+func Benchmark{{toTitle .ElementName}}InverseRandom(b *testing.B) {
+	var x [1024]{{.ElementName}}
+	for i := range x {
+		x[i].MustSetRandom()
+	}
+	b.ResetTimer()
+	for i := range b.N {
+		benchRes{{.ElementName}}.Inverse(&x[i%len(x)])
+	}
+}
+
+func Benchmark{{toTitle .ElementName}}Legendre(b *testing.B) {
+	var x [1024]{{.ElementName}}
+	for i := range x {
+		x[i].MustSetRandom()
+	}
+	var r int
+	b.ResetTimer()
+	for i := range b.N {
+		r += x[i%len(x)].Legendre()
+	}
+	benchRes{{.ElementName}}.SetInt64(int64(r))
+}
+
 func Benchmark{{toTitle .ElementName}}Sqrt(b *testing.B) {
 	var a {{.ElementName}}
 	a.MustSetRandom()
