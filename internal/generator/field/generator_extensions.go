@@ -6,6 +6,7 @@ import (
 
 	"github.com/consensys/bavard"
 	"github.com/consensys/gnark-crypto/internal/generator/field/asm/amd64"
+	"github.com/consensys/gnark-crypto/internal/generator/field/asm/arm64"
 	"github.com/consensys/gnark-crypto/internal/generator/field/config"
 	"github.com/consensys/gnark-crypto/internal/generator/field/template"
 )
@@ -121,6 +122,8 @@ func generateExtensions(F *config.Field, outputDir string) error {
 		if isKoalaBear {
 			entries_ext4 = append(entries_ext4, bavard.Entry{File: filepath.Join(outputDir, "ext_amd64.go"), Templates: []string{"ext.amd64.go.tmpl"}, BuildTag: "!purego"})
 			entries_ext4 = append(entries_ext4, bavard.Entry{File: filepath.Join(outputDir, "ext_purego.go"), Templates: []string{"ext.purego.go.tmpl"}, BuildTag: "purego || (!amd64)"})
+			entries_ext4 = append(entries_ext4, bavard.Entry{File: filepath.Join(outputDir, "ext_arm64.go"), Templates: []string{"ext.arm64.go.tmpl"}, BuildTag: "!purego"})
+			entries_ext4 = append(entries_ext4, bavard.Entry{File: filepath.Join(outputDir, "ext_noneon.go"), Templates: []string{"ext.noneon.go.tmpl"}, BuildTag: "purego || (!arm64)"})
 		}
 
 		if err := g.Generate(data, "extensions", "", "extensions", entries_ext4...); err != nil {
@@ -141,6 +144,20 @@ func generateExtensions(F *config.Field, outputDir string) error {
 				return err
 			}
 			asmFile.Close()
+
+			// NEON kernels
+			asmFileArm64, err := os.Create(filepath.Join(outputDir, "ext_arm64.s"))
+			if err != nil {
+				return err
+			}
+
+			asmFileArm64.WriteString("//go:build !purego\n")
+
+			if err := arm64.GenerateF31Ext(asmFileArm64, F.Q[0]); err != nil {
+				asmFileArm64.Close()
+				return err
+			}
+			asmFileArm64.Close()
 		}
 	}
 

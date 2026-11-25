@@ -1546,3 +1546,122 @@ func BenchmarkVectorE6MixedAdditive(b *testing.B) {
 		})
 	}
 }
+
+// TestVectorE6MulOpsAgainstElement checks the vectorized products (backed by the
+// AVX-512 or NEON kernels where available) against the per-element E6 ops, for
+// sizes around the kernel block sizes, inputs drawn from {0, 1, q-1} as well as
+// random ones, and the aliasing each method documents.
+func TestVectorE6MulOpsAgainstElement(t *testing.T) {
+	var one, minusOne fr.Element
+	one.SetOne()
+	minusOne.SetInt64(-1)
+	var zero fr.Element
+	edges := []fr.Element{zero, one, minusOne}
+
+	fill := func(seed int, v VectorE6, base fr.Vector) {
+		if seed == 0 {
+			v.MustSetRandom()
+			base.MustSetRandom()
+			return
+		}
+		// deterministic mix of edge values, different per coordinate
+		for i := range v {
+			c := []*fr.Element{&v[i].B0.A0, &v[i].B0.A1, &v[i].B1.A0, &v[i].B1.A1, &v[i].B2.A0, &v[i].B2.A1}
+			for k, z := range c {
+				*z = edges[(i*7+k*seed)%len(edges)]
+			}
+		}
+		for i := range base {
+			base[i] = edges[(i*5+seed)%len(edges)]
+		}
+	}
+
+	sizes := []int{0, 1, 3, 4, 5, 7, 8, 9, 12, 15, 16, 17, 31, 32, 33, 64, 100}
+	for _, seed := range []int{0, 1, 2} {
+		for _, size := range sizes {
+			t.Run(fmt.Sprintf("seed=%d/N=%d", seed, size), func(t *testing.T) {
+				a, b, r0 := make(VectorE6, size), make(VectorE6, size), make(VectorE6, size)
+				base := make(fr.Vector, size)
+				fill(seed, a, base)
+				fill(seed+1, b, make(fr.Vector, size))
+				fill(seed+2, r0, make(fr.Vector, size))
+				var s E6
+				if size > 0 {
+					s = b[size/2]
+				} else {
+					s.MustSetRandom()
+				}
+
+				check := func(name string, want func(i int, z *E6), got func(res VectorE6)) {
+					t.Helper()
+					res := slices.Clone(r0)
+					got(res)
+					for i := range res {
+						expected := r0[i]
+						want(i, &expected)
+						require.True(t, expected.Equal(&res[i]), "%s: element %d", name, i)
+					}
+				}
+				var tmp E6
+				check("Mul", func(i int, z *E6) { z.Mul(&a[i], &b[i]) },
+					func(res VectorE6) { res.Mul(a, b) })
+				check("MulAcc", func(i int, z *E6) { z.Add(z, tmp.Mul(&a[i], &b[i])) },
+					func(res VectorE6) { res.MulAcc(a, b) })
+				check("ScalarMul", func(i int, z *E6) { z.Mul(&a[i], &s) },
+					func(res VectorE6) { res.ScalarMul(a, &s) })
+				check("ScalarMulAcc", func(i int, z *E6) { z.Add(z, tmp.Mul(&a[i], &s)) },
+					func(res VectorE6) { res.ScalarMulAcc(a, &s) })
+				check("MulByElement", func(i int, z *E6) { z.MulByElement(&a[i], &base[i]) },
+					func(res VectorE6) { res.MulByElement(a, base) })
+				check("MulAccByElement", func(i int, z *E6) { z.Add(z, tmp.MulByElement(&a[i], &base[i])) },
+					func(res VectorE6) { res.MulAccByElement(a, base) })
+				check("ScalarMulBase", func(i int, z *E6) { z.MulByElement(&s, &base[i]) },
+					func(res VectorE6) { res.ScalarMulBase(base, &s) })
+				check("ScalarMulAccBase", func(i int, z *E6) { z.Add(z, tmp.MulByElement(&s, &base[i])) },
+					func(res VectorE6) { res.ScalarMulAccBase(base, &s) })
+
+				// aliasing: result is (one of) the inputs
+				check("Mul/alias", func(i int, z *E6) { z.Mul(z, &b[i]) },
+					func(res VectorE6) { res.Mul(res, b) })
+				check("Mul/square", func(i int, z *E6) { z.Mul(z, z) },
+					func(res VectorE6) { res.Mul(res, res) })
+				check("MulAcc/alias", func(i int, z *E6) { z.Add(z, tmp.Mul(z, &b[i])) },
+					func(res VectorE6) { res.MulAcc(res, b) })
+				check("ScalarMul/alias", func(i int, z *E6) { z.Mul(z, &s) },
+					func(res VectorE6) { res.ScalarMul(res, &s) })
+				check("ScalarMulAcc/alias", func(i int, z *E6) { z.Add(z, tmp.Mul(z, &s)) },
+					func(res VectorE6) { res.ScalarMulAcc(res, &s) })
+				check("MulByElement/alias", func(i int, z *E6) { z.MulByElement(z, &base[i]) },
+					func(res VectorE6) { res.MulByElement(res, base) })
+				check("MulAccByElement/alias", func(i int, z *E6) { z.Add(z, tmp.MulByElement(z, &base[i])) },
+					func(res VectorE6) { res.MulAccByElement(res, base) })
+				if size > 0 {
+					// the scalar points into the result
+					s0 := r0[0]
+					check("ScalarMulAcc/scalar-alias", func(i int, z *E6) { z.Add(z, tmp.Mul(&a[i], &s0)) },
+						func(res VectorE6) { res.ScalarMulAcc(a, &res[0]) })
+					check("ScalarMulAccBase/scalar-alias", func(i int, z *E6) { z.Add(z, tmp.MulByElement(&s0, &base[i])) },
+						func(res VectorE6) { res.ScalarMulAccBase(base, &res[0]) })
+				}
+
+				var want E6
+				for i := range a {
+					want.Add(&want, tmp.Mul(&a[i], &b[i]))
+				}
+				got := a.InnerProduct(b)
+				require.True(t, want.Equal(&got), "InnerProduct")
+			})
+		}
+	}
+}
+
+func BenchmarkVectorE6MulByElement(b *testing.B) {
+	const size = 1 << 12
+	res, a := make(VectorE6, size), randVectorE6(size)
+	scale := make(fr.Vector, size)
+	scale.MustSetRandom()
+	b.ResetTimer()
+	for b.Loop() {
+		res.MulByElement(a, scale)
+	}
+}
