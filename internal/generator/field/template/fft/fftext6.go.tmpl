@@ -324,29 +324,6 @@ func innerDITWithTwiddlesExt6(a []fext.E6, twiddles []{{ .FF }}.Element, start, 
 	va0.MulByElementThenButterfly(va1, twiddles[start:end])
 }
 
-// The M2/M4 helpers below are hand-unrolled across the 6 fr lanes of E6:
-// ButterflyE6 alone is 96 instructions and the cross-coordinate Mul calls
-// exceed Go's inliner budget when called from these hot inner loops.
-
-func innerDITWithTwiddlesExt6M2(a []fext.E6, twiddles []{{ .FF }}.Element) {
-	{{butterflyE6Coords $.FF "a[0]" "a[2]"}}
-	{{mulE6Coords "a[3]" "&twiddles[1]"}}
-	{{butterflyE6Coords $.FF "a[1]" "a[3]"}}
-}
-
-func innerDITWithTwiddlesExt6M4(a []fext.E6, twiddles []{{ .FF }}.Element) {
-	for i := 1; i < 4; i++ {
-		t := &twiddles[i]
-		y := &a[i+4]
-		{{mulE6Coords "y" "t"}}
-	}
-	for i := 0; i < 4; i++ {
-		x, y := &a[i], &a[i+4]
-		{{butterflyE6Coords $.FF "x" "y"}}
-	}
-}
-
-
 func innerDITWithoutTwiddlesExt6(a []fext.E6, at, w {{ .FF }}.Element, start, end, m int) {
 	if start == 0 {
 		fext.ButterflyE6(&a[0], &a[m])
@@ -358,43 +335,6 @@ func innerDITWithoutTwiddlesExt6(a []fext.E6, at, w {{ .FF }}.Element, start, en
 		at.Mul(&at, &w)
 	}
 }
-
-func innerDIFWithTwiddlesExt6M2(a []fext.E6, twiddles []{{ .FF }}.Element) {
-	{{butterflyE6Coords $.FF "a[0]" "a[2]"}}
-	{{butterflyE6Coords $.FF "a[1]" "a[3]"}}
-	{{mulE6Coords "a[3]" "&twiddles[1]"}}
-}
-
-func innerDIFWithTwiddlesExt6M4(a []fext.E6, twiddles []{{ .FF }}.Element) {
-	for i := 0; i < 4; i++ {
-		x, y := &a[i], &a[i+4]
-		{{butterflyE6Coords $.FF "x" "y"}}
-	}
-	for i := 1; i < 4; i++ {
-		t := &twiddles[i]
-		y := &a[i+4]
-		{{mulE6Coords "y" "t"}}
-	}
-}
-
-{{define "butterflyE6Coords FF X Y"}}
-	{{.FF}}.Butterfly(&{{.X}}.B0.A0, &{{.Y}}.B0.A0)
-	{{.FF}}.Butterfly(&{{.X}}.B0.A1, &{{.Y}}.B0.A1)
-	{{.FF}}.Butterfly(&{{.X}}.B1.A0, &{{.Y}}.B1.A0)
-	{{.FF}}.Butterfly(&{{.X}}.B1.A1, &{{.Y}}.B1.A1)
-	{{.FF}}.Butterfly(&{{.X}}.B2.A0, &{{.Y}}.B2.A0)
-	{{.FF}}.Butterfly(&{{.X}}.B2.A1, &{{.Y}}.B2.A1)
-{{end}}
-
-{{define "mulE6Coords Y T"}}
-	{{.Y}}.B0.A0.Mul(&{{.Y}}.B0.A0, {{.T}})
-	{{.Y}}.B0.A1.Mul(&{{.Y}}.B0.A1, {{.T}})
-	{{.Y}}.B1.A0.Mul(&{{.Y}}.B1.A0, {{.T}})
-	{{.Y}}.B1.A1.Mul(&{{.Y}}.B1.A1, {{.T}})
-	{{.Y}}.B2.A0.Mul(&{{.Y}}.B2.A0, {{.T}})
-	{{.Y}}.B2.A1.Mul(&{{.Y}}.B2.A1, {{.T}})
-{{end}}
-
 
 {{genKernelE6 $.FF $kSizeExt6 $kLog2Ext6}}
 {{genKernelE6 $.FF $kSizeExt6Large $kLog2Ext6Large}}
@@ -414,17 +354,10 @@ func kerDIFNP_{{.sizeKernel}}Ext6(a []fext.E6, twiddles [][]{{ .FF }}.Element, s
 		{{- if eq $bound $n}}
 			innerDIFWithTwiddlesExt6(a[:{{$n}}], twiddles[stage + {{$step}}], 0, {{$m}}, {{$m}})
 		{{- else}}
-			{{- if eq $m 1}}
-				va := fext.VectorE6(a[:{{$bound}}])
-				va.ButterflyPair()
-			{{- else if eq $m 2}}
-				for offset := 0; offset < {{$bound}}; offset += {{$n}} {
-					innerDIFWithTwiddlesExt6M2(a[offset:offset + {{$n}}], twiddles[stage + {{$step}}])
-				}
-			{{- else if eq $m 4}}
-				for offset := 0; offset < {{$bound}}; offset += {{$n}} {
-					innerDIFWithTwiddlesExt6M4(a[offset:offset + {{$n}}], twiddles[stage + {{$step}}])
-				}
+			{{- if eq $m 4}}
+				// m=4, m=2 and m=1 stages, fused on blocks of 8
+				fext.VectorE6(a[:{{$bound}}]).Radix8DIF(twiddles[stage + {{$step}}], twiddles[stage + {{$step}} + 1])
+			{{- else if or (eq $m 2) (eq $m 1)}}
 			{{- else}}
 				for offset := 0; offset < {{$bound}}; offset += {{$n}} {
 					innerDIFWithTwiddlesExt6(a[offset:offset + {{$n}}], twiddles[stage + {{$step}}], 0, {{$m}}, {{$m}})
@@ -450,17 +383,10 @@ func kerDITNP_{{.sizeKernel}}Ext6(a []fext.E6, twiddles [][]{{ .FF }}.Element, s
 		{{- if eq $bound $n}}
 			innerDITWithTwiddlesExt6(a[:{{$n}}], twiddles[stage + {{$step}}], 0, {{$m}}, {{$m}})
 		{{- else}}
-			{{- if eq $m 1}}
-				va := fext.VectorE6(a[:{{$bound}}])
-				va.ButterflyPair()
-			{{- else if eq $m 2}}
-				for offset := 0; offset < {{$bound}}; offset += {{$n}} {
-					innerDITWithTwiddlesExt6M2(a[offset:offset + {{$n}}], twiddles[stage + {{$step}}])
-				}
-			{{- else if eq $m 4}}
-				for offset := 0; offset < {{$bound}}; offset += {{$n}} {
-					innerDITWithTwiddlesExt6M4(a[offset:offset + {{$n}}], twiddles[stage + {{$step}}])
-				}
+			{{- if eq $m 4}}
+				// m=4, m=2 and m=1 stages, fused on blocks of 8
+				fext.VectorE6(a[:{{$bound}}]).Radix8DIT(twiddles[stage + {{$step}}], twiddles[stage + {{$step}} + 1])
+			{{- else if or (eq $m 2) (eq $m 1)}}
 			{{- else}}
 				for offset := 0; offset < {{$bound}}; offset += {{$n}} {
 					innerDITWithTwiddlesExt6(a[offset:offset + {{$n}}], twiddles[stage + {{$step}}], 0, {{$m}}, {{$m}})

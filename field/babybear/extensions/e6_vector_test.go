@@ -197,6 +197,84 @@ func TestVectorE6FusedTwiddles(t *testing.T) {
 	}
 }
 
+func TestVectorE6Radix8(t *testing.T) {
+	twiddles := func(n int) fr.Vector {
+		tw := make(fr.Vector, n)
+		tw[0].SetOne()
+		for i := 1; i < n; i++ {
+			tw[i].MustSetRandom()
+		}
+		return tw
+	}
+	// reference: the per-stage formulas of the Radix8DIT / Radix8DIF docs
+	dit := func(a []E6, tw4, tw2 fr.Vector) {
+		for o := 0; o < len(a); o += 8 {
+			b := a[o : o+8]
+			for i := 0; i < 8; i += 2 {
+				ButterflyE6(&b[i], &b[i+1])
+			}
+			for _, i := range []int{0, 1, 4, 5} {
+				b[i+2].MulByElement(&b[i+2], &tw2[i%2])
+				ButterflyE6(&b[i], &b[i+2])
+			}
+			for i := range 4 {
+				b[i+4].MulByElement(&b[i+4], &tw4[i])
+				ButterflyE6(&b[i], &b[i+4])
+			}
+		}
+	}
+	dif := func(a []E6, tw4, tw2 fr.Vector) {
+		for o := 0; o < len(a); o += 8 {
+			b := a[o : o+8]
+			for i := range 4 {
+				ButterflyE6(&b[i], &b[i+4])
+				b[i+4].MulByElement(&b[i+4], &tw4[i])
+			}
+			for _, i := range []int{0, 1, 4, 5} {
+				ButterflyE6(&b[i], &b[i+2])
+				b[i+2].MulByElement(&b[i+2], &tw2[i%2])
+			}
+			for i := 0; i < 8; i += 2 {
+				ButterflyE6(&b[i], &b[i+1])
+			}
+		}
+	}
+
+	for _, size := range []int{0, 8, 16, 64, 72, 136} {
+		t.Run(strconv.Itoa(size), func(t *testing.T) {
+			tw4, tw2 := twiddles(4), twiddles(2)
+			a := make(VectorE6, size)
+			a.MustSetRandom()
+
+			expected := slices.Clone(a)
+			got := slices.Clone(a)
+			dit(expected, tw4, tw2)
+			got.Radix8DIT(tw4, tw2)
+			require.Equal(t, expected, got, "Radix8DIT")
+
+			expected = slices.Clone(a)
+			got = slices.Clone(a)
+			dif(expected, tw4, tw2)
+			got.Radix8DIF(tw4, tw2)
+			require.Equal(t, expected, got, "Radix8DIF")
+
+			require.Zero(t, testing.AllocsPerRun(10, func() { got.Radix8DIT(tw4, tw2) }), "Radix8DIT allocs")
+			require.Zero(t, testing.AllocsPerRun(10, func() { got.Radix8DIF(tw4, tw2) }), "Radix8DIF allocs")
+		})
+	}
+
+	t.Run("panics", func(t *testing.T) {
+		tw4, tw2 := twiddles(4), twiddles(2)
+		require.NotPanics(t, func() { VectorE6(nil).Radix8DIT(nil, nil) }, "empty vector, no twiddles")
+		require.NotPanics(t, func() { VectorE6(nil).Radix8DIF(nil, nil) }, "empty vector, no twiddles")
+		for _, f := range []func(VectorE6, fr.Vector, fr.Vector){VectorE6.Radix8DIT, VectorE6.Radix8DIF} {
+			require.Panics(t, func() { f(make(VectorE6, 12), tw4, tw2) }, "length not a multiple of 8")
+			require.Panics(t, func() { f(make(VectorE6, 8), tw4[:3], tw2) }, "short twiddles4")
+			require.Panics(t, func() { f(make(VectorE6, 8), tw4, tw2[:1]) }, "short twiddles2")
+		}
+	})
+}
+
 func TestVectorE6MulAccByElement(t *testing.T) {
 	for _, size := range []int{0, 1, 7, 8, 16, 18, 100} {
 		t.Run(strconv.Itoa(size), func(t *testing.T) {

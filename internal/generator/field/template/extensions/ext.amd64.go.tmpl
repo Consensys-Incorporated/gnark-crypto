@@ -142,6 +142,12 @@ func vectorDITWithTwiddles_E6_avx512(a0, a1 *E6, twiddles *fr.Element, N uint64)
 func vectorDIFWithTwiddles_E6_avx512(a0, a1 *E6, twiddles *fr.Element, N uint64)
 
 //go:noescape
+func vectorRadix8DIT_E6_avx512(a *E6, twiddles *fr.Element, N uint64)
+
+//go:noescape
+func vectorRadix8DIF_E6_avx512(a *E6, twiddles *fr.Element, N uint64)
+
+//go:noescape
 func vectorScalarAdd_avx512(res, a *E4, cTiled *fr.Element, N uint64)
 
 //go:noescape

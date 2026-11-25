@@ -1258,6 +1258,182 @@ func (vector VectorE6) ButterflyThenMulByElement(other VectorE6, twiddles fr.Vec
 	}
 }
 
+// Radix8DIT runs the three smallest stages of a decimation-in-time FFT
+// (half-size m=1, m=2 then m=4) on every block of 8 consecutive elements of
+// vector:
+//
+//	m=1: Butterfly(b[i], b[i+1])                              for i = 0, 2, 4, 6
+//	m=2: b[i+2] *= twiddles2[i%2]; Butterfly(b[i], b[i+2])    for i = 0, 1, 4, 5
+//	m=4: b[i+4] *= twiddles4[i];   Butterfly(b[i], b[i+4])    for i = 0..3
+//
+// twiddles4[0] and twiddles2[0] are assumed to be one and are not read.
+// len(vector) must be a multiple of 8 and, if it is not zero,
+// len(twiddles4) >= 4 and len(twiddles2) >= 2; it panics otherwise.
+func (vector VectorE6) Radix8DIT(twiddles4, twiddles2 fr.Vector) {
+	N := len(vector)
+	if N%8 != 0 {
+		panic("vectorE6.Radix8DIT: vector length must be a multiple of 8")
+	}
+	if N == 0 {
+		return
+	}
+	t4, t2 := (*[4]fr.Element)(twiddles4), (*[2]fr.Element)(twiddles2)
+	for i := 0; i < N; i += 8 {
+		radix8DITE6Generic((*[8]E6)(vector[i:i+8]), t4, t2)
+	}
+}
+
+// Radix8DIF runs the three smallest stages of a decimation-in-frequency FFT
+// (half-size m=4, m=2 then m=1) on every block of 8 consecutive elements of
+// vector; it is the transpose of [VectorE6.Radix8DIT]:
+//
+//	m=4: Butterfly(b[i], b[i+4]); b[i+4] *= twiddles4[i]   for i = 0..3
+//	m=2: Butterfly(b[i], b[i+2]); b[i+2] *= twiddles2[i%2] for i = 0, 1, 4, 5
+//	m=1: Butterfly(b[i], b[i+1])                           for i = 0, 2, 4, 6
+//
+// twiddles4[0] and twiddles2[0] are assumed to be one and are not read.
+// len(vector) must be a multiple of 8 and, if it is not zero,
+// len(twiddles4) >= 4 and len(twiddles2) >= 2; it panics otherwise.
+func (vector VectorE6) Radix8DIF(twiddles4, twiddles2 fr.Vector) {
+	N := len(vector)
+	if N%8 != 0 {
+		panic("vectorE6.Radix8DIF: vector length must be a multiple of 8")
+	}
+	if N == 0 {
+		return
+	}
+	t4, t2 := (*[4]fr.Element)(twiddles4), (*[2]fr.Element)(twiddles2)
+	for i := 0; i < N; i += 8 {
+		radix8DIFE6Generic((*[8]E6)(vector[i:i+8]), t4, t2)
+	}
+}
+
+func radix8DITE6Generic(b *[8]E6, t4 *[4]fr.Element, t2 *[2]fr.Element) {
+	for i := 0; i < 8; i += 2 {
+		x, y := &b[i], &b[i+1]
+
+		fr.Butterfly(&x.B0.A0, &y.B0.A0)
+		fr.Butterfly(&x.B0.A1, &y.B0.A1)
+		fr.Butterfly(&x.B1.A0, &y.B1.A0)
+		fr.Butterfly(&x.B1.A1, &y.B1.A1)
+		fr.Butterfly(&x.B2.A0, &y.B2.A0)
+		fr.Butterfly(&x.B2.A1, &y.B2.A1)
+
+	}
+	for i := 0; i < 8; i += 4 {
+		x, y := &b[i], &b[i+2]
+
+		fr.Butterfly(&x.B0.A0, &y.B0.A0)
+		fr.Butterfly(&x.B0.A1, &y.B0.A1)
+		fr.Butterfly(&x.B1.A0, &y.B1.A0)
+		fr.Butterfly(&x.B1.A1, &y.B1.A1)
+		fr.Butterfly(&x.B2.A0, &y.B2.A0)
+		fr.Butterfly(&x.B2.A1, &y.B2.A1)
+
+		x, y = &b[i+1], &b[i+3]
+
+		y.B0.A0.Mul(&y.B0.A0, &t2[1])
+		y.B0.A1.Mul(&y.B0.A1, &t2[1])
+		y.B1.A0.Mul(&y.B1.A0, &t2[1])
+		y.B1.A1.Mul(&y.B1.A1, &t2[1])
+		y.B2.A0.Mul(&y.B2.A0, &t2[1])
+		y.B2.A1.Mul(&y.B2.A1, &t2[1])
+
+		fr.Butterfly(&x.B0.A0, &y.B0.A0)
+		fr.Butterfly(&x.B0.A1, &y.B0.A1)
+		fr.Butterfly(&x.B1.A0, &y.B1.A0)
+		fr.Butterfly(&x.B1.A1, &y.B1.A1)
+		fr.Butterfly(&x.B2.A0, &y.B2.A0)
+		fr.Butterfly(&x.B2.A1, &y.B2.A1)
+
+	}
+	for i := 1; i < 4; i++ {
+		y := &b[i+4]
+
+		y.B0.A0.Mul(&y.B0.A0, &t4[i])
+		y.B0.A1.Mul(&y.B0.A1, &t4[i])
+		y.B1.A0.Mul(&y.B1.A0, &t4[i])
+		y.B1.A1.Mul(&y.B1.A1, &t4[i])
+		y.B2.A0.Mul(&y.B2.A0, &t4[i])
+		y.B2.A1.Mul(&y.B2.A1, &t4[i])
+
+	}
+	for i := 0; i < 4; i++ {
+		x, y := &b[i], &b[i+4]
+
+		fr.Butterfly(&x.B0.A0, &y.B0.A0)
+		fr.Butterfly(&x.B0.A1, &y.B0.A1)
+		fr.Butterfly(&x.B1.A0, &y.B1.A0)
+		fr.Butterfly(&x.B1.A1, &y.B1.A1)
+		fr.Butterfly(&x.B2.A0, &y.B2.A0)
+		fr.Butterfly(&x.B2.A1, &y.B2.A1)
+
+	}
+}
+
+func radix8DIFE6Generic(b *[8]E6, t4 *[4]fr.Element, t2 *[2]fr.Element) {
+	for i := 0; i < 4; i++ {
+		x, y := &b[i], &b[i+4]
+
+		fr.Butterfly(&x.B0.A0, &y.B0.A0)
+		fr.Butterfly(&x.B0.A1, &y.B0.A1)
+		fr.Butterfly(&x.B1.A0, &y.B1.A0)
+		fr.Butterfly(&x.B1.A1, &y.B1.A1)
+		fr.Butterfly(&x.B2.A0, &y.B2.A0)
+		fr.Butterfly(&x.B2.A1, &y.B2.A1)
+
+	}
+	for i := 1; i < 4; i++ {
+		y := &b[i+4]
+
+		y.B0.A0.Mul(&y.B0.A0, &t4[i])
+		y.B0.A1.Mul(&y.B0.A1, &t4[i])
+		y.B1.A0.Mul(&y.B1.A0, &t4[i])
+		y.B1.A1.Mul(&y.B1.A1, &t4[i])
+		y.B2.A0.Mul(&y.B2.A0, &t4[i])
+		y.B2.A1.Mul(&y.B2.A1, &t4[i])
+
+	}
+	for i := 0; i < 8; i += 4 {
+		x, y := &b[i], &b[i+2]
+
+		fr.Butterfly(&x.B0.A0, &y.B0.A0)
+		fr.Butterfly(&x.B0.A1, &y.B0.A1)
+		fr.Butterfly(&x.B1.A0, &y.B1.A0)
+		fr.Butterfly(&x.B1.A1, &y.B1.A1)
+		fr.Butterfly(&x.B2.A0, &y.B2.A0)
+		fr.Butterfly(&x.B2.A1, &y.B2.A1)
+
+		x, y = &b[i+1], &b[i+3]
+
+		fr.Butterfly(&x.B0.A0, &y.B0.A0)
+		fr.Butterfly(&x.B0.A1, &y.B0.A1)
+		fr.Butterfly(&x.B1.A0, &y.B1.A0)
+		fr.Butterfly(&x.B1.A1, &y.B1.A1)
+		fr.Butterfly(&x.B2.A0, &y.B2.A0)
+		fr.Butterfly(&x.B2.A1, &y.B2.A1)
+
+		y.B0.A0.Mul(&y.B0.A0, &t2[1])
+		y.B0.A1.Mul(&y.B0.A1, &t2[1])
+		y.B1.A0.Mul(&y.B1.A0, &t2[1])
+		y.B1.A1.Mul(&y.B1.A1, &t2[1])
+		y.B2.A0.Mul(&y.B2.A0, &t2[1])
+		y.B2.A1.Mul(&y.B2.A1, &t2[1])
+
+	}
+	for i := 0; i < 8; i += 2 {
+		x, y := &b[i], &b[i+1]
+
+		fr.Butterfly(&x.B0.A0, &y.B0.A0)
+		fr.Butterfly(&x.B0.A1, &y.B0.A1)
+		fr.Butterfly(&x.B1.A0, &y.B1.A0)
+		fr.Butterfly(&x.B1.A1, &y.B1.A1)
+		fr.Butterfly(&x.B2.A0, &y.B2.A0)
+		fr.Butterfly(&x.B2.A1, &y.B2.A1)
+
+	}
+}
+
 // MulByElement multiplies each element of a by the corresponding scalar in b and
 // stores the result in vector.
 func (vector VectorE6) MulByElement(a VectorE6, b fr.Vector) {
