@@ -162,7 +162,7 @@ func (_f *FFAmd64) generateRadix8VecE6(dit bool) {
 			// data comes from DRAM and the hardware prefetcher falls behind:
 			// fetch 24 lines (one iteration's worth) 3584 bytes ahead.
 			for i := range 24 {
-				f.WriteLn("\tPREFETCHT0 " + strconv.Itoa(3584+64*i) + "(" + string(addrA) + ")")
+				f.PREFETCHT0(strconv.Itoa(3584+64*i) + "(" + string(addrA) + ")")
 			}
 		}
 		for j := range 3 {

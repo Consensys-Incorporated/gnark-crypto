@@ -1644,7 +1644,8 @@ func (vector VectorE6) ButterflyThenMulByElement(other VectorE6, twiddles fr.Vec
 //	m=4: b[i+4] *= twiddles4[i];   Butterfly(b[i], b[i+4])    for i = 0..3
 //
 // twiddles4[0] and twiddles2[0] are assumed to be one and are not read.
-// len(vector) must be a multiple of 8.
+// len(vector) must be a multiple of 8 and, if it is not zero,
+// len(twiddles4) >= 4 and len(twiddles2) >= 2; it panics otherwise.
 func (vector VectorE6) Radix8DIT(twiddles4, twiddles2 fr.Vector) {
 	N := len(vector)
 	if N%8 != 0 {
@@ -1675,7 +1676,8 @@ func (vector VectorE6) Radix8DIT(twiddles4, twiddles2 fr.Vector) {
 //	m=1: Butterfly(b[i], b[i+1])                           for i = 0, 2, 4, 6
 //
 // twiddles4[0] and twiddles2[0] are assumed to be one and are not read.
-// len(vector) must be a multiple of 8.
+// len(vector) must be a multiple of 8 and, if it is not zero,
+// len(twiddles4) >= 4 and len(twiddles2) >= 2; it panics otherwise.
 func (vector VectorE6) Radix8DIF(twiddles4, twiddles2 fr.Vector) {
 	N := len(vector)
 	if N%8 != 0 {

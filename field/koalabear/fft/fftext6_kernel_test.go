@@ -38,53 +38,62 @@ func TestExt6SmallKernelSpecializations(t *testing.T) {
 		return tw
 	}
 
-	tw1 := randomTwiddles(1) // {1}
-
-	run := func(t *testing.T) {
-		t.Helper()
-		for _, n := range []int{8, 16, 64, 72, 128, 200, 512} {
-			for i := 0; i < 16; i++ {
-				a := make([]fext.E6, n)
-				for j := range a {
-					a[j].MustSetRandom()
-				}
-				if i == 2 {
-					// boundary values: every coordinate q-1 or 0
-					var m1 koalabear.Element
-					m1.SetOne().Neg(&m1)
-					for j := range a {
-						if j%3 == 0 {
-							a[j].SetZero()
-						} else {
-							a[j].B0.A0, a[j].B0.A1 = m1, m1
-							a[j].B1.A0, a[j].B1.A1 = m1, m1
-							a[j].B2.A0, a[j].B2.A1 = m1, m1
-						}
-					}
-				}
-				tw4, tw2 := domain.twiddles[6], domain.twiddles[7]
-				if i%2 == 1 {
-					tw4, tw2 = randomTwiddles(4), randomTwiddles(2)
-				}
-
-				ref := append([]fext.E6(nil), a...)
-				got := append([]fext.E6(nil), a...)
-				ditStage(ref, tw1, 1)
-				ditStage(ref, tw2, 2)
-				ditStage(ref, tw4, 4)
-				fext.VectorE6(got).Radix8DIT(tw4, tw2)
-				require.Equal(t, ref, got, "DIT n=%d", n)
-
-				ref = append(ref[:0], a...)
-				got = append(got[:0], a...)
-				difStage(ref, tw4, 4)
-				difStage(ref, tw2, 2)
-				difStage(ref, tw1, 1)
-				fext.VectorE6(got).Radix8DIF(tw4, tw2)
-				require.Equal(t, ref, got, "DIF n=%d", n)
-			}
+	// raw limb q-1, the largest canonical value
+	maxLimb := koalabear.Element{0x7f000000}
+	require.Equal(t, koalabear.Modulus().Uint64()-1, uint64(maxLimb[0]))
+	maxLimbTwiddles := func(n int) []koalabear.Element {
+		tw := make([]koalabear.Element, n)
+		tw[0].SetOne()
+		for i := 1; i < n; i++ {
+			tw[i] = maxLimb
 		}
+		return tw
 	}
 
-	run(t)
+	tw1 := randomTwiddles(1) // {1}
+
+	for _, n := range []int{8, 16, 64, 72, 128, 200, 512} {
+		for i := 0; i < 16; i++ {
+			a := make([]fext.E6, n)
+			for j := range a {
+				a[j].MustSetRandom()
+			}
+			if i == 2 || i == 3 {
+				// boundary values: every coordinate is the max raw limb q-1
+				// or 0, to stress the [0, 2q) lazy-sub + mulTwiddle bound
+				for j := range a {
+					if j%3 == 0 {
+						a[j].SetZero()
+					} else {
+						a[j].B0.A0, a[j].B0.A1 = maxLimb, maxLimb
+						a[j].B1.A0, a[j].B1.A1 = maxLimb, maxLimb
+						a[j].B2.A0, a[j].B2.A1 = maxLimb, maxLimb
+					}
+				}
+			}
+			tw4, tw2 := domain.twiddles[6], domain.twiddles[7]
+			switch {
+			case i == 3:
+				tw4, tw2 = maxLimbTwiddles(4), maxLimbTwiddles(2)
+			case i%2 == 1:
+				tw4, tw2 = randomTwiddles(4), randomTwiddles(2)
+			}
+
+			ref := append([]fext.E6(nil), a...)
+			got := append([]fext.E6(nil), a...)
+			ditStage(ref, tw1, 1)
+			ditStage(ref, tw2, 2)
+			ditStage(ref, tw4, 4)
+			fext.VectorE6(got).Radix8DIT(tw4, tw2)
+			require.Equal(t, ref, got, "DIT n=%d", n)
+
+			ref = append(ref[:0], a...)
+			got = append(got[:0], a...)
+			difStage(ref, tw4, 4)
+			difStage(ref, tw2, 2)
+			difStage(ref, tw1, 1)
+			fext.VectorE6(got).Radix8DIF(tw4, tw2)
+			require.Equal(t, ref, got, "DIF n=%d", n)
+		}
+	}
 }
