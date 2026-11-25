@@ -221,6 +221,32 @@ func BenchmarkElementSquare(b *testing.B) {
 	}
 }
 
+// BenchmarkElementInverseRandom cycles through many inputs: with a single fixed input
+// the branch predictor learns the whole run, which is not representative.
+func BenchmarkElementInverseRandom(b *testing.B) {
+	var x [1024]Element
+	for i := range x {
+		x[i].MustSetRandom()
+	}
+	b.ResetTimer()
+	for i := range b.N {
+		benchResElement.Inverse(&x[i%len(x)])
+	}
+}
+
+func BenchmarkElementLegendre(b *testing.B) {
+	var x [1024]Element
+	for i := range x {
+		x[i].MustSetRandom()
+	}
+	var r int
+	b.ResetTimer()
+	for i := range b.N {
+		r += x[i%len(x)].Legendre()
+	}
+	benchResElement.SetInt64(int64(r))
+}
+
 func BenchmarkElementSqrt(b *testing.B) {
 	var a Element
 	a.MustSetRandom()
@@ -2795,6 +2821,28 @@ func TestElementInversionCorrectionFactorFormula(t *testing.T) {
 
 	if refFactorInt.Cmp(factorInt) != 0 {
 		t.Error("mismatch")
+	}
+}
+
+func TestElementInversionCorrectionFactorsTable(t *testing.T) {
+	// the last entry is the factor for a full run
+	last := Element{
+		inversionCorrectionFactorWord0,
+		inversionCorrectionFactorWord1,
+		inversionCorrectionFactorWord2,
+		inversionCorrectionFactorWord3,
+	}
+	if inversionCorrectionFactors[invIterationsN/2] != last {
+		t.Fatal("last correction factor mismatch")
+	}
+	// each missed pair of iterations costs a Montgomery multiplication by 2²⁽ᵏ⁻¹⁾
+	pSq := Element{1 << (2 * (k - 1))}
+	for j := invIterationsN/2 - 1; j >= 0; j-- {
+		var f Element
+		f.Mul(&inversionCorrectionFactors[j+1], &pSq)
+		if f != inversionCorrectionFactors[j] {
+			t.Fatalf("correction factor %d mismatch", j)
+		}
 	}
 }
 

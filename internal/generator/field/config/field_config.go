@@ -56,6 +56,7 @@ type Field struct {
 	NbWordsIndexesNoZero       []int
 	NbWordsIndexesFull         []int
 	P20InversionCorrectiveFac  []uint64
+	P20InversionCorrectiveFacs [][]uint64 // [j]: correction factor when Inverse stops after 2j outer iterations
 	P20InversionNbIterations   int
 	UsingP20Inverse            bool
 	IsMSWSaturated             bool // indicates if the most significant word is 0xFFFFF...FFFF
@@ -373,6 +374,21 @@ func NewFieldConfig(packageName, elementName, modulus string, useAddChain bool, 
 		c := F.NbWords * 64
 		// TODO @gbotrel check inverse performance for 32 bits
 		F.UsingP20Inverse = F.NbWords > 1 && F.NbBits < c && F.Word.BitSize == 64
+	}
+
+	// Inverse pads every missed pair of outer iterations with a Montgomery
+	// multiplication by 2²⁽ᵏ⁻¹⁾, i.e. a factor 2²⁽ᵏ⁻¹⁾⁻ᴿᴮⁱᵗˢ. Precompute the combined
+	// factor for every possible (even) stopping point i = 2j instead.
+	if F.UsingP20Inverse {
+		step := big.NewInt(1)
+		step.Lsh(step, F.RBits-uint(2*(k-1))).ModInverse(step, &bModulus) // 2^(2(k-1) - RBits)
+		nbFacs := F.P20InversionNbIterations/2 + 1
+		F.P20InversionCorrectiveFacs = make([][]uint64, nbFacs)
+		f := new(big.Int).Set(p20InversionCorrectiveFac)
+		for j := nbFacs - 1; j >= 0; j-- {
+			F.P20InversionCorrectiveFacs[j] = toUint64Slice(f, F.NbWords)
+			f.Mul(f, step).Mod(f, &bModulus)
+		}
 	}
 
 	// rsquare

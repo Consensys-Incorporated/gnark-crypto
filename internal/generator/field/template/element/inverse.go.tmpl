@@ -115,6 +115,14 @@ inversionCorrectionFactorWord{{$i}} = {{index $.P20InversionCorrectiveFac $i}}
 invIterationsN = {{.P20InversionNbIterations}}
 )
 
+// inversionCorrectionFactors[j] is the correction factor applied when [Inverse]
+// stops after 2j outer iterations; the last entry equals inversionCorrectionFactorWord*.
+var inversionCorrectionFactors = [invIterationsN/2 + 1]{{.ElementName}}{
+{{- range $f := .P20InversionCorrectiveFacs}}
+    { {{- range $w := $f}}{{$w}}, {{end -}} },
+{{- end}}
+}
+
 // Inverse z = x⁻¹ (mod q)
 //
 // if x == 0, sets and returns z = x
@@ -151,33 +159,39 @@ func (z *{{.ElementName}}) Inverse(x *{{.ElementName}}) *{{.ElementName}} {
 		// f₀, g₀, f₁, g₁ = 1, 0, 0, 1
  		c0, c1 = updateFactorIdentityMatrixRow0, updateFactorIdentityMatrixRow1
 
+		// Branchless inner loop: the parity of a and the sign of a-b are close to
+		// random, so a branchy version mispredicts on most iterations.
+		// Each iteration computes
+		//   if a is odd:  if a < b: (a, b), (f₀, f₁) ← (b, a), (f₁, f₀)
+		//                 a, f₀ ← a - b, f₀ - f₁
+		//   a, f₁ ← a/2, 2f₁
 		for range approxLowBitsN {
 
 			// -2ʲ < f₀, f₁ ≤ 2ʲ
 			// |f₀| + |f₁| < 2ʲ⁺¹
 
-			if aApprox&1 == 0 {
-				aApprox /= 2
-			} else {
-				s, borrow := bits.Sub64(aApprox, bApprox, 0)
-				if borrow == 1 {
-					s = bApprox - aApprox
-					bApprox = aApprox
-					c0, c1 = c1, c0
-					// invariants unchanged
-				}
+			odd := -(aApprox & 1) // all ones iff a is odd
+			_, borrow := bits.Sub64(aApprox, bApprox, 0)
+			swap := odd & -borrow // all ones iff a is odd and a < b
 
-				aApprox = s / 2
-				c0 = c0 - c1
+			t := (aApprox ^ bApprox) & swap
+			aApprox ^= t
+			bApprox ^= t
+			tc := (c0 ^ c1) & int64(swap)
+			c0 ^= tc
+			c1 ^= tc
+			// invariants unchanged by the swap
 
-				// Now |f₀| < 2ʲ⁺¹ ≤ 2ʲ⁺¹ (only the weaker inequality is needed, strictly speaking)
-                // Started with f₀ > -2ʲ and f₁ ≤ 2ʲ, so f₀ - f₁ > -2ʲ⁺¹
-                // Invariants unchanged for f₁
-			}
+			aApprox -= bApprox & odd
+			c0 -= c1 & int64(odd)
+			// Now |f₀| < 2ʲ⁺¹ ≤ 2ʲ⁺¹ (only the weaker inequality is needed, strictly speaking)
+			// Started with f₀ > -2ʲ and f₁ ≤ 2ʲ, so f₀ - f₁ > -2ʲ⁺¹
+			// Invariants unchanged for f₁
 
-			c1 *= 2
+			aApprox >>= 1
+			c1 <<= 1
 			// -2ʲ⁺¹ < f₁ ≤ 2ʲ⁺¹
-            // So now |f₀| + |f₁| < 2ʲ⁺²
+			// So now |f₀| + |f₁| < 2ʲ⁺²
 		}
 
 		s = a
@@ -247,25 +261,18 @@ func (z *{{.ElementName}}) Inverse(x *{{.ElementName}}) *{{.ElementName}} {
 		}
 	}
 
-	// For every iteration that we miss, v is not being multiplied by 2ᵏ⁻²
-	const pSq uint64 = 1 << (2 * (k - 1))
-	a = {{.ElementName}}{pSq}
-	// If the function is constant-time ish, this loop will not run (no need to take it out explicitly)
-	for ; i < invIterationsN; i += 2 {
-		// could optimize further with mul by word routine or by pre-computing a table since with k=26,
-		// we would multiply by pSq up to 13times;
-		// on x86, the assembly routine outperforms generic code for mul by word
-		// on arm64, we may loose up to ~5% for 6 limbs
-		v.Mul(&v, &a)
-	}
-
 	u.Set(x) // for correctness check
 
-	z.Mul(&v, &{{.ElementName}}{
-		{{- range $i := .NbWordsIndexesFull }}
-		inversionCorrectionFactorWord{{$i}},
-		{{- end}}
-	})
+	// For every pair of iterations that we miss, v is not being multiplied by 2²⁽ᵏ⁻¹⁾.
+	// Typical inputs stop well before invIterationsN, so instead of padding with one
+	// field multiplication per missed pair, the correction factor for each possible
+	// stopping point is precomputed: inversionCorrectionFactors[i/2] = c · (2²⁽ᵏ⁻¹⁾ / R)ⁿ
+	// with n = (invIterationsN - i)/2, where c is the factor used when i = invIterationsN.
+	if i > invIterationsN {
+		// cannot happen (invIterationsN is an upper bound); the correctness check below would catch it
+		i = invIterationsN
+	}
+	z.Mul(&v, &inversionCorrectionFactors[i/2])
 
 	// correctness check
     v.Mul(&u, z)

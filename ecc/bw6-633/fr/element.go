@@ -1510,7 +1510,8 @@ func (z *Element) Legendre() int {
 
 	var s Element
 
-	l := 1 // loop invariant: (x|q) = (a|b) . l
+	// l holds the symbol as a parity bit, (-1)^(l&1); only bit 0 is meaningful
+	var l uint64 // loop invariant: (x|q) = (a|b) . (-1)^l
 	// This means that every time a and b are updated into a' and b',
 	// l is updated into l' = (x|q)(a'|b')=(x|q)(a|b)(a|b)(a'|b') = l (a|b)(a'|b')
 	// During the algorithm's run, there is no guarantee that b remains prime, or even positive.
@@ -1525,56 +1526,46 @@ func (z *Element) Legendre() int {
 
 		const nbIterations = k - 2
 		// running fewer iterations because we need access to 3 low bits from b, rather than 1 in the inversion algorithm
+		// Branchless inner loop: the parity of a, the sign of a-b and the low bits of b
+		// are close to random, so branching on them mispredicts on most iterations.
 		for range nbIterations {
+			odd := -(aApprox & 1) // all ones iff a is odd
+			_, borrow := bits.Sub64(aApprox, bApprox, 0)
+			swap := odd & -borrow // all ones iff a is odd and a < b
 
-			if aApprox&1 == 0 {
-				aApprox /= 2
+			// On a swap we compute (b-a|a) instead of (a-b|b).
+			// (x-y|z) = (x|z) unless z < 0 and sign(x-y) ≠ sign(x)
+			// Pornin20 asserts that at least one of a and b is non-negative.
+			// If a is non-negative, we immediately get (b-a|a) = (b|a)
+			// If a is negative, b-a > b. But b is already non-negative, so the b-a and b have the same sign.
+			// Thus in that case also (b-a|a) = (b|a)
+			// Since not both a and b are negative, we get a quadratic reciprocity law
+			// like that of the Legendre symbol: (b|a) = (a|b), unless a, b ≡ 3 (mod 4), in which case (b|a) = -(a|b)
+			// a and b are odd here, so a, b ≡ 3 (mod 4) iff bit 1 of a&b is set.
+			l ^= swap & ((aApprox & bApprox) >> 1)
 
-				// update the Kronecker symbol
-				//
-				// (a/2 | b) (2|b) = (a|b)
-				//
-				// b is either odd or zero, the latter case implying a non-trivial GCD and an ultimate result of 0,
-				// regardless of what value l holds.
-				// So in updating l, we may assume that b is odd.
-				// Since a is even, we only need to correctly compute l if b is odd.
-				// if b is also even, the non-trivial GCD will result in the function returning 0 anyway.
-				// so we may here assume b is odd.
-				// (2|b) = 1 if b ≡ 1 or 7 (mod 8), and -1 if b ≡ 3 or 5 (mod 8)
-				if bMod8 := bApprox & 7; bMod8 == 3 || bMod8 == 5 {
-					l = -l
-				}
+			t := (aApprox ^ bApprox) & swap
+			aApprox ^= t
+			bApprox ^= t
+			tc := (c0 ^ c1) & int64(swap)
+			c0 ^= tc
+			c1 ^= tc
 
-			} else {
-				s, borrow := bits.Sub64(aApprox, bApprox, 0)
-				if borrow == 1 {
-					// Compute (b-a|a)
-					// (x-y|z) = (x|z) unless z < 0 and sign(x-y) ≠ sign(x)
-					// Pornin20 asserts that at least one of a and b is non-negative.
-					// If a is non-negative, we immediately get (b-a|a) = (b|a)
-					// If a is negative, b-a > b. But b is already non-negative, so the b-a and b have the same sign.
-					// Thus in that case also (b-a|a) = (b|a)
-					// Since not both a and b are negative, we get a quadratic reciprocity law
-					// like that of the Legendre symbol: (b|a) = (a|b), unless a, b ≡ 3 (mod 4), in which case (b|a) = -(a|b)
-					if bApprox&3 == 3 && aApprox&3 == 3 {
-						l = -l
-					}
+			aApprox -= bApprox & odd
+			c0 -= c1 & int64(odd)
 
-					s = bApprox - aApprox
-					bApprox = aApprox
-					c0, c1 = c1, c0
-				}
+			aApprox >>= 1
+			c1 <<= 1
 
-				aApprox = s / 2
-				c0 = c0 - c1
-
-				// update l to reflect halving a, just like in the case where a is even
-				if bMod8 := bApprox & 7; bMod8 == 3 || bMod8 == 5 {
-					l = -l
-				}
-			}
-
-			c1 *= 2
+			// update the Kronecker symbol for the halving of a
+			//
+			// (a/2 | b) (2|b) = (a|b)
+			//
+			// b is either odd or zero, the latter case implying a non-trivial GCD and an ultimate result of 0,
+			// regardless of what value l holds. So in updating l, we may assume that b is odd.
+			// (2|b) = 1 if b ≡ 1 or 7 (mod 8), and -1 if b ≡ 3 or 5 (mod 8),
+			// i.e. (2|b) = -1 iff bits 1 and 2 of b differ.
+			l ^= (bApprox >> 1) ^ (bApprox >> 2)
 		}
 
 		s = a
@@ -1589,9 +1580,8 @@ func (z *Element) Legendre() int {
 			// Since a is negative, b is not and hence b ≠ -1
 			// So we get (-a|b)=(-1|b)(a|b)
 			// b is odd so we get (-1|b) = 1 if b ≡ 1 (mod 4) and -1 otherwise.
-			if bApprox&3 == 3 { // we still have two valid lower bits for b
-				l = -l
-			}
+			// we still have two valid lower bits for b, and b is odd
+			l ^= bApprox >> 1
 		}
 		// right-shift a by k-2 bits
 		a[0] = (a[0] >> nbIterations) | ((a[1]) << (2*k - nbIterations))
@@ -1619,7 +1609,7 @@ func (z *Element) Legendre() int {
 	}
 
 	if b[0] == 1 && (b[1]|b[2]|b[3]|b[4]) == 0 {
-		return l // (0|1) = 1
+		return 1 - 2*int(l&1) // (0|1) = 1
 	} else {
 		return 0 // if b ≠ 1, then (z,q) ≠ 0 ⇒ (z|q) = 0
 	}
@@ -1977,6 +1967,23 @@ const (
 	invIterationsN                 = 22
 )
 
+// inversionCorrectionFactors[j] is the correction factor applied when [Inverse]
+// stops after 2j outer iterations; the last entry equals inversionCorrectionFactorWord*.
+var inversionCorrectionFactors = [invIterationsN/2 + 1]Element{
+	{7679166771343331219, 3759450824445828256, 9743503640594283455, 843272781087956480, 5701168990259597},
+	{6781872098348138142, 11492598201168048478, 13328533801626082294, 9562112576206273436, 254081091963421519},
+	{6598548379644302917, 4449831881565803823, 12241688149032081502, 4930829734620869163, 91511941536921333},
+	{4756537190329890938, 14277623570060422964, 9550412560904871296, 2323828758037169196, 205458285101719705},
+	{10129008650950340076, 10156761737391905835, 790603994560488740, 3961960117853211802, 96356858298602344},
+	{11025565784329249604, 10433043412473238637, 8626890781862920021, 10250083468700205396, 177264320580247788},
+	{5088966660667920692, 4594236683065546551, 17176737961786473563, 11118031528099138627, 5746983887862207},
+	{2516878890875703681, 16466495468895370369, 3883443631897092310, 6628791980125436688, 172596772264849094},
+	{15208064759748166704, 18261397222750681009, 3433045997210965213, 11460227234221134993, 133150336618597221},
+	{13402324410187369908, 10649477350863112502, 2074061788329718330, 10557828833871868712, 54696765115869727},
+	{11895833815047052419, 14427697661962319307, 7092746980939793543, 12478275446743240102, 341414183218306161},
+	{13359241550610159594, 7624632887220174691, 6412344873752403825, 11214014560053792263, 75428258669939399},
+}
+
 // Inverse z = x⁻¹ (mod q)
 //
 // if x == 0, sets and returns z = x
@@ -2016,31 +2023,37 @@ func (z *Element) Inverse(x *Element) *Element {
 		// f₀, g₀, f₁, g₁ = 1, 0, 0, 1
 		c0, c1 = updateFactorIdentityMatrixRow0, updateFactorIdentityMatrixRow1
 
+		// Branchless inner loop: the parity of a and the sign of a-b are close to
+		// random, so a branchy version mispredicts on most iterations.
+		// Each iteration computes
+		//   if a is odd:  if a < b: (a, b), (f₀, f₁) ← (b, a), (f₁, f₀)
+		//                 a, f₀ ← a - b, f₀ - f₁
+		//   a, f₁ ← a/2, 2f₁
 		for range approxLowBitsN {
 
 			// -2ʲ < f₀, f₁ ≤ 2ʲ
 			// |f₀| + |f₁| < 2ʲ⁺¹
 
-			if aApprox&1 == 0 {
-				aApprox /= 2
-			} else {
-				s, borrow := bits.Sub64(aApprox, bApprox, 0)
-				if borrow == 1 {
-					s = bApprox - aApprox
-					bApprox = aApprox
-					c0, c1 = c1, c0
-					// invariants unchanged
-				}
+			odd := -(aApprox & 1) // all ones iff a is odd
+			_, borrow := bits.Sub64(aApprox, bApprox, 0)
+			swap := odd & -borrow // all ones iff a is odd and a < b
 
-				aApprox = s / 2
-				c0 = c0 - c1
+			t := (aApprox ^ bApprox) & swap
+			aApprox ^= t
+			bApprox ^= t
+			tc := (c0 ^ c1) & int64(swap)
+			c0 ^= tc
+			c1 ^= tc
+			// invariants unchanged by the swap
 
-				// Now |f₀| < 2ʲ⁺¹ ≤ 2ʲ⁺¹ (only the weaker inequality is needed, strictly speaking)
-				// Started with f₀ > -2ʲ and f₁ ≤ 2ʲ, so f₀ - f₁ > -2ʲ⁺¹
-				// Invariants unchanged for f₁
-			}
+			aApprox -= bApprox & odd
+			c0 -= c1 & int64(odd)
+			// Now |f₀| < 2ʲ⁺¹ ≤ 2ʲ⁺¹ (only the weaker inequality is needed, strictly speaking)
+			// Started with f₀ > -2ʲ and f₁ ≤ 2ʲ, so f₀ - f₁ > -2ʲ⁺¹
+			// Invariants unchanged for f₁
 
-			c1 *= 2
+			aApprox >>= 1
+			c1 <<= 1
 			// -2ʲ⁺¹ < f₁ ≤ 2ʲ⁺¹
 			// So now |f₀| + |f₁| < 2ʲ⁺²
 		}
@@ -2106,27 +2119,18 @@ func (z *Element) Inverse(x *Element) *Element {
 		}
 	}
 
-	// For every iteration that we miss, v is not being multiplied by 2ᵏ⁻²
-	const pSq uint64 = 1 << (2 * (k - 1))
-	a = Element{pSq}
-	// If the function is constant-time ish, this loop will not run (no need to take it out explicitly)
-	for ; i < invIterationsN; i += 2 {
-		// could optimize further with mul by word routine or by pre-computing a table since with k=26,
-		// we would multiply by pSq up to 13times;
-		// on x86, the assembly routine outperforms generic code for mul by word
-		// on arm64, we may loose up to ~5% for 6 limbs
-		v.Mul(&v, &a)
-	}
-
 	u.Set(x) // for correctness check
 
-	z.Mul(&v, &Element{
-		inversionCorrectionFactorWord0,
-		inversionCorrectionFactorWord1,
-		inversionCorrectionFactorWord2,
-		inversionCorrectionFactorWord3,
-		inversionCorrectionFactorWord4,
-	})
+	// For every pair of iterations that we miss, v is not being multiplied by 2²⁽ᵏ⁻¹⁾.
+	// Typical inputs stop well before invIterationsN, so instead of padding with one
+	// field multiplication per missed pair, the correction factor for each possible
+	// stopping point is precomputed: inversionCorrectionFactors[i/2] = c · (2²⁽ᵏ⁻¹⁾ / R)ⁿ
+	// with n = (invIterationsN - i)/2, where c is the factor used when i = invIterationsN.
+	if i > invIterationsN {
+		// cannot happen (invIterationsN is an upper bound); the correctness check below would catch it
+		i = invIterationsN
+	}
+	z.Mul(&v, &inversionCorrectionFactors[i/2])
 
 	// correctness check
 	v.Mul(&u, z)
