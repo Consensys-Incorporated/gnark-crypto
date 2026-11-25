@@ -1238,11 +1238,12 @@ func (vector VectorE6) Radix8DIT(twiddles4, twiddles2 fr.Vector) {
 	}
 	t4, t2 := (*[4]fr.Element)(twiddles4), (*[2]fr.Element)(twiddles2)
 {{- if .IsKoalaBear }}
-	if cpu.SupportAVX512 {
-		var tw [48]fr.Element
+	if n64 := N &^ 63; n64 != 0 && cpu.SupportAVX512 {
+		// the kernel takes 64 elements at a time; the rest is done below
+		var tw [64]fr.Element
 		radix8TwiddlesE6(&tw, t4, t2)
-		vectorRadix8DIT_E6_avx512(&vector[0], &tw[0], uint64(N))
-		return
+		vectorRadix8DIT_E6_avx512(&vector[0], &tw[0], uint64(n64))
+		vector, N = vector[n64:], N-n64
 	}
 {{- end }}
 	for i := 0; i < N; i += 8 {
@@ -1270,11 +1271,12 @@ func (vector VectorE6) Radix8DIF(twiddles4, twiddles2 fr.Vector) {
 	}
 	t4, t2 := (*[4]fr.Element)(twiddles4), (*[2]fr.Element)(twiddles2)
 {{- if .IsKoalaBear }}
-	if cpu.SupportAVX512 {
-		var tw [48]fr.Element
+	if n64 := N &^ 63; n64 != 0 && cpu.SupportAVX512 {
+		// the kernel takes 64 elements at a time; the rest is done below
+		var tw [64]fr.Element
 		radix8TwiddlesE6(&tw, t4, t2)
-		vectorRadix8DIF_E6_avx512(&vector[0], &tw[0], uint64(N))
-		return
+		vectorRadix8DIF_E6_avx512(&vector[0], &tw[0], uint64(n64))
+		vector, N = vector[n64:], N-n64
 	}
 {{- end }}
 	for i := 0; i < N; i += 8 {
@@ -1284,21 +1286,15 @@ func (vector VectorE6) Radix8DIF(twiddles4, twiddles2 fr.Vector) {
 
 {{- if .IsKoalaBear }}
 
-// radix8TwiddlesE6 lays out the twiddles of [VectorE6.Radix8DIT] /
-// [VectorE6.Radix8DIF] as the 3 zmm multipliers the AVX-512 kernels apply to a
-// block of 8 E6 expanded into 4 zmm of 2 E6 each (R0 = [e0 e1] ... R3 = [e6 e7],
-// lanes 0..11): m=4 for R2 and R3, then m=2 for R1 and R3. Lanes that are not
-// multiplied hold one.
-func radix8TwiddlesE6(tw *[48]fr.Element, t4 *[4]fr.Element, t2 *[2]fr.Element) {
-	one := fr.One()
-	for i := range tw {
-		tw[i] = one
-	}
-	for i := 0; i < 6; i++ {
-		tw[6+i] = t4[1]     // m=4, R2 = [e4 e5]
-		tw[16+i] = t4[2]    // m=4, R3 = [e6 e7]
-		tw[16+6+i] = t4[3]
-		tw[32+6+i] = t2[1]  // m=2, R1 = [e2 e3] and R3 = [e6 e7]
+// radix8TwiddlesE6 lays out the twiddles of the AVX-512 kernels of
+// [VectorE6.Radix8DIT] / [VectorE6.Radix8DIF]: t4[1], t4[2], t4[3] and t2[1],
+// each broadcast to a zmm.
+func radix8TwiddlesE6(tw *[64]fr.Element, t4 *[4]fr.Element, t2 *[2]fr.Element) {
+	for i := 0; i < 16; i++ {
+		tw[i] = t4[1]
+		tw[16+i] = t4[2]
+		tw[32+i] = t4[3]
+		tw[48+i] = t2[1]
 	}
 }
 {{- end }}

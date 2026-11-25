@@ -42,11 +42,25 @@ func TestExt6SmallKernelSpecializations(t *testing.T) {
 
 	run := func(t *testing.T) {
 		t.Helper()
-		for _, n := range []int{8, 16, 64, 512} {
+		for _, n := range []int{8, 16, 64, 72, 128, 200, 512} {
 			for i := 0; i < 16; i++ {
 				a := make([]fext.E6, n)
 				for j := range a {
 					a[j].MustSetRandom()
+				}
+				if i == 2 {
+					// boundary values: every coordinate q-1 or 0
+					var m1 koalabear.Element
+					m1.SetOne().Neg(&m1)
+					for j := range a {
+						if j%3 == 0 {
+							a[j].SetZero()
+						} else {
+							a[j].B0.A0, a[j].B0.A1 = m1, m1
+							a[j].B1.A0, a[j].B1.A1 = m1, m1
+							a[j].B2.A0, a[j].B2.A1 = m1, m1
+						}
+					}
 				}
 				tw4, tw2 := domain.twiddles[6], domain.twiddles[7]
 				if i%2 == 1 {
