@@ -24,19 +24,20 @@ func GenerateFF(F *config.Field, outputDir string, options ...Option) error {
 	cfg := generatorOptions(options...)
 
 	// generate asm
-	// note: we need to do that before the fields, as the fields will include a hash of the (shared)
-	// asm files to force a recompile of the field package if the asm files have changed
-	var hashArm64, hashAMD64 string
+	// Generate the shared source before the fields so each package can embed it.
+	// Keeping the instructions in the package lets Go's -trimpath and build cache
+	// cover them without relying on assembly includes outside the package directory.
+	var sourceARM64, sourceAMD64 string
 	var err error
 	if cfg.HasArm64() {
-		hashArm64, err = generateARM64(F, cfg.asmConfig)
+		sourceARM64, err = generateARM64(F, cfg.asmConfig)
 		if err != nil {
 			return err
 		}
 	}
 
 	if cfg.HasAMD64() {
-		hashAMD64, err = generateAMD64(F, cfg.asmConfig)
+		sourceAMD64, err = generateAMD64(F, cfg.asmConfig)
 		if err != nil {
 			return err
 		}
@@ -50,7 +51,7 @@ func GenerateFF(F *config.Field, outputDir string, options ...Option) error {
 		}
 		asmIncludeDir = cfg.asmConfig.IncludeDir
 	}
-	if err := generateField(F, outputDir, asmIncludeDir, hashArm64, hashAMD64); err != nil {
+	if err := generateField(F, outputDir, asmIncludeDir, sourceARM64, sourceAMD64); err != nil {
 		return err
 	}
 

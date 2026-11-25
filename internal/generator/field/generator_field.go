@@ -7,13 +7,12 @@ import (
 	"github.com/consensys/gnark-crypto/internal/generator/addchain"
 	"github.com/consensys/gnark-crypto/internal/generator/common"
 	"github.com/consensys/gnark-crypto/internal/generator/field/asm/amd64"
-	"github.com/consensys/gnark-crypto/internal/generator/field/asm/arm64"
 	"github.com/consensys/gnark-crypto/internal/generator/field/config"
 	"github.com/consensys/gnark-crypto/internal/generator/field/template"
 	"golang.org/x/sync/errgroup"
 )
 
-func generateField(F *config.Field, outputDir, asmDirIncludePath, hashArm64, hashAMD64 string) error {
+func generateField(F *config.Field, outputDir, asmDirIncludePath, sourceARM64, sourceAMD64 string) error {
 
 	// source file templates
 	sourceFiles := []string{
@@ -85,23 +84,7 @@ func generateField(F *config.Field, outputDir, asmDirIncludePath, hashArm64, has
 		panic("not implemented.")
 	}
 
-	// get hash of the common asm files to force compiler to recompile in case of changes.
-	var amd64d, arm64d ASMWrapperData
 	var err error
-
-	if F.GenerateOpsAMD64 {
-		amd64d, err = newASMWrapperData(hashAMD64, asmDirIncludePath, amd64.ElementASMFileName(F.NbWords, F.NbBits))
-		if err != nil {
-			return err
-		}
-	}
-
-	if F.GenerateOpsARM64 {
-		arm64d, err = newASMWrapperData(hashArm64, asmDirIncludePath, arm64.ElementASMFileName(F.NbWords, F.NbBits))
-		if err != nil {
-			return err
-		}
-	}
 
 	if F.GenerateOpsAMD64 || F.GenerateOpsARM64 {
 		F.ASMPackagePath, err = getImportPath(filepath.Join(outputDir, asmDirIncludePath, amd64.ElementASMBaseDir(F.NbWords, F.NbBits)))
@@ -112,16 +95,16 @@ func generateField(F *config.Field, outputDir, asmDirIncludePath, hashArm64, has
 
 	// purego files have no build tags if we don't generate asm
 	pureGoBuildTag := "purego || (!amd64 && !arm64)"
-	if (!F.GenerateOpsAMD64 || hashAMD64 == "") && (!F.GenerateOpsARM64 || hashArm64 == "") {
+	if (!F.GenerateOpsAMD64 || sourceAMD64 == "") && (!F.GenerateOpsARM64 || sourceARM64 == "") {
 		pureGoBuildTag = ""
-	} else if !F.GenerateOpsARM64 || hashArm64 == "" {
+	} else if !F.GenerateOpsARM64 || sourceARM64 == "" {
 		pureGoBuildTag = "purego || (!amd64)"
 	}
 
 	pureGoVectorBuildTag := "purego || (!amd64 && !arm64)"
-	if (!F.GenerateVectorOpsAMD64 || hashAMD64 == "") && (!F.GenerateVectorOpsARM64 || hashArm64 == "") {
+	if (!F.GenerateVectorOpsAMD64 || sourceAMD64 == "") && (!F.GenerateVectorOpsARM64 || sourceARM64 == "") {
 		pureGoVectorBuildTag = ""
-	} else if !F.GenerateVectorOpsARM64 || hashArm64 == "" {
+	} else if !F.GenerateVectorOpsARM64 || sourceARM64 == "" {
 		pureGoVectorBuildTag = "purego || (!amd64)"
 	}
 
@@ -154,18 +137,18 @@ func generateField(F *config.Field, outputDir, asmDirIncludePath, hashArm64, has
 	g.Go(generate("race_test.go", []string{"element/testrace.go.tmpl"}, only(hasBatchInvertChains), withBuildTag("race"), withData(true)))
 	g.Go(generate("norace_test.go", []string{"element/testrace.go.tmpl"}, only(hasBatchInvertChains), withBuildTag("!race"), withData(false)))
 
-	g.Go(generate("element_amd64.s", []string{"element/asm_include.s.tmpl"}, only(F.GenerateOpsAMD64 && hashAMD64 != ""), withBuildTag("!purego"), withData(amd64d)))
-	g.Go(generate("element_arm64.s", []string{"element/asm_include.s.tmpl"}, only(F.GenerateOpsARM64 && hashArm64 != ""), withBuildTag("!purego"), withData(arm64d)))
+	g.Go(generate("element_amd64.s", []string{"element/asm.s.tmpl"}, only(F.GenerateOpsAMD64 && sourceAMD64 != ""), withBuildTag("!purego"), withData(sourceAMD64)))
+	g.Go(generate("element_arm64.s", []string{"element/asm.s.tmpl"}, only(F.GenerateOpsARM64 && sourceARM64 != ""), withBuildTag("!purego"), withData(sourceARM64)))
 
-	g.Go(generate("element_amd64.go", []string{"element/opsamd64.go.tmpl", "element/muldoc.go.tmpl"}, only(F.GenerateOpsAMD64 && !F.F31 && !F.RadixSubWord && hashAMD64 != ""), withBuildTag("!purego")))
-	g.Go(generate("element_arm64.go", []string{"element/opsarm64.go.tmpl", "element/mulnocarry.go.tmpl", "element/reduce.go.tmpl"}, only(F.GenerateOpsARM64 && !F.F31 && !F.RadixSubWord && hashArm64 != ""), withBuildTag("!purego")))
+	g.Go(generate("element_amd64.go", []string{"element/opsamd64.go.tmpl", "element/muldoc.go.tmpl"}, only(F.GenerateOpsAMD64 && !F.F31 && !F.RadixSubWord && sourceAMD64 != ""), withBuildTag("!purego")))
+	g.Go(generate("element_arm64.go", []string{"element/opsarm64.go.tmpl", "element/mulnocarry.go.tmpl", "element/reduce.go.tmpl"}, only(F.GenerateOpsARM64 && !F.F31 && !F.RadixSubWord && sourceARM64 != ""), withBuildTag("!purego")))
 
 	g.Go(generate("element_purego.go", []string{"element/opsnoasm.go.tmpl", "element/mulradix52.go.tmpl", "element/mulcios.go.tmpl", "element/mulnocarry.go.tmpl", "element/reduce.go.tmpl", "element/muldoc.go.tmpl"}, withBuildTag(pureGoBuildTag)))
 
-	g.Go(generate("vector_amd64.go", []string{"element/vectoropsamd64.go.tmpl"}, only(F.GenerateVectorOpsAMD64 && !F.F31 && hashAMD64 != ""), withBuildTag("!purego")))
-	g.Go(generate("vector_amd64.go", []string{"element/vectoropsamd64f31.go.tmpl"}, only(F.GenerateVectorOpsAMD64 && F.F31 && hashAMD64 != ""), withBuildTag("!purego")))
-	g.Go(generate("vector_arm64.go", []string{"element/vectoropspurego.go.tmpl"}, only(F.GenerateVectorOpsARM64 && !F.F31 && hashArm64 != ""), withBuildTag("!purego")))
-	g.Go(generate("vector_arm64.go", []string{"element/vectoropsarm64f31.go.tmpl"}, only(F.GenerateVectorOpsARM64 && F.F31 && hashArm64 != ""), withBuildTag("!purego")))
+	g.Go(generate("vector_amd64.go", []string{"element/vectoropsamd64.go.tmpl"}, only(F.GenerateVectorOpsAMD64 && !F.F31 && sourceAMD64 != ""), withBuildTag("!purego")))
+	g.Go(generate("vector_amd64.go", []string{"element/vectoropsamd64f31.go.tmpl"}, only(F.GenerateVectorOpsAMD64 && F.F31 && sourceAMD64 != ""), withBuildTag("!purego")))
+	g.Go(generate("vector_arm64.go", []string{"element/vectoropspurego.go.tmpl"}, only(F.GenerateVectorOpsARM64 && !F.F31 && sourceARM64 != ""), withBuildTag("!purego")))
+	g.Go(generate("vector_arm64.go", []string{"element/vectoropsarm64f31.go.tmpl"}, only(F.GenerateVectorOpsARM64 && F.F31 && sourceARM64 != ""), withBuildTag("!purego")))
 
 	g.Go(generate("vector_purego.go", []string{"element/vectoropspurego.go.tmpl"}, withBuildTag(pureGoVectorBuildTag)))
 
