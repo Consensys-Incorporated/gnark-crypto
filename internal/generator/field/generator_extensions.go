@@ -6,6 +6,7 @@ import (
 
 	"github.com/consensys/bavard"
 	"github.com/consensys/gnark-crypto/internal/generator/field/asm/amd64"
+	"github.com/consensys/gnark-crypto/internal/generator/field/asm/arm64"
 	"github.com/consensys/gnark-crypto/internal/generator/field/config"
 	"github.com/consensys/gnark-crypto/internal/generator/field/template"
 )
@@ -34,6 +35,7 @@ func generateExtensions(F *config.Field, outputDir string) error {
 		FieldPackagePath string
 		F31              bool
 		QInvNeg          uint64
+		Mu               uint64
 		IsKoalaBear      bool
 		IsBabyBear       bool
 		// QuadraticNonResidue is α, where E2 = Fr[u]/(u²-α).
@@ -71,6 +73,7 @@ func generateExtensions(F *config.Field, outputDir string) error {
 		IsBabyBear:          isBabyBear,
 		Q:                   F.Q[0],
 		QInvNeg:             F.QInverse[0],
+		Mu:                  F.Mu,
 		QuadraticNonResidue: quadraticNonResidue,
 		GenerateE2:          !isMamaBear,
 		GenerateE3:          isMamaBear,
@@ -121,6 +124,8 @@ func generateExtensions(F *config.Field, outputDir string) error {
 		if isKoalaBear {
 			entries_ext4 = append(entries_ext4, bavard.Entry{File: filepath.Join(outputDir, "ext_amd64.go"), Templates: []string{"ext.amd64.go.tmpl"}, BuildTag: "!purego"})
 			entries_ext4 = append(entries_ext4, bavard.Entry{File: filepath.Join(outputDir, "ext_purego.go"), Templates: []string{"ext.purego.go.tmpl"}, BuildTag: "purego || (!amd64)"})
+			entries_ext4 = append(entries_ext4, bavard.Entry{File: filepath.Join(outputDir, "ext_arm64.go"), Templates: []string{"ext.arm64.go.tmpl"}, BuildTag: "!purego"})
+			entries_ext4 = append(entries_ext4, bavard.Entry{File: filepath.Join(outputDir, "ext_noneon.go"), Templates: []string{"ext.noneon.go.tmpl"}, BuildTag: "purego || !arm64"})
 		}
 
 		if err := g.Generate(data, "extensions", "", "extensions", entries_ext4...); err != nil {
@@ -137,6 +142,19 @@ func generateExtensions(F *config.Field, outputDir string) error {
 			asmFile.WriteString("//go:build !purego\n")
 
 			if err := amd64.GenerateF31Ext(asmFile); err != nil {
+				asmFile.Close()
+				return err
+			}
+			asmFile.Close()
+
+			asmFile, err = os.Create(filepath.Join(outputDir, "ext_arm64.s"))
+			if err != nil {
+				return err
+			}
+
+			asmFile.WriteString("//go:build !purego\n")
+
+			if err := arm64.GenerateF31Ext(asmFile); err != nil {
 				asmFile.Close()
 				return err
 			}

@@ -1,0 +1,7 @@
+const mu = {{.Mu}}
+
+// vectorMul_E6_neon sets res[i] = a[i] * b[i] for the N E6 elements at res, a and b.
+// N must be a multiple of 4.
+//
+//go:noescape
+func vectorMul_E6_neon(res, a, b *E6, N uint64)
