@@ -36,14 +36,14 @@ var maskPermE6Pair1A = []uint32{22, 23, 12, 13, 14, 15, 16, 17, 30, 31, 0, 1, 2,
 var maskPermE6Pair1B = []uint32{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 16, 17, 18, 19, 0, 0}
 var maskPermE6Pair2 = []uint32{10, 11, 12, 13, 26, 27, 28, 29, 30, 31, 20, 21, 22, 23, 24, 25}
 
-// E6 distance-2 butterfly index tables for vectorRadix8{DIT,DIF}_E6_avx512.
-//
-// Same idea as maskPermE6Pair*, for pairs (E6[k], E6[k^2]) within a block of 8:
-// table i builds the partner of zmm i, with VPERMI2D sources (v0,v1), (v0,v2)
-// and (v1,v2) respectively.
-var maskPermE6Stride2_0 = []uint32{12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 0, 1, 2, 3}
-var maskPermE6Stride2_1 = []uint32{4, 5, 6, 7, 8, 9, 10, 11, 20, 21, 22, 23, 24, 25, 26, 27}
-var maskPermE6Stride2_2 = []uint32{28, 29, 30, 31, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19}
+// Index tables for vectorRadix8{DIT,DIF}_E6_avx512, which expand each block of
+// 8 E6 from 3 packed zmm into 4 zmm holding 2 whole E6 each (lanes 0..11).
+// maskPermE6Pad{0,1,2} compress padded zmm (i, i+1) back into packed zmm i
+// (VPERMI2D); maskPermE6PadSwap swaps the two E6 of a padded zmm (VPERMD).
+var maskPermE6Pad0 = []uint32{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 16, 17, 18, 19}
+var maskPermE6Pad1 = []uint32{4, 5, 6, 7, 8, 9, 10, 11, 16, 17, 18, 19, 20, 21, 22, 23}
+var maskPermE6Pad2 = []uint32{8, 9, 10, 11, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27}
+var maskPermE6PadSwap = []uint32{6, 7, 8, 9, 10, 11, 0, 1, 2, 3, 4, 5, 12, 13, 14, 15}
 
 // VPERMI2D index tables for the gather-free E6 scalar-mul kernels
 // (vectorScalarMul_E6_avx512 / vectorScalarMulAcc_E6_avx512).

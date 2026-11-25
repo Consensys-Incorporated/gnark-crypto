@@ -1258,8 +1258,9 @@ func (vector VectorE6) ButterflyThenMulByElement(other VectorE6, twiddles fr.Vec
 	}
 }
 
-// Radix8DIT runs the last three stages of a decimation-in-time FFT (half-size
-// m=1, m=2 then m=4) on every block of 8 consecutive elements of vector:
+// Radix8DIT runs the three smallest stages of a decimation-in-time FFT
+// (half-size m=1, m=2 then m=4) on every block of 8 consecutive elements of
+// vector:
 //
 //	m=1: Butterfly(b[i], b[i+1])                              for i = 0, 2, 4, 6
 //	m=2: b[i+2] *= twiddles2[i%2]; Butterfly(b[i], b[i+2])    for i = 0, 1, 4, 5
@@ -1281,7 +1282,7 @@ func (vector VectorE6) Radix8DIT(twiddles4, twiddles2 fr.Vector) {
 	}
 }
 
-// Radix8DIF runs the first three stages of a decimation-in-frequency FFT
+// Radix8DIF runs the three smallest stages of a decimation-in-frequency FFT
 // (half-size m=4, m=2 then m=1) on every block of 8 consecutive elements of
 // vector; it is the transpose of [VectorE6.Radix8DIT]:
 //
