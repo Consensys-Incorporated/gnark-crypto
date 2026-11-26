@@ -41,6 +41,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 
@@ -80,18 +81,28 @@ func GetAddChain(n *big.Int) *AddChainData {
 	ex := exec.NewParallel()
 	results := ex.Execute(n, algorithms)
 
-	// Output best result.
-	best := 0
-	for i, r := range results {
+	// Output the shortest result that compiles: the temporary allocation pass of
+	// addchain fails on a few chains (e.g. (p-1)/3 for BLS12-381), so fall back
+	// to the next shortest one.
+	for _, r := range results {
 		if r.Err != nil {
 			log.Fatal(r.Err)
 		}
-		if len(results[i].Program) < len(results[best].Program) {
-			best = i
+	}
+	slices.SortStableFunc(results, func(a, b exec.Result) int {
+		return len(a.Program) - len(b.Program)
+	})
+	var r exec.Result
+	var data *AddChainData
+	for _, r = range results {
+		var err error
+		if data, err = buildAddChainData(r.Program, key); err == nil {
+			break
 		}
 	}
-	r := results[best]
-	data := processSearchResult(r.Program, key)
+	if data == nil {
+		log.Fatalf("addchain: no usable chain for %s", key)
+	}
 
 	mAddchains[key] = data
 	// gob encode; skip if the key is too long to be a valid filename
@@ -114,20 +125,23 @@ func GetAddChain(n *big.Int) *AddChainData {
 }
 
 func processSearchResult(_p addchain.Program, n string) *AddChainData {
-	p, err := acc.Decompile(_p)
-	if err != nil {
-		log.Fatal(err)
-	}
-	chain, err := acc.Build(p)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	data, err := prepareAddChainData(chain, n)
+	data, err := buildAddChainData(_p, n)
 	if err != nil {
 		log.Fatal(err)
 	}
 	return data
+}
+
+func buildAddChainData(_p addchain.Program, n string) (*AddChainData, error) {
+	p, err := acc.Decompile(_p)
+	if err != nil {
+		return nil, err
+	}
+	chain, err := acc.Build(p)
+	if err != nil {
+		return nil, err
+	}
+	return prepareAddChainData(chain, n)
 }
 
 // Data provided to templates.
