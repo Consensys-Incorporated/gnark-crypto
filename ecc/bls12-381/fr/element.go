@@ -2062,18 +2062,19 @@ func (z *Element) CubicResidueSymbol() int {
 	}
 	var w [4]cubicInt // f = w[0] + w[1]ω, g = w[2] + w[3]ω
 	w[0], w[1] = cubicBetaA.neg(), cubicBetaB.neg()
-	w[2], w[3] = cubicReduce(z.Bits())
-	d, e := int64(1), int64(0) // 2δ, exponent of the symbol
+	// the Montgomery form z·R, whose symbol is that of z times that of R
+	w[2], w[3] = cubicReduce([Limbs]uint64(*z))
+	d, e := int64(1), int64(0) // 2δ, minus the exponent of the symbol (mod 3)
 	ln := 3                    // words in use: f and g shrink
 	for range 2*Bits/cubicJK + 8 {
 		if w[2] == (cubicInt{}) && w[3] == (cubicInt{}) {
-			// g = 0 and f is the primary unit -1: the symbol is ωᵉ
-			return int(uint64(e) % 3)
+			// g = 0 and f is the primary unit -1: the symbol of z·R is ωᵉ
+			return int((2*uint64(e) + 3 - cubicSymbolOfR) % 3)
 		}
 		if ln == 1 && cubicFits(&w) {
 			// χ = ωᵉ·(g/f)₃ with f primary: finish on machine words, or carry on if that fails
 			if r, ok := cubicTail(int64(w[2][0]), int64(w[3][0]), int64(w[0][0]), int64(w[1][0])); ok {
-				return int((uint64(e) + r) % 3)
+				return int((2*uint64(e) + r + 3 - cubicSymbolOfR) % 3)
 			}
 		}
 		cubicJump(&w, &d, &e, ln)
@@ -2084,17 +2085,20 @@ func (z *Element) CubicResidueSymbol() int {
 }
 
 const (
-	cubicJK      = 36                  // steps per jump: residues mod 3^(cubicJK+2) fit in a word
-	cubicJM      = 1350851717672992089 // 3³⁸
-	cubicJMI     = 0xf5942fe5e5698517  // -3⁻³⁸ mod 2⁶⁴
-	cubic3p39    = 4052555153018976267 // 3³⁹
-	cubicInv3    = 0xAAAAAAAAAAAAAAAB  // 3⁻¹ mod 2⁶⁴
-	cubicPow3    = 150094635296999121  // 3³⁶ = 3^cubicJK
-	cubicInvPow3 = 0x5dca50eaef4a5231  // 3⁻³⁶ mod 2⁶⁴
-	// What a step does for g = x + yω, 4 bits per 3·(x mod 3) + (y mod 3): bit 0 if λ | g,
-	// otherwise the unit u = ±ω⁻ʲ making g primary (u·g ≡ -1 mod 3): bit 1 if j = 1, bit 2
-	// if j = 2, bit 3 if the sign is -1.
-	cubicTab = 0xc101482a1
+	cubicJK         = 36                  // steps per jump: residues mod 3^(cubicJK+2) fit in a word
+	cubicJM         = 1350851717672992089 // 3³⁸
+	cubicJMI        = 0xf5942fe5e5698517  // -3⁻³⁸ mod 2⁶⁴
+	cubicMod9Offset = 0x4800000000000000  // 9·2⁵⁹
+	cubicInv3       = 0xAAAAAAAAAAAAAAAB  // 3⁻¹ mod 2⁶⁴
+	cubicInv9       = 0x8E38E38E38E38E39  // 9⁻¹ mod 2⁶⁴
+	cubicPow3       = 150094635296999121  // 3³⁶ = 3^cubicJK
+	cubicInvPow3    = 0x5dca50eaef4a5231  // 3⁻³⁶ mod 2⁶⁴
+	// R^((q-1)/3) = ω^cubicSymbolOfR, R the Montgomery constant
+	cubicSymbolOfR = 1
+	// What a step does for g = x + yω, 4 bits per 4·cubicNegMod3(x) + cubicNegMod3(y): bit 0
+	// if λ | g, otherwise the unit u = ±ω⁻ʲ making g primary (u·g ≡ -1 mod 3): bit 1 if j = 1,
+	// bit 2 if j = 2, bit 3 if the sign is -1.
+	cubicTab = 0x1a21841801c01a21
 )
 
 var (
@@ -2133,10 +2137,9 @@ func (z *Element) cubicResidueSymbolExp() int {
 func cubicJump(w *[4]cubicInt, d, e *int64, ln int) {
 	f := [2]uint64{w[0].modJ(ln), w[1].modJ(ln)}
 	g := [2]uint64{w[2].modJ(ln), w[3].modJ(ln)}
-	m := cubicMod3((f[0] + 1) * cubicInv3) // f = (3m - 1) + 3kω
-	k := cubicMod3(f[1] * cubicInv3)
-	s := cubicHalfJump(&f, &g, &m, &k, d, e)
-	t := cubicHalfJump(&f, &g, &m, &k, d, e)
+	m := cubicNegMod3((f[0] + 1) * cubicInv9) // f = (3m - 1) + 3kω: -m mod 3
+	s := cubicHalfJump(&f, &g, &m, d, e)
+	t := cubicHalfJump(&f, &g, &m, d, e)
 	// the second matrix times the first, with (a0 + a1ω)(x0 + x1ω) = (a0x0 - a1x1) + (a0x1 + a1x0 - a1x1)ω
 	var r [4][2]int64
 	for i := range 4 {
@@ -2174,44 +2177,48 @@ func cubicJump(w *[4]cubicInt, d, e *int64, ln int) {
 // Residues are integers mod 2⁶⁴ where exact divisions by 3 are multiplications by 3⁻¹;
 // results of inexact ones are never selected. Matrix entries grow by at most 3 per step and
 // are packed in pairs of 32 bits: p0, p1, p2, p3 = (A.x, B.x), (A.y, B.y), (C.x, D.x), (C.y, D.y).
-func cubicHalfJump(f, g *[2]uint64, m, k, d, e *int64) (r [4][2]int64) {
-	const i3 = cubicInv3
-	f0, f1, g0, g1 := f[0], f[1], g[0], g[1]
-	mm, kk, dl, el := *m, *k, *d, *e
+func cubicHalfJump(f, g *[2]uint64, m, d, e *int64) (r [4][2]int64) {
+	const i3, i9 = cubicInv3, cubicInv9
+	// g is kept as g/3 = g·3⁻¹ mod 2⁶⁴, whose top bits give g mod 3 without a multiplication
+	f0, f1, g0, g1 := f[0], f[1], g[0]*i3, g[1]*i3
+	mm := *m
+	// 2δ and the (negated) exponent share a word, de = 2δ·2³² + e with 0 ≤ e < 2³²: both stay
+	// small (|2δ| and e grow by at most 4 and 10 per step), so the halves never borrow.
+	de := *d<<32 + *e
 	var p0, p1, p2, p3 uint64 = 1, 0, 1 << 32, 0
 	for range cubicJK / 2 {
-		nib := (uint64(cubicTab) >> (4 * uint64(3*cubicMod3(g0)+cubicMod3(g1)))) & 15
-		dv := -(int64(nib) & 1)        // all ones for a division by λ
-		r1 := -((nib >> 1) & 1)        // u = ±ω² (j = 1)
-		r2 := -((nib >> 2) & 1)        // u = ±ω  (j = 2)
-		sg := -((nib >> 3) & 1)        // u = -ω⁻ʲ
-		j := int64(r1&1) + int64(r2&2) // j
-		sw := ^dv & ((-dl) >> 63)      // swap iff no division and δ > 0
+		kk := cubicNegMod3(f1 * i9) // f = (3m - 1) + 3kω: -k mod 3, and mm = -m mod 3
+		nib := (uint64(cubicTab) >> (g0>>62<<4 | g1>>62<<2)) & 15
+		dv := -(int64(nib) & 1)              // all ones for a division by λ
+		r1 := -((nib >> 1) & 1)              // u = ±ω² (j = 1)
+		r2 := -((nib >> 2) & 1)              // u = ±ω  (j = 2)
+		sg := -((nib >> 3) & 1)              // u = -ω⁻ʲ
+		j := int64(r1&1) + int64(r2&2)       // j
+		sw := ^dv & ((1<<32 - 1 - de) >> 63) // swap iff no division and δ > 0 (de ≥ 2³²)
 		// u·g, with ω²·(x + yω) = (y-x) - xω and ω·(x + yω) = -y + (x-y)ω, then the sign
 		ug0 := g0 ^ ((g0 ^ (g1 - g0)) & r1) ^ ((g0 ^ -g1) & r2)
 		ug1 := g1 ^ ((g1 ^ -g0) & r1) ^ ((g1 ^ (g0 - g1)) & r2)
-		ug0 = (ug0 ^ sg) - sg
-		ug1 = (ug1 ^ sg) - sg
+		ug0 = 3 * ((ug0 ^ sg) - sg)
+		ug1 = 3 * ((ug1 ^ sg) - sg)
 		// the same on the packed row (C, D)
 		tx := p2 ^ ((p2 ^ (p3 - p2)) & r1) ^ ((p2 ^ -p3) & r2)
 		ty := p3 ^ ((p3 ^ -p2) & r1) ^ ((p3 ^ (p2 - p3)) & r2)
 		tx = (tx ^ sg) - sg
 		ty = (ty ^ sg) - sg
-		mu := cubicMod3((ug0 + 1) * i3)
-		ku := cubicMod3(ug1 * i3)
-		// exponent: 2m for a division; else j(m+k) for the unit, and m (of the new f) for λ²
-		el += (2 * mm & dv) | ((j*(mm+kk) + mm + ((mu - mm) & sw)) & ^dv)
+		// exponent (negated, as m and k are): 2m for a division; else j(m+k) for the unit, and
+		// m of the new f for λ² (below)
+		de += (2 * mm & dv) | (j * (mm + kk) & ^dv)
 		// 2δ: +2 for a division, +4, or 4 - 2δ after a swap
-		dl += 4 - (2 * dl & sw) - (2 & dv)
+		de += (4 << 32) - (de>>32<<33)&sw - (2<<32)&dv
 		// h = g (division) or u·g - f; g ← g/λ = ((2x-y) + (x+y)ω)/3 or h/λ² = ((x-y) + xω)/3
 		h0 := ug0 - (f0 & uint64(^dv))
 		h1 := ug1 - (f1 & uint64(^dv))
-		g0 = (h0 - h1 + (h0 & uint64(dv))) * i3
-		g1 = (h0 + (h1 & uint64(dv))) * i3
+		g0 = (h0 - h1 + (h0 & uint64(dv))) * i9
+		g1 = (h0 + (h1 & uint64(dv))) * i9
 		f0 += (ug0 - f0) & uint64(sw)
 		f1 += (ug1 - f1) & uint64(sw)
-		mm += (mu - mm) & sw
-		kk += (ku - kk) & sw
+		mm = cubicNegMod3((f0 + 1) * i9)
+		de += mm & ^dv
 		// rows over a common denominator times λ² = -3ω per step: f's row is (A, B), or
 		// u·(C, D) after a swap, times λ²; g's row is u·(C, D) - (A, B), or (C, D)·λ.
 		ux := tx - p0
@@ -2221,8 +2228,8 @@ func cubicHalfJump(f, g *[2]uint64, m, k, d, e *int64) (r [4][2]int64) {
 		p0, p1 = 3*p1, 3*(p1-p0)
 		p2, p3 = ux^((ux^(p2+p3))&uint64(dv)), uy^((uy^(2*p3-p2))&uint64(dv))
 	}
-	f[0], f[1], g[0], g[1] = f0, f1, g0, g1
-	*m, *k, *d, *e = mm, kk, dl, el
+	f[0], f[1], g[0], g[1] = f0, f1, 3*g0, 3*g1
+	*m, *d, *e = mm, de>>32, de&(1<<32-1)
 	// unpack the signed entries, the high one with the borrow of the low one
 	for i, pi := range [4]uint64{p0, p1, p2, p3} {
 		lo := int64(pi<<32) >> 32
@@ -2248,47 +2255,62 @@ func cubicFits(w *[4]cubicInt) bool {
 // with q the nearest quotient, remove the factors λ = 1-ω and make a primary with a power of
 // ω, apply the supplementary laws for λ and ω from b mod 9, and swap by cubic reciprocity.
 // Remainders are exact (computed mod 2⁶⁴, they fit); the quotients from float64 only need to
-// be near. ok is false if anything unexpected happens. This is smb3_tail of [RELIC-333].
+// be near. ok is false if anything unexpected happens. This is smb3_tail of [RELIC-333], with
+// the steps of cubicHalfJump: the unit from cubicTab and exact divisions by 3 as products.
 func cubicTail(a0, a1, b0, b1 int64) (r uint64, ok bool) {
+	const i3 = cubicInv3
 	for range 200 {
 		if (a1 == 0 && a0 >= -1 && a0 <= 1) || (b1 == 0 && (b0 == 1 || b0 == -1)) {
-			return r, true // a unit, or 0 with a unit b
+			return r % 3, true // a unit, or 0 with a unit b
 		}
 		// q = round(a·conj(b)/N(b)), conj(b0 + b1ω) = (b0 - b1) - b1ω
 		fa0, fa1, fb0, fb1 := float64(a0), float64(a1), float64(b0), float64(b1)
-		nb := fb0*fb0 + fb1*fb1 - fb0*fb1
-		q0, ok0 := cubicRound((fa0*fb0 - fa0*fb1 + fa1*fb1) / nb)
-		q1, ok1 := cubicRound((fa1*fb0 - fa0*fb1) / nb)
+		inb := 1 / (fb0*fb0 + fb1*fb1 - fb0*fb1)
+		q0, ok0 := cubicRound((fa0*fb0 - fa0*fb1 + fa1*fb1) * inb)
+		q1, ok1 := cubicRound((fa1*fb0 - fa0*fb1) * inb)
 		if !ok0 || !ok1 {
 			return 0, false
 		}
-		// a - q·b, with q·b = (q0b0 - q1b1) + (q0b1 + q1b0 - q1b1)ω
-		e0, e1 := a0-q0*b0+q1*b1, a1-q0*b1-q1*b0+q1*b1
+		// e = a - q·b, with q·b = (q0b0 - q1b1) + (q0b1 + q1b0 - q1b1)ω
+		e0, e1 := uint64(a0-q0*b0+q1*b1), uint64(a1-q0*b1-q1*b0+q1*b1)
 		if e0 == 0 && e1 == 0 {
 			return 0, false // gcd(a, b) ≠ 1: cannot happen
 		}
-		var m, n int64
-		for cubicMod3(uint64(e0+e1)) == 0 { // λ | e: e/λ = ((2e0-e1) + (e0+e1)ω)/3
-			e0, e1 = (2*e0-e1)/3, (e0+e1)/3
+		// e/λᵐ, then u·e primary with u = ±ω⁻ⁿ
+		var m uint64
+		nib := (uint64(cubicTab) >> ((e0*i3)>>62<<4 | (e1*i3)>>62<<2)) & 15
+		for nib&1 != 0 { // e/λ = ((2x-y) + (x+y)ω)/3
+			e0, e1 = (2*e0-e1)*i3, (e0+e1)*i3
+			nib = (uint64(cubicTab) >> ((e0*i3)>>62<<4 | (e1*i3)>>62<<2)) & 15
 			m++
 		}
-		if cubicMod3(uint64(e0)) == 0 { // ω²·e = (e1-e0) - e0ω
-			e0, e1 = e1-e0, -e0
-			n = 1
-		} else if cubicMod3(uint64(e0-e1)) == 0 { // ω·e = -e1 + (e0-e1)ω
-			e0, e1 = -e1, e0-e1
-			n = 2
-		}
+		r1 := -((nib >> 1) & 1) // ω²·(x + yω) = (y-x) - xω
+		r2 := -((nib >> 2) & 1) // ω·(x + yω) = -y + (x-y)ω
+		e0, e1 = e0^((e0^(e1-e0))&r1)^((e0^-e1)&r2), e1^((e1^-e0)&r1)^((e1^(e0-e1))&r2)
 		// (λ/b)₃ = ω^((1-b0²)/3), (ω/b)₃ = ω^((b0²-b0b1-1)/3), from b mod 9
-		c0, c1 := (b0%9+9)%9, (b1%9+9)%9
-		x := ((m%9)*((1+9-c0*c0%9)%9) + n*((c0*c0%9+18-c0*c1%9-1)%9)) % 9
-		if x%3 != 0 {
+		t := cubicTailLaws[uint64(b0+cubicMod9Offset)%9][uint64(b1+cubicMod9Offset)%9]
+		if t == 0xff {
 			return 0, false // b not primary: cannot happen
 		}
-		r = (r + uint64(x/3)) % 3
-		a0, a1, b0, b1 = b0, b1, e0, e1 // reciprocity: (e/b)₃ = (b/e)₃, both primary
+		r += m*uint64(t&3) + (r1&1+r2&2)*uint64(t>>2)
+		a0, a1, b0, b1 = b0, b1, int64(e0), int64(e1) // reciprocity: (e/b)₃ = (b/e)₃, both primary
 	}
 	return 0, false
+}
+
+// cubicTailLaws[b0 mod 9][b1 mod 9] = A + 4B for the exponents A = (1-b0²)/3 and
+// B = (b0²-b0b1-1)/3 (mod 3) of the supplementary laws of a primary b = b0 + b1ω, 0xff if
+// b is not primary.
+var cubicTailLaws = [9][9]uint8{
+	{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
+	{0, 0xff, 0xff, 8, 0xff, 0xff, 4, 0xff, 0xff},
+	{6, 0xff, 0xff, 10, 0xff, 0xff, 2, 0xff, 0xff},
+	{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
+	{9, 0xff, 0xff, 5, 0xff, 0xff, 1, 0xff, 0xff},
+	{9, 0xff, 0xff, 1, 0xff, 0xff, 5, 0xff, 0xff},
+	{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
+	{6, 0xff, 0xff, 2, 0xff, 0xff, 10, 0xff, 0xff},
+	{0, 0xff, 0xff, 4, 0xff, 0xff, 8, 0xff, 0xff},
 }
 
 // cubicRound returns x rounded to the nearest integer, and false if it is not below 2⁶¹.
@@ -2302,12 +2324,14 @@ func cubicRound(x float64) (int64, bool) {
 	return int64(x + 0.5), true
 }
 
-// cubicMod3 returns a mod 3 for a signed |a| < 2⁶¹ (adding 3³⁹ makes it nonnegative).
-func cubicMod3(a uint64) int64 {
-	return int64((a + cubic3p39) % 3)
+// cubicNegMod3 returns -(a mod 3), up to a multiple of 3, given t = a·3⁻¹ mod 2⁶⁴ for a
+// signed |a| < 2⁶²: t is within 2⁶⁴/12 of 0, ⅔·2⁶⁴ or ⅓·2⁶⁴ for a ≡ 0, 1, 2 (mod 3), so
+// its top two bits are 0 or 3, 2, 1. Unlike %, this needs no high multiplication.
+func cubicNegMod3(t uint64) int64 {
+	return int64(t >> 62)
 }
 
-// cubicReduce returns x - q·β with q ≈ x/β (Babai rounding), x in regular form.
+// cubicReduce returns x - q·β with q ≈ x/β (Babai rounding), for 0 ≤ x < q.
 func cubicReduce(x [Limbs]uint64) (cubicInt, cubicInt) {
 	// q = qRe + qIm·ω ≈ x·conj(β)/q, conj(β) = (a-b) - bω
 	qRe := cubicMulHi(&x, &cubicG1)
@@ -2347,18 +2371,29 @@ func cubicMulHi(x *[Limbs]uint64, g *[3]uint64) cubicInt {
 // words are computed; the others are the sign extension.
 func cubicComb(w *[4]cubicInt, s *[4]int64, d, inv uint64, ln int) (c cubicInt) {
 	var lo, hi, borrow uint64
-	for j := range ln {
-		for i := range 4 {
-			// signed × unsigned: the unsigned product, minus w·2⁶⁴ if s < 0
-			ph, pl := bits.Mul64(uint64(s[i]), w[i][j])
-			ph -= w[i][j] & uint64(s[i]>>63)
-			var cc uint64
-			lo, cc = bits.Add64(lo, pl, 0)
-			hi += ph + cc
-		}
+	// slicing once lets the compiler drop the bounds checks in the loop
+	w0, w1, w2, w3, cs := w[0][:ln], w[1][:ln], w[2][:ln], w[3][:ln], c[:ln]
+	s0, s1, s2, s3 := uint64(s[0]), uint64(s[1]), uint64(s[2]), uint64(s[3])
+	m0, m1, m2, m3 := uint64(s[0]>>63), uint64(s[1]>>63), uint64(s[2]>>63), uint64(s[3]>>63)
+	for j := range cs {
+		// signed × unsigned: the unsigned product, minus w·2⁶⁴ if s < 0
+		h0, l0 := bits.Mul64(s0, w0[j])
+		h1, l1 := bits.Mul64(s1, w1[j])
+		h2, l2 := bits.Mul64(s2, w2[j])
+		h3, l3 := bits.Mul64(s3, w3[j])
+		h0 -= w0[j] & m0
+		h1 -= w1[j] & m1
+		h2 -= w2[j] & m2
+		h3 -= w3[j] & m3
+		var c0, c1, c2, c3 uint64
+		lo, c0 = bits.Add64(lo, l0, 0)
+		lo, c1 = bits.Add64(lo, l1, 0)
+		lo, c2 = bits.Add64(lo, l2, 0)
+		lo, c3 = bits.Add64(lo, l3, 0)
+		hi += h0 + h1 + h2 + h3 + c0 + c1 + c2 + c3
 		u, b := bits.Sub64(lo, borrow, 0)
 		q := u * inv
-		c[j] = q
+		cs[j] = q
 		v, _ := bits.Mul64(q, d)
 		borrow = v + b
 		lo = hi
@@ -2412,12 +2447,13 @@ func (x *cubicInt) isNeg() bool { return int64(x[2]) < 0 }
 // modJ returns x mod 3³⁸, for x sign-extended above its first ln words.
 func (x *cubicInt) modJ(ln int) uint64 {
 	var r uint64
-	for j := range ln {
-		r += cubicRedc(x[j], cubicJPw[j]) - cubicJM
+	xs, pw := x[:ln], cubicJPw[:ln] // bounds checked once
+	for j, xj := range xs {
+		r += cubicRedc(xj, pw[j]) - cubicJM
 		r += cubicJM & uint64(int64(r)>>63)
 	}
-	if int64(x[ln-1]) < 0 {
-		r += cubicJM - cubicJPw[ln-1] // the digits minus 2^(64·ln)
+	if int64(xs[ln-1]) < 0 {
+		r += cubicJM - pw[ln-1] // the digits minus 2^(64·ln)
 	}
 	r -= cubicJM
 	r += cubicJM & uint64(int64(r)>>63)

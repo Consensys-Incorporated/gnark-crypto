@@ -32,6 +32,7 @@ type CubicSymbol struct {
 
 	Omega        []uint64               // ω = -a·b⁻¹ mod q, montgomery form: symbol k ⇔ x^((q-1)/3) = ωᵏ
 	OmegaDecimal string                 // ω in base 10 (documentation)
+	SymbolOfR    int                    // k such that R^((q-1)/3) = ωᵏ, R the Montgomery constant 2^RBits
 	ExponentHex  string                 // (q-1)/3
 	ExponentData *addchain.AddChainData // addition chain for (q-1)/3, if the field uses them
 }
@@ -128,6 +129,17 @@ func (F *Field) initCubicSymbol(q *big.Int) error {
 	}
 	for i := 0; i < H; i++ {
 		cs.LimbsIndexes = append(cs.LimbsIndexes, i)
+	}
+	// the symbol of R, as the algorithm reads z in Montgomery form, z·R
+	R := new(big.Int).Lsh(big.NewInt(1), F.RBits)
+	R.Mod(R, q)
+	switch y := new(big.Int).Exp(R, e, q); {
+	case y.Cmp(big.NewInt(1)) == 0:
+		cs.SymbolOfR = 0
+	case y.Cmp(omega) == 0:
+		cs.SymbolOfR = 1
+	default:
+		cs.SymbolOfR = 2
 	}
 	omegaMont := new(big.Int).Lsh(omega, F.RBits)
 	omegaMont.Mod(omegaMont, q)
