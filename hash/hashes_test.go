@@ -9,6 +9,27 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestUnregisteredHashImport(t *testing.T) {
+	for _, tc := range []struct {
+		hash Hash
+		path string
+	}{
+		{MIMC_BLS12_381, "ecc/bls12-381/fr/mimc"},
+		{POSEIDON2_BLS12_381, "ecc/bls12-381/fr/poseidon2"},
+		{POSEIDON2_KOALABEAR, "field/koalabear/poseidon2"},
+	} {
+		t.Run(tc.hash.String(), func(t *testing.T) {
+			saved := hashes[tc.hash]
+			hashes[tc.hash] = nil
+			defer func() {
+				hashes[tc.hash] = saved
+				require.Contains(t, recover(), `import _ "github.com/consensys/gnark-crypto/`+tc.path+`"`)
+			}()
+			tc.hash.New()
+		})
+	}
+}
+
 // stubHasher is a field hasher whose digest is a given value.
 type stubHasher[F, D any] struct{ digest D }
 
