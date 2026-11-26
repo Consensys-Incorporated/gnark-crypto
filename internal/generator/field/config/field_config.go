@@ -58,7 +58,8 @@ type Field struct {
 	P20InversionCorrectiveFac  []uint64
 	P20InversionNbIterations   int
 	UsingP20Inverse            bool
-	IsMSWSaturated             bool // indicates if the most significant word is 0xFFFFF...FFFF
+	CubicSymbol                *CubicSymbol // nil if the field has no cubic residue symbol (q ≢ 1 mod 3, or single word)
+	IsMSWSaturated             bool         // indicates if the most significant word is 0xFFFFF...FFFF
 	Q                          []uint64
 	QInverse                   []uint64
 	QMinusOneHalvedP           []uint64 // ((q-1) / 2 ) + 1
@@ -772,6 +773,10 @@ func NewFieldConfig(packageName, elementName, modulus string, useAddChain bool, 
 	}
 	if f31ASM {
 		F.Mu = -F.QInverse[0]
+	}
+
+	if err := F.initCubicSymbol(&bModulus); err != nil {
+		return nil, err
 	}
 
 	return F, nil

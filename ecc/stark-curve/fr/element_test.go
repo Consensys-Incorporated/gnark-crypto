@@ -3235,3 +3235,158 @@ func approximateRef(x *Element) uint64 {
 	hi.Add(&hi, &lo)
 	return hi.Uint64()
 }
+
+// cubicResidueSymbolRef computes the cubic residue symbol from x^((q-1)/3) with math/big,
+// independently of the generated constants (except ω, which is checked separately).
+func cubicResidueSymbolRef(t *testing.T, x *Element) int {
+	var xb, e, y, omega, omega2 big.Int
+	x.BigInt(&xb)
+	if xb.Sign() == 0 {
+		return -1
+	}
+	q := Modulus()
+	e.Sub(q, big.NewInt(1)).Div(&e, big.NewInt(3))
+	y.Exp(&xb, &e, q)
+	omega.SetString("2110933693018411404000808969267318045562626302639142821677771618567691035352", 10)
+	omega2.Mul(&omega, &omega).Mod(&omega2, q)
+	switch {
+	case y.Cmp(big.NewInt(1)) == 0:
+		return 0
+	case y.Cmp(&omega) == 0:
+		return 1
+	case y.Cmp(&omega2) == 0:
+		return 2
+	}
+	t.Fatalf("x^((q-1)/3) is not a cube root of unity")
+	return -1
+}
+
+func TestElementCubicResidueSymbolConstants(t *testing.T) {
+	q := Modulus()
+	var a, b, n, r, omega big.Int
+	a.SetString("45980945935878253571843744765095489738", 10)
+	b.SetString("68077247600834658965325391405384022079", 10)
+	// N(β) = a² - ab + b² = q
+	n.Mul(&a, &a).Add(&n, r.Mul(&b, &b)).Sub(&n, r.Mul(&a, &b))
+	if n.Cmp(q) != 0 {
+		t.Fatal("N(β) ≠ q")
+	}
+	// β is primary: b ≡ 0 (mod 3), a ≢ 0 (mod 3)
+	if r.Mod(&b, big.NewInt(3)).Sign() != 0 || r.Mod(&a, big.NewInt(3)).Sign() == 0 {
+		t.Fatal("β is not primary")
+	}
+	// ω = -a/b, ω² + ω + 1 = 0
+	omega.ModInverse(&b, q).Mul(&omega, &a).Neg(&omega).Mod(&omega, q)
+	var w, w2, one Element
+	w.SetBigInt(&omega)
+	if !w.Equal(&cubicOmega) {
+		t.Fatal("cubicOmega ≠ -a/b")
+	}
+	one.SetOne()
+	w2.Square(&w).Add(&w2, &w).Add(&w2, &one)
+	if !w2.IsZero() {
+		t.Fatal("ω² + ω + 1 ≠ 0")
+	}
+	// two's complement constants
+	toBig := func(x cubicInt) *big.Int {
+		var r big.Int
+		neg := x.isNeg()
+		if neg {
+			x = x.neg()
+		}
+		for i := len(x) - 1; i >= 0; i-- {
+			r.Lsh(&r, 64).Or(&r, new(big.Int).SetUint64(x[i]))
+		}
+		if neg {
+			r.Neg(&r)
+		}
+		return &r
+	}
+	if toBig(cubicBetaA).Cmp(&a) != 0 || toBig(cubicBetaB).Cmp(&b) != 0 || toBig(cubicBetaAMinusB).Cmp(r.Sub(&a, &b)) != 0 {
+		t.Fatal("β constants mismatch")
+	}
+}
+
+func TestElementCubicResidueSymbol(t *testing.T) {
+	t.Parallel()
+	n := 100000
+	if testing.Short() {
+		n = 5000
+	}
+	var x Element
+	check := func() {
+		t.Helper()
+		if got, want := x.CubicResidueSymbol(), cubicResidueSymbolRef(t, &x); got != want {
+			t.Fatalf("x=%s: CubicResidueSymbol %d, reference %d", x.String(), got, want)
+		}
+	}
+	for v := range uint64(2000) { // small inputs, and their negations (close to q)
+		x.SetUint64(v)
+		check()
+		x.Neg(&x)
+		check()
+	}
+	for i := range 1000 { // structured inputs
+		x.SetUint64(uint64(1) << (uint(i) % 64))
+		x.Mul(&x, new(Element).SetUint64(uint64(i)))
+		check()
+	}
+	// many factors λ = 1-ω (3 = -ω²λ²): z = ±3ʲ·v, and 3ʲ·random
+	var three, r Element
+	three.SetUint64(3)
+	for v := range uint64(30) {
+		x.SetUint64(v + 1)
+		r.MustSetRandom()
+		for range 2 * Bits / 3 {
+			check()
+			x.Neg(&x)
+			check()
+			x.Mul(&x, &three)
+			r.Mul(&r, &three)
+			x, r = r, x
+			check()
+			x, r = r, x
+		}
+	}
+	for range n {
+		x.MustSetRandom()
+		check()
+	}
+}
+
+func TestElementCubicResidueSymbolProperties(t *testing.T) {
+	t.Parallel()
+	var x, y, xy, x3 Element
+	for range 2000 {
+		x.MustSetRandom()
+		y.MustSetRandom()
+		xy.Mul(&x, &y)
+		if (x.CubicResidueSymbol()+y.CubicResidueSymbol())%3 != xy.CubicResidueSymbol() {
+			t.Fatal("χ(xy) ≠ χ(x)χ(y)")
+		}
+		x3.Cube(&x)
+		if x3.CubicResidueSymbol() != 0 {
+			t.Fatal("x³ is not a cube")
+		}
+		if x.cubicResidueSymbolExp() != x.CubicResidueSymbol() {
+			t.Fatal("cubicResidueSymbolExp ≠ CubicResidueSymbol")
+		}
+	}
+	x.SetZero()
+	if x.CubicResidueSymbol() != -1 || x.cubicResidueSymbolExp() != -1 {
+		t.Fatal("the symbol of 0 is not -1")
+	}
+}
+
+func BenchmarkElementCubicResidueSymbol(b *testing.B) {
+	var x [1024]Element
+	for i := range x {
+		x[i].MustSetRandom()
+	}
+	var r int
+	b.ResetTimer()
+	for i := range b.N {
+		r += x[i%len(x)].CubicResidueSymbol()
+	}
+	benchResElement.SetInt64(int64(r))
+}

@@ -29,6 +29,10 @@
 	{{- end}}
 {{- end}}
 
+{{- if and .CubicSymbol .CubicSymbol.ExponentData}}
+	{{expByAddChain "CubicResidueExp" .CubicSymbol.ExponentData .ElementName}}
+{{- end}}
+
 {{- if .CbrtTorusHelperData}}
 	{{expByAddChain .CbrtTorusHelperName .CbrtTorusHelperData .ElementName}}
 {{- end}}
@@ -62,6 +66,9 @@
 {{- else if eq .name "CbrtQPlus8Div27"}}
 // It raises x to the (q+8)/27 power using a shorter addition chain.
 // This is used when q ≡ 19 (mod 27) for efficient cube root computation.
+{{- else if eq .name "CubicResidueExp"}}
+// It raises x to the (q-1)/3 power using a shorter addition chain.
+// This is the fallback of CubicResidueSymbol.
 {{- else if eq .name "CbrtHelperQMinus7Div9"}}
 // It raises x to the (q-7)/9 power using an addition chain.
 // This helper is used by cbrtAndNormInverse to share exponentiation between
