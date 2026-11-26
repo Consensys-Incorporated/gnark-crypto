@@ -16,6 +16,21 @@ var errNotInSubgroup = errors.New("point not in subgroup")
 var errIdentity = errors.New("identity point")
 var errHashNeeded = errors.New("hFunc cannot be nil. We need a hash for Fiat-Shamir")
 
+{{- if eq .Name "bn254" }}
+
+// FieldHasher hashes field elements into a short digest.
+// This mirrors gnark's std/hash.FieldHasher interface for off-chain use,
+// enabling EdDSA signatures that match the in-circuit hash domain exactly.
+type FieldHasher interface {
+	// Sum computes the hash of the internal state of the hash function.
+	Sum() fr.Element
+	// Write adds field elements to the internal state.
+	Write(data ...fr.Element)
+	// Reset empties the internal state.
+	Reset()
+}
+{{- end }}
+
 const (
 	sizeFr         = fr.Bytes
 	sizePublicKey  = sizeFr
@@ -284,3 +299,132 @@ func (pub *PublicKey) Verify(sigBin, message []byte, hFunc hash.Hash) (bool, err
 
 	return true, nil
 }
+
+{{- if eq .Name "bn254" }}
+
+// SignField signs a field element message using a FieldHasher.
+// This produces signatures compatible with in-circuit EdDSA verification
+// (e.g., gnark's std/signature/eddsa) when the same field-based hash is used.
+//
+// The hash is computed as: H(R.X, R.Y, A.X, A.Y, msg) over field elements,
+// matching the in-circuit hash domain exactly.
+func (privKey *PrivateKey) SignField(msg fr.Element, hFunc FieldHasher) ([]byte, error) {
+
+	if hFunc == nil {
+		return nil, errHashNeeded
+	}
+
+	curveParams := twistededwards.GetEdwardsCurve()
+
+	var res Signature
+
+	// blinding factor for the private key
+	// blindingFactorBigInt = h(randomness_source || msg_bytes)[:sizeFr]
+	var blindingFactorBigInt big.Int
+
+	msgBytes := msg.Bytes()
+	// Domain-separated nonce: prepend 0x01 to prevent nonce reuse with Sign().
+	// Sign() uses Blake2b(randSrc || msg_bytes) without a domain tag (implicitly 0x00).
+	// Without this, Sign(msg.Bytes(), h1) and SignField(msg, h2) would share the
+	// same nonce R but produce different S values, enabling private key recovery.
+	randSrc := make([]byte, 32+1+sizeFr)
+	copy(randSrc, privKey.randSrc[:])
+	randSrc[32] = 0x01 // domain separation tag for SignField
+	copy(randSrc[33:], msgBytes[:])
+
+	// randBytes = H(randSrc)
+	blindingFactorBytes := blake2b.Sum512(randSrc[:]) // deterministic nonce
+	blindingFactorBigInt.SetBytes(blindingFactorBytes[:sizeFr])
+
+	// compute R = randScalar*Base
+	res.R.ScalarMultiplication(&curveParams.Base, &blindingFactorBigInt)
+	if !res.R.IsOnCurve() {
+		return nil, errNotOnCurve
+	}
+
+	// compute H(R, A, M) using field-element based hash
+	hFunc.Reset()
+	hFunc.Write(res.R.X, res.R.Y, privKey.PublicKey.A.X, privKey.PublicKey.A.Y, msg)
+
+	var hramInt big.Int
+	hramFr := hFunc.Sum()
+	hramFr.BigInt(&hramInt)
+
+	// Compute s = randScalarInt + H(R,A,M)*S
+	// going with big int to do ops mod curve order
+	var bscalar, bs big.Int
+	bscalar.SetBytes(privKey.scalar[:])
+	bs.Mul(&hramInt, &bscalar).
+		Add(&bs, &blindingFactorBigInt).
+		Mod(&bs, &curveParams.Order)
+	sb := bs.Bytes()
+	if len(sb) < sizeFr {
+		offset := make([]byte, sizeFr-len(sb))
+		sb = append(offset, sb...)
+	}
+	copy(res.S[:], sb[:])
+
+	return res.Bytes(), nil
+}
+
+// VerifyField verifies an EdDSA signature against a field element message
+// using a FieldHasher. This is the off-chain counterpart of in-circuit
+// EdDSA verification (e.g., gnark's std/signature/eddsa).
+//
+// The hash is computed as: H(R.X, R.Y, A.X, A.Y, msg) over field elements.
+func (pub *PublicKey) VerifyField(sigBin []byte, msg fr.Element, hFunc FieldHasher) (bool, error) {
+
+	if hFunc == nil {
+		return false, errHashNeeded
+	}
+
+	curveParams := twistededwards.GetEdwardsCurve()
+
+	// verify that pubKey is on the curve
+	if !pub.A.IsOnCurve() {
+		return false, errNotOnCurve
+	}
+
+	// Deserialize the signature
+	var sig Signature
+	if _, err := sig.SetBytes(sigBin); err != nil {
+		return false, err
+	}
+
+	// compute H(R, A, M) using field-element based hash
+	hFunc.Reset()
+	hFunc.Write(sig.R.X, sig.R.Y, pub.A.X, pub.A.Y, msg)
+
+	var hramInt big.Int
+	hramFr := hFunc.Sum()
+	hramFr.BigInt(&hramInt)
+
+	// lhs = cofactor*S*Base
+	var lhs twistededwards.PointAffine
+	var bCofactor, bs big.Int
+	curveParams.Cofactor.BigInt(&bCofactor)
+	bs.SetBytes(sig.S[:])
+	lhs.ScalarMultiplication(&curveParams.Base, &bs).
+		ScalarMultiplication(&lhs, &bCofactor)
+
+	if !lhs.IsOnCurve() {
+		return false, errNotOnCurve
+	}
+
+	// rhs = cofactor*(R + H(R,A,M)*A)
+	var rhs twistededwards.PointAffine
+	rhs.ScalarMultiplication(&pub.A, &hramInt).
+		Add(&rhs, &sig.R).
+		ScalarMultiplication(&rhs, &bCofactor)
+	if !rhs.IsOnCurve() {
+		return false, errNotOnCurve
+	}
+
+	// verifies that cofactor*S*Base=cofactor*(R + H(R,A,M)*A)
+	if !lhs.X.Equal(&rhs.X) || !lhs.Y.Equal(&rhs.Y) {
+		return false, nil
+	}
+
+	return true, nil
+}
+{{- end }}
